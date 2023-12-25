@@ -20,8 +20,5 @@
 # Go workspace file
 go.work
 
-# Env file
-.env
-
 # SWAGGER file
 peerswaprpc.swagger.json
