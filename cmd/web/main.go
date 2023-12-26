@@ -1,17 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"os"
+	"strconv"
 
-	"github.com/go-openapi/strfmt"
-
-	apiclient "peerswap-web/client"
-
-	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/elementsproject/peerswap/peerswaprpc"
+	"google.golang.org/grpc"
 )
 
 type Page struct {
@@ -34,28 +32,36 @@ func main() {
 
 func indexPage(w http.ResponseWriter, r *http.Request) {
 
-	RpcHost := os.Getenv("RPC_HOST")
+	host := "localhost:42069"
 
-	if RpcHost == "" {
-		RpcHost = "localhost:42070"
+	maxMsgRecvSize := grpc.MaxCallRecvMsgSize(1 * 1024 * 1024 * 200)
+	opts := []grpc.DialOption{
+		grpc.WithDefaultCallOptions(maxMsgRecvSize),
+		grpc.WithInsecure(),
 	}
-	// create the transport
-	transport := httptransport.New(RpcHost, "", nil)
 
-	// create the API client, with the transport
-	client := apiclient.New(transport, strfmt.Default)
+	conn, err := grpc.Dial(host, opts...)
+	if err != nil {
+		log.Fatal(fmt.Errorf("unable to connect to RPC server: %v",
+			err))
+	}
 
+	defer func() { conn.Close() }()
+
+	psClient := peerswaprpc.NewPeerSwapClient(conn)
+
+	ctx := context.Background()
 	// make the request to get liquid balance
-	resp, err := client.PeerSwap.PeerSwapLiquidGetBalance(nil)
+	resp, err := psClient.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	satAmount := resp.Payload.SatAmount
+	satAmount := resp.GetSatAmount()
 
-	fmt.Printf("%#v\n", resp.Payload)
+	fmt.Println(satAmount)
 
-	tmpl, err := template.ParseFiles("layout.html")
+	tmpl, err := template.ParseFiles("cmd/web/layout.html")
 	if err != nil {
 		// Log the detailed error
 		log.Println(err.Error())
@@ -66,7 +72,7 @@ func indexPage(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Title:     "PeerSwap",
-		SatAmount: satAmount,
+		SatAmount: strconv.FormatUint(satAmount, 10),
 	}
 
 	err = tmpl.Execute(w, data)
