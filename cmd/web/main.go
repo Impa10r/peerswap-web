@@ -55,7 +55,7 @@ func indexPage(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("%#v\n", resp.Payload)
 
-	tmpl, err := template.ParseFiles("layout.html")
+	tmpl, err := template.ParseFiles("cmd/web/layout.html")
 	if err != nil {
 		// Log the detailed error
 		log.Println(err.Error())
