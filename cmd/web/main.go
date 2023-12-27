@@ -61,7 +61,7 @@ func indexPage(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println(satAmount)
 
-	tmpl, err := template.ParseFiles("cmd/web/layout.html")
+	tmpl, err := template.ParseFiles("templates/layout.html")
 	if err != nil {
 		// Log the detailed error
 		log.Println(err.Error())
