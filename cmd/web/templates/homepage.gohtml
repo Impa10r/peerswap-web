@@ -5,16 +5,15 @@
       <h1 class="title is-4">🌊 Liqiud balance: {{.SatAmount}}</h1>
       <div class="columns">
         <div class="column">
-          {{.ListPeers}}
-        </div>
-        <div class="column">
           <div class="box">
-            <strong>Sat Amount</strong>: {{.SatAmount}}<br>
+            <h2> Peers </h3>
+            {{.ListPeers}}
           </div>
         </div>
         <div class="column">
           <div class="box">
-            <strong>Sat Amount</strong>: {{.SatAmount}}<br>
+            <h2> Swaps </h3>            
+            {{.ListSwaps}}
           </div>
         </div>
       </div>

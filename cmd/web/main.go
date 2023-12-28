@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"google.golang.org/grpc"
@@ -34,7 +35,7 @@ var templates = template.New("")
 func main() {
 	// simulate loading from config file
 	Config = Configuration{
-		RpcHost:     "localhost:42069",
+		RpcHost:     "localhost:42071",
 		ListenPort:  "8088",
 		ColorScheme: "dark", // dark or light
 		MempoolApi:  "https://mempool.space/testnet/api/v1/lightning/search?searchText=",
@@ -83,18 +84,26 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(500), 500)
 	}
 	peers := res2.GetPeers()
-	//fmt.Println(peers)
+
+	res3, err3 := client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
+	if err3 != nil {
+		log.Fatalln(err3)
+		http.Error(w, http.StatusText(500), 500)
+	}
+	swaps := res3.GetSwaps()
 
 	type Page struct {
 		ColorScheme string
 		SatAmount   string
 		ListPeers   string
+		ListSwaps   string
 	}
 
 	data := Page{
 		ColorScheme: Config.ColorScheme,
 		SatAmount:   addThousandSeparators(satAmount),
 		ListPeers:   convertPeersToHTMLTable(peers),
+		ListSwaps:   convertSwapsToHTMLTable(swaps),
 	}
 
 	// executing template named "homepage"
@@ -180,26 +189,29 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		var totalLocal uint64
 		var totalCapacity uint64
 
-		table := ""
-		table += "<div class=\"box\">"
-		table += "<center>"
-		table += "<p style=\"word-wrap: break-word\">"
+		table := "<table style=\"width=100%; table-layout:fixed;\"><tr><td>"
 		if peer.SwapsAllowed {
 			table += "✅"
 		} else {
 			table += "⛔"
 		}
-		table += "-"
+		table += "</td><td>"
 		table += getNodeAlias(peer.NodeId)
-		table += "-"
+		table += "</td><td>"
 		if stringInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊"
 		}
 		if stringInSlice("btc", peer.SupportedAssets) {
 			table += "₿"
 		}
-		table += "</p>"
-		table += "<table align=center>"
+		table += "</td></tr></table>"
+
+		bc := "#494949"
+		if Config.ColorScheme == "light" {
+			bc = "#F4F4F4"
+		}
+
+		table += "<div class=\"block\"><table style=\"background-color: " + bc + "; table-layout:fixed;\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -219,9 +231,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			table += addThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
-		table += "</table>"
-		table += "</center>"
-		table += "</div>"
+		table += "</table></div>"
+		//table += "<br>"
 
 		pct := int(float64(totalLocal) / float64(totalCapacity) * 100)
 
@@ -241,6 +252,57 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		table += t.HtmlBlob
 	}
 
+	return table
+}
+
+// converts a list of swaps into an HTML table
+func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
+
+	table := "<table>"
+
+	for _, swap := range swaps {
+		table += "<tr><td>"
+
+		tm := time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05")
+		table += tm
+
+		table += "</td><td>"
+
+		switch swap.State {
+		case "State_SwapCanceled":
+			table += "❌"
+		case "State_ClaimedPreimage":
+			table += "💰"
+		default:
+			table += "?"
+		}
+
+		table += addThousandSeparators(swap.Amount)
+
+		switch swap.Type {
+		case "swap-out":
+			table += "⚡⇨"
+		case "swap-in":
+			table += "⚡⇦"
+		default:
+			table += "?"
+		}
+
+		switch swap.Asset {
+		case "lbtc":
+			table += "🌊"
+		case "btc":
+			table += "₿"
+		default:
+			table += "?"
+		}
+
+		table += "</td><td>"
+
+		table += getNodeAlias(swap.PeerNodeId)
+		table += "</td></tr>"
+	}
+	table += "</table>"
 	return table
 }
 
@@ -270,7 +332,6 @@ func getNodeAlias(id string) string {
 				defer resp.Body.Close()
 				buf := new(bytes.Buffer)
 				_, _ = buf.ReadFrom(resp.Body)
-				fmt.Println("Response Body:", buf.String())
 
 				// Define a struct to match the JSON structure
 				type Node struct {

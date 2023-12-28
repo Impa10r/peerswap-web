@@ -10,8 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/web/",
-            "envFile": "${workspaceFolder}/.env",
-            "showLog": false
+            "showLog": true
         },     
         {
             "name": "Connect to VirtualBox",
