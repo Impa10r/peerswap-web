@@ -13,26 +13,35 @@ import (
 )
 
 type Configuration struct {
-	RpcHost    string
-	ListenPort string
+	RpcHost     string
+	ListenPort  string
+	ColorScheme string
 }
 
-var config Configuration
+var Config Configuration
+var templates = template.New("")
 
 func main() {
 	// simulate loading from config file
-	config = Configuration{
-		RpcHost:    "localhost:42069",
-		ListenPort: "8088",
+	Config = Configuration{
+		RpcHost:     "localhost:42071",
+		ListenPort:  "8088",
+		ColorScheme: "dark", // dark or light
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 	http.HandleFunc("/", homePage)
 
-	log.Println("Listening on http://localhost:" + config.ListenPort)
-	err := http.ListenAndServe(":"+config.ListenPort, nil)
+	// loading and parsing templates preemptively
+	var err error
+	templates, err = templates.ParseGlob("templates/*.gohtml")
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	log.Println("Listening on http://localhost:" + Config.ListenPort)
+	err = http.ListenAndServe(":"+Config.ListenPort, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,7 +49,7 @@ func main() {
 
 func homePage(w http.ResponseWriter, r *http.Request) {
 
-	host := config.RpcHost
+	host := Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -56,30 +65,27 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res.GetSatAmount()
 
-	fmt.Println(satAmount)
-
-	// loading and parsing templates
-	tmpl, err := template.New("").ParseGlob("templates/*.gohtml")
-	if err != nil {
-		// Log the detailed error
-		log.Println(err.Error())
-		// Return a generic "Internal Server Error" message
-		http.Error(w, http.StatusText(500), 500)
-		return
+	res2, err2 := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
+	if err2 != nil {
+		log.Fatal(err2)
 	}
+	peers := res2.GetPeers()
+	fmt.Println(peers)
 
 	type Page struct {
-		Title     string
-		SatAmount string
+		ColorScheme string
+		SatAmount   string
+		PeerList    string
 	}
 
 	data := Page{
-		Title:     "PeerSwap",
-		SatAmount: strconv.FormatUint(satAmount, 10),
+		ColorScheme: Config.ColorScheme,
+		SatAmount:   addThousandSeparators(satAmount),
+		PeerList:    convertPeersToHTMLTable(peers),
 	}
 
 	// executing template named "homepage"
-	err = tmpl.ExecuteTemplate(w, "homepage", data)
+	err = templates.ExecuteTemplate(w, "homepage", data)
 	if err != nil {
 		log.Fatalln(err.Error())
 		http.Error(w, http.StatusText(500), 500)
@@ -113,4 +119,93 @@ func getClientConn(address string) (*grpc.ClientConn,
 	}
 
 	return conn, nil
+}
+
+func addThousandSeparators(n uint64) string {
+	// Convert the integer to a string
+	numStr := strconv.FormatUint(n, 10)
+
+	// Determine the length of the number
+	length := len(numStr)
+
+	// Calculate the number of separators needed
+	separatorCount := (length - 1) / 3
+
+	// Create a new string with separators
+	result := make([]byte, length+separatorCount)
+
+	// Iterate through the string in reverse to add separators
+	j := 0
+	for i := length - 1; i >= 0; i-- {
+		result[j] = numStr[i]
+		j++
+		if i > 0 && (length-i)%3 == 0 {
+			result[j] = ','
+			j++
+		}
+	}
+
+	// Reverse the result to get the correct order
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
+
+	return string(result)
+}
+
+// converts a list of peers into an HTML table
+func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
+	table := ""
+
+	for _, peer := range peers {
+		table += "<p style=\"word-wrap: break-word\">"
+		if peer.SwapsAllowed {
+			table += "✅"
+		} else {
+			table += "⛔"
+		}
+		if stringInSlice("btc", peer.SupportedAssets) {
+			table += "₿"
+		}
+		if stringInSlice("lbtc", peer.SupportedAssets) {
+			table += "🌊"
+		}
+
+		table += getNodeAlias(peer.NodeId)
+		table += "</p>"
+		table += "<table align=center>"
+
+		// Construct channels data
+		for _, channel := range peer.Channels {
+			table += "<tr><td style=\"width: 40%; text-align: center\">"
+			table += addThousandSeparators(channel.LocalBalance)
+			table += "</td><td>"
+			local := strconv.FormatUint(channel.LocalBalance, 10)
+			total := strconv.FormatUint(channel.LocalBalance+channel.RemoteBalance, 10)
+			active := "❌"
+			if channel.Active {
+				active = "<progress value=" + local + " max=" + total + "></progress>"
+			}
+			table += active + "</td><td>"
+			table += "<td style=\"width: 40%; text-align: center\">"
+			table += addThousandSeparators(channel.RemoteBalance)
+			table += "</td></tr>"
+		}
+		table += "</table>"
+	}
+	return table
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
+func getNodeAlias(id string) string {
+	// do to later
+	return id
 }

@@ -1,27 +1,33 @@
 {{define "header"}}
     <!DOCTYPE html>
     <html>
-
     <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/bulma.min.css">
+    <title>PeerSwap Web UI</title>
+    <link rel="stylesheet" href="/static/bulma-{{.ColorScheme}}.min.css">
+    <style>
+        th, td {
+        padding: 2px;
+        }
+    </style>
     </head>
-
     <body>
+        <header>
+            <center>
+                <a href="/"><img src="/static/peerswap_logo_{{.ColorScheme}}.png" alt="PeerSwap" width="200"></a>
+            </center>
+        </header>
 {{end}}
 
 {{define "footer"}}
-    <footer class="footer">
         <div class="container">
         <div class="content has-text-centered">
             <p>
-            <strong>PeerSwap Web UI</strong> by Impalor. The <a href="https://github.com/Impa10r/peerswap-web" target="_blank">source code is MIT licensed</a> 
+            <strong>PeerSwap Web UI</strong> by <a href="https://github.com/Impa10r/peerswap-web" target="_blank">Impa10r</a>.
             </p>
         </div>
         </div>
-    </footer>
     </body>
     </html>
 {{end}}

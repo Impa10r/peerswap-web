@@ -2,12 +2,11 @@
   {{template "header" .}}
   <section class="section">
     <div class="container">
-      <h1 class="title is-1">{{.Title}}</h1>
-      <h1 class="title is-4">🌊 Liqiud balance: {{.SatAmount}} sats</h1>
+      <h1 class="title is-4">🌊 Liqiud balance: {{.SatAmount}}</h1>
       <div class="columns">
         <div class="column">
           <div class="box">
-            <strong>Sat Amount</strong>: {{.SatAmount}}<br>
+            {{.PeerList}}
           </div>
         </div>
         <div class="column">
