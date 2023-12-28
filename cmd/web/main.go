@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,17 +18,25 @@ type Configuration struct {
 	RpcHost     string
 	ListenPort  string
 	ColorScheme string
+	MempoolApi  string
 }
 
+type AliasCache struct {
+	PublicKey string
+	Alias     string
+}
+
+var cache []AliasCache
 var Config Configuration
 var templates = template.New("")
 
 func main() {
 	// simulate loading from config file
 	Config = Configuration{
-		RpcHost:     "localhost:42069",
+		RpcHost:     "localhost:42071",
 		ListenPort:  "8088",
 		ColorScheme: "dark", // dark or light
+		MempoolApi:  "https://mempool.space/testnet/api/v1/lightning/search?searchText=",
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
@@ -160,26 +170,29 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 	table := ""
 
 	for _, peer := range peers {
+		table += "<div class=\"box\">"
+		table += "<center>"
 		table += "<p style=\"word-wrap: break-word\">"
 		if peer.SwapsAllowed {
 			table += "✅"
 		} else {
 			table += "⛔"
 		}
-		if stringInSlice("btc", peer.SupportedAssets) {
-			table += "₿"
-		}
+		table += "-"
+		table += getNodeAlias(peer.NodeId)
+		table += "-"
 		if stringInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊"
 		}
-
-		table += getNodeAlias(peer.NodeId)
+		if stringInSlice("btc", peer.SupportedAssets) {
+			table += "₿"
+		}
 		table += "</p>"
 		table += "<table align=center>"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
-			table += "<tr><td style=\"width: 40%; text-align: center\">"
+			table += "<tr><td style=\"width: 250px; text-align: center\">"
 			table += addThousandSeparators(channel.LocalBalance)
 			table += "</td><td>"
 			local := strconv.FormatUint(channel.LocalBalance, 10)
@@ -189,11 +202,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 				active = "<progress value=" + local + " max=" + total + "></progress>"
 			}
 			table += active + "</td><td>"
-			table += "<td style=\"width: 40%; text-align: center\">"
+			table += "<td style=\"width: 250px; text-align: center\">"
 			table += addThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
 		table += "</table>"
+		table += "</center>"
+		table += "</div>"
 	}
 	return table
 }
@@ -208,6 +223,57 @@ func stringInSlice(a string, list []string) bool {
 }
 
 func getNodeAlias(id string) string {
-	// do to later
+
+	for _, n := range cache {
+		if n.PublicKey == id {
+			return n.Alias
+		}
+	}
+
+	if Config.MempoolApi != "" {
+		req, err := http.NewRequest("GET", Config.MempoolApi+id, nil)
+		if err == nil {
+			cl := &http.Client{}
+			resp, err2 := cl.Do(req)
+			if err2 == nil {
+				defer resp.Body.Close()
+				buf := new(bytes.Buffer)
+				_, _ = buf.ReadFrom(resp.Body)
+				fmt.Println("Response Body:", buf.String())
+
+				// Define a struct to match the JSON structure
+				type Node struct {
+					PublicKey string `json:"public_key"`
+					Alias     string `json:"alias"`
+					Capacity  uint64 `json:"capacity"`
+					Channels  uint   `json:"channels"`
+					Status    uint   `json:"status"`
+				}
+				type Nodes struct {
+					Nodes    []Node   `json:"nodes"`
+					Channels []string `json:"channels"`
+				}
+
+				// Create an instance of the struct to store the parsed data
+				var nodes Nodes
+
+				// Unmarshal the JSON string into the struct
+				if err := json.Unmarshal([]byte(buf.String()), &nodes); err != nil {
+					fmt.Println("Error:", err)
+					return id
+				}
+
+				if len(nodes.Nodes) > 0 {
+					cache = append(cache, AliasCache{
+						PublicKey: nodes.Nodes[0].PublicKey,
+						Alias:     nodes.Nodes[0].Alias,
+					})
+					return nodes.Nodes[0].Alias
+				} else {
+					return id
+				}
+			}
+		}
+	}
 	return id
 }
