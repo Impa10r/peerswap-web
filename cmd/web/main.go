@@ -44,6 +44,7 @@ func main() {
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 	http.HandleFunc("/", homePage)
+	http.HandleFunc("/swap", swapPage)
 
 	// loading and parsing templates preemptively
 	var err error
@@ -114,6 +115,56 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func swapPage(w http.ResponseWriter, r *http.Request) {
+	keys, ok := r.URL.Query()["id"]
+	if !ok || len(keys[0]) < 1 {
+		fmt.Println("URL parameter 'id' is missing")
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+
+	id := keys[0]
+	fmt.Println("URL parameter 'key':", id)
+
+	host := Config.RpcHost
+	ctx := context.Background()
+
+	client, cleanup, err := getClient(host)
+	if err != nil {
+		log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+	}
+	defer cleanup()
+
+	res, err := client.GetSwap(ctx, &peerswaprpc.GetSwapRequest{
+		SwapId: id,
+	})
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+
+	swap := res.GetSwap()
+
+	type Page struct {
+		ColorScheme string
+		Swap        *peerswaprpc.PrettyPrintSwap
+		CreatedAt   string
+	}
+
+	data := Page{
+		ColorScheme: Config.ColorScheme,
+		Swap:        swap,
+		CreatedAt:   time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05"),
+	}
+
+	// executing template named "homepage"
+	err = templates.ExecuteTemplate(w, "swap", data)
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
 func getClient(rpcServer string) (peerswaprpc.PeerSwapClient, func(), error) {
 	conn, err := getClientConn(rpcServer)
 	if err != nil {
@@ -125,8 +176,7 @@ func getClient(rpcServer string) (peerswaprpc.PeerSwapClient, func(), error) {
 	return psClient, cleanup, nil
 }
 
-func getClientConn(address string) (*grpc.ClientConn,
-	error) {
+func getClientConn(address string) (*grpc.ClientConn, error) {
 
 	maxMsgRecvSize := grpc.MaxCallRecvMsgSize(1 * 1024 * 1024 * 200)
 	opts := []grpc.DialOption{
@@ -189,29 +239,29 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		var totalLocal uint64
 		var totalCapacity uint64
 
-		table := "<table style=\"width=100%; table-layout:fixed;\"><tr><td>"
+		table := "<table style=\"table-layout:fixed; width: 100%\">"
+		table += "<tr><td style=\"float: left; text-align: left; width: 80%;\">"
 		if peer.SwapsAllowed {
-			table += "✅"
+			table += "✅&nbsp"
 		} else {
-			table += "⛔"
+			table += "⛔&nbsp"
 		}
-		table += "</td><td>"
 		table += getNodeAlias(peer.NodeId)
-		table += "</td><td>"
+		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
 		if stringInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊"
 		}
 		if stringInSlice("btc", peer.SupportedAssets) {
 			table += "₿"
 		}
-		table += "</td></tr></table>"
+		table += "</div></td></tr></table>"
 
 		bc := "#494949"
 		if Config.ColorScheme == "light" {
 			bc = "#F4F4F4"
 		}
 
-		table += "<div class=\"block\"><table style=\"background-color: " + bc + "; table-layout:fixed;\">"
+		table += "<table style=\"background-color: " + bc + "; table-layout:fixed;\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -231,8 +281,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			table += addThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
-		table += "</table></div>"
-		//table += "<br>"
+		table += "</table>"
 
 		pct := int(float64(totalLocal) / float64(totalCapacity) * 100)
 
@@ -261,18 +310,19 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	table := "<table>"
 
 	for _, swap := range swaps {
-		table += "<tr><td>"
+		table += "<tr><td style=\"width: 30%;\">"
 
 		tm := time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05")
-		table += tm
 
-		table += "</td><td>"
+		// clicking on timestamp will open swap details page
+		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a>"
+		table += "</td><td style=\"width: 30%;\">"
 
 		switch swap.State {
 		case "State_SwapCanceled":
-			table += "❌"
+			table += "❌&nbsp"
 		case "State_ClaimedPreimage":
-			table += "💰"
+			table += "💰&nbsp"
 		default:
 			table += "?"
 		}
@@ -281,11 +331,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		switch swap.Type {
 		case "swap-out":
-			table += "⚡⇨"
+			table += " ⚡&nbsp⇨&nbsp"
 		case "swap-in":
-			table += "⚡⇦"
+			table += " ⚡&nbsp⇦&nbsp"
 		default:
-			table += "?"
+			table += " &nbsp?&nbsp"
 		}
 
 		switch swap.Asset {
@@ -297,7 +347,16 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			table += "?"
 		}
 
-		table += "</td><td>"
+		table += "</td><td style=\"width: 35%;\">"
+
+		switch swap.Role {
+		case "receiver":
+			table += "⇩&nbsp"
+		case "sender":
+			table += "⇧&nbsp"
+		default:
+			table += "?&nbsp"
+		}
 
 		table += getNodeAlias(swap.PeerNodeId)
 		table += "</td></tr>"

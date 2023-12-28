@@ -1,0 +1,32 @@
+{{define "swap"}}
+  {{template "header" .}}
+  <section class="section">
+    <div class="container">
+      <h1 class="title is-4">Swap Details</h1>
+      <div class="columns">
+        <div class="column">
+          <div class="box">
+            <table>
+              <tr><td>ID:</td><td style="overflow-wrap: break-word;">{{.Swap.Id}}</td></tr>
+              <tr><td>Created At:</td><td >{{.CreatedAt}}</td></tr>
+              <tr><td>Asset:</td><td>{{.Swap.Asset}}</td></tr>
+              <tr><td>Type:</td><td>{{.Swap.Type}}</td></tr>
+              <tr><td>Role:</td><td >{{.Swap.Role}}</td></tr>
+              <tr><td>State:</td><td >{{.Swap.State}}</td></tr>
+              <tr><td>InitiatorNodeId:</td><td style="overflow-wrap: break-word;>{{.Swap.InitiatorNodeId}}</td></tr>
+              <tr><td>PeerNodeId:</td><td style="overflow-wrap: break-word;>{{.Swap.PeerNodeId}}</td></tr>
+              <tr><td>Amount:</td><td>{{.Swap.Amount}}</td></tr>
+              <tr><td>ChannelId:</td><td>{{.Swap.ChannelId}}</td></tr>
+              <tr><td>OpeningTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.OpeningTxId}}</td></tr>
+              <tr><td>ClaimTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.ClaimTxId}}</td></tr>
+              <tr><td>ChannelId:</td><td>{{.Swap.ChannelId}}</td></tr>
+              <tr><td>CancelMessage:</td><td>{{.Swap.CancelMessage}}</td></tr>
+              <tr><td>LndChanId:</td><td>{{.Swap.LndChanId}}</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {{template "footer" .}}
+{{end}}
