@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"text/template"
 
@@ -33,7 +34,7 @@ var templates = template.New("")
 func main() {
 	// simulate loading from config file
 	Config = Configuration{
-		RpcHost:     "localhost:42071",
+		RpcHost:     "localhost:42069",
 		ListenPort:  "8088",
 		ColorScheme: "dark", // dark or light
 		MempoolApi:  "https://mempool.space/testnet/api/v1/lightning/search?searchText=",
@@ -167,9 +168,19 @@ func addThousandSeparators(n uint64) string {
 
 // converts a list of peers into an HTML table
 func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
-	table := ""
+
+	type Table struct {
+		AvgLocal int
+		HtmlBlob string
+	}
+
+	var unsortedTable []Table
 
 	for _, peer := range peers {
+		var totalLocal uint64
+		var totalCapacity uint64
+
+		table := ""
 		table += "<div class=\"box\">"
 		table += "<center>"
 		table += "<p style=\"word-wrap: break-word\">"
@@ -195,11 +206,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			table += "<tr><td style=\"width: 250px; text-align: center\">"
 			table += addThousandSeparators(channel.LocalBalance)
 			table += "</td><td>"
-			local := strconv.FormatUint(channel.LocalBalance, 10)
-			total := strconv.FormatUint(channel.LocalBalance+channel.RemoteBalance, 10)
+			local := channel.LocalBalance
+			capacity := channel.LocalBalance + channel.RemoteBalance
+			totalLocal += local
+			totalCapacity += capacity
 			active := "❌"
 			if channel.Active {
-				active = "<progress value=" + local + " max=" + total + "></progress>"
+				active = "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + "></progress>"
 			}
 			table += active + "</td><td>"
 			table += "<td style=\"width: 250px; text-align: center\">"
@@ -209,7 +222,25 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		table += "</table>"
 		table += "</center>"
 		table += "</div>"
+
+		pct := int(float64(totalLocal) / float64(totalCapacity) * 100)
+
+		unsortedTable = append(unsortedTable, Table{
+			AvgLocal: pct,
+			HtmlBlob: table,
+		})
 	}
+
+	// sort the table on AvgLocal field
+	sort.Slice(unsortedTable, func(i, j int) bool {
+		return unsortedTable[i].AvgLocal < unsortedTable[j].AvgLocal
+	})
+
+	table := ""
+	for _, t := range unsortedTable {
+		table += t.HtmlBlob
+	}
+
 	return table
 }
 
