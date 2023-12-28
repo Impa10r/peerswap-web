@@ -24,7 +24,7 @@ var templates = template.New("")
 func main() {
 	// simulate loading from config file
 	Config = Configuration{
-		RpcHost:     "localhost:42071",
+		RpcHost:     "localhost:42069",
 		ListenPort:  "8088",
 		ColorScheme: "dark", // dark or light
 	}
@@ -60,34 +60,36 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 	res, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
 	}
 
 	satAmount := res.GetSatAmount()
 
 	res2, err2 := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
 	if err2 != nil {
-		log.Fatal(err2)
+		log.Fatalln(err2)
+		http.Error(w, http.StatusText(500), 500)
 	}
 	peers := res2.GetPeers()
-	fmt.Println(peers)
+	//fmt.Println(peers)
 
 	type Page struct {
 		ColorScheme string
 		SatAmount   string
-		PeerList    string
+		ListPeers   string
 	}
 
 	data := Page{
 		ColorScheme: Config.ColorScheme,
 		SatAmount:   addThousandSeparators(satAmount),
-		PeerList:    convertPeersToHTMLTable(peers),
+		ListPeers:   convertPeersToHTMLTable(peers),
 	}
 
 	// executing template named "homepage"
 	err = templates.ExecuteTemplate(w, "homepage", data)
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
 	}
 }
