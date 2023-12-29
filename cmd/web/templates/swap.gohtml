@@ -11,16 +11,15 @@
               <tr><td>Created At:</td><td >{{.CreatedAt}}</td></tr>
               <tr><td>Asset:</td><td>{{.Swap.Asset}}</td></tr>
               <tr><td>Type:</td><td>{{.Swap.Type}}</td></tr>
-              <tr><td>Role:</td><td >{{.Swap.Role}}</td></tr>
-              <tr><td>State:</td><td >{{.Swap.State}}</td></tr>
-              <tr><td>InitiatorNodeId:</td><td style="overflow-wrap: break-word;>{{.Swap.InitiatorNodeId}}</td></tr>
-              <tr><td>PeerNodeId:</td><td style="overflow-wrap: break-word;>{{.Swap.PeerNodeId}}</td></tr>
+              <tr><td>Role:</td><td>{{.Swap.Role}}</td></tr>
+              <tr><td>State:</td><td>{{.Swap.State}}</td></tr>
+              <tr><td>Initiator:</td><td style="overflow-wrap: break-word;"><a href="{{.NodeUrl}}{{.Swap.InitiatorNodeId}}" target="_blank">{{.InitiatorAlias}}</a></td></tr>
+              <tr><td>Peer:</td><td style="overflow-wrap: break-word;"><a href="{{.NodeUrl}}{{.Swap.PeerNodeId}}" target="_blank">{{.PeerAlias}}</a></td></tr>
               <tr><td>Amount:</td><td>{{.Swap.Amount}}</td></tr>
               <tr><td>ChannelId:</td><td>{{.Swap.ChannelId}}</td></tr>
-              <tr><td>OpeningTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.OpeningTxId}}</td></tr>
-              <tr><td>ClaimTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.ClaimTxId}}</td></tr>
-              <tr><td>ChannelId:</td><td>{{.Swap.ChannelId}}</td></tr>
-              <tr><td>CancelMessage:</td><td>{{.Swap.CancelMessage}}</td></tr>
+              <tr><td>OpeningTxId:</td><td style="overflow-wrap: break-word;"><a href="{{.TxUrl}}{{.Swap.OpeningTxId}}" target="_blank">{{.Swap.OpeningTxId}}</a></td></tr>
+              <tr><td>ClaimTxId:</td><td style="overflow-wrap: break-word;"><a href="{{.TxUrl}}{{.Swap.ClaimTxId}}" target="_blank">{{.Swap.ClaimTxId}}</a></td></tr>
+              <tr><td>CancelMsg:</td><td>{{.Swap.CancelMessage}}</td></tr>
               <tr><td>LndChanId:</td><td>{{.Swap.LndChanId}}</td></tr>
             </table>
           </div>

@@ -14,6 +14,8 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"google.golang.org/grpc"
+
+	"peerswap-web/utils"
 )
 
 type Configuration struct {
@@ -21,6 +23,7 @@ type Configuration struct {
 	ListenPort  string
 	ColorScheme string
 	MempoolApi  string
+	LiquidApi   string
 }
 
 type AliasCache struct {
@@ -35,16 +38,18 @@ var templates = template.New("")
 func main() {
 	// simulate loading from config file
 	Config = Configuration{
-		RpcHost:     "localhost:42071",
+		RpcHost:     "localhost:42069",
 		ListenPort:  "8088",
-		ColorScheme: "dark", // dark or light
-		MempoolApi:  "https://mempool.space/testnet/api/v1/lightning/search?searchText=",
+		ColorScheme: "dark",                           // dark or light
+		MempoolApi:  "https://mempool.space/testnet",  // remove testnet for mainnet
+		LiquidApi:   "https://liquid.network/testnet", // remove testnet for mainnet
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 	http.HandleFunc("/", homePage)
-	http.HandleFunc("/swap", swapPage)
+	http.HandleFunc("/swap", swapDetails)
+	http.HandleFunc("/peer", peerDetails)
 
 	// loading and parsing templates preemptively
 	var err error
@@ -93,6 +98,13 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res3.GetSwaps()
 
+	res4, err4 := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
+	if err4 != nil {
+		log.Fatalln(err4)
+		http.Error(w, http.StatusText(500), 500)
+	}
+	allowlistedPeers := res4.GetAllowlistedPeers()
+
 	type Page struct {
 		ColorScheme string
 		SatAmount   string
@@ -102,8 +114,8 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		ColorScheme: Config.ColorScheme,
-		SatAmount:   addThousandSeparators(satAmount),
-		ListPeers:   convertPeersToHTMLTable(peers),
+		SatAmount:   utils.FormatWithThousandSeparators(satAmount),
+		ListPeers:   convertPeersToHTMLTable(peers, allowlistedPeers),
 		ListSwaps:   convertSwapsToHTMLTable(swaps),
 	}
 
@@ -115,7 +127,7 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func swapPage(w http.ResponseWriter, r *http.Request) {
+func peerDetails(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
 		fmt.Println("URL parameter 'id' is missing")
@@ -124,8 +136,57 @@ func swapPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	fmt.Println("URL parameter 'key':", id)
+	host := Config.RpcHost
+	ctx := context.Background()
 
+	client, cleanup, err := getClient(host)
+	if err != nil {
+		log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+	}
+	defer cleanup()
+
+	res, err := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+	peers := res.GetPeers()
+	peer := findPeerById(peers, id)
+
+	if peer == nil {
+		log.Fatalln("Peer not found")
+		http.Error(w, http.StatusText(500), 500)
+	}
+
+	type Page struct {
+		ColorScheme string
+		Peer        *peerswaprpc.PeerSwapPeer
+		PeerAlias   string
+	}
+
+	data := Page{
+		ColorScheme: Config.ColorScheme,
+		Peer:        peer,
+		PeerAlias:   getNodeAlias(peer.NodeId),
+	}
+
+	// executing template named "peer"
+	err = templates.ExecuteTemplate(w, "peer", data)
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
+func swapDetails(w http.ResponseWriter, r *http.Request) {
+	keys, ok := r.URL.Query()["id"]
+	if !ok || len(keys[0]) < 1 {
+		fmt.Println("URL parameter 'id' is missing")
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+
+	id := keys[0]
 	host := Config.RpcHost
 	ctx := context.Background()
 
@@ -146,18 +207,31 @@ func swapPage(w http.ResponseWriter, r *http.Request) {
 	swap := res.GetSwap()
 
 	type Page struct {
-		ColorScheme string
-		Swap        *peerswaprpc.PrettyPrintSwap
-		CreatedAt   string
+		ColorScheme    string
+		Swap           *peerswaprpc.PrettyPrintSwap
+		CreatedAt      string
+		TxUrl          string // to open tx on mempool.space or liquid.network
+		NodeUrl        string // to open tx on mempool.space
+		InitiatorAlias string
+		PeerAlias      string
+	}
+
+	url := Config.MempoolApi
+	if swap.Asset == "lbtc" {
+		url = Config.LiquidApi
 	}
 
 	data := Page{
-		ColorScheme: Config.ColorScheme,
-		Swap:        swap,
-		CreatedAt:   time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05"),
+		ColorScheme:    Config.ColorScheme,
+		Swap:           swap,
+		CreatedAt:      time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05"),
+		TxUrl:          url + "/tx/",
+		NodeUrl:        Config.MempoolApi + "/lightning/node/",
+		InitiatorAlias: getNodeAlias(swap.InitiatorNodeId),
+		PeerAlias:      getNodeAlias(swap.PeerNodeId),
 	}
 
-	// executing template named "homepage"
+	// executing template named "swap"
 	err = templates.ExecuteTemplate(w, "swap", data)
 	if err != nil {
 		log.Fatalln(err)
@@ -193,40 +267,8 @@ func getClientConn(address string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func addThousandSeparators(n uint64) string {
-	// Convert the integer to a string
-	numStr := strconv.FormatUint(n, 10)
-
-	// Determine the length of the number
-	length := len(numStr)
-
-	// Calculate the number of separators needed
-	separatorCount := (length - 1) / 3
-
-	// Create a new string with separators
-	result := make([]byte, length+separatorCount)
-
-	// Iterate through the string in reverse to add separators
-	j := 0
-	for i := length - 1; i >= 0; i-- {
-		result[j] = numStr[i]
-		j++
-		if i > 0 && (length-i)%3 == 0 {
-			result[j] = ','
-			j++
-		}
-	}
-
-	// Reverse the result to get the correct order
-	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
-		result[i], result[j] = result[j], result[i]
-	}
-
-	return string(result)
-}
-
-// converts a list of peers into an HTML table
-func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
+// converts a list of peers into an HTML table to display
+func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string) string {
 
 	type Table struct {
 		AvgLocal int
@@ -241,44 +283,59 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
 		table += "<tr><td style=\"float: left; text-align: left; width: 80%;\">"
+		if utils.StringIsInSlice(peer.NodeId, allowlistedPeers) {
+			table += "✅&nbsp&nbsp"
+		} else {
+			table += "⛔&nbsp&nbsp"
+		}
+		// alias is a link to open peer details page
+		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		table += getNodeAlias(peer.NodeId) + "</a>"
+		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
 		if peer.SwapsAllowed {
 			table += "✅&nbsp"
 		} else {
 			table += "⛔&nbsp"
 		}
-		table += getNodeAlias(peer.NodeId)
-		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
-		if stringInSlice("lbtc", peer.SupportedAssets) {
+		if utils.StringIsInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊"
 		}
-		if stringInSlice("btc", peer.SupportedAssets) {
+		if utils.StringIsInSlice("btc", peer.SupportedAssets) {
 			table += "₿"
 		}
 		table += "</div></td></tr></table>"
 
-		bc := "#494949"
-		if Config.ColorScheme == "light" {
-			bc = "#F4F4F4"
-		}
-
-		table += "<table style=\"background-color: " + bc + "; table-layout:fixed;\">"
+		table += "<table style=\"table-layout:fixed;\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
-			table += "<tr><td style=\"width: 250px; text-align: center\">"
-			table += addThousandSeparators(channel.LocalBalance)
+
+			// red background for inactive channels
+			bc := "#590202"
+			if Config.ColorScheme == "light" {
+				bc = "#fcb6b6"
+			}
+
+			if channel.Active {
+				// green background for active channels
+				bc = "#224725"
+				if Config.ColorScheme == "light" {
+					bc = "#e6ffe8"
+				}
+			}
+
+			table += "<tr style=\"background-color: " + bc + "\"; >"
+			table += "<td style=\"width: 250px; text-align: center\">"
+			table += utils.FormatWithThousandSeparators(channel.LocalBalance)
 			table += "</td><td>"
 			local := channel.LocalBalance
 			capacity := channel.LocalBalance + channel.RemoteBalance
 			totalLocal += local
 			totalCapacity += capacity
-			active := "❌"
-			if channel.Active {
-				active = "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + "></progress>"
-			}
-			table += active + "</td><td>"
+			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + "></progress>"
+			table += "</td><td>"
 			table += "<td style=\"width: 250px; text-align: center\">"
-			table += addThousandSeparators(channel.RemoteBalance)
+			table += utils.FormatWithThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
 		table += "</table>"
@@ -307,16 +364,16 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 // converts a list of swaps into an HTML table
 func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
-	table := "<table>"
+	table := "<table style=\"table-layout:fixed;\">"
 
 	for _, swap := range swaps {
-		table += "<tr><td style=\"width: 30%;\">"
+		table += "<tr><td style=\"width: 30%; text-align: left\">"
 
-		tm := time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05")
+		tm := utils.TimePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
 		// clicking on timestamp will open swap details page
-		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a>"
-		table += "</td><td style=\"width: 30%;\">"
+		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
+		table += "</td><td>"
 
 		switch swap.State {
 		case "State_SwapCanceled":
@@ -324,10 +381,10 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		case "State_ClaimedPreimage":
 			table += "💰&nbsp"
 		default:
-			table += "?"
+			table += "?&nbsp"
 		}
 
-		table += addThousandSeparators(swap.Amount)
+		table += utils.FormatWithThousandSeparators(swap.Amount)
 
 		switch swap.Type {
 		case "swap-out":
@@ -335,7 +392,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		case "swap-in":
 			table += " ⚡&nbsp⇦&nbsp"
 		default:
-			table += " &nbsp?&nbsp"
+			table += " !!swap type error!!"
 		}
 
 		switch swap.Asset {
@@ -344,18 +401,18 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		case "btc":
 			table += "₿"
 		default:
-			table += "?"
+			table += "!!swap asset error!!"
 		}
 
-		table += "</td><td style=\"width: 35%;\">"
+		table += "</td><td>"
 
 		switch swap.Role {
 		case "receiver":
-			table += "⇩&nbsp"
+			table += " ⇩&nbsp"
 		case "sender":
-			table += "⇧&nbsp"
+			table += " ⇧&nbsp"
 		default:
-			table += "?&nbsp"
+			table += " ?&nbsp"
 		}
 
 		table += getNodeAlias(swap.PeerNodeId)
@@ -363,15 +420,6 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	}
 	table += "</table>"
 	return table
-}
-
-func stringInSlice(a string, list []string) bool {
-	for _, b := range list {
-		if b == a {
-			return true
-		}
-	}
-	return false
 }
 
 func getNodeAlias(id string) string {
@@ -382,8 +430,9 @@ func getNodeAlias(id string) string {
 		}
 	}
 
+	url := Config.MempoolApi + "/api/v1/lightning/search?searchText=" + id
 	if Config.MempoolApi != "" {
-		req, err := http.NewRequest("GET", Config.MempoolApi+id, nil)
+		req, err := http.NewRequest("GET", url, nil)
 		if err == nil {
 			cl := &http.Client{}
 			resp, err2 := cl.Do(req)
@@ -411,7 +460,7 @@ func getNodeAlias(id string) string {
 				// Unmarshal the JSON string into the struct
 				if err := json.Unmarshal([]byte(buf.String()), &nodes); err != nil {
 					fmt.Println("Error:", err)
-					return id
+					return id[:20] // shortened id
 				}
 
 				if len(nodes.Nodes) > 0 {
@@ -421,10 +470,19 @@ func getNodeAlias(id string) string {
 					})
 					return nodes.Nodes[0].Alias
 				} else {
-					return id
+					return id[:20] // shortened id
 				}
 			}
 		}
 	}
-	return id
+	return id[:20] // shortened id
+}
+
+func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswaprpc.PeerSwapPeer {
+	for _, p := range peers {
+		if p.NodeId == targetId {
+			return p
+		}
+	}
+	return nil // Return nil if peer with given ID is not found
 }

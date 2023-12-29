@@ -1,0 +1,18 @@
+{{define "peer"}}
+  {{template "header" .}}
+  <section class="section">
+    <div class="container">
+      <h1 class="title is-4">Peer Details</h1>
+      <div class="columns">
+        <div class="column">
+          <div class="box">
+            <table>
+              <tr><td>ID:</td><td style="overflow-wrap: break-word;">{{.Peer.NodeId}}</td></tr>        
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {{template "footer" .}}
+{{end}}
