@@ -2,12 +2,37 @@
   {{template "header" .}}
   <section class="section">
     <div class="container">
-      <h1 class="title is-4">Peer Details</h1>
       <div class="columns">
         <div class="column">
+          <h1 class="title is-4">Peer Details</h1>
+          <div class="box">
+            <p>Node Alias: {{.PeerAlias}} <a href="{{.NodeUrl}}{{.Peer.NodeId}}" target="_blank">🔗</a></p>
+            <table>
+              <tr>
+                  <th>Channel Id</th>
+                  <th>Local Balance</th>
+                  <th>Remote Balance</th>
+                  <th>Local Percentage</th>
+                  <th>Active</th>
+              </tr>
+              {{range .Peer.Channels}}
+                  <tr>
+                    <th>{{.ChannelId}}</th>
+                    <th>{{.LocalBalance}}</th>
+                    <th>{{.RemoteBalance}}</th>
+                    <th>{{.LocalPercentage}}</th>
+                    <th>{{.Active}}</th>
+                  </tr>
+              {{end}}
+            </table>
+          </div>
+        </div>
+        <div class="column">
+          <h1 class="title is-4">New Swap</h1> 
           <div class="box">
             <table>
-              <tr><td>ID:</td><td style="overflow-wrap: break-word;">{{.Peer.NodeId}}</td></tr>        
+              <tr><td>Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}} <a href="{{.NodeUrl}}{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>  
+                    
             </table>
           </div>
         </div>

@@ -2,9 +2,9 @@
   {{template "header" .}}
   <section class="section">
     <div class="container">
-      <h1 class="title is-4">Swap Details</h1>
       <div class="columns">
         <div class="column">
+          <h1 class="title is-4">Swap Details</h1>
           <div class="box">
             <table>
               <tr><td>ID:</td><td style="overflow-wrap: break-word;">{{.Swap.Id}}</td></tr>
@@ -13,13 +13,19 @@
               <tr><td>Type:</td><td>{{.Swap.Type}}</td></tr>
               <tr><td>Role:</td><td>{{.Swap.Role}}</td></tr>
               <tr><td>State:</td><td>{{.Swap.State}}</td></tr>
-              <tr><td>Initiator:</td><td style="overflow-wrap: break-word;"><a href="{{.NodeUrl}}{{.Swap.InitiatorNodeId}}" target="_blank">{{.InitiatorAlias}}</a></td></tr>
-              <tr><td>Peer:</td><td style="overflow-wrap: break-word;"><a href="{{.NodeUrl}}{{.Swap.PeerNodeId}}" target="_blank">{{.PeerAlias}}</a></td></tr>
+              <tr><td>Initiator:</td><td style="overflow-wrap: break-word;">{{.InitiatorAlias}}<a href="{{.NodeUrl}}{{.Swap.InitiatorNodeId}}" target="_blank">🔗</a></td></tr>
+              <tr><td>Peer:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}} <a href="{{.NodeUrl}}{{.Swap.PeerNodeId}}" target="_blank">🔗</a></td></tr>
               <tr><td>Amount:</td><td>{{.Swap.Amount}}</td></tr>
               <tr><td>ChannelId:</td><td>{{.Swap.ChannelId}}</td></tr>
-              <tr><td>OpeningTxId:</td><td style="overflow-wrap: break-word;"><a href="{{.TxUrl}}{{.Swap.OpeningTxId}}" target="_blank">{{.Swap.OpeningTxId}}</a></td></tr>
-              <tr><td>ClaimTxId:</td><td style="overflow-wrap: break-word;"><a href="{{.TxUrl}}{{.Swap.ClaimTxId}}" target="_blank">{{.Swap.ClaimTxId}}</a></td></tr>
-              <tr><td>CancelMsg:</td><td>{{.Swap.CancelMessage}}</td></tr>
+              {{if .Swap.OpeningTxId}}
+                <tr><td>OpeningTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.OpeningTxId}}<a href="{{.TxUrl}}{{.Swap.OpeningTxId}}" target="_blank">🔗</a></td></tr>
+              {{end}}
+              {{if .Swap.ClaimTxId}}
+                <tr><td>ClaimTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.ClaimTxId}}<a href="{{.TxUrl}}{{.Swap.ClaimTxId}}" target="_blank">🔗</a></td></tr>
+              {{end}}
+              {{if .Swap.CancelMessage}}
+                <tr><td>CancelMsg:</td><td>{{.Swap.CancelMessage}}</td></tr>
+              {{end}}
               <tr><td>LndChanId:</td><td>{{.Swap.LndChanId}}</td></tr>
             </table>
           </div>

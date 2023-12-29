@@ -162,12 +162,14 @@ func peerDetails(w http.ResponseWriter, r *http.Request) {
 		ColorScheme string
 		Peer        *peerswaprpc.PeerSwapPeer
 		PeerAlias   string
+		NodeUrl     string // to open tx on mempool.space
 	}
 
 	data := Page{
 		ColorScheme: Config.ColorScheme,
 		Peer:        peer,
 		PeerAlias:   getNodeAlias(peer.NodeId),
+		NodeUrl:     Config.MempoolApi + "/lightning/node/",
 	}
 
 	// executing template named "peer"
@@ -211,7 +213,7 @@ func swapDetails(w http.ResponseWriter, r *http.Request) {
 		Swap           *peerswaprpc.PrettyPrintSwap
 		CreatedAt      string
 		TxUrl          string // to open tx on mempool.space or liquid.network
-		NodeUrl        string // to open tx on mempool.space
+		NodeUrl        string // to open a node on mempool.space
 		InitiatorAlias string
 		PeerAlias      string
 	}
@@ -339,7 +341,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			table += "</td></tr>"
 		}
 		table += "</table>"
+		table += "<p style=\"margin:0.5em;\"></p>"
 
+		// count total outbound percentaage to sort peers later
 		pct := int(float64(totalLocal) / float64(totalCapacity) * 100)
 
 		unsortedTable = append(unsortedTable, Table{
@@ -364,7 +368,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 // converts a list of swaps into an HTML table
 func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
-	table := "<table style=\"table-layout:fixed;\">"
+	table := "<table style=\"table-layout:fixed; width: 100%\">"
 
 	for _, swap := range swaps {
 		table += "<tr><td style=\"width: 30%; text-align: left\">"
@@ -373,7 +377,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		// clicking on timestamp will open swap details page
 		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
-		table += "</td><td>"
+		table += "</td><td style=\"text-align: center\">"
 
 		switch swap.State {
 		case "State_SwapCanceled":
