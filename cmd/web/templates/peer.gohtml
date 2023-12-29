@@ -4,36 +4,176 @@
     <div class="container">
       <div class="columns">
         <div class="column">
-          <h1 class="title is-4">Peer Details</h1>
           <div class="box">
-            <p>Node Alias: {{.PeerAlias}} <a href="{{.NodeUrl}}{{.Peer.NodeId}}" target="_blank">🔗</a></p>
-            <table>
-              <tr>
-                  <th>Channel Id</th>
-                  <th>Local Balance</th>
-                  <th>Remote Balance</th>
-                  <th>Local Percentage</th>
-                  <th>Active</th>
-              </tr>
-              {{range .Peer.Channels}}
-                  <tr>
-                    <th>{{.ChannelId}}</th>
-                    <th>{{.LocalBalance}}</th>
-                    <th>{{.RemoteBalance}}</th>
-                    <th>{{.LocalPercentage}}</th>
-                    <th>{{.Active}}</th>
-                  </tr>
-              {{end}}
-            </table>
+            <h3 class="title is-4">🌊 Liqiud sats: {{.SatAmount}}</h3>
+          </div>
+          <div class="box">
+           {{if not .Peer.SwapsAllowed}}
+              <p>⛔ {{.PeerAlias}} did not whitelist your node. Please contact them to do it.</p>
+            {{else}}
+              <h1 class="title is-4">New Swap</h1> 
+              <form action="/submit" method="post">
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Channel</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <div class="control">
+                        <div class="select">
+                          <select name="channelId">
+                          {{range .Peer.Channels}}
+                            <option value="{{.ChannelId}}">Local {{.LocalBalance}} - Remote {{.RemoteBalance}}</option>
+                          {{end}}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Direction</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <div class="control">
+                        <div class="select">
+                          <select name="direction">
+                            <option value="swapIn">Swap In  ⇦ </option>
+                            <option value="swapOut">Swap Out ⇨ </option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Asset</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <div class="control">
+                        <div class="select">
+                          <select name="asset">
+                            <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
+                            <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Amount</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <p>
+                        <input class="input" type="number" name="swapAmount" min="100000" step="100000" placeholder="⚡ Swap Amount (sats)">
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Forced</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <div class="control">
+                        <label class="checkbox">
+                          <input type="checkbox" name="forced">
+                          Yes
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <br>
+                <center>
+                <input type="hidden" name="action" value="doSwap">
+                <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                <input class="button is-large" type="submit" value="Execute Swap">
+                </center>
+              </form>
+            {{end}}
           </div>
         </div>
         <div class="column">
-          <h1 class="title is-4">New Swap</h1> 
           <div class="box">
-            <table>
-              <tr><td>Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}} <a href="{{.NodeUrl}}{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>  
-                    
+            <h3 class="title is-4">Peer Details</h3>        
+            <table style="width:100%; table-layout:fixed;">
+              <tr><td style="text-align: right">Node Alias:</td><td>{{.PeerAlias}} <a href="{{.NodeUrl}}{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
+              <tr><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
+              <tr><td style="text-align: right">Supported Assets:</td><td>
+                {{range .Peer.SupportedAssets}}
+                  {{.}}
+                {{end}}
+              </td></tr>
+              <tr><td style="text-align: right">Fee Paid:</td><td>{{.Peer.PaidFee}}</td></tr>
             </table>
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <th></th>
+                <th># Out</th>
+                <th># In</th>
+                <th>Sats Out</th>
+                <th>Sats In</th>
+              </tr>
+              <tr style="border: 1px solid">
+                <td>Sent:
+                <td>{{.Peer.AsSender.SwapsOut}}</td>
+                <td>{{.Peer.AsSender.SwapsIn}}</td>
+                <td>{{.Peer.AsSender.SatsOut}}</td>
+                <td>{{.Peer.AsSender.SatsIn}}</td>
+              </tr>
+              <tr style="border: 1px solid">
+                <td>Rcvd:
+                <td>{{.Peer.AsReceiver.SwapsOut}}</td>
+                <td>{{.Peer.AsReceiver.SwapsIn}}</td>
+                <td>{{.Peer.AsReceiver.SatsOut}}</td>
+                <td>{{.Peer.AsReceiver.SatsIn}}</td>
+              </tr>
+            </table>  
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <th>Local</th>
+                <th>Remote</th>
+                <th>Local %</th>
+                <th>Active</th>
+              </tr>
+              {{range .Peer.Channels}}
+                <tr style="border: 1px solid">
+                  <td>{{.LocalBalance}}</td>
+                  <td>{{.RemoteBalance}}</td>
+                  <td>{{.LocalPercentage}}</td>
+                  <td>{{.Active}}</td>
+                </tr>
+              {{end}}
+            </table>
+            <br>
+            <center>
+              {{if .Allowed}}
+                <p>✅ This peer is whitelisted.</p>
+                <br>
+                <form action="/submit" method="post">
+                  <input type="hidden" name="action" value="removePeer">
+                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                  <input class="button is-large" type="submit" value="Remove This Peer">
+                </form>
+              {{else}}
+                <p>⛔ You do not NOT allow swaps from this peer.</p>
+                <br>
+                <form action="/submit" method="post">
+                  <input type="hidden" name="action" value="addPeer">
+                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                  <input class="button is-large" type="submit" value="Whitelist This Peer">
+                </form>
+              {{end}}
+            </center>
           </div>
         </div>
       </div>

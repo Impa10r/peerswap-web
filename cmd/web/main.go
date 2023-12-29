@@ -48,8 +48,9 @@ func main() {
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 	http.HandleFunc("/", homePage)
-	http.HandleFunc("/swap", swapDetails)
-	http.HandleFunc("/peer", peerDetails)
+	http.HandleFunc("/swap", onSwap)
+	http.HandleFunc("/peer", onPeer)
+	http.HandleFunc("/submit", onSubmit)
 
 	// loading and parsing templates preemptively
 	var err error
@@ -84,23 +85,23 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res.GetSatAmount()
 
-	res2, err2 := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
-	if err2 != nil {
-		log.Fatalln(err2)
+	res2, err := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
+	if err != nil {
+		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
 	}
 	peers := res2.GetPeers()
 
-	res3, err3 := client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
-	if err3 != nil {
-		log.Fatalln(err3)
+	res3, err := client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
+	if err != nil {
+		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
 	}
 	swaps := res3.GetSwaps()
 
-	res4, err4 := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
-	if err4 != nil {
-		log.Fatalln(err4)
+	res4, err := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
+	if err != nil {
+		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
 	}
 	allowlistedPeers := res4.GetAllowlistedPeers()
@@ -127,7 +128,7 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func peerDetails(w http.ResponseWriter, r *http.Request) {
+func onPeer(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
 		fmt.Println("URL parameter 'id' is missing")
@@ -158,11 +159,30 @@ func peerDetails(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(500), 500)
 	}
 
+	res2, err := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+	allowlistedPeers := res2.GetAllowlistedPeers()
+
+	res3, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+
+	satAmount := res3.GetSatAmount()
+
 	type Page struct {
 		ColorScheme string
 		Peer        *peerswaprpc.PeerSwapPeer
 		PeerAlias   string
 		NodeUrl     string // to open tx on mempool.space
+		Allowed     bool
+		LBTC        bool
+		BTC         bool
+		SatAmount   string
 	}
 
 	data := Page{
@@ -170,6 +190,10 @@ func peerDetails(w http.ResponseWriter, r *http.Request) {
 		Peer:        peer,
 		PeerAlias:   getNodeAlias(peer.NodeId),
 		NodeUrl:     Config.MempoolApi + "/lightning/node/",
+		Allowed:     utils.StringIsInSlice(peer.NodeId, allowlistedPeers),
+		BTC:         utils.StringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:        utils.StringIsInSlice("lbtc", peer.SupportedAssets),
+		SatAmount:   utils.FormatWithThousandSeparators(satAmount),
 	}
 
 	// executing template named "peer"
@@ -180,7 +204,7 @@ func peerDetails(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func swapDetails(w http.ResponseWriter, r *http.Request) {
+func onSwap(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
 		fmt.Println("URL parameter 'id' is missing")
@@ -216,6 +240,7 @@ func swapDetails(w http.ResponseWriter, r *http.Request) {
 		NodeUrl        string // to open a node on mempool.space
 		InitiatorAlias string
 		PeerAlias      string
+		SwapStatusChar string
 	}
 
 	url := Config.MempoolApi
@@ -231,6 +256,7 @@ func swapDetails(w http.ResponseWriter, r *http.Request) {
 		NodeUrl:        Config.MempoolApi + "/lightning/node/",
 		InitiatorAlias: getNodeAlias(swap.InitiatorNodeId),
 		PeerAlias:      getNodeAlias(swap.PeerNodeId),
+		SwapStatusChar: utils.VisualiseSwapStatus(swap.State),
 	}
 
 	// executing template named "swap"
@@ -294,16 +320,17 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 		table += getNodeAlias(peer.NodeId) + "</a>"
 		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
-		if peer.SwapsAllowed {
-			table += "✅&nbsp"
-		} else {
-			table += "⛔&nbsp"
-		}
+
 		if utils.StringIsInSlice("lbtc", peer.SupportedAssets) {
-			table += "🌊"
+			table += "🌊&nbsp"
 		}
 		if utils.StringIsInSlice("btc", peer.SupportedAssets) {
-			table += "₿"
+			table += "₿&nbsp"
+		}
+		if peer.SwapsAllowed {
+			table += "✅"
+		} else {
+			table += "⛔"
 		}
 		table += "</div></td></tr></table>"
 
@@ -334,8 +361,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			capacity := channel.LocalBalance + channel.RemoteBalance
 			totalLocal += local
 			totalCapacity += capacity
-			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + "></progress>"
-			table += "</td><td>"
+			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + "> </progress>"
+			table += "</a></td><td>"
 			table += "<td style=\"width: 250px; text-align: center\">"
 			table += utils.FormatWithThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
@@ -368,9 +396,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 // converts a list of swaps into an HTML table
 func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
-	table := "<table style=\"table-layout:fixed; width: 100%\">"
+	type Table struct {
+		TimeStamp int64
+		HtmlBlob  string
+	}
+	var unsortedTable []Table
 
 	for _, swap := range swaps {
+		table := "<table style=\"table-layout:fixed; width: 100%\">"
 		table += "<tr><td style=\"width: 30%; text-align: left\">"
 
 		tm := utils.TimePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
@@ -378,16 +411,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		// clicking on timestamp will open swap details page
 		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
 		table += "</td><td style=\"text-align: center\">"
-
-		switch swap.State {
-		case "State_SwapCanceled":
-			table += "❌&nbsp"
-		case "State_ClaimedPreimage":
-			table += "💰&nbsp"
-		default:
-			table += "?&nbsp"
-		}
-
+		table += utils.VisualiseSwapStatus(swap.State) + "&nbsp"
 		table += utils.FormatWithThousandSeparators(swap.Amount)
 
 		switch swap.Type {
@@ -421,6 +445,21 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		table += getNodeAlias(swap.PeerNodeId)
 		table += "</td></tr>"
+
+		unsortedTable = append(unsortedTable, Table{
+			TimeStamp: swap.CreatedAt,
+			HtmlBlob:  table,
+		})
+	}
+
+	// sort the table on TimeStamp field
+	sort.Slice(unsortedTable, func(i, j int) bool {
+		return unsortedTable[i].TimeStamp > unsortedTable[j].TimeStamp
+	})
+
+	table := ""
+	for _, t := range unsortedTable {
+		table += t.HtmlBlob
 	}
 	table += "</table>"
 	return table
@@ -489,4 +528,101 @@ func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswapr
 		}
 	}
 	return nil // Return nil if peer with given ID is not found
+}
+
+func onSubmit(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Parse the form data
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Error parsing form data", http.StatusBadRequest)
+			return
+		}
+
+		host := Config.RpcHost
+		ctx := context.Background()
+
+		client, cleanup, err := getClient(host)
+		if err != nil {
+			log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+		}
+		defer cleanup()
+
+		nodeId := r.FormValue("nodeId")
+
+		switch r.FormValue("action") {
+		case "addPeer":
+			_, err := client.AddPeer(ctx, &peerswaprpc.AddPeerRequest{
+				PeerPubkey: nodeId,
+			})
+			if err != nil {
+				log.Fatalln(err)
+				http.Error(w, http.StatusText(500), 500)
+			}
+			// Redirect to peer page
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			return
+
+		case "removePeer":
+			_, err := client.RemovePeer(ctx, &peerswaprpc.RemovePeerRequest{
+				PeerPubkey: nodeId,
+			})
+			if err != nil {
+				log.Fatalln(err)
+				http.Error(w, http.StatusText(500), 500)
+			}
+			// Redirect to peer page
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			return
+
+		case "doSwap":
+			swapAmount, err := strconv.ParseUint(r.FormValue("swapAmount"), 10, 64)
+			if err != nil {
+				log.Fatalln(err)
+				http.Error(w, http.StatusText(500), 500)
+				return
+			}
+
+			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
+			if err != nil {
+				log.Fatalln(err)
+				http.Error(w, http.StatusText(500), 500)
+			}
+
+			switch r.FormValue("direction") {
+			case "swapIn":
+				resp, err := client.SwapIn(ctx, &peerswaprpc.SwapInRequest{
+					SwapAmount: swapAmount,
+					ChannelId:  channelId,
+					Asset:      r.FormValue("asset"),
+					Force:      r.FormValue("force") == "true",
+				})
+				if err != nil {
+					log.Fatalln(err)
+					http.Error(w, http.StatusText(500), 500)
+				}
+				// Redirect to swap page to follow the swap
+				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
+
+			case "swapOut":
+				resp, err := client.SwapIn(ctx, &peerswaprpc.SwapInRequest{
+					SwapAmount: swapAmount,
+					ChannelId:  channelId,
+					Asset:      r.FormValue("asset"),
+					Force:      r.FormValue("force") == "true",
+				})
+				if err != nil {
+					log.Fatalln(err)
+					http.Error(w, http.StatusText(500), 500)
+				}
+				// Redirect to swap page to follow the swap
+				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
+
+			}
+		default:
+			// Redirect to index page on any other input
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+		}
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }

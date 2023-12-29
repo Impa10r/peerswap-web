@@ -2,17 +2,19 @@
   {{template "header" .}}
   <section class="section">
     <div class="container">
-      <h1 class="title is-4">🌊 Liqiud balance: {{.SatAmount}}</h1>
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3> Peers </h3>
+            <h3 class="title is-4">🌊 Liqiud sats: {{.SatAmount}}</h3>
+          </div>          
+          <div class="box">
+            <h3 class="title is-4">Peer List</h3>
             {{.ListPeers}}
           </div>
         </div>
         <div class="column">
           <div class="box">
-            <h3> Swaps </h3>            
+            <h3 class="title is-4">Swaps History</h3>            
             {{.ListSwaps}}
           </div>
         </div>

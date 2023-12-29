@@ -72,3 +72,18 @@ func FormatWithThousandSeparators(n uint64) string {
 
 	return string(result)
 }
+
+func VisualiseSwapStatus(statusText string) string {
+	switch statusText {
+	case "State_ClaimedCoop":
+		return "❌"
+	case "State_SwapCanceled":
+		return "❌"
+	case "State_SendCancel":
+		return "❌"
+	case "State_ClaimedPreimage":
+		return "💰"
+	default:
+		return "⌛"
+	}
+}
