@@ -1,0 +1,98 @@
+{{define "config"}}
+  {{template "header" .}}
+    <div class="container">
+      <div class="columns">
+        <div class="column">
+          <div class="box">
+            <h1 class="title is-4">Configuration</h1> 
+            <form action="/submit" method="post">
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Color Theme</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <div class="control">
+                      <div class="select">
+                        <select name="colorScheme">
+                          <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
+                          <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">RPC Host</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Listen Port</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input" type="number" value={{.Config.ListenPort}} name="listenPort" placeholder="8088">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Mempool URL</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input" type="text" value={{.Config.MempoolApi}} name="mempoolApi" placeholder="https://mempool.space/testnet">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Liquid URL</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input" type="text" value={{.Config.LiquidApi}} name="liquidApi" placeholder="https://liquid.network/testnet">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Web UI Config Folder</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input" type="text" value={{.Config.ConfigFolder}} name="configFolder" placeholder="~/.peerswap">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <br>
+              <center>
+              <input type="hidden" name="action" value="saveConfig">               
+              <input class="button is-large" type="submit" value="Save Configuration">
+              </center>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {{template "footer" .}}
+{{end}}

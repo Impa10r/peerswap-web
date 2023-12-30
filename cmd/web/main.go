@@ -19,32 +19,18 @@ import (
 	"peerswap-web/utils"
 )
 
-type Configuration struct {
-	RpcHost     string
-	ListenPort  string
-	ColorScheme string
-	MempoolApi  string
-	LiquidApi   string
-}
-
 type AliasCache struct {
 	PublicKey string
 	Alias     string
 }
 
 var cache []AliasCache
-var Config Configuration
+var Config utils.Configuration
 var templates = template.New("")
 
 func main() {
 	// simulate loading from config file
-	Config = Configuration{
-		RpcHost:     "localhost:42069",
-		ListenPort:  "8088",
-		ColorScheme: "dark",                           // dark or light
-		MempoolApi:  "https://mempool.space/testnet",  // remove testnet for mainnet
-		LiquidApi:   "https://liquid.network/testnet", // remove testnet for mainnet
-	}
+	Config = utils.LoadConfig()
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -52,6 +38,7 @@ func main() {
 	http.HandleFunc("/swap", onSwap)
 	http.HandleFunc("/peer", onPeer)
 	http.HandleFunc("/submit", onSubmit)
+	http.HandleFunc("/config", onConfig)
 
 	// loading and parsing templates preemptively
 	var err error
@@ -76,38 +63,37 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println(fmt.Errorf("unable to connect to RPC server: %v", err))
 		// display the error to the web page
-		msg := url.QueryEscape(fmt.Sprintln(err))
-		http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
+		redirectWithError(w, r, "/config?", err)
 		return
 	}
 	defer cleanup()
 
 	res, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		redirectWithError(w, r, "/config?", err)
+		return
 	}
 
 	satAmount := res.GetSatAmount()
 
 	res2, err := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		redirectWithError(w, r, "/config?", err)
+		return
 	}
 	peers := res2.GetPeers()
 
 	res3, err := client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		redirectWithError(w, r, "/config?", err)
+		return
 	}
 	swaps := res3.GetSwaps()
 
 	res4, err := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		redirectWithError(w, r, "/config?", err)
+		return
 	}
 	allowlistedPeers := res4.GetAllowlistedPeers()
 
@@ -302,6 +288,34 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 
 	// executing template named "swap"
 	err = templates.ExecuteTemplate(w, "swap", data)
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
+func onConfig(w http.ResponseWriter, r *http.Request) {
+	//check for error message to display
+	message := ""
+	keys, ok := r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		message = keys[0]
+	}
+
+	type Page struct {
+		Message     string
+		ColorScheme string
+		Config      utils.Configuration
+	}
+
+	data := Page{
+		Message:     message,
+		ColorScheme: Config.ColorScheme,
+		Config:      Config,
+	}
+
+	// executing template named "error"
+	err := templates.ExecuteTemplate(w, "config", data)
 	if err != nil {
 		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
@@ -579,6 +593,21 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		action := r.FormValue("action")
+
+		if action == "saveConfig" {
+			Config = utils.Configuration{
+				RpcHost:      r.FormValue("rpcHost"),
+				ListenPort:   r.FormValue("listnePort"),
+				ColorScheme:  r.FormValue("colorScheme"),
+				MempoolApi:   r.FormValue("mempoolUrl"),
+				LiquidApi:    r.FormValue("liquidUrl"),
+				ConfigFolder: r.FormValue("configFolder"),
+			}
+			utils.SaveConfig(Config)
+			return
+		}
+
 		nodeId := r.FormValue("nodeId")
 
 		host := Config.RpcHost
@@ -586,12 +615,10 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 
 		client, cleanup, err := getClient(host)
 		if err != nil {
-			redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+			redirectWithError(w, r, "/config?", err)
 			return
 		}
 		defer cleanup()
-
-		action := r.FormValue("action")
 
 		switch action {
 		case "addPeer":
@@ -660,6 +687,7 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 				// Redirect to swap page to follow the swap
 				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
 			}
+
 		default:
 			// Redirect to index page on any other input
 			log.Println("unknonw action: ", action)

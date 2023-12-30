@@ -4,4 +4,4 @@
 A lightweight server-side rendered UI for [PeerSwap LND](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md). 
 
 # Development
-Early non-public beta for TESTNET ONLY. Clone and build locally with Go. Config is currently in the main(). Needs peerswapd running.
+Early non-public beta for TESTNET ONLY. Clone and build locally with Go. Needs peerswapd running.

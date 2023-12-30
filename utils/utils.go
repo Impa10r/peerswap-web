@@ -6,6 +6,31 @@ import (
 	"time"
 )
 
+type Configuration struct {
+	RpcHost      string
+	ListenPort   string
+	ColorScheme  string
+	MempoolApi   string
+	LiquidApi    string
+	ConfigFolder string
+}
+
+func LoadConfig() Configuration {
+	conf := Configuration{
+		RpcHost:      "localhost:42069",
+		ListenPort:   "8088",
+		ColorScheme:  "dark",                           // dark or light
+		MempoolApi:   "https://mempool.space/testnet",  // remove testnet for mainnet
+		LiquidApi:    "https://liquid.network/testnet", // remove testnet for mainnet
+		ConfigFolder: "~/.peerswap",
+	}
+	return conf
+}
+
+func SaveConfig(conf Configuration) {
+
+}
+
 // returns time passed as a sting
 func TimePassedAgo(t time.Time) string {
 	duration := time.Since(t)
