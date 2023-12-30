@@ -1,6 +1,5 @@
 {{define "peer"}}
   {{template "header" .}}
-  <section class="section">
     <div class="container">
       <div class="columns">
         <div class="column">
@@ -142,16 +141,16 @@
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
+                <th style="width: 30%;">Channel Id</th>
                 <th>Local</th>
                 <th>Remote</th>
-                <th>Local %</th>
                 <th>Active</th>
               </tr>
               {{range .Peer.Channels}}
                 <tr style="border: 1px solid">
+                  <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
                   <td>{{.LocalBalance}}</td>
                   <td>{{.RemoteBalance}}</td>
-                  <td>{{.LocalPercentage}}</td>
                   <td>{{.Active}}</td>
                 </tr>
               {{end}}

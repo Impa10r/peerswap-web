@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"text/template"
@@ -73,7 +74,11 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 	client, cleanup, err := getClient(host)
 	if err != nil {
-		log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+		log.Println(fmt.Errorf("unable to connect to RPC server: %v", err))
+		// display the error to the web page
+		msg := url.QueryEscape(fmt.Sprintln(err))
+		http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
+		return
 	}
 	defer cleanup()
 
@@ -106,7 +111,15 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 	allowlistedPeers := res4.GetAllowlistedPeers()
 
+	//check for error message to display
+	message := ""
+	keys, ok := r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		message = keys[0]
+	}
+
 	type Page struct {
+		Message     string
 		ColorScheme string
 		SatAmount   string
 		ListPeers   string
@@ -114,6 +127,7 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Message:     message,
 		ColorScheme: Config.ColorScheme,
 		SatAmount:   utils.FormatWithThousandSeparators(satAmount),
 		ListPeers:   convertPeersToHTMLTable(peers, allowlistedPeers),
@@ -142,39 +156,53 @@ func onPeer(w http.ResponseWriter, r *http.Request) {
 
 	client, cleanup, err := getClient(host)
 	if err != nil {
-		log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		return
 	}
 	defer cleanup()
 
 	res, err := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		return
 	}
 	peers := res.GetPeers()
 	peer := findPeerById(peers, id)
 
 	if peer == nil {
-		log.Fatalln("Peer not found")
-		http.Error(w, http.StatusText(500), 500)
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		return
 	}
 
 	res2, err := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		return
 	}
 	allowlistedPeers := res2.GetAllowlistedPeers()
 
 	res3, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		return
 	}
 
 	satAmount := res3.GetSatAmount()
 
+	//check for error message to display
+	message := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		message = keys[0]
+	}
+
 	type Page struct {
+		Message     string
 		ColorScheme string
 		Peer        *peerswaprpc.PeerSwapPeer
 		PeerAlias   string
@@ -186,6 +214,7 @@ func onPeer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Message:     message,
 		ColorScheme: Config.ColorScheme,
 		Peer:        peer,
 		PeerAlias:   getNodeAlias(peer.NodeId),
@@ -218,7 +247,9 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 
 	client, cleanup, err := getClient(host)
 	if err != nil {
-		log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/swap?id="+id+"&", err)
+		return
 	}
 	defer cleanup()
 
@@ -226,8 +257,9 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 		SwapId: id,
 	})
 	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+		log.Printf("onSwap: %v", err)
+		redirectWithError(w, r, "/swap?id="+id+"&", err)
+		return
 	}
 
 	swap := res.GetSwap()
@@ -299,7 +331,7 @@ func getClientConn(address string) (*grpc.ClientConn, error) {
 func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string) string {
 
 	type Table struct {
-		AvgLocal int
+		AvgLocal uint64
 		HtmlBlob string
 	}
 
@@ -371,8 +403,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += "</table>"
 		table += "<p style=\"margin:0.5em;\"></p>"
 
-		// count total outbound percentaage to sort peers later
-		pct := int(float64(totalLocal) / float64(totalCapacity) * 100)
+		// count total outbound to sort peers later
+		pct := uint64(1000000 * float64(totalLocal) / float64(totalCapacity))
 
 		unsortedTable = append(unsortedTable, Table{
 			AvgLocal: pct,
@@ -538,25 +570,28 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		nodeId := r.FormValue("nodeId")
+
 		host := Config.RpcHost
 		ctx := context.Background()
 
 		client, cleanup, err := getClient(host)
 		if err != nil {
-			log.Fatal(fmt.Errorf("unable to connect to RPC server: %v", err))
+			redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+			return
 		}
 		defer cleanup()
 
-		nodeId := r.FormValue("nodeId")
+		action := r.FormValue("action")
 
-		switch r.FormValue("action") {
+		switch action {
 		case "addPeer":
 			_, err := client.AddPeer(ctx, &peerswaprpc.AddPeerRequest{
 				PeerPubkey: nodeId,
 			})
 			if err != nil {
-				log.Fatalln(err)
-				http.Error(w, http.StatusText(500), 500)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				return
 			}
 			// Redirect to peer page
 			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
@@ -567,8 +602,8 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 				PeerPubkey: nodeId,
 			})
 			if err != nil {
-				log.Fatalln(err)
-				http.Error(w, http.StatusText(500), 500)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				return
 			}
 			// Redirect to peer page
 			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
@@ -577,15 +612,14 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 		case "doSwap":
 			swapAmount, err := strconv.ParseUint(r.FormValue("swapAmount"), 10, 64)
 			if err != nil {
-				log.Fatalln(err)
-				http.Error(w, http.StatusText(500), 500)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 
 			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
 			if err != nil {
-				log.Fatalln(err)
-				http.Error(w, http.StatusText(500), 500)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				return
 			}
 
 			switch r.FormValue("direction") {
@@ -597,32 +631,38 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 					Force:      r.FormValue("force") == "true",
 				})
 				if err != nil {
-					log.Fatalln(err)
-					http.Error(w, http.StatusText(500), 500)
+					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+					return
 				}
 				// Redirect to swap page to follow the swap
 				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
 
 			case "swapOut":
-				resp, err := client.SwapIn(ctx, &peerswaprpc.SwapInRequest{
+				resp, err := client.SwapOut(ctx, &peerswaprpc.SwapOutRequest{
 					SwapAmount: swapAmount,
 					ChannelId:  channelId,
 					Asset:      r.FormValue("asset"),
 					Force:      r.FormValue("force") == "true",
 				})
 				if err != nil {
-					log.Fatalln(err)
-					http.Error(w, http.StatusText(500), 500)
+					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+					return
 				}
 				// Redirect to swap page to follow the swap
 				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
-
 			}
 		default:
 			// Redirect to index page on any other input
+			log.Println("unknonw action: ", action)
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		}
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
+	// display the error to the web page header
+	msg := url.QueryEscape(fmt.Sprintln(err))
+	http.Redirect(w, r, redirectUrl+"msg="+msg, http.StatusSeeOther)
 }
