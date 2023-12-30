@@ -264,7 +264,15 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
+	//check for error message to display
+	message := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		message = keys[0]
+	}
+
 	type Page struct {
+		Message        string
 		ColorScheme    string
 		Swap           *peerswaprpc.PrettyPrintSwap
 		CreatedAt      string
@@ -281,6 +289,7 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Message:        message,
 		ColorScheme:    Config.ColorScheme,
 		Swap:           swap,
 		CreatedAt:      time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05"),
