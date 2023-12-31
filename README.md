@@ -78,4 +78,4 @@ Usage:
 
 *Only recommend using with small balances or on signet/testnet*
 
-*See [licence](/LICENSE) for other disclaimers*
+*See [license](/LICENSE) for other disclaimers*
