@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"text/template"
@@ -28,12 +30,11 @@ type AliasCache struct {
 }
 
 var (
-	cache       []AliasCache
-	Config      utils.Configuration
-	templates   = template.New("")
-	configFile  = flag.String("configfile", "", "Path/filename to store config JSON")
-	showHelp    = flag.Bool("help", false, "Show help")
-	showVersion = flag.Bool("version", false, "Show version")
+	cache     []AliasCache
+	Config    utils.Configuration
+	templates = template.New("")
+	//go:embed templates/*.gohtml
+	tplFolder embed.FS // embeds the templates folder into variable tplFolder
 )
 
 const (
@@ -41,6 +42,11 @@ const (
 )
 
 func main() {
+	var (
+		configFile  = flag.String("configfile", "", "Path/filename to store config JSON")
+		showHelp    = flag.Bool("help", false, "Show help")
+		showVersion = flag.Bool("version", false, "Show version")
+	)
 
 	flag.Parse()
 
@@ -65,12 +71,22 @@ func main() {
 	http.HandleFunc("/submit", onSubmit)
 	http.HandleFunc("/config", onConfig)
 
-	// loading and parsing templates preemptively
-	var err error
-	templates, err = templates.ParseGlob("templates/*.gohtml")
+	// Get all HTML template files from the embedded filesystem
+	templateFiles, err := tplFolder.ReadDir("templates")
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
+
+	// Store template names
+	var templateNames []string
+	for _, file := range templateFiles {
+		if !file.IsDir() && filepath.Ext(file.Name()) == ".gohtml" {
+			templateNames = append(templateNames, "templates/"+file.Name())
+		}
+	}
+
+	// Parse all template files in the templates directory
+	templates = template.Must(templates.ParseFS(tplFolder, templateNames...))
 
 	if *configFile != "" {
 		// wait a little in case it was an autorestart
