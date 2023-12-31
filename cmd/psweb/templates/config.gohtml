@@ -13,7 +13,7 @@
                 <div class="field-body">
                   <div class="field">
                     <div class="control">
-                      <div class="select">
+                      <div class="select is-medium">
                         <select name="colorScheme">
                           <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
                           <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
@@ -30,7 +30,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
+                      <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
                     </p>
                   </div>
                 </div>
@@ -42,7 +42,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="number" value={{.Config.ListenPort}} name="listenPort" placeholder="8088">
+                      <input class="input is-medium" type="number" value={{.Config.ListenPort}} name="listenPort" placeholder="8088">
                     </p>
                     <p>
                       Changing the listening port will restart PeerSwap Web UI automatically. Make sure to point your browser to the new URL.
@@ -57,7 +57,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value={{.Config.MempoolApi}} name="mempoolApi" placeholder="https://mempool.space">
+                      <input class="input is-medium" type="text" value={{.Config.MempoolApi}} name="mempoolApi" placeholder="https://mempool.space">
                     </p>
                   </div>
                 </div>
@@ -69,7 +69,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value={{.Config.LiquidApi}} name="liquidApi" placeholder="https://liquid.network">
+                      <input class="input is-medium" type="text" value={{.Config.LiquidApi}} name="liquidApi" placeholder="https://liquid.network">
                     </p>
                   </div>
                 </div>
@@ -81,7 +81,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value="{{.Config.ConfigFile}}" name="configFile" placeholder="/your/path/to/pswebconfig.json">
+                      <input class="input is-medium" type="text" value="{{.Config.ConfigFile}}" name="configFile" placeholder="/your/path/to/pswebconfig.json">
                     </p>
                     <p style="overflow-wrap: break-word;">
                       For non-default location, run with flag --configfile=
@@ -96,7 +96,7 @@
               </form>
               <form action="/stop" method="post">
                 <br>
-                <input class="button is-small is-danger" type="submit" value="Stop PS Web">
+                <input class="button is-small is-danger" type="submit" value="Stop PeerSwap Web">
               </center>
             </form>
           </div>

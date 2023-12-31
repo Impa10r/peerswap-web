@@ -369,7 +369,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 			</tr>
 		  <table>
 		  <table style="table-layout:fixed; width: 100%">
-			<tr><td style="text-align: right">ID:</td><td style="overflow-wrap: break-word;">`
+			<tr><td style="width:30%; text-align: right">ID:</td><td style="overflow-wrap: break-word;">`
 	swapData += swap.Id
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Created At:</td><td >`
