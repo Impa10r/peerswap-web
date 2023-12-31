@@ -1,50 +1,16 @@
 {{define "swap"}}
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          <div class="box">
-            <table style="table-layout:fixed; width: 100%;">
-		          <tr>
-                <td style="float: left; text-align: left; width: 80%;">
-                  <h3 class="title is-4">Swap Details</h3>
-                </td>
-                </td><td style="float: right; text-align: right; width:20%;">
-                  <h3 class="title is-4">{{.SwapStatusChar}}</h3>
-                </td>
-              </tr>
-            <table>
-            <table style="table-layout:fixed; width: 100%">
-              <tr><td style="text-align: right">ID:</td><td style="overflow-wrap: break-word;">{{.Swap.Id}}</td></tr>
-              <tr><td style="text-align: right">Created At:</td><td >{{.CreatedAt}}</td></tr>
-              <tr><td style="text-align: right">Asset:</td><td>{{.Swap.Asset}}</td></tr>
-              <tr><td style="text-align: right">Type:</td><td>{{.Swap.Type}}</td></tr>
-              <tr><td style="text-align: right">Role:</td><td>{{.Swap.Role}}</td></tr>
-              <tr><td style="text-align: right">State:</td><td style="overflow-wrap: break-word;">{{.Swap.State}}</td></tr>
-              <tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">{{.InitiatorAlias}}<a href="{{.NodeUrl}}{{.Swap.InitiatorNodeId}}" target="_blank">🔗</a></td></tr>
-              <tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}} <a href="{{.NodeUrl}}{{.Swap.PeerNodeId}}" target="_blank">🔗</a></td></tr>
-              <tr><td style="text-align: right">Amount:</td><td>{{.Swap.Amount}}</td></tr>
-              <tr><td style="text-align: right">ChannelId:</td><td>{{.Swap.ChannelId}}</td></tr>
-              {{if .Swap.OpeningTxId}}
-                <tr><td style="text-align: right">OpeningTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.OpeningTxId}}<a href="{{.TxUrl}}{{.Swap.OpeningTxId}}" target="_blank">🔗</a></td></tr>
-              {{end}}
-              {{if .Swap.ClaimTxId}}
-                <tr><td style="text-align: right">ClaimTxId:</td><td style="overflow-wrap: break-word;">{{.Swap.ClaimTxId}}<a href="{{.TxUrl}}{{.Swap.ClaimTxId}}" target="_blank">🔗</a></td></tr>
-              {{end}}
-              {{if .Swap.CancelMessage}}
-                <tr><td style="text-align: right">CancelMsg:</td><td>{{.Swap.CancelMessage}}</td></tr>
-              {{end}}
-              <tr><td style="text-align: right">LndChanId:</td><td>{{.Swap.LndChanId}}</td></tr>
-            </table>
-            <center>
-              <br>
-              <p>
-                <a href="/swap?id={{.Swap.Id}}">Reload</a>
-              </p>
-            </center>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="update"></div>
+    <script>
+      function updatePage(data) {
+        document.getElementById('update').innerHTML = data;
+      }
+      function fetchData() {
+        fetch('/update?id={{.Swap.Id}}')
+          .then(response => response.text())
+          .then(data => updatePage(data));
+      }
+      setInterval(fetchData, 1000);
+    </script>
   {{template "footer" .}}
 {{end}}

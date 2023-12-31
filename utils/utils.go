@@ -73,6 +73,8 @@ func FormatWithThousandSeparators(n uint64) string {
 	return string(result)
 }
 
+var hourGlassUp = false
+
 func VisualiseSwapStatus(statusText string) string {
 	switch statusText {
 	case "State_ClaimedCoop":
@@ -84,6 +86,11 @@ func VisualiseSwapStatus(statusText string) string {
 	case "State_ClaimedPreimage":
 		return "💰"
 	default:
-		return "⏳" // ⌛
+		if hourGlassUp {
+			hourGlassUp = false
+			return "⏳"
+		}
+		hourGlassUp = true
+		return "⌛"
 	}
 }
