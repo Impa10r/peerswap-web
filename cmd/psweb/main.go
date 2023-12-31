@@ -545,9 +545,9 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		switch swap.Role {
 		case "receiver":
-			table += " ⇩&nbsp"
+			table += " ⇦&nbsp"
 		case "sender":
-			table += " ⇧&nbsp"
+			table += " ⇨&nbsp"
 		default:
 			table += " ?&nbsp"
 		}
