@@ -84,6 +84,6 @@ func VisualiseSwapStatus(statusText string) string {
 	case "State_ClaimedPreimage":
 		return "💰"
 	default:
-		return "⌛"
+		return "⏳" // ⌛
 	}
 }
