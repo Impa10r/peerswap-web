@@ -80,7 +80,7 @@ func main() {
 	// Parse all template files in the templates directory
 	templates = template.Must(templates.ParseFS(tplFolder, templateNames...))
 
-	// http.FS to create a http Filesystem
+	// create an embedded Filesystem
 	var staticFS = http.FS(staticFiles)
 	fs := http.FileServer(staticFS)
 
