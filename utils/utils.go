@@ -73,9 +73,9 @@ func FormatWithThousandSeparators(n uint64) string {
 	return string(result)
 }
 
-var hourGlassUp = false
+var hourGlassRotate = 0
 
-func VisualiseSwapStatus(statusText string) string {
+func VisualiseSwapStatus(statusText string, rotate bool) string {
 	switch statusText {
 	case "State_ClaimedCoop":
 		return "❌"
@@ -85,12 +85,27 @@ func VisualiseSwapStatus(statusText string) string {
 		return "❌"
 	case "State_ClaimedPreimage":
 		return "💰"
-	default:
-		if hourGlassUp {
-			hourGlassUp = false
-			return "⏳"
-		}
-		hourGlassUp = true
-		return "⌛"
 	}
+
+	// default is waiting
+	if rotate {
+		hourGlassRotate += 1
+
+		if hourGlassRotate == 4 {
+			hourGlassRotate = 0
+		}
+
+		switch hourGlassRotate {
+		case 0:
+			return "⏳"
+		case 1:
+			return "⌛"
+		case 2:
+			return "<div class=\"rotate-div\">⏳</div>" // rotate 180
+		case 3:
+			return "<span class=\"rotate-span\">⏳</span>" // rotate 90
+		}
+	}
+
+	return "⌛"
 }

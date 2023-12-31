@@ -363,7 +363,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 			  </td>
 			  </td><td style="float: right; text-align: right; width:20%;">
 				<h3 class="title is-4">`
-	swapData += utils.VisualiseSwapStatus(swap.State)
+	swapData += utils.VisualiseSwapStatus(swap.State, true)
 	swapData += `</h3>
 			  </td>
 			</tr>
@@ -608,7 +608,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		// clicking on timestamp will open swap details page
 		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
 		table += "</td><td style=\"text-align: center\">"
-		table += utils.VisualiseSwapStatus(swap.State) + "&nbsp"
+		table += utils.VisualiseSwapStatus(swap.State, false) + "&nbsp"
 		table += utils.FormatWithThousandSeparators(swap.Amount)
 
 		switch swap.Type {
