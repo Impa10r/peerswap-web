@@ -5,7 +5,7 @@
         <div class="column">
           <div class="box">
             <h1 class="title is-4">Configuration</h1> 
-            <form action="/submit" method="post">
+            <form action="/save" method="post">
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
                   <label class="label">Color Theme</label>
@@ -91,10 +91,12 @@
               </div>
               <br>
               <center>
-              
-              <br>
-              <input type="hidden" name="action" value="saveConfig">               
-              <input class="button is-large" type="submit" value="Save Configuration">
+                <br>
+                <input class="button is-large" type="submit" value="Save Configuration">              
+              </form>
+              <form action="/stop" method="post">
+                <br>
+                <input class="button is-small is-danger" type="submit" value="Stop PS Web">
               </center>
             </form>
           </div>

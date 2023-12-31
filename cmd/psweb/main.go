@@ -69,7 +69,9 @@ func main() {
 	http.HandleFunc("/swap", onSwap)
 	http.HandleFunc("/peer", onPeer)
 	http.HandleFunc("/submit", onSubmit)
+	http.HandleFunc("/save", onSave)
 	http.HandleFunc("/config", onConfig)
+	http.HandleFunc("/stop", onStop)
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -640,48 +642,7 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 
 		action := r.FormValue("action")
-
-		if action == "saveConfig" {
-
-			mustRestart := Config.ListenPort != r.FormValue("listenPort")
-
-			Config.RpcHost = r.FormValue("rpcHost")
-			Config.ListenPort = r.FormValue("listenPort")
-			Config.ColorScheme = r.FormValue("colorScheme")
-			Config.MempoolApi = r.FormValue("mempoolApi")
-			Config.LiquidApi = r.FormValue("liquidApi")
-			Config.ConfigFile = r.FormValue("configFile")
-
-			err := utils.SaveConfig(&Config)
-			if err != nil {
-				redirectWithError(w, r, "/config?", err)
-				return
-			}
-
-			if mustRestart {
-				// Execute a new instance of the program passing --configfile as a parameter
-				cmd := exec.Command(os.Args[0], "--configfile="+Config.ConfigFile)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-
-				if err := cmd.Start(); err != nil {
-					fmt.Println("Failed to restart:", err)
-					return
-				}
-
-				fmt.Println("Restarted successfully!")
-				os.Exit(0)
-			}
-			if err != nil {
-				redirectWithError(w, r, "/?", err)
-			} else {
-				http.Redirect(w, r, "/", http.StatusSeeOther)
-			}
-			return
-		}
-
 		nodeId := r.FormValue("nodeId")
-
 		host := Config.RpcHost
 		ctx := context.Background()
 
@@ -768,6 +729,67 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func onSave(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Parse the form data
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Error parsing form data", http.StatusBadRequest)
+			return
+		}
+
+		mustRestart := Config.ListenPort != r.FormValue("listenPort")
+
+		Config.RpcHost = r.FormValue("rpcHost")
+		Config.ListenPort = r.FormValue("listenPort")
+		Config.ColorScheme = r.FormValue("colorScheme")
+		Config.MempoolApi = r.FormValue("mempoolApi")
+		Config.LiquidApi = r.FormValue("liquidApi")
+		Config.ConfigFile = r.FormValue("configFile")
+
+		err := utils.SaveConfig(&Config)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+
+		if mustRestart {
+			// Execute a new instance of the program passing --configfile as a parameter
+			cmd := exec.Command(os.Args[0], "--configfile="+Config.ConfigFile)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Start(); err != nil {
+				fmt.Println("Failed to restart:", err)
+				return
+			}
+
+			http.Error(w, "PeerSwap Web has restarted. New url: http://localhost:"+Config.ListenPort, http.StatusBadGateway)
+			fmt.Println("Restarted successfully! PID: ", cmd.Process.Pid)
+			go func() {
+				time.Sleep(3 * time.Second) // Delay for 3 seconds
+				os.Exit(0)                  // Exit the program
+			}()
+		}
+		if err != nil {
+			redirectWithError(w, r, "/?", err)
+		} else {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+		}
+		return
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func onStop(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "PeerSwap Web has stopped.", http.StatusBadGateway)
+	fmt.Println("Stop requested")
+	go func() {
+		time.Sleep(3 * time.Second) // Delay for 3 seconds
+		os.Exit(0)                  // Exit the program
+	}()
 }
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
