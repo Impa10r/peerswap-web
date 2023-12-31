@@ -33,13 +33,13 @@ var (
 	cache     []AliasCache
 	Config    utils.Configuration
 	templates = template.New("")
+	//go:embed static
+	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder embed.FS // embeds the templates folder into variable tplFolder
+	tplFolder embed.FS
 )
 
-const (
-	version = "1.0.0"
-)
+const version = "1.0.0"
 
 func main() {
 	var (
@@ -63,16 +63,6 @@ func main() {
 	// loading from the config file or assigning defaults
 	utils.LoadConfig(*configFile, &Config)
 
-	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
-	http.HandleFunc("/", homePage)
-	http.HandleFunc("/swap", onSwap)
-	http.HandleFunc("/peer", onPeer)
-	http.HandleFunc("/submit", onSubmit)
-	http.HandleFunc("/save", onSave)
-	http.HandleFunc("/config", onConfig)
-	http.HandleFunc("/stop", onStop)
-
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
 	if err != nil {
@@ -90,8 +80,24 @@ func main() {
 	// Parse all template files in the templates directory
 	templates = template.Must(templates.ParseFS(tplFolder, templateNames...))
 
+	// http.FS to create a http Filesystem
+	var staticFS = http.FS(staticFiles)
+	fs := http.FileServer(staticFS)
+
+	// Serve static files
+	http.Handle("/static/", fs)
+
+	// Serve templates
+	http.HandleFunc("/", homePage)
+	http.HandleFunc("/swap", onSwap)
+	http.HandleFunc("/peer", onPeer)
+	http.HandleFunc("/submit", onSubmit)
+	http.HandleFunc("/save", onSave)
+	http.HandleFunc("/config", onConfig)
+	http.HandleFunc("/stop", onStop)
+
 	if *configFile != "" {
-		// wait a little in case it was an autorestart
+		// wait a little in case it was an autorestart to avoid port used error
 		time.Sleep(2 * time.Second)
 	}
 
@@ -459,14 +465,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			table += "<tr style=\"background-color: " + bc + "\"; >"
 			table += "<td style=\"width: 250px; text-align: center\">"
 			table += utils.FormatWithThousandSeparators(channel.LocalBalance)
-			table += "</td><td>"
+			table += "</td><td style=\"width: 25%; text-align: center\">"
 			local := channel.LocalBalance
 			capacity := channel.LocalBalance + channel.RemoteBalance
 			totalLocal += local
 			totalCapacity += capacity
 			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
-			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + "> </progress>"
-			table += "</a></td><td>"
+			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + ">1</progress>"
+			table += "</a>"
 			table += "<td style=\"width: 250px; text-align: center\">"
 			table += utils.FormatWithThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
