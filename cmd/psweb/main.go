@@ -287,29 +287,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(500), 500)
 		return
 	}
-
 	id := keys[0]
-	host := Config.RpcHost
-	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/swap?id="+id+"&", err)
-		return
-	}
-	defer cleanup()
-
-	res, err := client.GetSwap(ctx, &peerswaprpc.GetSwapRequest{
-		SwapId: id,
-	})
-	if err != nil {
-		log.Printf("onSwap: %v", err)
-		redirectWithError(w, r, "/swap?id="+id+"&", err)
-		return
-	}
-
-	swap := res.GetSwap()
 
 	//check for error message to display
 	message := ""
@@ -319,36 +297,19 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Message        string
-		ColorScheme    string
-		Swap           *peerswaprpc.PrettyPrintSwap
-		CreatedAt      string
-		TxUrl          string // to open tx on mempool.space or liquid.network
-		NodeUrl        string // to open a node on mempool.space
-		InitiatorAlias string
-		PeerAlias      string
-		SwapStatusChar string
-	}
-
-	url := Config.MempoolApi
-	if swap.Asset == "lbtc" {
-		url = Config.LiquidApi
+		Message     string
+		ColorScheme string
+		Id          string
 	}
 
 	data := Page{
-		Message:        message,
-		ColorScheme:    Config.ColorScheme,
-		Swap:           swap,
-		CreatedAt:      time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05"),
-		TxUrl:          url + "/tx/",
-		NodeUrl:        Config.MempoolApi + "/lightning/node/",
-		InitiatorAlias: getNodeAlias(swap.InitiatorNodeId),
-		PeerAlias:      getNodeAlias(swap.PeerNodeId),
-		SwapStatusChar: utils.VisualiseSwapStatus(swap.State),
+		Message:     message,
+		ColorScheme: Config.ColorScheme,
+		Id:          id,
 	}
 
 	// executing template named "swap"
-	err = templates.ExecuteTemplate(w, "swap", data)
+	err := templates.ExecuteTemplate(w, "swap", data)
 	if err != nil {
 		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
@@ -387,9 +348,9 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
-	url := Config.MempoolApi
+	url := Config.MempoolApi + "/tx/"
 	if swap.Asset == "lbtc" {
-		url = Config.LiquidApi
+		url = Config.LiquidApi + "/tx/"
 	}
 	swapData := `<div class="container">
 	<div class="columns">

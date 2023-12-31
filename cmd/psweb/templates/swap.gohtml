@@ -6,7 +6,7 @@
         document.getElementById('update').innerHTML = data;
       }
       function fetchData() {
-        fetch('/update?id={{.Swap.Id}}')
+        fetch('/update?id={{.Id}}')
           .then(response => response.text())
           .then(data => updatePage(data));
       }
