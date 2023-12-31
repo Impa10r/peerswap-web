@@ -9,7 +9,7 @@ PeerSwap Web is agnostic to whether you are running on testnet/signet or mainnet
 
 ## Install dependencies
 
-PeerSwap Web requires Bitcoin Core, Elements Core (optional, but highly recommented), LND and PeerSwap for LND installed. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md) to install PeerSwap.
+PeerSwap Web requires Bitcoin Core, Elements Core (optional, but highly recommented), LND and PeerSwap for LND. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md) to install PeerSwap.
 
 Install golang from https://go.dev/doc/install
 
