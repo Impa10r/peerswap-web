@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"text/template"
@@ -24,13 +27,35 @@ type AliasCache struct {
 	Alias     string
 }
 
-var cache []AliasCache
-var Config utils.Configuration
-var templates = template.New("")
+var (
+	cache       []AliasCache
+	Config      utils.Configuration
+	templates   = template.New("")
+	configFile  = flag.String("configfile", "", "Path/filename to store config JSON")
+	showHelp    = flag.Bool("help", false, "Show help")
+	showVersion = flag.Bool("version", false, "Show version")
+)
+
+const (
+	version = "1.0.0"
+)
 
 func main() {
-	// simulate loading from config file
-	Config = utils.LoadConfig()
+
+	flag.Parse()
+
+	if *showHelp {
+		showHelpMessage()
+		return
+	}
+
+	if *showVersion {
+		showVersionInfo()
+		return
+	}
+
+	// loading from the config file or assigning defaults
+	utils.LoadConfig(*configFile, &Config)
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -45,6 +70,11 @@ func main() {
 	templates, err = templates.ParseGlob("templates/*.gohtml")
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if *configFile != "" {
+		// wait a little in case it was an autorestart
+		time.Sleep(2 * time.Second)
 	}
 
 	log.Println("Listening on http://localhost:" + Config.ListenPort)
@@ -99,7 +129,7 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 
 	//check for error message to display
 	message := ""
-	keys, ok := r.URL.Query()["msg"]
+	keys, ok := r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
 		message = keys[0]
 	}
@@ -182,7 +212,7 @@ func onPeer(w http.ResponseWriter, r *http.Request) {
 
 	//check for error message to display
 	message := ""
-	keys, ok = r.URL.Query()["msg"]
+	keys, ok = r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
 		message = keys[0]
 	}
@@ -252,7 +282,7 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 
 	//check for error message to display
 	message := ""
-	keys, ok = r.URL.Query()["msg"]
+	keys, ok = r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
 		message = keys[0]
 	}
@@ -297,7 +327,7 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 func onConfig(w http.ResponseWriter, r *http.Request) {
 	//check for error message to display
 	message := ""
-	keys, ok := r.URL.Query()["msg"]
+	keys, ok := r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
 		message = keys[0]
 	}
@@ -596,15 +626,41 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 		action := r.FormValue("action")
 
 		if action == "saveConfig" {
-			Config = utils.Configuration{
-				RpcHost:      r.FormValue("rpcHost"),
-				ListenPort:   r.FormValue("listnePort"),
-				ColorScheme:  r.FormValue("colorScheme"),
-				MempoolApi:   r.FormValue("mempoolUrl"),
-				LiquidApi:    r.FormValue("liquidUrl"),
-				ConfigFolder: r.FormValue("configFolder"),
+
+			mustRestart := Config.ListenPort != r.FormValue("listenPort")
+
+			Config.RpcHost = r.FormValue("rpcHost")
+			Config.ListenPort = r.FormValue("listenPort")
+			Config.ColorScheme = r.FormValue("colorScheme")
+			Config.MempoolApi = r.FormValue("mempoolApi")
+			Config.LiquidApi = r.FormValue("liquidApi")
+			Config.ConfigFile = r.FormValue("configFile")
+
+			err := utils.SaveConfig(&Config)
+			if err != nil {
+				redirectWithError(w, r, "/config?", err)
+				return
 			}
-			utils.SaveConfig(Config)
+
+			if mustRestart {
+				// Execute a new instance of the program passing --configfile as a parameter
+				cmd := exec.Command(os.Args[0], "--configfile="+Config.ConfigFile)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+
+				if err := cmd.Start(); err != nil {
+					fmt.Println("Failed to restart:", err)
+					return
+				}
+
+				fmt.Println("Restarted successfully!")
+				os.Exit(0)
+			}
+			if err != nil {
+				redirectWithError(w, r, "/?", err)
+			} else {
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+			}
 			return
 		}
 
@@ -701,5 +757,15 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
 	// display the error to the web page header
 	msg := url.QueryEscape(fmt.Sprintln(err))
-	http.Redirect(w, r, redirectUrl+"msg="+msg, http.StatusSeeOther)
+	http.Redirect(w, r, redirectUrl+"err="+msg, http.StatusSeeOther)
+}
+
+func showHelpMessage() {
+	fmt.Println("A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning <-> BTC and Lightning <-> L-BTC.")
+	fmt.Println("Usage:")
+	flag.PrintDefaults()
+}
+
+func showVersionInfo() {
+	fmt.Println("Version:", version)
 }

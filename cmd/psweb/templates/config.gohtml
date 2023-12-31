@@ -44,6 +44,9 @@
                     <p>
                       <input class="input" type="number" value={{.Config.ListenPort}} name="listenPort" placeholder="8088">
                     </p>
+                    <p>
+                      Changing the listening port will restart PeerSwap Web UI automatically. Make sure to point your browser to the new URL.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -54,7 +57,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value={{.Config.MempoolApi}} name="mempoolApi" placeholder="https://mempool.space/testnet">
+                      <input class="input" type="text" value={{.Config.MempoolApi}} name="mempoolApi" placeholder="https://mempool.space">
                     </p>
                   </div>
                 </div>
@@ -66,25 +69,30 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value={{.Config.LiquidApi}} name="liquidApi" placeholder="https://liquid.network/testnet">
+                      <input class="input" type="text" value={{.Config.LiquidApi}} name="liquidApi" placeholder="https://liquid.network">
                     </p>
                   </div>
                 </div>
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Web UI Config Folder</label>
+                  <label class="label">Web UI Config File</label>
                 </div>
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input" type="text" value={{.Config.ConfigFolder}} name="configFolder" placeholder="~/.peerswap">
+                      <input class="input" type="text" value="{{.Config.ConfigFile}}" name="configFile" placeholder="/your/path/to/pswebconfig.json">
+                    </p>
+                    <p>
+                      For non-default location, run with --configfile=/your/path/to/pswebconfig.json
                     </p>
                   </div>
                 </div>
               </div>
               <br>
               <center>
+              
+              <br>
               <input type="hidden" name="action" value="saveConfig">               
               <input class="button is-large" type="submit" value="Save Configuration">
               </center>
