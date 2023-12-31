@@ -4,6 +4,7 @@ go 1.21.5
 
 require (
 	github.com/elementsproject/peerswap v0.2.97
+	github.com/gorilla/mux v1.8.1
 	google.golang.org/grpc v1.60.1
 )
 

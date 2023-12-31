@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
+	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	"peerswap-web/utils"
@@ -87,19 +88,25 @@ func main() {
 	// Serve static files
 	http.Handle("/static/", fs)
 
+	r := mux.NewRouter()
+
 	// Serve templates
-	http.HandleFunc("/", homePage)
-	http.HandleFunc("/swap", onSwap)
-	http.HandleFunc("/peer", onPeer)
-	http.HandleFunc("/submit", onSubmit)
-	http.HandleFunc("/save", onSave)
-	http.HandleFunc("/config", onConfig)
-	http.HandleFunc("/stop", onStop)
+	r.HandleFunc("/", indexHandler)
+	r.HandleFunc("/swap", swapHandler)
+	r.HandleFunc("/peer", peerHandler)
+	r.HandleFunc("/submit", submitHandler)
+	r.HandleFunc("/save", saveHandler)
+	r.HandleFunc("/config", configHandler)
+	r.HandleFunc("/stop", stopHandler)
+	r.HandleFunc("/update", updateHandler)
 
 	if *configFile != "" {
 		// wait a little in case it was an autorestart to avoid port used error
 		time.Sleep(2 * time.Second)
 	}
+
+	// Start the server
+	http.Handle("/", r)
 
 	log.Println("Listening on http://localhost:" + Config.ListenPort)
 	err = http.ListenAndServe(":"+Config.ListenPort, nil)
@@ -108,7 +115,7 @@ func main() {
 	}
 }
 
-func homePage(w http.ResponseWriter, r *http.Request) {
+func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	host := Config.RpcHost
 	ctx := context.Background()
@@ -182,7 +189,7 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func onPeer(w http.ResponseWriter, r *http.Request) {
+func peerHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
 		fmt.Println("URL parameter 'id' is missing")
@@ -273,7 +280,7 @@ func onPeer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func onSwap(w http.ResponseWriter, r *http.Request) {
+func swapHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
 		fmt.Println("URL parameter 'id' is missing")
@@ -348,7 +355,127 @@ func onSwap(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func onConfig(w http.ResponseWriter, r *http.Request) {
+// Updates swap page live
+func updateHandler(w http.ResponseWriter, r *http.Request) {
+	keys, ok := r.URL.Query()["id"]
+	if !ok || len(keys[0]) < 1 {
+		fmt.Println("URL parameter 'id' is missing")
+		http.Error(w, http.StatusText(500), 500)
+		return
+	}
+
+	id := keys[0]
+	host := Config.RpcHost
+	ctx := context.Background()
+
+	client, cleanup, err := getClient(host)
+	if err != nil {
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/swap?id="+id+"&", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := client.GetSwap(ctx, &peerswaprpc.GetSwapRequest{
+		SwapId: id,
+	})
+	if err != nil {
+		log.Printf("onSwap: %v", err)
+		redirectWithError(w, r, "/swap?id="+id+"&", err)
+		return
+	}
+
+	swap := res.GetSwap()
+
+	url := Config.MempoolApi
+	if swap.Asset == "lbtc" {
+		url = Config.LiquidApi
+	}
+	swapData := `<div class="container">
+	<div class="columns">
+	  <div class="column">
+		<div class="box">
+		  <table style="table-layout:fixed; width: 100%;">
+				<tr>
+			  <td style="float: left; text-align: left; width: 80%;">
+				<h3 class="title is-4">Swap Details</h3>
+			  </td>
+			  </td><td style="float: right; text-align: right; width:20%;">
+				<h3 class="title is-4">`
+	swapData += utils.VisualiseSwapStatus(swap.State)
+	swapData += `</h3>
+			  </td>
+			</tr>
+		  <table>
+		  <table style="table-layout:fixed; width: 100%">
+			<tr><td style="text-align: right">ID:</td><td style="overflow-wrap: break-word;">`
+	swapData += swap.Id
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">Created At:</td><td >`
+	swapData += time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05")
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">Asset:</td><td>`
+	swapData += swap.Asset
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">Type:</td><td>`
+	swapData += swap.Type
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">Role:</td><td>`
+	swapData += swap.Role
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">State:</td><td style="overflow-wrap: break-word;">`
+	swapData += swap.State
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
+	swapData += getNodeAlias(swap.InitiatorNodeId)
+	swapData += `<a href="`
+	swapData += Config.MempoolApi + "/lightning/node/" + swap.InitiatorNodeId
+	swapData += `" target="_blank">🔗</a></td></tr>
+			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
+	swapData += getNodeAlias(swap.PeerNodeId)
+	swapData += ` <a href="`
+	swapData += Config.MempoolApi + "/lightning/node/" + swap.PeerNodeId
+	swapData += `" target="_blank">🔗</a></td></tr>
+			<tr><td style="text-align: right">Amount:</td><td>`
+	swapData += utils.FormatWithThousandSeparators(swap.Amount)
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">ChannelId:</td><td>`
+	swapData += swap.ChannelId
+	swapData += `</td></tr>
+			<tr><td style="text-align: right">OpeningTxId:</td><td style="overflow-wrap: break-word;">`
+	swapData += swap.OpeningTxId
+	swapData += `<a href="`
+	swapData += url + swap.OpeningTxId
+	swapData += `" target="_blank">🔗</a>`
+	if swap.ClaimTxId != "" {
+		swapData += `</td></tr>
+			<tr><td style="text-align: right">ClaimTxId:</td><td style="overflow-wrap: break-word;">`
+		swapData += swap.ClaimTxId
+		swapData += `<a href="`
+		swapData += url + swap.ClaimTxId
+		swapData += `" target="_blank">🔗</a></td></tr>`
+
+	}
+	if swap.CancelMessage != "" {
+		swapData += `<tr><td style="text-align: right">CancelMsg:</td><td>`
+		swapData += swap.CancelMessage
+		swapData += `</td></tr>`
+	}
+	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
+	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
+	swapData += `</td></tr>
+		  </table>
+		</div>
+	  </div>
+	</div>
+  </div>`
+
+	// Send the updated data as the response
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(swapData))
+}
+
+func configHandler(w http.ResponseWriter, r *http.Request) {
 	//check for error message to display
 	message := ""
 	keys, ok := r.URL.Query()["err"]
@@ -639,7 +766,7 @@ func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswapr
 	return nil // Return nil if peer with given ID is not found
 }
 
-func onSubmit(w http.ResponseWriter, r *http.Request) {
+func submitHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
 		if err := r.ParseForm(); err != nil {
@@ -737,7 +864,7 @@ func onSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func onSave(w http.ResponseWriter, r *http.Request) {
+func saveHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
 		if err := r.ParseForm(); err != nil {
@@ -789,7 +916,7 @@ func onSave(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func onStop(w http.ResponseWriter, r *http.Request) {
+func stopHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "PeerSwap Web has stopped.", http.StatusBadGateway)
 	fmt.Println("Stop requested")
 	go func() {
