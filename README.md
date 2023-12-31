@@ -1,4 +1,4 @@
-![image](https://github.com/Impa10r/peerswap-web/assets/101550606/a2613c43-444e-41d1-b697-620fe277d760)
+![image](https://github.com/Impa10r/peerswap-web/assets/101550606/4726dc45-8aa2-458a-bfe4-e9f0037be323)
 
 # PeerSwap Web
 A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning-BTC and Lightning-LBTC. 
