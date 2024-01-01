@@ -7,7 +7,7 @@
             <h3 class="title is-4">🌊 Liqiud sats: {{.SatAmount}}</h3>
           </div>
           <div class="box">
-           {{if not .Peer.SwapsAllowed}}
+            {{if not .Peer.SwapsAllowed}}
               <p>⛔ {{.PeerAlias}} did not whitelist your node. Please contact them to do it.</p>
             {{else}}
               <h1 class="title is-4">New Swap</h1> 
@@ -83,19 +83,18 @@
                   <div class="field-body">
                     <div class="field">
                       <div class="control">
-                        <label class="checkbox is-medium">
+                        <label class="checkbox is-large">
                           <input type="checkbox" name="forced">
-                          Yes
+                          <strong>&nbsp&nbspYES</strong>
                         </label>
                       </div>
                     </div>
                   </div>
                 </div>
-                <br>
                 <center>
-                <input type="hidden" name="action" value="doSwap">
-                <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                <input class="button is-large" type="submit" value="Execute Swap">
+                  <input type="hidden" name="action" value="doSwap">
+                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                  <input class="button is-large" type="submit" value="Execute Swap">
                 </center>
               </form>
             {{end}}

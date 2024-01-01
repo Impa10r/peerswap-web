@@ -1,0 +1,70 @@
+{{define "liquid"}}
+  {{template "header" .}}
+    <div class="container">
+      <div class="columns">
+        <div class="column">
+          <div class="box">
+            <h3 class="title is-4">🌊 Liqiud sats: {{.SatAmount}}</h3>
+          </div>
+          {{if eq .TxId ""}}
+            <div class="box">
+              <h1 class="title is-4">Receiving Address</h1> 
+              <table style="table-layout:fixed; width: 100%;">
+                  <tr><td style="overflow-wrap: break-word;">
+                    <center>
+                      {{.LiquidAddress}}
+                    </center>
+                  </td></tr>
+                </table>
+            </div>
+            <div class="box">
+              <h1 class="title is-4">Send Liquid</h1> 
+              <form action="/submit" method="post">
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Send To Address</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <p>
+                        <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address">
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Amount L-BTC</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <p>
+                        <input class="input is-medium" type="number" name="sendAmount" placeholder="🌊 Liquid Amount">
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <br>
+                <center>
+                <input type="hidden" name="action" value="sendLiquid">
+                <input class="button is-large" type="submit" value="Send Liquid">
+                </center>
+              </form>
+            </div>
+          {{else}}
+            <div class="box">
+              <h1 class="title is-4">Payment Sent</h1> 
+              <table style="table-layout:fixed; width: 100%;">
+                  <tr><td style="overflow-wrap: break-word;">
+                    <center>
+                      TxId: {{.TxId}}&nbsp<a href="{{.LiquidUrl}}" target="_blank">🔗</a>
+                    </center>
+                  </td></tr>
+                </table>
+            </div>
+          {{end}}
+        </div>
+      </div>
+    </div>
+  {{template "footer" .}}
+{{end}}
