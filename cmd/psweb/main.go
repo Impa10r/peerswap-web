@@ -574,10 +574,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		TimeStamp int64
 		HtmlBlob  string
 	}
-	var (
-		unsortedTable []Table
-		counter       uint
-	)
+	var unsortedTable []Table
 
 	for _, swap := range swaps {
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
@@ -627,11 +624,6 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			TimeStamp: swap.CreatedAt,
 			HtmlBlob:  table,
 		})
-
-		counter++
-		if counter >= utils.Config.MaxHistory {
-			break
-		}
 	}
 
 	// sort the table on TimeStamp field
@@ -639,8 +631,14 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		return unsortedTable[i].TimeStamp > unsortedTable[j].TimeStamp
 	})
 
+	var counter uint
 	table := ""
+
 	for _, t := range unsortedTable {
+		counter++
+		if counter > utils.Config.MaxHistory {
+			break
+		}
 		table += t.HtmlBlob
 	}
 	table += "</table>"
