@@ -233,7 +233,7 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	for _, swap := range swaps {
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
-		table += "<tr style=\"border: 1px dotted\">"
+		table += "<tr>"
 		table += "<td style=\"width: 30%; text-align: left\">"
 
 		tm := TimePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
