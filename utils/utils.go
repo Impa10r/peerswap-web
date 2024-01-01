@@ -78,31 +78,29 @@ var hourGlassRotate = 0
 func VisualiseSwapStatus(statusText string, rotate bool) string {
 	switch statusText {
 	case "State_ClaimedCoop":
-		return "❌"
+		return "<a href=\"/\">❌</a>"
 	case "State_SwapCanceled":
-		return "❌"
+		return "<a href=\"/\">❌</a>"
 	case "State_SendCancel":
-		return "❌"
+		return "<a href=\"/\">❌</a>"
 	case "State_ClaimedPreimage":
-		return "💰"
+		return "<a href=\"/\">💰</a>"
 	}
 
 	if rotate {
 		hourGlassRotate += 1
 
-		if hourGlassRotate == 4 {
+		if hourGlassRotate == 3 {
 			hourGlassRotate = 0
 		}
 
 		switch hourGlassRotate {
 		case 0:
-			return "⏳"
+			return "<a href=\"/\">⏳</a>"
 		case 1:
-			return "⌛"
+			return "<a href=\"/\">⌛</a>"
 		case 2:
-			return "<div class=\"rotate-div\">⏳</div>" // rotate 180
-		case 3:
-			return "<span class=\"rotate-span\">⏳</span>" // rotate 90
+			return "<span class=\"rotate-span\"><a href=\"/\">⏳</a></span>" // rotate 90
 		}
 	}
 

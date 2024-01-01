@@ -22,7 +22,7 @@
                         <div class="select is-medium">
                           <select name="channelId">
                           {{range .Peer.Channels}}
-                            <option value="{{.ChannelId}}">Local {{.LocalBalance}} - Remote {{.RemoteBalance}}</option>
+                            <option value="{{.ChannelId}}">L {{.LocalBalance}} - {{.RemoteBalance}} R</option>
                           {{end}}
                           </select>
                         </div>
@@ -39,8 +39,8 @@
                       <div class="control">
                         <div class="select is-medium">
                           <select name="direction">
-                            <option value="swapIn">Swap In  ⇦ </option>
-                            <option value="swapOut">Swap Out ⇨ </option>
+                            <option value="swapIn">Swap In ⚡ ⇦ </option>
+                            <option value="swapOut">Swap Out ⚡ ⇨ </option>
                           </select>
                         </div>
                       </div>
