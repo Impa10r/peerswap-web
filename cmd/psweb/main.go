@@ -34,7 +34,7 @@ var (
 	tplFolder embed.FS
 )
 
-const version = "1.0.0"
+const version = "v1.0.0"
 
 func main() {
 	var (
@@ -441,12 +441,14 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Message     string
 		ColorScheme string
 		Config      utils.Configuration
+		Version     string
 	}
 
 	data := Page{
 		Message:     message,
 		ColorScheme: utils.Config.ColorScheme,
 		Config:      utils.Config,
+		Version:     version,
 	}
 
 	// executing template named "error"
