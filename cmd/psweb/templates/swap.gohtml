@@ -1,16 +1,56 @@
 {{define "swap"}}
-  {{template "header" .}}
-    <div id="update"></div>
-    <script>
-      function updatePage(data) {
-        document.getElementById('update').innerHTML = data;
-      }
-      function fetchData() {
-        fetch('/update?id={{.Id}}')
-          .then(response => response.text())
-          .then(data => updatePage(data));
-      }
-      setInterval(fetchData, 1000);
-    </script>
+  
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PeerSwap Web UI</title>
+    <link rel="stylesheet" href="/static/bulma-{{.ColorScheme}}.min.css">
+    <style>
+        th, td {
+        padding: 5px;
+        }
+        .rotate-span {
+            display: inline-block;
+            float: right; 
+            text-align: right;
+            transform: rotate(270deg);
+        }
+        .rotate-div {
+            float: right; 
+            text-align: right;
+            margin-top: 2px;
+            margin-bottom: -2px;
+            transform: rotate(180deg);
+        }
+    </style>
+    </head>
+    <body>
+        <header>
+            <p style="margin:0.5em;"></p>
+            <table style="table-layout:fixed; width: 100%">
+		        <tr><td style="float: left; text-align: left; width: 80%;">
+                    <a href="/">&emsp;<img src="/static/peerswap_logo_{{.ColorScheme}}.png" alt="PeerSwap" width="200"></a>
+                </td><td style="float: right; text-align: right; width: 20%;">
+                    <a href="/config"><img src="/static/cog.png" alt="Config" width="45">&emsp;</a>
+                </td><tr>
+            </table>
+        </header>
+        <section class="section">
+          <div id="update">
+          </div>
+          <script>
+            function updatePage(data) {
+              document.getElementById('update').innerHTML = data;
+            }
+            function fetchData() {
+              fetch('/update?id={{.Id}}')
+                .then(response => response.text())
+                .then(data => updatePage(data));
+            }
+            fetchData()
+            setInterval(fetchData, 1000);
+          </script>
   {{template "footer" .}}
 {{end}}

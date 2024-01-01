@@ -289,21 +289,12 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id := keys[0]
 
-	//check for error message to display
-	message := ""
-	keys, ok = r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		message = keys[0]
-	}
-
 	type Page struct {
-		Message     string
 		ColorScheme string
 		Id          string
 	}
 
 	data := Page{
-		Message:     message,
 		ColorScheme: Config.ColorScheme,
 		Id:          id,
 	}

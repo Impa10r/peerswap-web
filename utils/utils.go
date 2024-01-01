@@ -87,7 +87,6 @@ func VisualiseSwapStatus(statusText string, rotate bool) string {
 		return "💰"
 	}
 
-	// default is waiting
 	if rotate {
 		hourGlassRotate += 1
 
