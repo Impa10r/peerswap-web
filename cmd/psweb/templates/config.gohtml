@@ -8,6 +8,23 @@
             <form action="/save" method="post">
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
+                  <label class="label">Allow Swap Requests</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <div class="control">
+                      <div class="select is-medium">
+                        <select name="allowSwapRequests">
+                          <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Yes</option>
+                          <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>No</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
                   <label class="label">Color Theme</label>
                 </div>
                 <div class="field-body">

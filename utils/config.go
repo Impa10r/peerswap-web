@@ -8,16 +8,19 @@ import (
 )
 
 type Configuration struct {
-	RpcHost     string
-	ListenPort  string
-	ColorScheme string
-	MempoolApi  string
-	LiquidApi   string
-	ConfigFile  string
-	MaxHistory  uint
+	AllowSwapRequests bool
+	RpcHost           string
+	ListenPort        string
+	ColorScheme       string
+	MempoolApi        string
+	LiquidApi         string
+	ConfigFile        string
+	MaxHistory        uint
 }
 
-func LoadConfig(configFile string, conf *Configuration) {
+var Config Configuration
+
+func LoadConfig(configFile string) {
 
 	if configFile == "" {
 		// Get the current user's information
@@ -30,13 +33,14 @@ func LoadConfig(configFile string, conf *Configuration) {
 	}
 
 	// load defaults first
-	conf.RpcHost = "localhost:42069"
-	conf.ListenPort = "8088"
-	conf.ColorScheme = "dark"                         // dark or light
-	conf.MempoolApi = "https://mempool.space/testnet" // https://mempool.space for mainnet
-	conf.LiquidApi = "https://liquid.network/testnet" // https://liquid.network for mainnet
-	conf.ConfigFile = configFile
-	conf.MaxHistory = 10
+	Config.AllowSwapRequests = true
+	Config.RpcHost = "localhost:42069"
+	Config.ListenPort = "8088"
+	Config.ColorScheme = "dark"                         // dark or light
+	Config.MempoolApi = "https://mempool.space/testnet" // https://mempool.space for mainnet
+	Config.LiquidApi = "https://liquid.network/testnet" // https://liquid.network for mainnet
+	Config.ConfigFile = configFile
+	Config.MaxHistory = 10
 
 	fileData, err := os.ReadFile(configFile)
 	if err != nil {
@@ -45,18 +49,18 @@ func LoadConfig(configFile string, conf *Configuration) {
 		return
 	}
 
-	err = json.Unmarshal(fileData, conf)
+	err = json.Unmarshal(fileData, &Config)
 	if err != nil {
 		log.Println("Error unmarshalling config file. Using defaults.")
 	}
 }
 
-func SaveConfig(conf *Configuration) error {
-	jsonData, err := json.MarshalIndent(conf, "", "  ")
+func SaveConfig() error {
+	jsonData, err := json.MarshalIndent(Config, "", "  ")
 	if err != nil {
 		return err
 	}
-	filename := conf.ConfigFile
+	filename := Config.ConfigFile
 	err = os.WriteFile(filename, jsonData, 0644)
 	if err != nil {
 		return err

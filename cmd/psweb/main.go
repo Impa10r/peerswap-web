@@ -20,7 +20,6 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
-	"google.golang.org/grpc"
 
 	"peerswap-web/utils"
 )
@@ -32,7 +31,6 @@ type AliasCache struct {
 
 var (
 	cache     []AliasCache
-	Config    utils.Configuration
 	templates = template.New("")
 	//go:embed static
 	staticFiles embed.FS
@@ -62,7 +60,7 @@ func main() {
 	}
 
 	// loading from the config file or assigning defaults
-	utils.LoadConfig(*configFile, &Config)
+	utils.LoadConfig(*configFile)
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -108,8 +106,8 @@ func main() {
 	// Start the server
 	http.Handle("/", r)
 
-	log.Println("Listening on http://localhost:" + Config.ListenPort)
-	err = http.ListenAndServe(":"+Config.ListenPort, nil)
+	log.Println("Listening on http://localhost:" + utils.Config.ListenPort)
+	err = http.ListenAndServe(":"+utils.Config.ListenPort, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,10 +115,10 @@ func main() {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 
-	host := Config.RpcHost
+	host := utils.Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := getClient(host)
+	client, cleanup, err := utils.GetClient(host)
 	if err != nil {
 		log.Println(fmt.Errorf("unable to connect to RPC server: %v", err))
 		// display the error to the web page
@@ -166,19 +164,21 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Message     string
-		ColorScheme string
-		SatAmount   string
-		ListPeers   string
-		ListSwaps   string
+		AllowSwapRequests bool
+		Message           string
+		ColorScheme       string
+		SatAmount         string
+		ListPeers         string
+		ListSwaps         string
 	}
 
 	data := Page{
-		Message:     message,
-		ColorScheme: Config.ColorScheme,
-		SatAmount:   utils.FormatWithThousandSeparators(satAmount),
-		ListPeers:   convertPeersToHTMLTable(peers, allowlistedPeers),
-		ListSwaps:   convertSwapsToHTMLTable(swaps),
+		AllowSwapRequests: utils.Config.AllowSwapRequests,
+		Message:           message,
+		ColorScheme:       utils.Config.ColorScheme,
+		SatAmount:         utils.FormatWithThousandSeparators(satAmount),
+		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers),
+		ListSwaps:         convertSwapsToHTMLTable(swaps),
 	}
 
 	// executing template named "homepage"
@@ -198,10 +198,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	host := Config.RpcHost
+	host := utils.Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := getClient(host)
+	client, cleanup, err := utils.GetClient(host)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/peer?id="+id+"&", err)
@@ -262,10 +262,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:     message,
-		ColorScheme: Config.ColorScheme,
+		ColorScheme: utils.Config.ColorScheme,
 		Peer:        peer,
 		PeerAlias:   getNodeAlias(peer.NodeId),
-		NodeUrl:     Config.MempoolApi + "/lightning/node/",
+		NodeUrl:     utils.Config.MempoolApi + "/lightning/node/",
 		Allowed:     utils.StringIsInSlice(peer.NodeId, allowlistedPeers),
 		BTC:         utils.StringIsInSlice("btc", peer.SupportedAssets),
 		LBTC:        utils.StringIsInSlice("lbtc", peer.SupportedAssets),
@@ -295,7 +295,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: Config.ColorScheme,
+		ColorScheme: utils.Config.ColorScheme,
 		Id:          id,
 	}
 
@@ -317,10 +317,10 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	host := Config.RpcHost
+	host := utils.Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := getClient(host)
+	client, cleanup, err := utils.GetClient(host)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/swap?id="+id+"&", err)
@@ -339,9 +339,9 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
-	url := Config.MempoolApi + "/tx/"
+	url := utils.Config.MempoolApi + "/tx/"
 	if swap.Asset == "lbtc" {
-		url = Config.LiquidApi + "/tx/"
+		url = utils.Config.LiquidApi + "/tx/"
 	}
 	swapData := `<div class="container">
 	<div class="columns">
@@ -381,12 +381,12 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
 	swapData += getNodeAlias(swap.InitiatorNodeId)
 	swapData += `<a href="`
-	swapData += Config.MempoolApi + "/lightning/node/" + swap.InitiatorNodeId
+	swapData += utils.Config.MempoolApi + "/lightning/node/" + swap.InitiatorNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
 	swapData += getNodeAlias(swap.PeerNodeId)
 	swapData += ` <a href="`
-	swapData += Config.MempoolApi + "/lightning/node/" + swap.PeerNodeId
+	swapData += utils.Config.MempoolApi + "/lightning/node/" + swap.PeerNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
 	swapData += utils.FormatWithThousandSeparators(swap.Amount)
@@ -443,8 +443,8 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:     message,
-		ColorScheme: Config.ColorScheme,
-		Config:      Config,
+		ColorScheme: utils.Config.ColorScheme,
+		Config:      utils.Config,
 	}
 
 	// executing template named "error"
@@ -453,34 +453,6 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
 	}
-}
-
-func getClient(rpcServer string) (peerswaprpc.PeerSwapClient, func(), error) {
-	conn, err := getClientConn(rpcServer)
-	if err != nil {
-		return nil, nil, err
-	}
-	cleanup := func() { conn.Close() }
-
-	psClient := peerswaprpc.NewPeerSwapClient(conn)
-	return psClient, cleanup, nil
-}
-
-func getClientConn(address string) (*grpc.ClientConn, error) {
-
-	maxMsgRecvSize := grpc.MaxCallRecvMsgSize(1 * 1024 * 1024 * 200)
-	opts := []grpc.DialOption{
-		grpc.WithDefaultCallOptions(maxMsgRecvSize),
-		grpc.WithInsecure(),
-	}
-
-	conn, err := grpc.Dial(address, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to RPC server: %v",
-			err)
-	}
-
-	return conn, nil
 }
 
 // converts a list of peers into an HTML table to display
@@ -529,14 +501,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			// red background for inactive channels
 			bc := "#590202"
-			if Config.ColorScheme == "light" {
+			if utils.Config.ColorScheme == "light" {
 				bc = "#fcb6b6"
 			}
 
 			if channel.Active {
 				// green background for active channels
 				bc = "#224725"
-				if Config.ColorScheme == "light" {
+				if utils.Config.ColorScheme == "light" {
 					bc = "#e6ffe8"
 				}
 			}
@@ -643,7 +615,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		})
 
 		counter++
-		if counter >= Config.MaxHistory {
+		if counter >= utils.Config.MaxHistory {
 			break
 		}
 	}
@@ -669,8 +641,8 @@ func getNodeAlias(id string) string {
 		}
 	}
 
-	url := Config.MempoolApi + "/api/v1/lightning/search?searchText=" + id
-	if Config.MempoolApi != "" {
+	url := utils.Config.MempoolApi + "/api/v1/lightning/search?searchText=" + id
+	if utils.Config.MempoolApi != "" {
 		req, err := http.NewRequest("GET", url, nil)
 		if err == nil {
 			cl := &http.Client{}
@@ -736,10 +708,10 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		action := r.FormValue("action")
 		nodeId := r.FormValue("nodeId")
-		host := Config.RpcHost
+		host := utils.Config.RpcHost
 		ctx := context.Background()
 
-		client, cleanup, err := getClient(host)
+		client, cleanup, err := utils.GetClient(host)
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
@@ -833,30 +805,44 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		mustRestart := Config.ListenPort != r.FormValue("listenPort")
+		mustRestart := utils.Config.ListenPort != r.FormValue("listenPort")
+		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
 
-		Config.RpcHost = r.FormValue("rpcHost")
-		Config.ListenPort = r.FormValue("listenPort")
-		Config.ColorScheme = r.FormValue("colorScheme")
-		Config.MempoolApi = r.FormValue("mempoolApi")
-		Config.LiquidApi = r.FormValue("liquidApi")
-		Config.ConfigFile = r.FormValue("configFile")
+		if allowSwapRequests != utils.Config.AllowSwapRequests {
+			err = utils.AllowSwapRequests(allowSwapRequests)
+			if err != nil {
+				redirectWithError(w, r, "/config?", err)
+				return
+			}
+		}
+
+		utils.Config.AllowSwapRequests = allowSwapRequests
+		utils.Config.RpcHost = r.FormValue("rpcHost")
+		utils.Config.ListenPort = r.FormValue("listenPort")
+		utils.Config.ColorScheme = r.FormValue("colorScheme")
+		utils.Config.MempoolApi = r.FormValue("mempoolApi")
+		utils.Config.LiquidApi = r.FormValue("liquidApi")
+		utils.Config.ConfigFile = r.FormValue("configFile")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
-		Config.MaxHistory = uint(mh)
+		utils.Config.MaxHistory = uint(mh)
 
-		if err = utils.SaveConfig(&Config); err != nil {
+		if err = utils.SaveConfig(); err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
 
 		if mustRestart {
 			// Execute a new instance of the program passing --configfile as a parameter
-			cmd := exec.Command(os.Args[0], "--configfile="+Config.ConfigFile)
+			cmd := exec.Command(os.Args[0], "--configfile="+utils.Config.ConfigFile)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
@@ -865,7 +851,7 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			http.Error(w, "PeerSwap Web has restarted. New url: http://localhost:"+Config.ListenPort, http.StatusBadGateway)
+			http.Error(w, "PeerSwap Web has restarted. New url: http://localhost:"+utils.Config.ListenPort, http.StatusBadGateway)
 			fmt.Println("Restarted successfully! PID: ", cmd.Process.Pid)
 			go func() {
 				time.Sleep(3 * time.Second) // Delay for 3 seconds

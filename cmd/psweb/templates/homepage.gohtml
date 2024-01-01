@@ -8,6 +8,15 @@
           </div>          
           <div class="box">
             <h3 class="title is-4">Peer List</h3>
+            {{if not .AllowSwapRequests}}
+              <table style="table-layout:fixed; width: 100%;">
+                <tr><td style="color:red">
+                  <center>
+                    Swap Requests Are Disabled
+                  </center>
+                </td></tr>
+              </table>
+            {{end}}
             {{.ListPeers}}
           </div>
         </div>
