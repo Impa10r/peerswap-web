@@ -104,14 +104,14 @@
           <div class="box">
             <h3 class="title is-4">Peer Details</h3>        
             <table style="width:100%; table-layout:fixed;">
-              <tr style="border: 1px solid"><td style="width: 40%; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
-              <tr style="border: 1px solid"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
-              <tr style="border: 1px solid"><td style="text-align: right">Supported Assets:</td><td>
+              <tr style="border: 1px dotted"><td style="width: 40%; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
+              <tr style="border: 1px dotted"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
+              <tr style="border: 1px dotted"><td style="text-align: right">Supported Assets:</td><td>
                 {{range .Peer.SupportedAssets}}
                   {{.}}
                 {{end}}
               </td></tr>
-              <tr style="border: 1px solid"><td style="text-align: right">Fee Paid:</td><td>{{.Peer.PaidFee}}</td></tr>
+              <tr style="border: 1px dotted"><td style="text-align: right">Fee Paid:</td><td>{{.Peer.PaidFee}}</td></tr>
             </table>
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
@@ -122,14 +122,14 @@
                 <th>Sats Out</th>
                 <th>Sats In</th>
               </tr>
-              <tr style="border: 1px solid">
+              <tr style="border: 1px dotted">
                 <td>Sent:
                 <td>{{.Peer.AsSender.SwapsOut}}</td>
                 <td>{{.Peer.AsSender.SwapsIn}}</td>
                 <td>{{.Peer.AsSender.SatsOut}}</td>
                 <td>{{.Peer.AsSender.SatsIn}}</td>
               </tr>
-              <tr style="border: 1px solid">
+              <tr style="border: 1px dotted">
                 <td>Rcvd:
                 <td>{{.Peer.AsReceiver.SwapsOut}}</td>
                 <td>{{.Peer.AsReceiver.SwapsIn}}</td>
@@ -146,7 +146,7 @@
                 <th>Active</th>
               </tr>
               {{range .Peer.Channels}}
-                <tr style="border: 1px solid">
+                <tr style="border: 1px dotted">
                   <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
                   <td>{{.LocalBalance}}</td>
                   <td>{{.RemoteBalance}}</td>
@@ -167,7 +167,7 @@
                       <input class="button is-large" type="submit" value="Unsuspect This Peer">
                     </form>
                   {{else}}
-                    <p>✅ This peer is not suspicious.</p>
+                    <p>✅ This peer is not suspicious</p>
                     <form action="/submit" method="post">
                       <input type="hidden" name="action" value="suspectPeer">
                       <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
@@ -179,7 +179,7 @@
               <div class="column">
                 <center>
                   {{if .Allowed}}
-                    <p>✅ This peer is whitelisted.</p>
+                    <p>✅ This peer is whitelisted</p>
                     <form action="/submit" method="post">
                       <input type="hidden" name="action" value="removePeer">
                       <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">

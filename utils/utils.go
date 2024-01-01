@@ -128,7 +128,8 @@ func ConvertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		var totalCapacity uint64
 
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
-		table += "<tr><td style=\"float: left; text-align: left; width: 80%;\">"
+		table += "<tr style=\"border: 1px dotted\">"
+		table += "<td style=\"float: left; text-align: left; width: 80%;\">"
 
 		// alias is a link to open peer details page
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -232,7 +233,8 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	for _, swap := range swaps {
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
-		table += "<tr><td style=\"width: 30%; text-align: left\">"
+		table += "<tr style=\"border: 1px dotted\">"
+		table += "<td style=\"width: 30%; text-align: left\">"
 
 		tm := TimePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
