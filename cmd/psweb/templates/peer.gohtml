@@ -157,16 +157,34 @@
             </table>
             <br>
             <center>
+              {{if .Suspicious}}
+                <p>🔍 This peer is suspicious.</p>
+                <br>
+                <form action="/submit" method="post">
+                  <input type="hidden" name="action" value="unsuspectPeer">
+                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                  <input class="button is-large" type="submit" value="Unsuspect This Peer">
+                </form>
+              {{else}}
+                <p>✅ This peer is not suspicious.</p>
+                <br>
+                <form action="/submit" method="post">
+                  <input type="hidden" name="action" value="suspectPeer">
+                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                  <input class="button is-large" type="submit" value="Suspect This Peer">
+                </form>
+              {{end}}
+              <br>
               {{if .Allowed}}
                 <p>✅ This peer is whitelisted.</p>
                 <br>
                 <form action="/submit" method="post">
                   <input type="hidden" name="action" value="removePeer">
                   <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                  <input class="button is-large" type="submit" value="Remove This Peer">
+                  <input class="button is-large" type="submit" value="Blacklist This Peer">
                 </form>
               {{else}}
-                <p>⛔ You do not NOT allow swaps from this peer.</p>
+                <p>⛔ This peer is blacklisted.</p>
                 <br>
                 <form action="/submit" method="post">
                   <input type="hidden" name="action" value="addPeer">

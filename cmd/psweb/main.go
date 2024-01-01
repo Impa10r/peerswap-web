@@ -155,6 +155,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowlistedPeers := res4.GetAllowlistedPeers()
+	suspiciousPeers := res4.GetSuspiciousPeerList()
 
 	//check for error message to display
 	message := ""
@@ -177,7 +178,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Message:           message,
 		ColorScheme:       utils.Config.ColorScheme,
 		SatAmount:         utils.FormatWithThousandSeparators(satAmount),
-		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers),
+		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps),
 	}
 
@@ -231,6 +232,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowlistedPeers := res2.GetAllowlistedPeers()
+	suspiciousPeers := res2.GetSuspiciousPeerList()
 
 	res3, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
@@ -255,6 +257,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		PeerAlias   string
 		NodeUrl     string // to open tx on mempool.space
 		Allowed     bool
+		Suspicious  bool
 		LBTC        bool
 		BTC         bool
 		SatAmount   string
@@ -267,6 +270,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		PeerAlias:   getNodeAlias(peer.NodeId),
 		NodeUrl:     utils.Config.MempoolApi + "/lightning/node/",
 		Allowed:     utils.StringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:  utils.StringIsInSlice(peer.NodeId, suspiciousPeers),
 		BTC:         utils.StringIsInSlice("btc", peer.SupportedAssets),
 		LBTC:        utils.StringIsInSlice("lbtc", peer.SupportedAssets),
 		SatAmount:   utils.FormatWithThousandSeparators(satAmount),
@@ -456,7 +460,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // converts a list of peers into an HTML table to display
-func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string) string {
+func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string) string {
 
 	type Table struct {
 		AvgLocal uint64
@@ -471,15 +475,24 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
 		table += "<tr><td style=\"float: left; text-align: left; width: 80%;\">"
-		if utils.StringIsInSlice(peer.NodeId, allowlistedPeers) {
-			table += "✅&nbsp&nbsp"
-		} else {
-			table += "⛔&nbsp&nbsp"
-		}
+
 		// alias is a link to open peer details page
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
-		table += getNodeAlias(peer.NodeId) + "</a>"
+
+		if utils.StringIsInSlice(peer.NodeId, allowlistedPeers) {
+			table += "✅&nbsp"
+		} else {
+			table += "⛔&nbsp"
+		}
+
+		if utils.StringIsInSlice(peer.NodeId, suspiciousPeers) {
+			table += "🔍&nbsp"
+		}
+
+		table += getNodeAlias(peer.NodeId)
+		table += "</a>"
 		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
+		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if utils.StringIsInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊&nbsp"
@@ -492,6 +505,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		} else {
 			table += "⛔"
 		}
+		table += "</a>"
 		table += "</div></td></tr></table>"
 
 		table += "<table style=\"table-layout:fixed;\">"
@@ -719,6 +733,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+
 		case "addPeer":
 			_, err := client.AddPeer(ctx, &peerswaprpc.AddPeerRequest{
 				PeerPubkey: nodeId,
@@ -733,6 +748,30 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "removePeer":
 			_, err := client.RemovePeer(ctx, &peerswaprpc.RemovePeerRequest{
+				PeerPubkey: nodeId,
+			})
+			if err != nil {
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				return
+			}
+			// Redirect to peer page
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			return
+
+		case "suspectPeer":
+			_, err := client.AddSusPeer(ctx, &peerswaprpc.AddPeerRequest{
+				PeerPubkey: nodeId,
+			})
+			if err != nil {
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				return
+			}
+			// Redirect to peer page
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			return
+
+		case "unsuspectPeer":
+			_, err := client.RemoveSusPeer(ctx, &peerswaprpc.RemovePeerRequest{
 				PeerPubkey: nodeId,
 			})
 			if err != nil {
