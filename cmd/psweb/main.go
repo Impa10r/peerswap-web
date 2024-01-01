@@ -588,7 +588,10 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		TimeStamp int64
 		HtmlBlob  string
 	}
-	var unsortedTable []Table
+	var (
+		unsortedTable []Table
+		counter       uint
+	)
 
 	for _, swap := range swaps {
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
@@ -638,6 +641,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			TimeStamp: swap.CreatedAt,
 			HtmlBlob:  table,
 		})
+
+		counter++
+		if counter >= Config.MaxHistory {
+			break
+		}
 	}
 
 	// sort the table on TimeStamp field
@@ -816,6 +824,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// saves config
 func saveHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
@@ -833,8 +842,14 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 		Config.LiquidApi = r.FormValue("liquidApi")
 		Config.ConfigFile = r.FormValue("configFile")
 
-		err := utils.SaveConfig(&Config)
+		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+		Config.MaxHistory = uint(mh)
+
+		if err = utils.SaveConfig(&Config); err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}

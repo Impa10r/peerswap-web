@@ -14,6 +14,7 @@ type Configuration struct {
 	MempoolApi  string
 	LiquidApi   string
 	ConfigFile  string
+	MaxHistory  uint
 }
 
 func LoadConfig(configFile string, conf *Configuration) {
@@ -35,6 +36,7 @@ func LoadConfig(configFile string, conf *Configuration) {
 	conf.MempoolApi = "https://mempool.space/testnet" // https://mempool.space for mainnet
 	conf.LiquidApi = "https://liquid.network/testnet" // https://liquid.network for mainnet
 	conf.ConfigFile = configFile
+	conf.MaxHistory = 10
 
 	fileData, err := os.ReadFile(configFile)
 	if err != nil {
