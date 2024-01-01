@@ -54,40 +54,41 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Listening Port</label>
+                  <label class="label">Node Info Link</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" value={{.Config.ListenPort}} name="listenPort" placeholder="8088">
-                    </p>
-                    <p>
-                      Changing the listening port will restart PeerSwap Web UI automatically. Make sure to point your browser to the new URL.
-                    </p>
+                  <div class="select is-medium">
+                    <select name="nodeApi">
+                      <option value="https://mempool.space/testnet/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/testnet/lightning/node"}}selected{{end}}>https://mempool.space/testnet/lightning/node</option>
+                      <option value="https://mempool.space/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/lightning/node"}}selected{{end}}>https://mempool.space/lightning/node</option>
+                      <option value="https://amboss.space/node" {{if eq .Config.NodeApi "https://amboss.space/node"}}selected{{end}}>https://amboss.space/node</option>            
+                    </select>
                   </div>
                 </div>
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Mempool URL</label>
+                  <label class="label">Bitcoin Tx Link</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value={{.Config.MempoolApi}} name="mempoolApi" placeholder="https://mempool.space">
-                    </p>
+                  <div class="select is-medium">
+                    <select name="bitcoinApi">
+                      <option value="https://mempool.space/testnet" {{if eq .Config.BitcoinApi "https://mempool.space/testnet"}}selected{{end}}>https://mempool.space/testnet</option>
+                      <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>          
+                    </select>
                   </div>
                 </div>
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Liquid URL</label>
+                  <label class="label">Liquid Tx Link</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value={{.Config.LiquidApi}} name="liquidApi" placeholder="https://liquid.network">
-                    </p>
+                  <div class="select is-medium">
+                    <select name="liquidApi">
+                      <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
+                      <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>          
+                    </select>
                   </div>
                 </div>
               </div>
@@ -102,24 +103,39 @@
                     </p>
                   </div>
                 </div>
-              </div><div class="field is-horizontal">
+              </div>
+<!--          <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Web UI Config File</label>
+                  <label class="label">Listening Port</label>
                 </div>
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="text" value="{{.Config.ConfigFile}}" name="configFile" placeholder="/your/path/to/pswebconfig.json">
+                      <input class="input is-medium" type="number" value={{.Config.ListenPort}} name="listenPort" placeholder="8088" disabled>
                     </p>
-                    <p style="overflow-wrap: break-word;">
-                      For non-default location, run with flag --configfile=
+                    <p>
+                      Change in pswebconfig.json
                     </p>
                   </div>
                 </div>
               </div>
-              <br>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Config File Location</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="text" value="{{.Config.ConfigFile}}" name="configFile" placeholder="/your/path/to/pswebconfig.json" disabled>
+                    </p>
+                    <p style="overflow-wrap: break-word;">
+                      Run psweb --configfile=<new value>
+                    </p>
+                  </div>
+                </div>
+              </div>
+-->           <br>          
               <center>
-                <br>
                 <input class="button is-large" type="submit" value="Save Configuration">              
               </center>
             </form>

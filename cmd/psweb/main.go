@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"text/template"
@@ -90,7 +89,7 @@ func main() {
 	r.HandleFunc("/swap", swapHandler)
 	r.HandleFunc("/peer", peerHandler)
 	r.HandleFunc("/submit", submitHandler)
-	r.HandleFunc("/save", saveHandler)
+	r.HandleFunc("/save", saveConfigHandler)
 	r.HandleFunc("/config", configHandler)
 	r.HandleFunc("/stop", stopHandler)
 	r.HandleFunc("/update", updateHandler)
@@ -266,7 +265,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme: utils.Config.ColorScheme,
 		Peer:        peer,
 		PeerAlias:   utils.GetNodeAlias(peer.NodeId),
-		NodeUrl:     utils.Config.MempoolApi + "/lightning/node/",
+		NodeUrl:     utils.Config.NodeApi,
 		Allowed:     utils.StringIsInSlice(peer.NodeId, allowlistedPeers),
 		Suspicious:  utils.StringIsInSlice(peer.NodeId, suspiciousPeers),
 		BTC:         utils.StringIsInSlice("btc", peer.SupportedAssets),
@@ -341,7 +340,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
-	url := utils.Config.MempoolApi + "/tx/"
+	url := utils.Config.BitcoinApi + "/tx/"
 	if swap.Asset == "lbtc" {
 		url = utils.Config.LiquidApi + "/tx/"
 	}
@@ -383,24 +382,26 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
 	swapData += utils.GetNodeAlias(swap.InitiatorNodeId)
 	swapData += `&nbsp<a href="`
-	swapData += utils.Config.MempoolApi + "/lightning/node/" + swap.InitiatorNodeId
+	swapData += utils.Config.NodeApi + "/" + swap.InitiatorNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
 	swapData += utils.GetNodeAlias(swap.PeerNodeId)
 	swapData += `&nbsp<a href="`
-	swapData += utils.Config.MempoolApi + "/lightning/node/" + swap.PeerNodeId
+	swapData += utils.Config.NodeApi + "/" + swap.PeerNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
 	swapData += utils.FormatWithThousandSeparators(swap.Amount)
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">ChannelId:</td><td>`
 	swapData += swap.ChannelId
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">OpeningTxId:</td><td style="overflow-wrap: break-word;">`
-	swapData += swap.OpeningTxId
-	swapData += `&nbsp<a href="`
-	swapData += url + swap.OpeningTxId
-	swapData += `" target="_blank">🔗</a>`
+	swapData += `</td></tr>`
+	if swap.OpeningTxId != "" {
+		swapData += `<tr><td style="text-align: right">OpeningTxId:</td><td style="overflow-wrap: break-word;">`
+		swapData += swap.OpeningTxId
+		swapData += `&nbsp<a href="`
+		swapData += url + swap.OpeningTxId
+		swapData += `" target="_blank">🔗</a>`
+	}
 	if swap.ClaimTxId != "" {
 		swapData += `</td></tr>
 			<tr><td style="text-align: right">ClaimTxId:</td><td style="overflow-wrap: break-word;">`
@@ -408,7 +409,6 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		swapData += `&nbsp<a href="`
 		swapData += url + swap.ClaimTxId
 		swapData += `" target="_blank">🔗</a></td></tr>`
-
 	}
 	if swap.CancelMessage != "" {
 		swapData += `<tr><td style="text-align: right">CancelMsg:</td><td>`
@@ -662,7 +662,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // saves config
-func saveHandler(w http.ResponseWriter, r *http.Request) {
+func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
 		if err := r.ParseForm(); err != nil {
@@ -670,28 +670,24 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		mustRestart := utils.Config.ListenPort != r.FormValue("listenPort")
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
 
-		if allowSwapRequests != utils.Config.AllowSwapRequests {
-			err = utils.AllowSwapRequests(allowSwapRequests)
-			if err != nil {
-				redirectWithError(w, r, "/config?", err)
-				return
-			}
+		err = utils.AllowSwapRequests(allowSwapRequests)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
 		}
 
 		utils.Config.AllowSwapRequests = allowSwapRequests
 		utils.Config.RpcHost = r.FormValue("rpcHost")
-		utils.Config.ListenPort = r.FormValue("listenPort")
 		utils.Config.ColorScheme = r.FormValue("colorScheme")
-		utils.Config.MempoolApi = r.FormValue("mempoolApi")
+		utils.Config.NodeApi = r.FormValue("nodeApi")
+		utils.Config.BitcoinApi = r.FormValue("bitcoinApi")
 		utils.Config.LiquidApi = r.FormValue("liquidApi")
-		utils.Config.ConfigFile = r.FormValue("configFile")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
@@ -705,24 +701,6 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if mustRestart {
-			// Execute a new instance of the program passing --configfile as a parameter
-			cmd := exec.Command(os.Args[0], "--configfile="+utils.Config.ConfigFile)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			if err := cmd.Start(); err != nil {
-				fmt.Println("Failed to restart:", err)
-				return
-			}
-
-			http.Error(w, "PeerSwap Web has restarted. New url: http://localhost:"+utils.Config.ListenPort, http.StatusBadGateway)
-			fmt.Println("Restarted successfully! PID: ", cmd.Process.Pid)
-			go func() {
-				time.Sleep(3 * time.Second) // Delay for 3 seconds
-				os.Exit(0)                  // Exit the program
-			}()
-		}
 		if err != nil {
 			redirectWithError(w, r, "/?", err)
 		} else {

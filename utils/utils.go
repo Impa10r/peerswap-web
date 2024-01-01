@@ -313,8 +313,8 @@ func GetNodeAlias(id string) string {
 		}
 	}
 
-	url := Config.MempoolApi + "/api/v1/lightning/search?searchText=" + id
-	if Config.MempoolApi != "" {
+	url := Config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
+	if Config.BitcoinApi != "" {
 		req, err := http.NewRequest("GET", url, nil)
 		if err == nil {
 			cl := &http.Client{}

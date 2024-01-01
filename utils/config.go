@@ -12,8 +12,9 @@ type Configuration struct {
 	RpcHost           string
 	ListenPort        string
 	ColorScheme       string
-	MempoolApi        string
-	LiquidApi         string
+	BitcoinApi        string // for bitcoin tx links
+	LiquidApi         string // for liquid tx links
+	NodeApi           string // for node links
 	ConfigFile        string
 	MaxHistory        uint
 }
@@ -36,15 +37,16 @@ func LoadConfig(configFile string) {
 	Config.AllowSwapRequests = true
 	Config.RpcHost = "localhost:42069"
 	Config.ListenPort = "8088"
-	Config.ColorScheme = "dark"                         // dark or light
-	Config.MempoolApi = "https://mempool.space/testnet" // https://mempool.space for mainnet
-	Config.LiquidApi = "https://liquid.network/testnet" // https://liquid.network for mainnet
+	Config.ColorScheme = "dark" // dark or light
+	Config.NodeApi = "https://mempool.space/testnet/lightning/node"
+	Config.BitcoinApi = "https://mempool.space/testnet"
+	Config.LiquidApi = "https://liquid.network/testnet"
 	Config.ConfigFile = configFile
 	Config.MaxHistory = 10
 
 	fileData, err := os.ReadFile(configFile)
 	if err != nil {
-		log.Println("Error reading config file. Using defaults.")
+		log.Println("Config file not found. Using defaults.")
 		// return defauls
 		return
 	}

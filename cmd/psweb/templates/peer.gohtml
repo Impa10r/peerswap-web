@@ -104,14 +104,14 @@
           <div class="box">
             <h3 class="title is-4">Peer Details</h3>        
             <table style="width:100%; table-layout:fixed;">
-              <tr><td style="text-align: right">Node Alias:</td><td>{{.PeerAlias}} <a href="{{.NodeUrl}}{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
-              <tr><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
-              <tr><td style="text-align: right">Supported Assets:</td><td>
+              <tr style="border: 1px solid"><td style="width: 40%; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}} <a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
+              <tr style="border: 1px solid"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
+              <tr style="border: 1px solid"><td style="text-align: right">Supported Assets:</td><td>
                 {{range .Peer.SupportedAssets}}
                   {{.}}
                 {{end}}
               </td></tr>
-              <tr><td style="text-align: right">Fee Paid:</td><td>{{.Peer.PaidFee}}</td></tr>
+              <tr style="border: 1px solid"><td style="text-align: right">Fee Paid:</td><td>{{.Peer.PaidFee}}</td></tr>
             </table>
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
@@ -140,7 +140,7 @@
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 30%;">Channel Id</th>
+                <th style="width: 40%;">Channel Id</th>
                 <th>Local</th>
                 <th>Remote</th>
                 <th>Active</th>
@@ -155,43 +155,48 @@
               {{end}}
             </table>
             <br>
-            <center>
-              {{if .Suspicious}}
-                <p>🔍 This peer is suspicious.</p>
-                <br>
-                <form action="/submit" method="post">
-                  <input type="hidden" name="action" value="unsuspectPeer">
-                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                  <input class="button is-large" type="submit" value="Unsuspect This Peer">
-                </form>
-              {{else}}
-                <p>✅ This peer is not suspicious.</p>
-                <br>
-                <form action="/submit" method="post">
-                  <input type="hidden" name="action" value="suspectPeer">
-                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                  <input class="button is-large" type="submit" value="Suspect This Peer">
-                </form>
-              {{end}}
-              <br>
-              {{if .Allowed}}
-                <p>✅ This peer is whitelisted.</p>
-                <br>
-                <form action="/submit" method="post">
-                  <input type="hidden" name="action" value="removePeer">
-                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                  <input class="button is-large" type="submit" value="Blacklist This Peer">
-                </form>
-              {{else}}
-                <p>⛔ This peer is blacklisted.</p>
-                <br>
-                <form action="/submit" method="post">
-                  <input type="hidden" name="action" value="addPeer">
-                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                  <input class="button is-large" type="submit" value="Whitelist This Peer">
-                </form>
-              {{end}}
-            </center>
+            <div class="columns">
+              <div class="column">
+                <center>            
+                  {{if .Suspicious}}
+                    <p>🔍 This peer is suspicious.</p>
+                    <br>
+                    <form action="/submit" method="post">
+                      <input type="hidden" name="action" value="unsuspectPeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                      <input class="button is-large" type="submit" value="Unsuspect This Peer">
+                    </form>
+                  {{else}}
+                    <p>✅ This peer is not suspicious.</p>
+                    <form action="/submit" method="post">
+                      <input type="hidden" name="action" value="suspectPeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                      <input class="button is-large" type="submit" value="Suspect This Peer">
+                    </form>
+                  {{end}}
+                </center>
+              </div>
+              <div class="column">
+                <center>
+                  {{if .Allowed}}
+                    <p>✅ This peer is whitelisted.</p>
+                    <form action="/submit" method="post">
+                      <input type="hidden" name="action" value="removePeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                      <input class="button is-large" type="submit" value="Blacklist This Peer">
+                    </form>
+                  {{else}}
+                    <p>⛔ This peer is blacklisted.</p>
+                    <br>
+                    <form action="/submit" method="post">
+                      <input type="hidden" name="action" value="addPeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                      <input class="button is-large" type="submit" value="Whitelist This Peer">
+                    </form>
+                  {{end}}
+                </center>
+              </div>
+            </div>
           </div>
         </div>
       </div>
