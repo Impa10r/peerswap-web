@@ -1,9 +1,9 @@
-![image](https://github.com/Impa10r/peerswap-web/assets/101550606/4726dc45-8aa2-458a-bfe4-e9f0037be323)
+![image](https://github.com/Impa10r/peerswap-web/assets/101550606/16f8a697-d0d7-4905-923c-4a1490ae0e63)
 
 # PeerSwap Web
 A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning-BTC and Lightning-LBTC. 
 
-PeerSwap Web is agnostic to whether you are running on testnet/signet or mainnet. It has interface only to peerswapd via gRPC. 
+PeerSwap over Liquid is a great cost effective way to [rebalance you lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a). PeerSwap Web is agnostic to whether you are running on testnet/signet or mainnet. It has interface only to peerswapd via gRPC. 
 
 # Setup
 
