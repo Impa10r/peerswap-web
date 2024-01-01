@@ -74,7 +74,13 @@ Usage:
         Show version
 ```
 
-*Disclaimer: PeerSwap Web is beta-grade software.*
+# Security Disclosure
+
+**Assuming the local network is secure**
+
+PeerSwap Web is currently a beta-grade software that makes the assumption that the local network is secure. This means local network communication is unencrypted using plain text HTTP. 
+
+This is pretty much the industry standard when it comes to locally networked devices. All routers and smart devices that expose a web interface work this way. Bootstrapping a secure connection over an insecure network and avoiding MITM attacks without being able to rely on certificate authorities is not an easy problem to solve.
 
 *Only recommend using with small balances or on signet/testnet*
 
