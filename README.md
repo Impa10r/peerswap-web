@@ -3,7 +3,7 @@
 # PeerSwap Web
 A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning-BTC and Lightning-LBTC. 
 
-PeerSwap over Liquid is a great cost effective way to [rebalance you lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a). PeerSwap Web is agnostic to whether you are running on testnet/signet or mainnet. It has interface only to peerswapd via gRPC. 
+PeerSwap over Liquid is a great cost effective way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a). PeerSwap Web is agnostic to whether you are running on testnet/signet or mainnet. It has interface only to peerswapd via gRPC. 
 
 # Setup
 
