@@ -15,8 +15,8 @@ type Configuration struct {
 	BitcoinApi        string // for bitcoin tx links
 	LiquidApi         string // for liquid tx links
 	NodeApi           string // for node links
-	ConfigFile        string
 	MaxHistory        uint
+	ConfigFile        string
 }
 
 var Config Configuration
@@ -41,13 +41,17 @@ func LoadConfig(configFile string) {
 	Config.NodeApi = "https://mempool.space/testnet/lightning/node"
 	Config.BitcoinApi = "https://mempool.space/testnet"
 	Config.LiquidApi = "https://liquid.network/testnet"
-	Config.ConfigFile = configFile
 	Config.MaxHistory = 10
+	Config.ConfigFile = configFile
 
 	fileData, err := os.ReadFile(configFile)
 	if err != nil {
-		log.Println("Config file not found. Using defaults.")
-		// return defauls
+		err = SaveConfig()
+		if err != nil {
+			log.Println("Error creating config file.", err)
+		} else {
+			log.Println("Config file created using defaults.")
+		}
 		return
 	}
 
