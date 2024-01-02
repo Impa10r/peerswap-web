@@ -23,7 +23,7 @@ cd peerswap-web/cmd/psweb && \
 go install
 ```
 
-This will install `psweb` to your GOPATH (default: /home/user/go/bin)
+This will install `psweb` to your GOPATH (/home/user/go/bin). You can check that it is working by running ```psweb --version```. if not, add the bin path in .profile and reload with ```source profile```.
 
 To start PS Web as a daemon, create a systemd service file as follows (replace USER with your username):
 
@@ -42,7 +42,7 @@ Type=simple
 KillMode=process
 TimeoutSec=180
 Restart=always
-RestartSec=60
+RestartSec=5
 
 StandardOutput=append:/home/USER/.peerswap/psweb.log
 StandardError=append:/home/USER/.peerswap/psweb.log
@@ -60,9 +60,9 @@ sudo systemctl enable psweb
 ```
 
 The log and the config file will be saved to /home/USER/.peerswap/ folder. 
-By default, it will listen on [localhost:8088](localhost:8088).
+By default, it will listen on [localhost:8088](localhost:8088). This port can be changed in .peerswap/pswebconf.json.
 
-You can see help with:
+You can see command line flags with:
 ```
 $ psweb --help
 Usage:
