@@ -65,14 +65,7 @@ By default, it will listen on [localhost:8088](localhost:8088). This port can be
 
 You can see command line flags with:
 ```
-$ psweb --help
-Usage:
-  -configfile string
-        Path/filename to store config JSON
-  -help
-        Show help
-  -version
-        Show version
+psweb --help
 ```
 
 # Security Disclosure
