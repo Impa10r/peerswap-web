@@ -678,14 +678,27 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = utils.AllowSwapRequests(allowSwapRequests)
+		ctx := context.Background()
+		host := r.FormValue("rpcHost")
+
+		client, cleanup, err := utils.GetClient(host)
 		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+		defer cleanup()
+
+		_, err = client.AllowSwapRequests(ctx, &peerswaprpc.AllowSwapRequestsRequest{
+			Allow: allowSwapRequests,
+		})
+		if err != nil {
+			// RPC Host entered is bad
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
 
 		utils.Config.AllowSwapRequests = allowSwapRequests
-		utils.Config.RpcHost = r.FormValue("rpcHost")
+		utils.Config.RpcHost = host
 		utils.Config.ColorScheme = r.FormValue("colorScheme")
 		utils.Config.NodeApi = r.FormValue("nodeApi")
 		utils.Config.BitcoinApi = r.FormValue("bitcoinApi")
