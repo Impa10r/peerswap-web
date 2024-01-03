@@ -38,7 +38,7 @@ const version = "v1.0.0"
 
 func main() {
 	var (
-		configFile  = flag.String("configfile", "", "Path/filename to store config JSON")
+		configFile  = flag.String("configfile", "", "Path/filename of config JSON")
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
 	)
