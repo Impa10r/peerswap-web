@@ -23,7 +23,7 @@ cd peerswap-web/cmd/psweb && \
 go install
 ```
 
-This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. if not, add the bin path in .profile and reload with `source profile`.
+This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. if not, add the bin path in .profile and reload with `source .profile`.
 
 To start PS Web as a daemon, create a systemd service file as follows (replace USER with your username):
 
