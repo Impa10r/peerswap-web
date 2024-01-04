@@ -53,6 +53,7 @@ WantedBy=multi-user.target
 Save with ctrl-S, exit with ctrl-X
 
 Now start the service, check that it runs, then enable it on startup:
+
 ```bash
 sudo systemctl start psweb
 sudo systemctl status psweb
@@ -83,7 +84,7 @@ sudo systemctl restart psweb
 
 Stop and disable the service:
 
-```
+```bash
 sudo systemctl stop psweb
 sudo systemctl disable psweb
 ```
