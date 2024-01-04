@@ -8,3 +8,10 @@ header {
     background: #001072;
     z-index: 10;
     }
+    
+.rotate-span {
+    display: inline-block;
+    float: right; 
+    text-align: right;
+    transform: rotate(270deg);
+}

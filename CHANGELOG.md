@@ -1,5 +1,11 @@
 # Versions
 
+## 1.0.3
+
+- Change dafault links to mainnet
+- Better format peer details 
+- Reuse header in swap.gohtml
+
 ## 1.0.2
 
 - Disable autofill and autocomplete for the Liquid send to address

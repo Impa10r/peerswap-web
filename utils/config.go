@@ -38,9 +38,9 @@ func LoadConfig(configFile string) {
 	Config.RpcHost = "localhost:42069"
 	Config.ListenPort = "8088"
 	Config.ColorScheme = "dark" // dark or light
-	Config.NodeApi = "https://mempool.space/testnet/lightning/node"
-	Config.BitcoinApi = "https://mempool.space/testnet"
-	Config.LiquidApi = "https://liquid.network/testnet"
+	Config.NodeApi = "https://amboss.space/node"
+	Config.BitcoinApi = "https://mempool.space"
+	Config.LiquidApi = "https://liquid.network"
 	Config.MaxHistory = 10
 	Config.ConfigFile = configFile
 
