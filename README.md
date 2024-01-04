@@ -1,21 +1,20 @@
 ![image](https://github.com/Impa10r/peerswap-web/assets/101550606/2eeedf98-0d57-42db-83e8-b0f2df2f93f2)
 
 # PeerSwap Web UI
-A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning<->BTC and Lightning<->Liquid BTC. PeerSwap into Liquid and back is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
-PeerSwap Web is agnostic to whether you are running on testnet/signet or mainnet. It has interface only to peerswapd via gRPC. 
+A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning<->BTC and Lightning<->Liquid BTC. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 # Setup
 
 ## Install dependencies
 
-PeerSwap Web requires Bitcoin Core, Elements Core, LND and PeerSwap for LND. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md) to install PeerSwap.
+PeerSwap Web UI requires Bitcoin Core, Elements Core, LND and PeerSwap for LND. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md) to install PeerSwap.
 
 Install golang from https://go.dev/doc/install
 
 ## Build
 
-Clone the repository and build PeerSwap Web
+Clone the repository and build PeerSwap Web UI:
 
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
@@ -23,16 +22,16 @@ cd peerswap-web/cmd/psweb && \
 go install
 ```
 
-This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. if not, add the bin path in .profile and reload with `source .profile`.
+This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. If not, add the bin path in .profile and reload with `source .profile`.
 
-To start PS Web as a daemon, create a systemd service file as follows (replace USER with your username):
+To start psweb as a daemon, create a systemd service file as follows (replace USER with your username):
 
 ```bash
 sudo nano /etc/systemd/system/psweb.service
 ```
 ```
 [Unit]
-Description=PeerSwap Web
+Description=PeerSwap Web UI
 Requires=peerswapd.service
 After=peerswapd.service
 
@@ -64,11 +63,12 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 ## Configuration
 
-By default, it will listen on [localhost:8088](localhost:8088). This port can be changed in ~/.peerswap/pswebconf.json.
+By default, PeerSwap Web UI will listen on [localhost:8088](localhost:8088). This port can be changed in ~/.peerswap/pswebconf.json.
 
-Once opened the Web UI, set the Links on the Config page whether you run it on testnet or mainnet.
+It is agnostic to whether your LND and Elements are running on testnet/signet or mainnet. It has interface only to peerswapd via RPC. Once opened the UI, set the Links on the Config page for testnet or mainnet.
 
 ## Update
+
 When a new version comes out, just build the app again and restart:
 
 ```bash
@@ -80,6 +80,7 @@ sudo systemctl restart psweb
 ```
 
 ## Uninstall
+
 Stop and disable the service:
 
 ```
@@ -88,7 +89,8 @@ sudo systemctl disable psweb
 ```
 
 # Support
-For information about PeerSwap and to join our Discord channel visit [PeerSwap.dev](https://peerswap.dev).
+
+Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev).
 
 # Security Disclosure
 
