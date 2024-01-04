@@ -34,7 +34,7 @@ var (
 	tplFolder embed.FS
 )
 
-const version = "v1.0.0"
+const version = "v1.0.1"
 
 func main() {
 	var (
@@ -475,6 +475,12 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		txid = keys[0]
 	}
 
+	addr := ""
+	keys, ok = r.URL.Query()["addr"]
+	if ok && len(keys[0]) > 0 {
+		addr = keys[0]
+	}
+
 	host := utils.Config.RpcHost
 	ctx := context.Background()
 
@@ -485,13 +491,6 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanup()
-
-	res, err := client.LiquidGetAddress(ctx, &peerswaprpc.GetAddressRequest{})
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/liquid?", err)
-		return
-	}
 
 	res2, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
@@ -512,7 +511,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		Message:       message,
 		ColorScheme:   utils.Config.ColorScheme,
-		LiquidAddress: res.Address,
+		LiquidAddress: addr,
 		SatAmount:     utils.FormatWithThousandSeparators(res2.GetSatAmount()),
 		TxId:          txid,
 		LiquidUrl:     utils.Config.LiquidApi + "/tx/" + txid,
@@ -547,6 +546,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "newAddress":
+			res, err := client.LiquidGetAddress(ctx, &peerswaprpc.GetAddressRequest{})
+			if err != nil {
+				log.Printf("unable to connect to RPC server: %v", err)
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			// Redirect to liquid page with new address
+			http.Redirect(w, r, "/liquid?msg=\"\"&addr="+res.Address, http.StatusSeeOther)
+			return
+
 		case "sendLiquid":
 			amt, err := strconv.ParseUint(r.FormValue("sendAmount"), 10, 64)
 			if err != nil {

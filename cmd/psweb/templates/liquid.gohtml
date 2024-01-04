@@ -9,13 +9,22 @@
           {{if eq .TxId ""}}
             <div class="box">
               <h1 class="title is-4">Receiving Address</h1> 
-              <table style="table-layout:fixed; width: 100%;">
+              {{if eq .LiquidAddress ""}}
+                <form action="/submit" method="post">
+                  <center>
+                    <input type="hidden" name="action" value="newAddress">
+                    <input class="button is-large" type="submit" value="Get New Address">
+                  </center>
+                </form>
+              {{else}}
+                <table style="table-layout:fixed; width: 100%;">
                   <tr><td style="overflow-wrap: break-word;">
                     <center>
                       {{.LiquidAddress}}
                     </center>
                   </td></tr>
                 </table>
+              {{end}}
             </div>
             <div class="box">
               <h1 class="title is-4">Send Liquid</h1> 
@@ -27,7 +36,7 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address">
+                        <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required="required">
                       </p>
                     </div>
                   </div>
@@ -39,7 +48,7 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="number" name="sendAmount" placeholder="🌊 Liquid Amount">
+                        <input class="input is-medium" type="number" name="sendAmount" min="1000" required="required" placeholder="🌊 Liquid Amount">
                       </p>
                     </div>
                   </div>
