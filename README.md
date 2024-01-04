@@ -66,10 +66,10 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 By default, it will listen on [localhost:8088](localhost:8088). This port can be changed in ~/.peerswap/pswebconf.json.
 
-Once opened the Web UI, set the Links on the Config page whether you run in on testnet or mainnet.
+Once opened the Web UI, set the Links on the Config page whether you run it on testnet or mainnet.
 
 ## Update
-When a new version comes out just build the app again and restart:
+When a new version comes out, just build the app again and restart:
 
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
