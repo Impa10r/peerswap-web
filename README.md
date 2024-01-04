@@ -27,7 +27,7 @@ This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that
 
 To start PS Web as a daemon, create a systemd service file as follows (replace USER with your username):
 
-```
+```bash
 sudo nano /etc/systemd/system/psweb.service
 ```
 ```
@@ -54,7 +54,7 @@ WantedBy=multi-user.target
 Save with ctrl-S, exit with ctrl-X
 
 Now start the service, check that it runs, then enable it on startup:
-```
+```bash
 sudo systemctl start psweb
 sudo systemctl status psweb
 sudo systemctl enable psweb
@@ -72,6 +72,7 @@ Once opened the Web UI, set the Links on the Config page whether you run it on t
 When a new version comes out, just build the app again and restart:
 
 ```bash
+rm -rf peerswap-web && \
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web/cmd/psweb && \
 go install && \
