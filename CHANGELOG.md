@@ -5,6 +5,7 @@
 - Change dafault links to mainnet
 - Better format peer details 
 - Reuse header in swap.gohtml
+- Dissolve utils package
 
 ## 1.0.2
 

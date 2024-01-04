@@ -16,8 +16,6 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
-
-	"peerswap-web/utils"
 )
 
 type AliasCache struct {
@@ -56,7 +54,7 @@ func main() {
 	}
 
 	// loading from the config file or assigning defaults
-	utils.LoadConfig(*configFile)
+	LoadConfig(*configFile)
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -103,8 +101,8 @@ func main() {
 	// Start the server
 	http.Handle("/", r)
 
-	log.Println("Listening on http://localhost:" + utils.Config.ListenPort)
-	err = http.ListenAndServe(":"+utils.Config.ListenPort, nil)
+	log.Println("Listening on http://localhost:" + Config.ListenPort)
+	err = http.ListenAndServe(":"+Config.ListenPort, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -112,10 +110,10 @@ func main() {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 
-	host := utils.Config.RpcHost
+	host := Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := utils.GetClient(host)
+	client, cleanup, err := GetClient(host)
 	if err != nil {
 		log.Println(fmt.Errorf("unable to connect to RPC server: %v", err))
 		// display the error to the web page
@@ -171,12 +169,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		AllowSwapRequests: utils.Config.AllowSwapRequests,
+		AllowSwapRequests: Config.AllowSwapRequests,
 		Message:           message,
-		ColorScheme:       utils.Config.ColorScheme,
-		SatAmount:         utils.FormatWithThousandSeparators(satAmount),
-		ListPeers:         utils.ConvertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
-		ListSwaps:         utils.ConvertSwapsToHTMLTable(swaps),
+		ColorScheme:       Config.ColorScheme,
+		SatAmount:         FormatWithThousandSeparators(satAmount),
+		ListPeers:         ConvertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
+		ListSwaps:         ConvertSwapsToHTMLTable(swaps),
 	}
 
 	// executing template named "homepage"
@@ -196,10 +194,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	host := utils.Config.RpcHost
+	host := Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := utils.GetClient(host)
+	client, cleanup, err := GetClient(host)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/peer?id="+id+"&", err)
@@ -214,7 +212,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	peers := res.GetPeers()
-	peer := utils.FindPeerById(peers, id)
+	peer := FindPeerById(peers, id)
 
 	if peer == nil {
 		log.Printf("unable to connect to RPC server: %v", err)
@@ -262,15 +260,15 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:     message,
-		ColorScheme: utils.Config.ColorScheme,
+		ColorScheme: Config.ColorScheme,
 		Peer:        peer,
-		PeerAlias:   utils.GetNodeAlias(peer.NodeId),
-		NodeUrl:     utils.Config.NodeApi,
-		Allowed:     utils.StringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:  utils.StringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:         utils.StringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:        utils.StringIsInSlice("lbtc", peer.SupportedAssets),
-		SatAmount:   utils.FormatWithThousandSeparators(satAmount),
+		PeerAlias:   GetNodeAlias(peer.NodeId),
+		NodeUrl:     Config.NodeApi,
+		Allowed:     StringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:  StringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:         StringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:        StringIsInSlice("lbtc", peer.SupportedAssets),
+		SatAmount:   FormatWithThousandSeparators(satAmount),
 	}
 
 	// executing template named "peer"
@@ -297,7 +295,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: utils.Config.ColorScheme,
+		ColorScheme: Config.ColorScheme,
 		Id:          id,
 		Message:     "",
 	}
@@ -320,10 +318,10 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	host := utils.Config.RpcHost
+	host := Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := utils.GetClient(host)
+	client, cleanup, err := GetClient(host)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/swap?id="+id+"&", err)
@@ -342,9 +340,9 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
-	url := utils.Config.BitcoinApi + "/tx/"
+	url := Config.BitcoinApi + "/tx/"
 	if swap.Asset == "lbtc" {
-		url = utils.Config.LiquidApi + "/tx/"
+		url = Config.LiquidApi + "/tx/"
 	}
 	swapData := `<div class="container">
 	<div class="columns">
@@ -357,7 +355,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 			  </td>
 			  </td><td style="float: right; text-align: right; width:20%;">
 				<h3 class="title is-4">`
-	swapData += utils.VisualiseSwapStatus(swap.State, true)
+	swapData += VisualiseSwapStatus(swap.State, true)
 	swapData += `</h3>
 			  </td>
 			</tr>
@@ -382,17 +380,17 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += swap.State
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
-	swapData += utils.GetNodeAlias(swap.InitiatorNodeId)
+	swapData += GetNodeAlias(swap.InitiatorNodeId)
 	swapData += `&nbsp<a href="`
-	swapData += utils.Config.NodeApi + "/" + swap.InitiatorNodeId
+	swapData += Config.NodeApi + "/" + swap.InitiatorNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
-	swapData += utils.GetNodeAlias(swap.PeerNodeId)
+	swapData += GetNodeAlias(swap.PeerNodeId)
 	swapData += `&nbsp<a href="`
-	swapData += utils.Config.NodeApi + "/" + swap.PeerNodeId
+	swapData += Config.NodeApi + "/" + swap.PeerNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
-	swapData += utils.FormatWithThousandSeparators(swap.Amount)
+	swapData += FormatWithThousandSeparators(swap.Amount)
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">ChannelId:</td><td>`
 	swapData += swap.ChannelId
@@ -442,14 +440,14 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		Message     string
 		ColorScheme string
-		Config      utils.Configuration
+		Config      Configuration
 		Version     string
 	}
 
 	data := Page{
 		Message:     message,
-		ColorScheme: utils.Config.ColorScheme,
-		Config:      utils.Config,
+		ColorScheme: Config.ColorScheme,
+		Config:      Config,
 		Version:     version,
 	}
 
@@ -481,10 +479,10 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	host := utils.Config.RpcHost
+	host := Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := utils.GetClient(host)
+	client, cleanup, err := GetClient(host)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/liquid?", err)
@@ -510,11 +508,11 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:       message,
-		ColorScheme:   utils.Config.ColorScheme,
+		ColorScheme:   Config.ColorScheme,
 		LiquidAddress: addr,
-		SatAmount:     utils.FormatWithThousandSeparators(res2.GetSatAmount()),
+		SatAmount:     FormatWithThousandSeparators(res2.GetSatAmount()),
 		TxId:          txid,
-		LiquidUrl:     utils.Config.LiquidApi + "/tx/" + txid,
+		LiquidUrl:     Config.LiquidApi + "/tx/" + txid,
 	}
 
 	// executing template named "liquid"
@@ -535,10 +533,10 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		action := r.FormValue("action")
 		nodeId := r.FormValue("nodeId")
-		host := utils.Config.RpcHost
+		host := Config.RpcHost
 		ctx := context.Background()
 
-		client, cleanup, err := utils.GetClient(host)
+		client, cleanup, err := GetClient(host)
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
@@ -694,7 +692,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		host := r.FormValue("rpcHost")
 
-		client, cleanup, err := utils.GetClient(host)
+		client, cleanup, err := GetClient(host)
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
@@ -710,21 +708,21 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		utils.Config.AllowSwapRequests = allowSwapRequests
-		utils.Config.RpcHost = host
-		utils.Config.ColorScheme = r.FormValue("colorScheme")
-		utils.Config.NodeApi = r.FormValue("nodeApi")
-		utils.Config.BitcoinApi = r.FormValue("bitcoinApi")
-		utils.Config.LiquidApi = r.FormValue("liquidApi")
+		Config.AllowSwapRequests = allowSwapRequests
+		Config.RpcHost = host
+		Config.ColorScheme = r.FormValue("colorScheme")
+		Config.NodeApi = r.FormValue("nodeApi")
+		Config.BitcoinApi = r.FormValue("bitcoinApi")
+		Config.LiquidApi = r.FormValue("liquidApi")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
-		utils.Config.MaxHistory = uint(mh)
+		Config.MaxHistory = uint(mh)
 
-		if err = utils.SaveConfig(); err != nil {
+		if err = SaveConfig(); err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}

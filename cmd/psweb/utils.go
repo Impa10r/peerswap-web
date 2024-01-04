@@ -1,4 +1,4 @@
-package utils
+package main
 
 import (
 	"bytes"
@@ -300,13 +300,6 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	table += "</table>"
 	return table
 }
-
-type AliasCache struct {
-	PublicKey string
-	Alias     string
-}
-
-var cache []AliasCache
 
 func GetNodeAlias(id string) string {
 	for _, n := range cache {
