@@ -61,6 +61,9 @@ sudo systemctl enable psweb
 ```
 
 The log and the config file will be saved to ~/.peerswap/ folder. 
+
+## Configuration
+
 By default, it will listen on [localhost:8088](localhost:8088). This port can be changed in ~/.peerswap/pswebconf.json.
 
 Once opened the Web UI, set the Links on the Config page whether you run in on testnet or mainnet.
