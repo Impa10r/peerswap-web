@@ -293,11 +293,13 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme string
 		Id          string
+		Message     string
 	}
 
 	data := Page{
 		ColorScheme: utils.Config.ColorScheme,
 		Id:          id,
+		Message:     "",
 	}
 
 	// executing template named "swap"

@@ -1,5 +1,4 @@
-{{define "swap"}}
-  
+{{define "swap"}}  
     <!DOCTYPE html>
     <html>
     <head>
@@ -7,10 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PeerSwap Web UI</title>
     <link rel="stylesheet" href="/static/bulma-{{.ColorScheme}}.min.css">
+    <link rel="stylesheet" href="/static/styles.css">
     <style>
-        th, td {
-        padding: 5px;
-        }
         .rotate-span {
             display: inline-block;
             float: right; 
@@ -21,12 +18,11 @@
     </head>
     <body>
         <header>
-            <p style="margin:0.5em;"></p>
-            <table style="table-layout:fixed; width: 100%">
-		        <tr><td style="float: left; text-align: left; width: 80%;">
-                    <a href="/">&emsp;<img src="/static/peerswap_logo_{{.ColorScheme}}.png" alt="PeerSwap" width="200"></a>
-                </td><td style="float: right; text-align: right; width: 20%;">
-                    <a href="/config"><img src="/static/cog.png" alt="Config" width="45">&emsp;</a>
+            <table style="table-layout:fixed; width: 100%;">
+                <tr><td style="padding-top: 10px; float: left; text-align: left; width: 80%;">
+                    <a href="/">&emsp;<img src="/static/peerswap_logo.png" alt="PEERSWAP" width="200"></a>
+                </td><td style="float: right; text-align: right; vertical-align: bottom; width: 20%;">
+                    <a href="/config"><img src="/static/cog.png" alt="Config" width="52">&emsp;</a>
                 </td><tr>
             </table>
         </header>
