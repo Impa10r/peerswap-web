@@ -159,8 +159,7 @@
               <div class="column">
                 <center>            
                   {{if .Suspicious}}
-                    <p>🔍 This peer is suspicious.</p>
-                    <br>
+                    <p>🔍 This peer is suspicious</p>
                     <form action="/submit" method="post">
                       <input type="hidden" name="action" value="unsuspectPeer">
                       <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
@@ -186,8 +185,7 @@
                       <input class="button is-large" type="submit" value="Blacklist This Peer">
                     </form>
                   {{else}}
-                    <p>⛔ This peer is blacklisted.</p>
-                    <br>
+                    <p>⛔ This peer is blacklisted</p>
                     <form action="/submit" method="post">
                       <input type="hidden" name="action" value="addPeer">
                       <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
