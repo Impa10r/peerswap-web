@@ -20,3 +20,4 @@
 # .evn file 
 .env
 .vscode/launch.json
+push.sh

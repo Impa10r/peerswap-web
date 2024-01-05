@@ -10,7 +10,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/psweb cmd/psweb/main.go
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/psweb cmd/psweb/*.go
 
 FROM debian:bullseye-slim
 COPY --from=builder /bin/psweb .
