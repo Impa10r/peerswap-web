@@ -67,6 +67,12 @@ func main() {
 	// loading from the config file or assigning defaults
 	loadConfig(*dataDir)
 
+	if config.ElementsPass == "" {
+		// check in peerswap.conf
+		config.ElementsPass = readVariableFromPeerswapdConfig("elementsd.rpcpass")
+		saveConfig()
+	}
+
 	// When running in Docker must launch peerswapd inside the container
 	if os.Getenv("LAUNCH_PEERSWAPD") != "" && !isRunningPeerSwapd() && config.ElementsPass != "" {
 		isStarting = true
@@ -774,16 +780,22 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 		if mustRestart && !isStarting {
 			mustRestart = false // to avoid double launch
-			isStarting = true
 			stopPeerSwapd()
 			savePeerSwapdConfig()
-			go startPeerSwapd()
-			go func() {
-				time.Sleep(20 * time.Second)
-				isStarting = false
-			}()
-			// show progress bar
-			http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			if os.Getenv("LAUNCH_PEERSWAPD") != "" {
+				// autorestart
+				isStarting = true
+				go startPeerSwapd()
+				go func() {
+					time.Sleep(20 * time.Second)
+					isStarting = false
+				}()
+				// show progress bar
+				http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			} else {
+				// wait for systemctl to restart
+				http.Error(w, "Stopped peerswapd. It should be restarted by systemd. Please Wait for this, then go to main page.", http.StatusBadGateway)
+			}
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
 		} else { // configs are good

@@ -5,6 +5,7 @@
 - Major update to enable Docker run and Umbrel integration
 - PeerSwap Web can now launch/stop peerswapd and manage peerswap.conf
 - Default port number change from 8088 to 1984
+- Add local mempool option for node alias and bitcoin tx lookups (may be slow)
 
 ## 1.0.3
 
