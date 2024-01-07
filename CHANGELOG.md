@@ -1,5 +1,11 @@
 # Versions
 
+## 1.1.0
+
+- Major update to enable Docker run and Umbrel integration
+- PeerSwap Web can now launch/stop peerswapd and manage peerswap.conf
+- Default port number change from 8088 to 1984
+
 ## 1.0.3
 
 - Change dafault links to mainnet

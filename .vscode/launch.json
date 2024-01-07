@@ -10,7 +10,8 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/psweb/",
-            "showLog": false
+            "showLog": false,
+            "envFile": "${workspaceFolder}/.env",
         },     
         {
             "name": "Connect to VirtualBox",

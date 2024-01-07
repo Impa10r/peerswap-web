@@ -1,0 +1,39 @@
+{{define "loading"}}  
+  {{template "header" .}}
+    <div class="container">
+      <div class="columns">
+        <div class="column">
+          <div class="box">
+            <h1>Starting peerswapd...</h1>
+              <div class="progress">
+                <div class="current-progress">
+                </div>
+              </div>
+              <script>
+                let progressValue = 0;
+                const progressBar = document.querySelector(".current-progress");
+
+                progressBar.style.width = `${progressValue}%`;
+
+                const timer = setInterval(() => {
+                  if (progressValue < 100) {
+                    progressValue += 1;
+                    progressBar.style.width = `${progressValue}%`;
+                  
+                  }
+                  if (progressValue === 100) {
+                    clearInterval(timer);
+                    // Redirect to "/" 
+                    window.location.href = "/";
+                  }
+                }, 200); // 20 seconds for 100%
+                // Call startProgress function when the page is loaded
+                window.onload = startProgress;
+              </script>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {{template "footer" .}}
+{{end}}

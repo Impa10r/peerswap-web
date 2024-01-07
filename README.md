@@ -8,11 +8,19 @@ A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustle
 
 ## Install dependencies
 
-PeerSwap Web UI requires Bitcoin Core, Elements Core, LND and PeerSwap for LND. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md) to install PeerSwap.
+PeerSwap Web UI requires Bitcoin Core, Elements Core and LND.
+
+## Docker Run
+
+docker run -p 1984:1984 -v ~/.lnd:/root/.lnd:ro -e NETWORK='testnet' -e LAUNCH_PEERSWAPD='true' ghcr.io/impa10r/peerswap-web:v1.1.0
+
+Container includes both PeerSwap Web UI and peerswapd. Depending how your LND and Elements Core are installed, may require further parameters (-e) LND_HOST, LND_MACAROONPATH, ELEMENTSD_RPCUSER, ELEMENTSD_RPCPORT, ELEMENTSD_RPCHOST and ELEMENTSD_RPCWALLET. If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) as an example.
+
+## Manual Build
 
 Install golang from https://go.dev/doc/install
 
-## Build
+Install and configure PeerSwap for LND. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md).
 
 Clone the repository and build PeerSwap Web UI:
 
@@ -64,9 +72,9 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:8088](localhost:8088). This port can be changed in ~/.peerswap/pswebconf.json.
+By default, PeerSwap Web UI will listen on [localhost:8088](localhost:8088). This can be changed in ~/.peerswap/pswebconf.json or via setting environment variables PRC_PORT and PRC_HOST on first run.
 
-It is agnostic to whether your LND and Elements are running on testnet/signet or mainnet. It has interface only to peerswapd via RPC. Once opened the UI, set the Links on the Config page for testnet or mainnet.
+It is agnostic to whether your LND and Elements are running on testnet/signet or mainnet. It has interface only to peerswapd via RPC. Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable TESTNET is present and equals "testnet", the links will be configured automatically on first run.
 
 ## Update
 
@@ -100,6 +108,10 @@ Information about PeerSwap and a link to join our Discord channel is at [PeerSwa
 PeerSwap Web is currently a beta-grade software that makes the assumption that the local network is secure. This means local network communication is unencrypted using plain text HTTP. 
 
 This is pretty much the industry standard when it comes to locally networked devices. All routers and smart devices that expose a web interface work this way. Bootstrapping a secure connection over an insecure network and avoiding MITM attacks without being able to rely on certificate authorities is not an easy problem to solve.
+
+**Elements Core wallet has no seed phrase recovery**
+
+Take care to backup wallet.dat after each liquid transaction, including all peer swaps. In case of a catastrophic failure of your SSD all L-BTC funds may be lost. On Umbrel, this file is located in /home/umbrel/umbrel/app-data/elements/data/liquidv1/wallets/peerswap folder. Run your node with with UPS. **DO NOT** uninstall Elements Core unless all liquid funds are spent or you have saved the wallet.dat file. **DO NOT** let this file get into wrong hands, as it is not passphrase protected. 
 
 *Only recommend using with small balances or on signet/testnet*
 

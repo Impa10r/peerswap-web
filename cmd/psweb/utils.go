@@ -13,7 +13,7 @@ import (
 )
 
 // returns time passed as a srting
-func TimePassedAgo(t time.Time) string {
+func timePassedAgo(t time.Time) string {
 	duration := time.Since(t)
 
 	days := int(duration.Hours() / 24)
@@ -37,7 +37,7 @@ func TimePassedAgo(t time.Time) string {
 }
 
 // returns true is the string is present in the array of strings
-func StringIsInSlice(whatToFind string, whereToSearch []string) bool {
+func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 	for _, s := range whereToSearch {
 		if s == whatToFind {
 			return true
@@ -47,7 +47,7 @@ func StringIsInSlice(whatToFind string, whereToSearch []string) bool {
 }
 
 // formats 100000 as 100,000
-func FormatWithThousandSeparators(n uint64) string {
+func formatWithThousandSeparators(n uint64) string {
 	// Convert the integer to a string
 	numStr := strconv.FormatUint(n, 10)
 
@@ -81,7 +81,7 @@ func FormatWithThousandSeparators(n uint64) string {
 
 var hourGlassRotate = 0
 
-func VisualiseSwapStatus(statusText string, rotate bool) string {
+func visualiseSwapStatus(statusText string, rotate bool) string {
 	switch statusText {
 	case "State_ClaimedCoop":
 		return "<a href=\"/\">❌</a>"
@@ -114,7 +114,7 @@ func VisualiseSwapStatus(statusText string, rotate bool) string {
 }
 
 // converts a list of peers into an HTML table to display
-func ConvertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string) string {
+func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string) string {
 
 	type Table struct {
 		AvgLocal uint64
@@ -134,25 +134,25 @@ func ConvertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		// alias is a link to open peer details page
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
-		if StringIsInSlice(peer.NodeId, allowlistedPeers) {
+		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
 			table += "✅&nbsp"
 		} else {
 			table += "⛔&nbsp"
 		}
 
-		if StringIsInSlice(peer.NodeId, suspiciousPeers) {
+		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
 			table += "🔍&nbsp"
 		}
 
-		table += GetNodeAlias(peer.NodeId)
+		table += getNodeAlias(peer.NodeId)
 		table += "</a>"
 		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
-		if StringIsInSlice("lbtc", peer.SupportedAssets) {
+		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊&nbsp"
 		}
-		if StringIsInSlice("btc", peer.SupportedAssets) {
+		if stringIsInSlice("btc", peer.SupportedAssets) {
 			table += "₿&nbsp"
 		}
 		if peer.SwapsAllowed {
@@ -170,21 +170,21 @@ func ConvertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			// red background for inactive channels
 			bc := "#590202"
-			if Config.ColorScheme == "light" {
+			if config.ColorScheme == "light" {
 				bc = "#fcb6b6"
 			}
 
 			if channel.Active {
 				// green background for active channels
 				bc = "#224725"
-				if Config.ColorScheme == "light" {
+				if config.ColorScheme == "light" {
 					bc = "#e6ffe8"
 				}
 			}
 
 			table += "<tr style=\"background-color: " + bc + "\"; >"
 			table += "<td style=\"width: 250px; text-align: center\">"
-			table += FormatWithThousandSeparators(channel.LocalBalance)
+			table += formatWithThousandSeparators(channel.LocalBalance)
 			table += "</td><td style=\"width: 25%; text-align: center\">"
 			local := channel.LocalBalance
 			capacity := channel.LocalBalance + channel.RemoteBalance
@@ -194,7 +194,7 @@ func ConvertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + ">1</progress>"
 			table += "</a>"
 			table += "<td style=\"width: 250px; text-align: center\">"
-			table += FormatWithThousandSeparators(channel.RemoteBalance)
+			table += formatWithThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
 		table += "</table>"
@@ -223,7 +223,7 @@ func ConvertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 }
 
 // converts a list of swaps into an HTML table
-func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
+func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	type Table struct {
 		TimeStamp int64
@@ -236,13 +236,13 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		table += "<tr>"
 		table += "<td style=\"width: 30%; text-align: left\">"
 
-		tm := TimePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
+		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
 		// clicking on timestamp will open swap details page
 		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
 		table += "</td><td style=\"text-align: center\">"
-		table += VisualiseSwapStatus(swap.State, false) + "&nbsp"
-		table += FormatWithThousandSeparators(swap.Amount)
+		table += visualiseSwapStatus(swap.State, false) + "&nbsp"
+		table += formatWithThousandSeparators(swap.Amount)
 
 		switch swap.Type {
 		case "swap-out":
@@ -273,7 +273,7 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			table += " ?&nbsp"
 		}
 
-		table += GetNodeAlias(swap.PeerNodeId)
+		table += getNodeAlias(swap.PeerNodeId)
 		table += "</td></tr>"
 
 		unsortedTable = append(unsortedTable, Table{
@@ -292,7 +292,7 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	for _, t := range unsortedTable {
 		counter++
-		if counter > Config.MaxHistory {
+		if counter > config.MaxHistory {
 			break
 		}
 		table += t.HtmlBlob
@@ -301,15 +301,15 @@ func ConvertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	return table
 }
 
-func GetNodeAlias(id string) string {
+func getNodeAlias(id string) string {
 	for _, n := range cache {
 		if n.PublicKey == id {
 			return n.Alias
 		}
 	}
 
-	url := Config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
-	if Config.BitcoinApi != "" {
+	url := config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
+	if config.BitcoinApi != "" {
 		req, err := http.NewRequest("GET", url, nil)
 		if err == nil {
 			cl := &http.Client{}
@@ -356,7 +356,7 @@ func GetNodeAlias(id string) string {
 	return id[:20] // shortened id
 }
 
-func FindPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswaprpc.PeerSwapPeer {
+func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswaprpc.PeerSwapPeer {
 	for _, p := range peers {
 		if p.NodeId == targetId {
 			return p

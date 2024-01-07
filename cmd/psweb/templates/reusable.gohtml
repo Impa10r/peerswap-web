@@ -28,7 +28,17 @@
                     <div class="columns">
                         <div class="column">
                             <div class="box">
-                                <p style="overflow-wrap: break-word;">❗ {{.Message}}</>
+                                {{if eq .Message "welcome"}} 
+                                    <h1 class="title is-4">Welcome to PeerSwap!</h1>
+                                    <center>
+                                    <br>
+                                    <p>Please copy-paste your Elements Core RPC Password into configuration field below.</p>
+                                    <br>
+                                    <img src="/static/elements.png" alt="Elements Core">
+                                    </center>
+                                {{else}}
+                                    <p style="overflow-wrap: break-word;">❗ {{.Message}}</>
+                                {{end}}
                             </div>
                         </div>
                     </div>

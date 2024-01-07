@@ -17,7 +17,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# .evn file 
 .env
 .vscode/launch.json
 push.sh
+peerswapd
