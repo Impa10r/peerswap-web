@@ -20,15 +20,22 @@ RUN cd peerswap && make -j$(nproc) lnd-release
 
 FROM debian:buster-slim
 
-RUN cd /root/
 RUN sed -i 's|$|deb http://deb.debian.org/debian buster main contrib non-free|' /etc/apt/sources.list
-RUN apt-get update && apt-get install -y systemd
+RUN apt-get update 
 
-COPY --from=builder /go/bin/peerswapd .
-COPY --from=builder /go/bin/psweb .
+RUN apt-get install -y supervisor
+RUN mkdir -p /var/log/supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+RUN apt-get install -y ca-certificates
+
+RUN cd /root/
+
+COPY --from=builder /go/bin/peerswapd /root/
+COPY --from=builder /go/bin/psweb /root/
 
 RUN mkdir -p /root/.peerswap
 
-EXPOSE 8088
+EXPOSE 1984
 
-CMD [ "./psweb" ] 
+CMD ["/usr/bin/supervisord"]

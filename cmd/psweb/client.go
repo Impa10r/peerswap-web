@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 
 	"log"
 
@@ -40,23 +38,6 @@ func getClientConn(address string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func isRunningPeerSwapd() bool {
-
-	host := config.RpcHost
-	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		log.Println(fmt.Errorf("unable to connect to RPC server: %v", err))
-		return false
-	}
-	defer cleanup()
-
-	// this method will fail if peerswapd is not running or misconfigured
-	_, err = client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
-	return err == nil
-}
-
 func stopPeerSwapd() {
 	host := config.RpcHost
 	ctx := context.Background()
@@ -73,55 +54,4 @@ func stopPeerSwapd() {
 	if err != nil {
 		log.Printf("unable to stop peerswapd: %v", err)
 	}
-}
-
-func launchService() bool {
-	if createService() {
-		cmd := exec.Command("systemctl start peerswapd", "")
-		log.Println("Launching peerswapd service...")
-		if err := cmd.Run(); err != nil {
-			log.Println("Error:", err)
-			return false
-		} else {
-			log.Println("Launched peerswapd service")
-			return true
-		}
-	}
-	return false
-}
-
-func createService() bool {
-
-	filename := "/etc/systemd/system/peerswapd.service"
-
-	t := "[Service]"
-	t += "ExecStart=/root/peerswapd"
-	t += "User=root"
-	t += "Type=simple"
-	t += "KillMode=process"
-	t += "TimeoutSec=180"
-	t += "Restart=always"
-	t += "RestartSec=1"
-	//t += "StandardOutput=append:/root/.peerswap/peerswapd.log"
-	//t += "StandardError=append:/root/.peerswap/peerswapd.log"
-	t += "[Install]"
-	t += "WantedBy=multi-user.target"
-
-	data := []byte(t)
-
-	// Open the file in write-only mode, truncate if exists or create a new file
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
-	if err != nil {
-		log.Println("Error opening file:", err)
-		return false
-	}
-	defer file.Close()
-
-	// Write data to the file
-	_, err = file.Write(data)
-	if err != nil {
-		log.Println("Error writing to file:", err)
-		return false
-	}
-	return true
 }

@@ -1,9 +1,13 @@
 # Versions
 
+## 1.1.0
+
+- Add Docker support
+
 ## 1.0.4
 
 - Default port number change from 8088 to 1984
-- Add local mempool option for node alias and bitcoin tx lookups (may be slow)
+- Add local mempool option for node alias and bitcoin tx lookups
 
 ## 1.0.3
 

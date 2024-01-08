@@ -21,3 +21,4 @@
 .vscode/launch.json
 push.sh
 peerswapd
+__debug_bin*

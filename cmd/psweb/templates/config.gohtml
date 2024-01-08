@@ -82,7 +82,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
+                      <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="https://umbrel.local:3006">
                     </p>
                   </div>
                 </div>
@@ -126,14 +126,13 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Bitcon Swaps *</label>
+                  <label class="label">Elements RPC Username *</label>
                 </div>
                 <div class="field-body">
-                  <div class="select is-medium is-fullwidth">
-                    <select name="bitcoinSwaps">
-                      <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
-                      <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
-                    </select>
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -149,12 +148,25 @@
                   </div>
                 </div>
               </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Bitcon Swaps *</label>
+                </div>
+                <div class="field-body">
+                  <div class="select is-medium is-fullwidth">
+                    <select name="bitcoinSwaps">
+                      <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
+                      <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
+                    </select>
+                  </div>
+                </div>
+              </div>
               <center>
                 <p>* Changing these values will restart peerswapd</p>
                 <br>
                 <input class="button is-large" type="submit" value="Save Configuration">     
                 <br>
-                <small>{{.Version}}</small>         
+                <small>Version: {{.Version}}, latest: {{.Latest}}</small>         
               </center>
             </form>
           </div>

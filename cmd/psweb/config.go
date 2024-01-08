@@ -13,12 +13,14 @@ type Configuration struct {
 	AllowSwapRequests bool
 	RpcHost           string
 	ListenPort        string
+	ListenHost        string
 	ColorScheme       string
 	BitcoinApi        string // for bitcoin tx links
 	LiquidApi         string // for liquid tx links
 	NodeApi           string // for node links
 	MaxHistory        uint
 	DataDir           string
+	ElementsUser      string
 	ElementsPass      string
 	BitcoinSwaps      bool
 	Chain             string
@@ -42,7 +44,6 @@ func loadConfig(dataDir string) {
 	// load defaults first
 	config.AllowSwapRequests = true
 	config.RpcHost = "localhost:42069"
-	config.ListenPort = "1984"
 	config.ColorScheme = "dark" // dark or light
 	config.NodeApi = "https://amboss.space/node"
 	config.BitcoinApi = "https://mempool.space"
@@ -53,8 +54,18 @@ func loadConfig(dataDir string) {
 	config.BitcoinSwaps = true
 	config.Chain = "mainnet"
 	config.LocalMempool = ""
+	config.ListenHost = "localhost"
+	config.ListenPort = "1984"
 
 	// environment values take priority
+	if os.Getenv("APP_HOST") != "" {
+		config.ListenHost = os.Getenv("APP_HOST")
+	}
+
+	if os.Getenv("APP_PORT") != "" {
+		config.ListenPort = os.Getenv("APP_PORT")
+	}
+
 	if os.Getenv("NETWORK") == "testnet" {
 		config.Chain = "testnet"
 		config.NodeApi = "https://mempool.space/testnet/lightning/node"
@@ -110,12 +121,20 @@ func savePeerSwapdConfig() {
 	t += setPeerswapdVariable("lnd.host", "localhost:10009", "", "LND_HOST")
 	t += setPeerswapdVariable("lnd.tlscertpath", defaultLndDir+"/tls.cert", "", "")
 	t += setPeerswapdVariable("lnd.macaroonpath", defaultLndDir+"/data/chain/bitcoin/"+config.Chain+"/admin.macaroon", "", "LND_MACAROONPATH")
-	t += setPeerswapdVariable("elementsd.rpcuser", "admin1", "", "ELEMENTSD_RPCUSER")
-	t += setPeerswapdVariable("elementsd.rpcpass", "123", config.ElementsPass, "")
-	t += setPeerswapdVariable("elementsd.rpchost", "http://127.0.0.1", "", "ELEMENTSD_RPCHOST")
-	t += setPeerswapdVariable("elementsd.rpcport", "18884", "", "ELEMENTSD_RPCPORT")
-	t += setPeerswapdVariable("elementsd.rpcwallet", "swaplnd", "", "ELEMENTSD_RPCWALLET")
-	t += setPeerswapdVariable("bitcoinswaps", "false", strconv.FormatBool(config.BitcoinSwaps), "")
+
+	if config.ElementsPass == "" || config.ElementsUser == "" {
+		// remove Liquid from config so that peerswapd keeps running
+		t += setPeerswapdVariable("liquidswaps", "false", "", "")
+	} else {
+		t += setPeerswapdVariable("elementsd.rpcuser", "", config.ElementsUser, "ELEMENTS_USER")
+		t += setPeerswapdVariable("elementsd.rpcpass", "", config.ElementsPass, "ELEMENTS_PASS")
+		t += setPeerswapdVariable("elementsd.rpchost", "http://127.0.0.1", "", "ELEMENTS_HOST")
+		t += setPeerswapdVariable("elementsd.rpcport", "18884", "", "ELEMENTS_PORT")
+		t += setPeerswapdVariable("elementsd.rpcwallet", "swaplnd", "", "ELEMENTS_WALLET")
+		t += setPeerswapdVariable("bitcoinswaps", "false", strconv.FormatBool(config.BitcoinSwaps), "")
+		t += setPeerswapdVariable("liquidswaps", "true", "true", "")
+		t += setPeerswapdVariable("loglevel", "2", "2", "")
+	}
 
 	data := []byte(t)
 

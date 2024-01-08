@@ -4,33 +4,53 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h1>Starting peerswapd...</h1>
-              <div class="progress">
-                <div class="current-progress">
-                </div>
+            <h1>Restarting peerswapd...</h1>
+            <div class="progress">
+              <div class="current-progress">
               </div>
-              <script>
-                let progressValue = 0;
-                const progressBar = document.querySelector(".current-progress");
-
-                progressBar.style.width = `${progressValue}%`;
-
-                const timer = setInterval(() => {
-                  if (progressValue < 100) {
-                    progressValue += 1;
-                    progressBar.style.width = `${progressValue}%`;
-                  
-                  }
-                  if (progressValue === 100) {
-                    clearInterval(timer);
-                    // Redirect to "/" 
-                    window.location.href = "/";
-                  }
-                }, 250); // 25 seconds wait
-                // Call startProgress function when the page is loaded
-                window.onload = startProgress;
-              </script>
             </div>
+            <script>
+              let progressValue = 0;
+              const progressBar = document.querySelector(".current-progress");
+
+              progressBar.style.width = `${progressValue}%`;
+
+              const timer = setInterval(() => {
+                if (progressValue < 100) {
+                  progressValue += 1;
+                  progressBar.style.width = `${progressValue}%`;
+                
+                }
+                if (progressValue === 100) {
+                  clearInterval(timer);
+                  // Redirect to home page
+                  window.location.href = '/'; 
+                }
+              }, 300); // 30 seconds wait
+              // Call startProgress function when the page is loaded
+              window.onload = startProgress;
+            </script>
+          </div>
+          <div class="box">
+            <h1>Log</h1>
+            <pre id="log-content" style="overflow-y:scroll; max-width:100%; height:300px; border:0.5px solid lightgray; padding:5px; white-space:pre-wrap;"></pre>
+            <script>
+              const logContent = document.getElementById('log-content');
+              const socket = new WebSocket('ws://{{.Host}}:{{.Port}}/ws');
+
+              socket.onmessage = function(event) {
+                const logData = event.data;
+
+                logContent.textContent += logData;
+                logContent.scrollTop = logContent.scrollHeight;
+
+                // Check if logData contains the phrase "peerswapd grpc listening on"
+                if (logData.includes("peerswapd grpc listening on")) {
+                  // Redirect to home page
+                  window.location.href = '/'; 
+                }
+              };
+            </script>
           </div>
         </div>
       </div>

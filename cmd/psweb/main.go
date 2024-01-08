@@ -16,6 +16,7 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 )
 
 type AliasCache struct {
@@ -29,12 +30,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder   embed.FS
-	isStarting  bool // For Docker, 20 secounds window to display progress bar
-	wasLaunched bool // For Docker, indicates that peerswapd service was launched
+	tplFolder embed.FS
 )
 
-const version = "v1.0.4"
+const version = "v1.1.0"
 
 func main() {
 
@@ -59,20 +58,23 @@ func main() {
 	// loading from the config file or assigning defaults
 	loadConfig(*dataDir)
 
-	if config.ElementsPass == "" {
+	// on first start without config there will be no user and password
+	if config.ElementsPass == "" || config.ElementsUser == "" {
 		// check in peerswap.conf
 		config.ElementsPass = readVariableFromPeerswapdConfig("elementsd.rpcpass")
-		saveConfig()
-	}
+		config.ElementsUser = readVariableFromPeerswapdConfig("elementsd.rpcuser")
 
-	// When running in Docker launch peerswapd as systemd service inside the container
-	if os.Getenv("LAUNCH_PEERSWAPD") != "" && !isRunningPeerSwapd() && config.ElementsPass != "" {
-		isStarting = true
-		wasLaunched = launchService()
-		go func() {
-			time.Sleep(20 * time.Second)
-			isStarting = false
-		}()
+		// check if they were passed as env
+		if config.ElementsUser == "" && os.Getenv("ELEMENTS_USER") != "" {
+			config.ElementsUser = os.Getenv("ELEMENTS_USER")
+		}
+		if config.ElementsPass == "" && os.Getenv("ELEMENTS_PASS") != "" {
+			config.ElementsPass = os.Getenv("ELEMENTS_PASS")
+		}
+
+		saveConfig()
+		// if ElementPass is still empty, this will create temporary peerswap.conf without Liquid
+		savePeerSwapdConfig()
 	}
 
 	// Get all HTML template files from the embedded filesystem
@@ -112,11 +114,12 @@ func main() {
 	r.HandleFunc("/update", updateHandler)
 	r.HandleFunc("/liquid", liquidHandler)
 	r.HandleFunc("/loading", loadingHandler)
+	r.HandleFunc("/ws", wsHandler)
 
 	// Start the server
 	http.Handle("/", r)
 
-	log.Println("Listening on http://localhost:" + config.ListenPort)
+	log.Println("Listening on http://" + config.ListenHost + ":" + config.ListenPort)
 	err = http.ListenAndServe(":"+config.ListenPort, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -125,13 +128,7 @@ func main() {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 
-	if isStarting {
-		//show loading page instead
-		http.Redirect(w, r, "/loading", http.StatusSeeOther)
-		return
-	}
-
-	if config.ElementsPass == "" {
+	if config.ElementsPass == "" || config.ElementsUser == "" {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
 		return
 	}
@@ -470,6 +467,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme string
 		Config      Configuration
 		Version     string
+		Latest      string
 	}
 
 	data := Page{
@@ -477,6 +475,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme: config.ColorScheme,
 		Config:      config,
 		Version:     version,
+		Latest:      getLatestTag(),
 	}
 
 	// executing template named "error"
@@ -729,11 +728,12 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		mustRestart := false
-		if config.BitcoinSwaps != bitcoinSwaps || config.ElementsPass != r.FormValue("elementsPass") {
+		if config.BitcoinSwaps != bitcoinSwaps || config.ElementsUser != r.FormValue("elementsUser") || config.ElementsPass != r.FormValue("elementsPass") {
 			mustRestart = true
 		}
 
 		config.BitcoinSwaps = bitcoinSwaps
+		config.ElementsUser = r.FormValue("elementsUser")
 		config.ElementsPass = r.FormValue("elementsPass")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
@@ -773,18 +773,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if mustRestart {
 			savePeerSwapdConfig()
 			stopPeerSwapd()
-			if !wasLaunched {
-				wasLaunched = launchService()
-			} else {
-				log.Println("Did not launch peerswapd service as it was launched already")
-			}
-			// autorestart with systemctl
-			isStarting = true
-			go func() {
-				time.Sleep(20 * time.Second)
-				isStarting = false
-			}()
-			// show progress bar
+			// show progress bar and log
 			http.Redirect(w, r, "/loading", http.StatusSeeOther)
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
@@ -810,11 +799,15 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme string
 		Message     string
+		Host        string
+		Port        string
 	}
 
 	data := Page{
 		ColorScheme: config.ColorScheme,
 		Message:     "",
+		Host:        config.ListenHost,
+		Port:        config.ListenPort,
 	}
 
 	// executing template named "loading"
@@ -823,6 +816,73 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
 	}
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+func logFileWatcher(conn *websocket.Conn) {
+	logFilePath := config.DataDir + "/log"
+
+	file, err := os.Open(logFilePath)
+	if err != nil {
+		log.Println("Error opening log file:", err)
+		return
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Println("Error getting file info:", err)
+		return
+	}
+
+	fileSize := fileInfo.Size()
+	file.Seek(fileSize, 0)
+
+	for {
+		fileInfo, err := file.Stat()
+		if err != nil {
+			log.Println("Error getting file info:", err)
+			return
+		}
+
+		if fileInfo.Size() > fileSize {
+			newDataSize := fileInfo.Size() - fileSize
+			newData := make([]byte, newDataSize)
+			_, err := file.ReadAt(newData, fileSize)
+			if err != nil {
+				log.Println("Error reading log file:", err)
+				return
+			}
+
+			if err := conn.WriteMessage(websocket.TextMessage, newData); err != nil {
+				log.Println("Error writing to WebSocket:", err)
+				return
+			}
+
+			fileSize = fileInfo.Size()
+		}
+
+		time.Sleep(1 * time.Second) // Check for changes every second
+	}
+}
+
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Error upgrading to WebSocket:", err)
+		return
+	}
+	defer conn.Close()
+
+	logFileWatcher(conn)
 }
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
