@@ -22,7 +22,7 @@
                     <div class="field-body">
                       <div class="field">
                         <div class="control">
-                          <div class="select is-medium">
+                          <div class="select is-medium is-fullwidth">
                             <select name="channelId">
                             {{range .Peer.Channels}}
                               <option value="{{.ChannelId}}">L {{.LocalBalance}} - {{.RemoteBalance}} R</option>
@@ -40,7 +40,7 @@
                     <div class="field-body">
                       <div class="field">
                         <div class="control">
-                          <div class="select is-medium">
+                          <div class="select is-medium is-fullwidth">
                             <select name="direction">
                               <option value="swapIn">Swap In ⚡ ⇦ </option>
                               <option value="swapOut">Swap Out ⚡ ⇨ </option>
@@ -57,7 +57,7 @@
                     <div class="field-body">
                       <div class="field">
                         <div class="control">
-                          <div class="select is-medium">
+                          <div class="select is-medium is-fullwidth">
                             <select name="asset">
                               <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
                               <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>

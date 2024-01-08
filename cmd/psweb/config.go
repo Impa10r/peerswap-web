@@ -54,7 +54,7 @@ func loadConfig(dataDir string) {
 	config.BitcoinSwaps = true
 	config.Chain = "mainnet"
 	config.LocalMempool = ""
-	config.ListenHost = "localhost"
+	config.ListenHost = "127.0.0.1"
 	config.ListenPort = "1984"
 
 	// environment values take priority
