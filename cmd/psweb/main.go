@@ -68,7 +68,7 @@ func main() {
 	// When running in Docker launch peerswapd as systemd service inside the container
 	if os.Getenv("LAUNCH_PEERSWAPD") != "" && !isRunningPeerSwapd() && config.ElementsPass != "" {
 		isStarting = true
-		launchService()
+		wasLaunched = launchService()
 		go func() {
 			time.Sleep(20 * time.Second)
 			isStarting = false
@@ -774,9 +774,9 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			savePeerSwapdConfig()
 			stopPeerSwapd()
 			if !wasLaunched {
-				launchService()
+				wasLaunched = launchService()
 			} else {
-				log.Println("Don't launch peerswapd service as it was launched already")
+				log.Println("Did not launch peerswapd service as it was launched already")
 			}
 			// autorestart with systemctl
 			isStarting = true

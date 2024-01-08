@@ -72,23 +72,25 @@ func stopPeerSwapd() {
 	_, err = client.Stop(ctx, &peerswaprpc.Empty{})
 	if err != nil {
 		log.Printf("unable to stop peerswapd: %v", err)
-		return
 	}
 }
 
-func launchService() {
-	createService()
-	cmd := exec.Command("/usr/bin/systemctl start peerswapd", "")
-	log.Println("Launching peerswapd service...")
-	if err := cmd.Run(); err != nil {
-		log.Println("Error:", err)
-	} else {
-		log.Println("Launched peerswapd service")
-		wasLaunched = true
+func launchService() bool {
+	if createService() {
+		cmd := exec.Command("systemctl start peerswapd", "")
+		log.Println("Launching peerswapd service...")
+		if err := cmd.Run(); err != nil {
+			log.Println("Error:", err)
+			return false
+		} else {
+			log.Println("Launched peerswapd service")
+			return true
+		}
 	}
+	return false
 }
 
-func createService() {
+func createService() bool {
 
 	filename := "/etc/systemd/system/peerswapd.service"
 
@@ -111,7 +113,7 @@ func createService() {
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 	if err != nil {
 		log.Println("Error opening file:", err)
-		return
+		return false
 	}
 	defer file.Close()
 
@@ -119,6 +121,7 @@ func createService() {
 	_, err = file.Write(data)
 	if err != nil {
 		log.Println("Error writing to file:", err)
-		return
+		return false
 	}
+	return true
 }
