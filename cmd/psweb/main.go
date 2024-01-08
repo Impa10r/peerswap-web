@@ -36,16 +36,7 @@ var (
 
 const version = "v1.0.4"
 
-func cleanup() {
-	// stop peerswapd if was manually started
-	if os.Getenv("LAUNCH_PEERSWAPD") != "" {
-		stopPeerSwapd()
-	}
-	log.Println("Exiting...")
-}
-
 func main() {
-	defer cleanup()
 
 	var (
 		dataDir     = flag.String("datadir", "", "Path to config folder")
