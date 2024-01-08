@@ -29,11 +29,12 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder  embed.FS
-	isStarting bool
+	tplFolder   embed.FS
+	isStarting  bool // For Docker, 20 secounds window to display progress bar
+	wasLaunched bool // For Docker, indicates that peerswapd service was launched
 )
 
-const version = "v1.1.0"
+const version = "v1.0.4"
 
 func cleanup() {
 	// stop peerswapd if was manually started
@@ -73,10 +74,10 @@ func main() {
 		saveConfig()
 	}
 
-	// When running in Docker must launch peerswapd inside the container
+	// When running in Docker launch peerswapd as systemd service inside the container
 	if os.Getenv("LAUNCH_PEERSWAPD") != "" && !isRunningPeerSwapd() && config.ElementsPass != "" {
 		isStarting = true
-		go startPeerSwapd()
+		launchService()
 		go func() {
 			time.Sleep(20 * time.Second)
 			isStarting = false
@@ -136,7 +137,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if isStarting {
 		//show loading page instead
 		http.Redirect(w, r, "/loading", http.StatusSeeOther)
-		isStarting = false
 		return
 	}
 
@@ -163,6 +163,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
+
 	allowlistedPeers := res.GetAllowlistedPeers()
 	suspiciousPeers := res.GetSuspiciousPeerList()
 
@@ -778,24 +779,22 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if mustRestart && !isStarting {
-			mustRestart = false // to avoid double launch
-			stopPeerSwapd()
+		if mustRestart {
 			savePeerSwapdConfig()
-			if os.Getenv("LAUNCH_PEERSWAPD") != "" {
-				// autorestart
-				isStarting = true
-				go startPeerSwapd()
-				go func() {
-					time.Sleep(20 * time.Second)
-					isStarting = false
-				}()
-				// show progress bar
-				http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			stopPeerSwapd()
+			if !wasLaunched {
+				launchService()
 			} else {
-				// wait for systemctl to restart
-				http.Error(w, "Stopped peerswapd. It should be restarted by systemd. Please Wait for this, then go to main page.", http.StatusBadGateway)
+				log.Println("Don't launch peerswapd service as it was launched already")
 			}
+			// autorestart with systemctl
+			isStarting = true
+			go func() {
+				time.Sleep(20 * time.Second)
+				isStarting = false
+			}()
+			// show progress bar
+			http.Redirect(w, r, "/loading", http.StatusSeeOther)
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
 		} else { // configs are good

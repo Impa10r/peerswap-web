@@ -103,6 +103,7 @@ func savePeerSwapdConfig() {
 	}
 	filename := config.DataDir + "/peerswap.conf"
 	defaultLndDir := currentUser.HomeDir + "/.lnd"
+
 	//key, default, new value, env key
 	t := setPeerswapdVariable("host", "localhost:42069", config.RpcHost, "")
 	t += setPeerswapdVariable("rpchost", "localhost:42070", "", "")

@@ -76,13 +76,49 @@ func stopPeerSwapd() {
 	}
 }
 
-func startPeerSwapd() {
-	cmd := exec.Command("./peerswapd", "")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	log.Println("Starting peerswapd...")
+func launchService() {
+	createService()
+	cmd := exec.Command("/usr/bin/systemctl start peerswapd", "")
+	log.Println("Launching peerswapd service...")
 	if err := cmd.Run(); err != nil {
 		log.Println("Error:", err)
+	} else {
+		log.Println("Launched peerswapd service")
+		wasLaunched = true
+	}
+}
+
+func createService() {
+
+	filename := "/etc/systemd/system/peerswapd.service"
+
+	t := "[Service]"
+	t += "ExecStart=/root/peerswapd"
+	t += "User=root"
+	t += "Type=simple"
+	t += "KillMode=process"
+	t += "TimeoutSec=180"
+	t += "Restart=always"
+	t += "RestartSec=1"
+	//t += "StandardOutput=append:/root/.peerswap/peerswapd.log"
+	//t += "StandardError=append:/root/.peerswap/peerswapd.log"
+	t += "[Install]"
+	t += "WantedBy=multi-user.target"
+
+	data := []byte(t)
+
+	// Open the file in write-only mode, truncate if exists or create a new file
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		log.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
+	// Write data to the file
+	_, err = file.Write(data)
+	if err != nil {
+		log.Println("Error writing to file:", err)
+		return
 	}
 }

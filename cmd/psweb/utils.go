@@ -312,7 +312,9 @@ func getNodeAlias(id string) string {
 	if config.BitcoinApi != "" {
 		req, err := http.NewRequest("GET", url, nil)
 		if err == nil {
-			cl := &http.Client{}
+			cl := &http.Client{
+				Timeout: 5 * time.Second,
+			}
 			resp, err2 := cl.Do(req)
 			if err2 == nil {
 				defer resp.Body.Close()

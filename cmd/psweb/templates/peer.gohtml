@@ -10,93 +10,97 @@
             {{if not .Peer.SwapsAllowed}}
               <p>⛔ {{.PeerAlias}} did not whitelist your node. Please contact them to do it.</p>
             {{else}}
-              <h1 class="title is-4">New Swap</h1> 
-              <form action="/submit" method="post">
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Channel</label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <div class="select is-medium">
-                          <select name="channelId">
-                          {{range .Peer.Channels}}
-                            <option value="{{.ChannelId}}">L {{.LocalBalance}} - {{.RemoteBalance}} R</option>
-                          {{end}}
-                          </select>
+              {{if not .Peer.Channels}}
+                <p>🙁 There are no channels with this node.</p>
+              {{else}}
+                <h1 class="title is-4">New Swap</h1> 
+                <form action="/submit" method="post">
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Channel</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium">
+                            <select name="channelId">
+                            {{range .Peer.Channels}}
+                              <option value="{{.ChannelId}}">L {{.LocalBalance}} - {{.RemoteBalance}} R</option>
+                            {{end}}
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Direction</label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <div class="select is-medium">
-                          <select name="direction">
-                            <option value="swapIn">Swap In ⚡ ⇦ </option>
-                            <option value="swapOut">Swap Out ⚡ ⇨ </option>
-                          </select>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Direction</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium">
+                            <select name="direction">
+                              <option value="swapIn">Swap In ⚡ ⇦ </option>
+                              <option value="swapOut">Swap Out ⚡ ⇨ </option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Asset</label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <div class="select is-medium">
-                          <select name="asset">
-                            <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
-                            <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
-                          </select>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Asset</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium">
+                            <select name="asset">
+                              <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
+                              <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Amount</label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="number" name="swapAmount" required="required" min="100000" placeholder="⚡ Swap Amount (sats)">
-                      </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Amount</label>
                     </div>
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Forced</label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" name="forced">
-                          <strong>&nbsp&nbspYES</strong>
-                        </label>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="number" name="swapAmount" required="required" min="100000" placeholder="⚡ Swap Amount (sats)">
+                        </p>
                       </div>
                     </div>
                   </div>
-                </div>
-                <center>
-                  <input type="hidden" name="action" value="doSwap">
-                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                  <input class="button is-large" type="submit" value="Execute Swap">
-                </center>
-              </form>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Forced</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <label class="checkbox is-large">
+                            <input type="checkbox" name="forced">
+                            <strong>&nbsp&nbspYES</strong>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <center>
+                    <input type="hidden" name="action" value="doSwap">
+                    <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                    <input class="button is-large" type="submit" value="Execute Swap">
+                  </center>
+                </form>
+              {{end}}
             {{end}}
           </div>
         </div>

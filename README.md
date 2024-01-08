@@ -10,12 +10,6 @@ A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustle
 
 PeerSwap Web UI requires Bitcoin Core, Elements Core and LND.
 
-## Docker Run
-
-docker run -p 1984:1984 -v ~/.lnd:/root/.lnd:ro -e NETWORK='testnet' -e LAUNCH_PEERSWAPD='true' ghcr.io/impa10r/peerswap-web:v1.1.0
-
-Container includes both PeerSwap Web UI and peerswapd. Depending how your LND and Elements Core are installed, may require further parameters (-e) LND_HOST, LND_MACAROONPATH, ELEMENTSD_RPCUSER, ELEMENTSD_RPCPORT, ELEMENTSD_RPCHOST and ELEMENTSD_RPCWALLET. If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) as an example.
-
 ## Manual Build
 
 Install golang from https://go.dev/doc/install

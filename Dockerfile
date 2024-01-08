@@ -21,6 +21,9 @@ RUN cd peerswap && make -j$(nproc) lnd-release
 FROM debian:buster-slim
 
 RUN cd /root/
+RUN sed -i 's|$|deb http://deb.debian.org/debian buster main contrib non-free|' /etc/apt/sources.list
+RUN apt-get update 
+RUN apt-get install -y systemd
 
 COPY --from=builder /go/bin/peerswapd .
 COPY --from=builder /go/bin/psweb .
