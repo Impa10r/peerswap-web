@@ -28,7 +28,7 @@
                 }
               }, 300); // 30 seconds wait
               // Call startProgress function when the page is loaded
-              window.onload = startProgress;
+              //window.onload = startProgress;
             </script>
           </div>
           <div class="box">
@@ -36,20 +36,28 @@
             <pre id="log-content" style="overflow-y:scroll; max-width:100%; height:300px; border:0.5px solid lightgray; padding:5px; white-space:pre-wrap;"></pre>
             <script>
               const logContent = document.getElementById('log-content');
-              const socket = new WebSocket('ws://{{.Host}}:{{.Port}}/ws');
-
-              socket.onmessage = function(event) {
-                const logData = event.data;
-
-                logContent.textContent += logData;
-                logContent.scrollTop = logContent.scrollHeight;
-
-                // Check if logData contains the phrase "peerswapd grpc listening on"
-                if (logData.includes("peerswapd grpc listening on")) {
+              let logPosition = 0;             
+              
+              function updatePage(data) {
+                logPosition = data.NextPosition;
+                logContent.textContent += data.LogText;
+                logContent.scrollTop = logContent.scrollHeight;               
+                
+                // Wait until LogText contains the phrase "peerswapd grpc listening on"
+                if (data.LogText.includes("peerswapd grpc listening on")) {
                   // Redirect to home page
                   window.location.href = '/'; 
                 }
-              };
+              }
+              
+              function fetchData() {
+                fetch('/log?pos=' + logPosition)
+                  .then(response => response.json())
+                  .then(data => updatePage(data));
+              }
+              
+              const timer2 = setInterval(fetchData, 1000);
+              fetchData;
             </script>
           </div>
         </div>

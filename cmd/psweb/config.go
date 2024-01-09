@@ -13,7 +13,6 @@ type Configuration struct {
 	AllowSwapRequests bool
 	RpcHost           string
 	ListenPort        string
-	ListenHost        string
 	ColorScheme       string
 	BitcoinApi        string // for bitcoin tx links
 	LiquidApi         string // for liquid tx links
@@ -54,18 +53,9 @@ func loadConfig(dataDir string) {
 	config.BitcoinSwaps = true
 	config.Chain = "mainnet"
 	config.LocalMempool = ""
-	config.ListenHost = "127.0.0.1"
 	config.ListenPort = "1984"
 
 	// environment values take priority
-	if os.Getenv("APP_HOST") != "" {
-		config.ListenHost = os.Getenv("APP_HOST")
-	}
-
-	if os.Getenv("APP_PORT") != "" {
-		config.ListenPort = os.Getenv("APP_PORT")
-	}
-
 	if os.Getenv("NETWORK") == "testnet" {
 		config.Chain = "testnet"
 		config.NodeApi = "https://mempool.space/testnet/lightning/node"
