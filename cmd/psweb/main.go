@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,7 +18,6 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 )
 
 type AliasCache struct {
@@ -114,12 +115,12 @@ func main() {
 	r.HandleFunc("/update", updateHandler)
 	r.HandleFunc("/liquid", liquidHandler)
 	r.HandleFunc("/loading", loadingHandler)
-	r.HandleFunc("/ws", wsHandler)
+	r.HandleFunc("/log", logHandler)
 
 	// Start the server
 	http.Handle("/", r)
 
-	log.Println("Listening on http://" + config.ListenHost + ":" + config.ListenPort)
+	log.Println("Listening on http://0.0.0.0:" + config.ListenPort)
 	err = http.ListenAndServe(":"+config.ListenPort, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -799,15 +800,11 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme string
 		Message     string
-		Host        string
-		Port        string
 	}
 
 	data := Page{
 		ColorScheme: config.ColorScheme,
 		Message:     "",
-		Host:        config.ListenHost,
-		Port:        config.ListenPort,
 	}
 
 	// executing template named "loading"
@@ -818,17 +815,30 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
+// returns log as JSON
+func logHandler(w http.ResponseWriter, r *http.Request) {
 
-func logFileWatcher(conn *websocket.Conn) {
-	logFilePath := config.DataDir + "/log"
+	filename := config.DataDir + "/log"
+	logText := ""
 
-	file, err := os.Open(logFilePath)
+	keys, ok := r.URL.Query()["pos"]
+	if !ok || len(keys[0]) < 1 {
+		log.Println("URL parameter 'pos' is missing")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	startPosition, err := strconv.ParseInt(keys[0], 10, 64)
 	if err != nil {
-		log.Println("Error opening log file:", err)
+		log.Println("Error:", err)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Println("Error opening file:", err)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 	defer file.Close()
@@ -836,53 +846,54 @@ func logFileWatcher(conn *websocket.Conn) {
 	fileInfo, err := file.Stat()
 	if err != nil {
 		log.Println("Error getting file info:", err)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	fileSize := fileInfo.Size()
-	file.Seek(fileSize, 0)
 
-	for {
-		fileInfo, err := file.Stat()
+	if startPosition > 0 && fileSize > startPosition {
+		// Seek to the desired starting position
+		_, err = file.Seek(startPosition, 0)
 		if err != nil {
-			log.Println("Error getting file info:", err)
+			log.Println("Error seeking:", err)
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		if fileInfo.Size() > fileSize {
-			newDataSize := fileInfo.Size() - fileSize
-			newData := make([]byte, newDataSize)
-			_, err := file.ReadAt(newData, fileSize)
-			if err != nil {
-				log.Println("Error reading log file:", err)
-				return
-			}
-
-			if err := conn.WriteMessage(websocket.TextMessage, newData); err != nil {
-				log.Println("Error writing to WebSocket:", err)
-				return
-			}
-
-			fileSize = fileInfo.Size()
+		// Read from the current position till EOF
+		content, err := io.ReadAll(file)
+		if err != nil {
+			log.Println("Error reading file:", err)
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 
-		time.Sleep(1 * time.Second) // Check for changes every second
-	}
-}
-
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	upgrader.CheckOrigin = func(r *http.Request) bool {
-		return true
+		logText = (string(content))
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	// Create a response struct
+	type ResponseData struct {
+		NextPosition int64
+		LogText      string
+	}
+
+	responseData := ResponseData{
+		NextPosition: fileSize,
+		LogText:      logText,
+	}
+
+	// Marshal the response struct to JSON
+	responseJSON, err := json.Marshal(responseData)
 	if err != nil {
-		log.Println("Error upgrading to WebSocket:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer conn.Close()
 
-	logFileWatcher(conn)
+	// Send the next chunk of the log as the response
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(responseJSON))
+
 }
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
