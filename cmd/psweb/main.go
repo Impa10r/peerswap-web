@@ -772,10 +772,10 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if mustRestart {
-			savePeerSwapdConfig()
-			stopPeerSwapd()
 			// show progress bar and log
 			http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			savePeerSwapdConfig()
+			stopPeerSwapd()
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
 		} else { // configs are good
@@ -791,8 +791,7 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Stop requested")
 	go func() {
 		stopPeerSwapd()
-		time.Sleep(3 * time.Second) // Delay for 3 seconds
-		os.Exit(0)                  // Exit the program
+		os.Exit(0) // Exit the program
 	}()
 }
 
