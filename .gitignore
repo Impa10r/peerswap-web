@@ -18,7 +18,8 @@
 # vendor/
 
 .env
-.vscode/launch.json
+.vscode
 push.sh
 peerswapd
+psweb
 __debug_bin*

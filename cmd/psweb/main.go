@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -32,12 +34,12 @@ var (
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
 	tplFolder embed.FS
+	logFile   *os.File
 )
 
-const version = "v1.1.0"
+const version = "v1.1.1"
 
 func main() {
-
 	var (
 		dataDir     = flag.String("datadir", "", "Path to config folder")
 		showHelp    = flag.Bool("help", false, "Show help")
@@ -59,7 +61,13 @@ func main() {
 	// loading from the config file or assigning defaults
 	loadConfig(*dataDir)
 
-	// on first start without config there will be no user and password
+	// set logging params
+	err := setLogging()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// on first start without config there will be no elements user and password
 	if config.ElementsPass == "" || config.ElementsUser == "" {
 		// check in peerswap.conf
 		config.ElementsPass = readVariableFromPeerswapdConfig("elementsd.rpcpass")
@@ -74,14 +82,14 @@ func main() {
 		}
 
 		saveConfig()
-		// if ElementPass is still empty, this will create temporary peerswap.conf without Liquid
+		// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
 		savePeerSwapdConfig()
 	}
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// Store template names
@@ -116,15 +124,31 @@ func main() {
 	r.HandleFunc("/liquid", liquidHandler)
 	r.HandleFunc("/loading", loadingHandler)
 	r.HandleFunc("/log", logHandler)
+	r.HandleFunc("/backup", backupHandler)
 
 	// Start the server
 	http.Handle("/", r)
+	go func() {
+		if err := http.ListenAndServe(":"+config.ListenPort, nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	log.Println("Listening on http://0.0.0.0:" + config.ListenPort)
-	err = http.ListenAndServe(":"+config.ListenPort, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Println("Listening on http://localhost:" + config.ListenPort)
+
+	// Handle termination signals
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for termination signal
+	<-signalChan
+	log.Println("Received termination signal")
+
+	// close log
+	closeLogFile()
+
+	// Exit the program gracefully
+	os.Exit(0)
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -773,7 +797,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 		if mustRestart {
 			// show progress bar and log
-			http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
 			savePeerSwapdConfig()
 			stopPeerSwapd()
 		} else if clientIsDown { // configs did not work, try again
@@ -811,6 +835,20 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
+func backupHandler(w http.ResponseWriter, r *http.Request) {
+	fileName := "peerswap.bak"
+
+	if err := backUpWallet(fileName); err == nil {
+		// Set the Content-Disposition header to suggest a filename
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
+
+		// Serve the file for download
+		http.ServeFile(w, r, filepath.Join(config.DataDir, fileName))
+	} else {
+		redirectWithError(w, r, "/liquid?", err)
 	}
 }
 

@@ -120,11 +120,16 @@ func savePeerSwapdConfig() {
 		t += setPeerswapdVariable("elementsd.rpcpass", "", config.ElementsPass, "ELEMENTS_PASS")
 		t += setPeerswapdVariable("elementsd.rpchost", "http://127.0.0.1", "", "ELEMENTS_HOST")
 		t += setPeerswapdVariable("elementsd.rpcport", "18884", "", "ELEMENTS_PORT")
-		t += setPeerswapdVariable("elementsd.rpcwallet", "swaplnd", "", "ELEMENTS_WALLET")
+		t += setPeerswapdVariable("elementsd.rpcwallet", "peerswap", "", "ELEMENTS_WALLET")
 		t += setPeerswapdVariable("bitcoinswaps", "false", strconv.FormatBool(config.BitcoinSwaps), "")
 		t += setPeerswapdVariable("liquidswaps", "true", "true", "")
-		t += setPeerswapdVariable("loglevel", "2", "2", "")
 	}
+
+	logLevel := "1"
+	if os.Getenv("DEBUG") == "1" {
+		logLevel = "2"
+	}
+	t += setPeerswapdVariable("loglevel", "2", logLevel, "")
 
 	data := []byte(t)
 

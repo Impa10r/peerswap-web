@@ -12,19 +12,6 @@
             "program": "${workspaceFolder}/cmd/psweb/",
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",
-        },     
-        {
-            "name": "Connect to VirtualBox",
-            "type": "go",
-            "request": "attach",
-            "mode": "remote",
-            "remotePath": "/home/vlad/go/src/peerswap-web/cmd/web/",
-            "cwd" : "${workspaceFolder}/cmd/web/",
-            "port": 3000,
-            "host": "127.0.0.1",
-            "trace": "verbose",
-            "asRoot": true,
-            "apiVersion":1
         }
     ]
 }

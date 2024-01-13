@@ -1,5 +1,10 @@
 # Versions
 
+## 1.1.1
+
+- Add logging to psweb.log file
+- Add Liquid wallet backup
+
 ## 1.1.0
 
 - Add Docker support

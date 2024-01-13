@@ -5,27 +5,32 @@
         <div class="column">
           <div class="box">
             <h3 class="title is-4">🌊 Liquid sats: {{.SatAmount}}</h3>
+            <center>
+              <a href="/backup">Backup Wallet</a>
+            </center>
           </div>
-          {{if eq .TxId ""}}
-            <div class="box">
-              <h1 class="title is-4">Receiving Address</h1> 
-              {{if eq .LiquidAddress ""}}
-                <form action="/submit" method="post">
+          <div class="box">
+            <h1 class="title is-4">Receiving Address</h1> 
+            {{if eq .LiquidAddress ""}}
+              <form action="/submit" method="post">
+                <center>
+                  <input type="hidden" name="action" value="newAddress">
+                  <input class="button is-large" type="submit" value="Get New Address">
+                </center>
+              </form>
+            {{else}}
+              <table style="table-layout:fixed; width: 100%;">
+                <tr><td style="overflow-wrap: break-word;">
                   <center>
-                    <input type="hidden" name="action" value="newAddress">
-                    <input class="button is-large" type="submit" value="Get New Address">
+                    {{.LiquidAddress}}
                   </center>
-                </form>
-              {{else}}
-                <table style="table-layout:fixed; width: 100%;">
-                  <tr><td style="overflow-wrap: break-word;">
-                    <center>
-                      {{.LiquidAddress}}
-                    </center>
-                  </td></tr>
-                </table>
-              {{end}}
-            </div>
+                </td></tr>
+              </table>
+            {{end}}
+          </div>
+        </div>
+        <div class="column">
+          {{if eq .TxId ""}}
             <div class="box">
               <h1 class="title is-4">Send Liquid</h1> 
               <form autocomplete="off" action="/submit" method="post">
@@ -65,12 +70,12 @@
             <div class="box">
               <h1 class="title is-4">Payment Sent</h1> 
               <table style="table-layout:fixed; width: 100%;">
-                  <tr><td style="overflow-wrap: break-word;">
-                    <center>
-                      TxId: {{.TxId}}&nbsp<a href="{{.LiquidUrl}}" target="_blank">🔗</a>
-                    </center>
-                  </td></tr>
-                </table>
+                <tr><td style="overflow-wrap: break-word;">
+                  <center>
+                    TxId: {{.TxId}}&nbsp<a href="{{.LiquidUrl}}" target="_blank">🔗</a>
+                  </center>
+                </td></tr>
+              </table>
             </div>
           {{end}}
         </div>

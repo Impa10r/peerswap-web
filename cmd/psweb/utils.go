@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"time"
@@ -406,5 +409,35 @@ func getLatestTag() string {
 	} else {
 		log.Println("No tags found in the repository.")
 		return ""
+	}
+}
+
+func setLogging() error {
+	// Set log file name
+	logFileName := filepath.Join(config.DataDir, "psweb.log")
+	var err error
+	// Open log file in append mode, create if it doesn't exist
+	logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	// Set log output to both file and standard output
+	multi := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(multi)
+
+	log.SetFlags(log.Ldate | log.Ltime)
+	if os.Getenv("DEBUG") == "1" {
+		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	}
+
+	return nil
+}
+
+func closeLogFile() {
+	if logFile != nil {
+		if err := logFile.Close(); err != nil {
+			log.Println("Error closing log file:", err)
+		}
 	}
 }
