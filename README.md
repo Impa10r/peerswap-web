@@ -53,9 +53,6 @@ TimeoutSec=180
 Restart=always
 RestartSec=5
 
-StandardOutput=append:/home/USER/.peerswap/psweb.log
-StandardError=append:/home/USER/.peerswap/psweb.log
-
 [Install]
 WantedBy=multi-user.target
 ```

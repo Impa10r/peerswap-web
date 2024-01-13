@@ -3,6 +3,7 @@
 ## 1.1.1
 
 - Add logging to psweb.log file
+- BREAKING CHANGE: remove outputs to psweb.log from psweb.service!
 - Add Liquid wallet backup
 
 ## 1.1.0
