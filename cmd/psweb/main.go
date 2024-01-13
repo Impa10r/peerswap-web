@@ -745,6 +745,12 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		config.NodeApi = r.FormValue("nodeApi")
 		config.BitcoinApi = r.FormValue("bitcoinApi")
 		config.LiquidApi = r.FormValue("liquidApi")
+
+		if config.LocalMempool != r.FormValue("localMempool") && r.FormValue("localMempool") != "" {
+			// update bitcoinApi link
+			config.BitcoinApi = r.FormValue("localMempool")
+		}
+
 		config.LocalMempool = r.FormValue("localMempool")
 
 		bitcoinSwaps, err := strconv.ParseBool(r.FormValue("bitcoinSwaps"))
