@@ -3,7 +3,8 @@
 ## 1.1.1
 
 - Add logging to psweb.log file
-- BREAKING CHANGE: remove outputs to psweb.log from psweb.service!
+- BREAKING CHANGE: remove outputs to psweb.log from psweb.service 
+  AND DELETE .peerswap/psweb.log before restarting the service!
 - Add Liquid wallet backup
 
 ## 1.1.0
