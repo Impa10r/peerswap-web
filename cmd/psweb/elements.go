@@ -152,7 +152,7 @@ func backUpWallet(fileName string) error {
 
 	client := NewClient(host, port, username, password, 5)
 	service := &Elements{client}
-	params := []string{filepath.Join(config.DataDir, fileName)}
+	params := []string{filepath.Join(config.ElementsDir, fileName)}
 
 	r, err := service.client.call("backupwallet", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {

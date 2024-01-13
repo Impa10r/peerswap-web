@@ -26,6 +26,19 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
+                  <label class="label">Bitcon Swaps *</label>
+                </div>
+                <div class="field-body">
+                  <div class="select is-medium is-fullwidth">
+                    <select name="bitcoinSwaps">
+                      <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
+                      <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
                   <label class="label">Color Theme</label>
                 </div>
                 <div class="field-body">
@@ -143,21 +156,32 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
+                      <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
                     </p>
                   </div>
                 </div>
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Bitcon Swaps *</label>
+                  <label class="label">Elements Own Folder</label>
                 </div>
                 <div class="field-body">
-                  <div class="select is-medium is-fullwidth">
-                    <select name="bitcoinSwaps">
-                      <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
-                      <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
-                    </select>
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Elements Mapped Folder </label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
+                    </p>
                   </div>
                 </div>
               </div>

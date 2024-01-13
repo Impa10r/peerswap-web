@@ -24,18 +24,21 @@ type Configuration struct {
 	BitcoinSwaps      bool
 	Chain             string
 	LocalMempool      string
+	ElementsDir       string // what Elements see inside its docker container
+	ElementsDirMapped string // what will be mapped to PeerSwap docker
 }
 
 var config Configuration
 
 func loadConfig(dataDir string) {
 
+	// Get the current user's information
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatalln(err)
+	}
 	if dataDir == "" {
-		// Get the current user's information
-		currentUser, err := user.Current()
-		if err != nil {
-			log.Fatalln(err)
-		}
+
 		// Default is /home/user/.peerswap
 		dataDir = currentUser.HomeDir + "/.peerswap"
 	}
@@ -54,6 +57,8 @@ func loadConfig(dataDir string) {
 	config.Chain = "mainnet"
 	config.LocalMempool = ""
 	config.ListenPort = "1984"
+	config.ElementsDir = currentUser.HomeDir + "/.elements"
+	config.ElementsDirMapped = currentUser.HomeDir + "/.elements"
 
 	// environment values take priority
 	if os.Getenv("NETWORK") == "testnet" {
@@ -61,6 +66,14 @@ func loadConfig(dataDir string) {
 		config.NodeApi = "https://mempool.space/testnet/lightning/node"
 		config.BitcoinApi = "https://mempool.space/testnet"
 		config.LiquidApi = "https://liquid.network/testnet"
+	}
+
+	if os.Getenv("ELEMENTS_FOLDER") != "" {
+		config.ElementsDir = os.Getenv("ELEMENTS_FOLDER")
+	}
+
+	if os.Getenv("ELEMENTS_FOLDER_MAPPED") != "" {
+		config.ElementsDirMapped = os.Getenv("ELEMENTS_FOLDER_MAPPED")
 	}
 
 	configFile := dataDir + "/pswebconfig.json"

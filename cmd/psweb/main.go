@@ -766,6 +766,8 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		config.BitcoinSwaps = bitcoinSwaps
 		config.ElementsUser = r.FormValue("elementsUser")
 		config.ElementsPass = r.FormValue("elementsPass")
+		config.ElementsDir = r.FormValue("elementsDir")
+		config.ElementsDirMapped = r.FormValue("elementsDirMapped")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
@@ -852,7 +854,7 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 
 		// Serve the file for download
-		http.ServeFile(w, r, filepath.Join(config.DataDir, fileName))
+		http.ServeFile(w, r, filepath.Join(config.ElementsDirMapped, fileName))
 	} else {
 		redirectWithError(w, r, "/liquid?", err)
 	}

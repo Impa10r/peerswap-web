@@ -5,7 +5,7 @@
 - Add logging to psweb.log file
 - BREAKING CHANGE: remove outputs to psweb.log from psweb.service 
   AND DELETE .peerswap/psweb.log before restarting the service!
-- Add Liquid wallet backup (for non-Docker installed Elements)
+- Add Liquid wallet backup (see README to configure)
 
 ## 1.1.0
 
