@@ -4,6 +4,7 @@ html{
 
 th, td {
     padding: 5px;
+    text-size-adjust: none               /* text is never inflated */
 }
 
 header {

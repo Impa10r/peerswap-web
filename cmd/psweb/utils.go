@@ -266,7 +266,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			table += "!!swap asset error!!"
 		}
 
-		table += "</td><td>"
+		table += "</td><td style=\"overflow-wrap: break-word;\">"
 
 		switch swap.Role {
 		case "receiver":
