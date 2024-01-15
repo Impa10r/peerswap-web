@@ -136,7 +136,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += "<td style=\"float: left; text-align: left; width: 80%;\">"
 
 		// alias is a link to open peer details page
-		table += "<p><a href=\"/peer?id=" + peer.NodeId + "\">"
+		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
 			table += "✅&nbsp"
@@ -149,9 +149,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		}
 
 		table += getNodeAlias(peer.NodeId)
-		table += "</a></p>"
+		table += "</a>"
 		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
-		table += "<p><a href=\"/peer?id=" + peer.NodeId + "\">"
+		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊&nbsp"
@@ -164,7 +164,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		} else {
 			table += "⛔"
 		}
-		table += "</a></p>"
+		table += "</a>"
 		table += "</td></tr></table>"
 
 		table += "<table style=\"table-layout:fixed;\">"
@@ -195,8 +195,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalLocal += local
 			totalCapacity += capacity
 			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
-			table += "<progress value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + ">1</progress>"
-			table += "</a>"
+			table += "<progress style=\"width: 100%;\" value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + ">1</progress>"
+			table += "</a></td>"
 			table += "<td style=\"width: 250px; text-align: center\">"
 			table += formatWithThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
