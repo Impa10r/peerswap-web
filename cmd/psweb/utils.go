@@ -136,7 +136,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += "<td style=\"float: left; text-align: left; width: 80%;\">"
 
 		// alias is a link to open peer details page
-		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		table += "<p><a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
 			table += "✅&nbsp"
@@ -149,9 +149,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		}
 
 		table += getNodeAlias(peer.NodeId)
-		table += "</a>"
+		table += "</a></p>"
 		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
-		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		table += "<p><a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊&nbsp"
@@ -164,8 +164,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		} else {
 			table += "⛔"
 		}
-		table += "</a>"
-		table += "</div></td></tr></table>"
+		table += "</a></p>"
+		table += "</td></tr></table>"
 
 		table += "<table style=\"table-layout:fixed;\">"
 

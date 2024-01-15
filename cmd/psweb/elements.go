@@ -143,12 +143,13 @@ type Elements struct {
 
 // backUpWallet calls Elements RPC to save wallet file to fileName path/file
 
-func backUpWallet(fileName string) error {
+func backupWallet() (string, error) {
 	host := readVariableFromPeerswapdConfig("elementsd.rpchost")
 	port := readVariableFromPeerswapdConfig("elementsd.rpcport")
 	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
 	username := config.ElementsUser
 	password := config.ElementsPass
+	fileName := wallet + ".bak"
 
 	client := NewClient(host, port, username, password, 5)
 	service := &Elements{client}
@@ -157,8 +158,8 @@ func backUpWallet(fileName string) error {
 	r, err := service.client.call("backupwallet", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Elements rpc: %v", err)
-		return err
+		return "", err
 	}
 
-	return nil
+	return fileName, nil
 }

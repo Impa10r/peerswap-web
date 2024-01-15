@@ -847,12 +847,10 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
-	fileName := "peerswap.bak"
-
-	if err := backUpWallet(fileName); err == nil {
+	// return .bak with the name of the wallet
+	if fileName, err := backupWallet(); err == nil {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
-
 		// Serve the file for download
 		http.ServeFile(w, r, filepath.Join(config.ElementsDirMapped, fileName))
 	} else {
