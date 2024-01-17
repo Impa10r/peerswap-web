@@ -33,6 +33,7 @@ RUN cd /root/
 
 COPY --from=builder /go/bin/peerswapd /root/
 COPY --from=builder /go/bin/psweb /root/
+COPY --from=builder /go/bin/pscli /root/
 
 RUN mkdir -p /root/.peerswap
 
