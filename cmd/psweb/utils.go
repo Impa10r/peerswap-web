@@ -441,3 +441,7 @@ func closeLogFile() {
 		}
 	}
 }
+
+func toSats(amount float64) uint64 {
+	return uint64(float64(100000000) * amount)
+}

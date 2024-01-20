@@ -1,5 +1,9 @@
 # Versions
 
+## 1.1.2
+
+- Add unspent outputs list on Liquid page
+
 ## 1.1.1
 
 - Add logging to psweb.log file

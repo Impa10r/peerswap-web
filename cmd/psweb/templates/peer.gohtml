@@ -25,7 +25,7 @@
                           <div class="select is-medium is-fullwidth">
                             <select name="channelId">
                             {{range .Peer.Channels}}
-                              <option value="{{.ChannelId}}">L {{.LocalBalance}} - {{.RemoteBalance}} R</option>
+                              <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
                             {{end}}
                             </select>
                           </div>
@@ -115,7 +115,7 @@
                   {{.}}
                 {{end}}
               </td></tr>
-              <tr style="border: 1px dotted"><td style="text-align: right">Fee Paid:</td><td>{{.Peer.PaidFee}}</td></tr>
+              <tr style="border: 1px dotted"><td style="text-align: right">Fee Paid:</td><td>{{fmt .Peer.PaidFee}}</td></tr>
             </table>
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
@@ -128,17 +128,17 @@
               </tr>
               <tr style="border: 1px dotted">
                 <td>Sent:
-                <td>{{.Peer.AsSender.SwapsOut}}</td>
-                <td>{{.Peer.AsSender.SwapsIn}}</td>
-                <td>{{.Peer.AsSender.SatsOut}}</td>
-                <td>{{.Peer.AsSender.SatsIn}}</td>
+                <td>{{fmt .Peer.AsSender.SwapsOut}}</td>
+                <td>{{fmt .Peer.AsSender.SwapsIn}}</td>
+                <td>{{fmt .Peer.AsSender.SatsOut}}</td>
+                <td>{{fmt .Peer.AsSender.SatsIn}}</td>
               </tr>
               <tr style="border: 1px dotted">
                 <td>Rcvd:
-                <td>{{.Peer.AsReceiver.SwapsOut}}</td>
-                <td>{{.Peer.AsReceiver.SwapsIn}}</td>
-                <td>{{.Peer.AsReceiver.SatsOut}}</td>
-                <td>{{.Peer.AsReceiver.SatsIn}}</td>
+                <td>{{fmt .Peer.AsReceiver.SwapsOut}}</td>
+                <td>{{fmt .Peer.AsReceiver.SwapsIn}}</td>
+                <td>{{fmt .Peer.AsReceiver.SatsOut}}</td>
+                <td>{{fmt .Peer.AsReceiver.SatsIn}}</td>
               </tr>
             </table>  
             <p style="margin:0.5em;"></p>
@@ -152,8 +152,8 @@
               {{range .Peer.Channels}}
                 <tr style="border: 1px dotted">
                   <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
-                  <td>{{.LocalBalance}}</td>
-                  <td>{{.RemoteBalance}}</td>
+                  <td>{{fmt .LocalBalance}}</td>
+                  <td>{{fmt .RemoteBalance}}</td>
                   <td>{{.Active}}</td>
                 </tr>
               {{end}}

@@ -190,7 +190,14 @@
                 <br>
                 <input class="button is-large" type="submit" value="Save Configuration">     
                 <br>
-                <small>Version: {{.Version}}, latest: {{.Latest}}</small>         
+                <small>
+                  Version: {{.Version}}, latest: 
+                  {{if ne .Version .Latest}}
+                    <a href="https://github.com/Impa10r/peerswap-web/blob/main/CHANGELOG.md" target="_blank">{{.Latest}}</a>
+                  {{else}}
+                    {{.Latest}}
+                  {{end}}
+                </small>         
               </center>
             </form>
           </div>

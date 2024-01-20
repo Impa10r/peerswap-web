@@ -10,6 +10,25 @@
             </center>
           </div>
           <div class="box">
+            <h3 class="title is-4">Unspent Outputs</h3>
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <th style="width:70%;">Address</th>
+                <th style="text-align: right;">Confirmations</th>
+                <th style="text-align: right;">Amount</th>
+              </tr>
+              {{range .Outputs}}
+                <tr>
+                  <td style="overflow-wrap: break-word;">{{.Address}}&nbsp<a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">🔗</a></td>
+                  <td style="text-align: right;">{{fmt .Confirmations}}</td>
+                  <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
+                </tr>
+              {{end}}
+            </table>
+          </div>     
+        </div>
+        <div class="column">
+          <div class="box">
             <h1 class="title is-4">Receiving Address</h1> 
             {{if eq .LiquidAddress ""}}
               <form action="/submit" method="post">
@@ -28,8 +47,6 @@
               </table>
             {{end}}
           </div>
-        </div>
-        <div class="column">
           {{if eq .TxId ""}}
             <div class="box">
               <h1 class="title is-4">Send Liquid</h1> 

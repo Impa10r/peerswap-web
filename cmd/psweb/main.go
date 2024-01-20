@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"syscall"
 	"text/template"
@@ -37,7 +38,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.1"
+const version = "v1.1.2"
 
 func main() {
 	var (
@@ -101,7 +102,9 @@ func main() {
 	}
 
 	// Parse all template files in the templates directory
-	templates = template.Must(templates.ParseFS(tplFolder, templateNames...))
+	templates = template.Must(templates.
+		Funcs(template.FuncMap{"sats": toSats, "fmt": formatWithThousandSeparators}).
+		ParseFS(tplFolder, templateNames...))
 
 	// create an embedded Filesystem
 	var staticFS = http.FS(staticFiles)
@@ -549,6 +552,19 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var outputs []LiquidUTXO
+
+	if err := listUnspent(&outputs); err != nil {
+		log.Printf("unable get listUnspent: %v", err)
+		redirectWithError(w, r, "/liquid?", err)
+		return
+	}
+
+	// sort outputs on Confirmations field
+	sort.Slice(outputs, func(i, j int) bool {
+		return outputs[i].Confirmations < outputs[j].Confirmations
+	})
+
 	type Page struct {
 		Message       string
 		ColorScheme   string
@@ -556,6 +572,8 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		SatAmount     string
 		TxId          string
 		LiquidUrl     string
+		Outputs       *[]LiquidUTXO
+		LiquidApi     string
 	}
 
 	data := Page{
@@ -565,6 +583,8 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		SatAmount:     formatWithThousandSeparators(res2.GetSatAmount()),
 		TxId:          txid,
 		LiquidUrl:     config.LiquidApi + "/tx/" + txid,
+		Outputs:       &outputs,
+		LiquidApi:     config.LiquidApi,
 	}
 
 	// executing template named "liquid"

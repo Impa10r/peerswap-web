@@ -58,10 +58,15 @@ type rpcResponse struct {
 }
 
 // NewClient returns an RpcClient
-func NewClient(host string, port string, user, passwd string, timeout int) (c *RPCClient) {
+func NewClient() (c *RPCClient) {
+	host := readVariableFromPeerswapdConfig("elementsd.rpchost")
+	port := readVariableFromPeerswapdConfig("elementsd.rpcport")
+	user := config.ElementsUser
+	passwd := config.ElementsPass
+
 	httpClient := &http.Client{}
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
-	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: timeout}
+	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: 5}
 	return
 }
 
@@ -142,16 +147,11 @@ type Elements struct {
 }
 
 // backUpWallet calls Elements RPC to save wallet file to fileName path/file
-
 func backupWallet() (string, error) {
-	host := readVariableFromPeerswapdConfig("elementsd.rpchost")
-	port := readVariableFromPeerswapdConfig("elementsd.rpcport")
 	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
-	username := config.ElementsUser
-	password := config.ElementsPass
 	fileName := wallet + ".bak"
 
-	client := NewClient(host, port, username, password, 5)
+	client := NewClient()
 	service := &Elements{client}
 	params := []string{filepath.Join(config.ElementsDir, fileName)}
 
@@ -162,4 +162,50 @@ func backupWallet() (string, error) {
 	}
 
 	return fileName, nil
+}
+
+type LiquidUTXO struct {
+	TxID             string  `json:"txid"`
+	Vout             int     `json:"vout"`
+	Address          string  `json:"address,omitempty"`
+	Label            string  `json:"label,omitempty"`
+	ScriptPubKey     string  `json:"scriptPubKey"`
+	Amount           float64 `json:"amount"`
+	AmountCommitment string  `json:"amountcommitment"`
+	Asset            string  `json:"asset"`
+	AssetCommitment  string  `json:"assetcommitment"`
+	AmountBlinder    string  `json:"amountblinder"`
+	AssetBlinder     string  `json:"assetblinder"`
+	Confirmations    uint64  `json:"confirmations"`
+	AncestorCount    int     `json:"ancestorcount,omitempty"`
+	AncestorSize     int     `json:"ancestorsize,omitempty"`
+	AncestorFees     int     `json:"ancestorfees,omitempty"`
+	RedeemScript     string  `json:"redeemScript,omitempty"`
+	WitnessScript    string  `json:"witnessScript,omitempty"`
+	Spendable        bool    `json:"spendable"`
+	Solvable         bool    `json:"solvable"`
+	Reused           bool    `json:"reused,omitempty"`
+	Desc             string  `json:"desc,omitempty"`
+	Safe             bool    `json:"safe"`
+}
+
+func listUnspent(outputs *[]LiquidUTXO) error {
+	client := NewClient()
+	service := &Elements{client}
+	params := []string{}
+	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+
+	r, err := service.client.call("listunspent", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements rpc: %v", err)
+		return err
+	}
+
+	// Unmarshal the JSON array into a slice of LiquidUTXO structs
+
+	err = json.Unmarshal([]byte(r.Result), &outputs)
+	if err != nil {
+		return err
+	}
+	return nil
 }
