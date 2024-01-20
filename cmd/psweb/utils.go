@@ -248,13 +248,15 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		table += visualiseSwapStatus(swap.State, false) + "&nbsp"
 		table += formatWithThousandSeparators(swap.Amount)
 
-		switch swap.Type {
-		case "swap-out":
+		switch swap.Type + swap.Role {
+		case "swap-outsender":
 			table += " ⚡&nbsp⇨&nbsp"
-		case "swap-in":
+		case "swap-insender":
 			table += " ⚡&nbsp⇦&nbsp"
-		default:
-			table += " !!swap type error!!"
+		case "swap-outreceiver":
+			table += " ⚡&nbsp⇦&nbsp"
+		case "swap-inreceiver":
+			table += " ⚡&nbsp⇨&nbsp"
 		}
 
 		switch swap.Asset {
