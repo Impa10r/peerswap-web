@@ -19,7 +19,7 @@
               </tr>
               {{range .Outputs}}
                 <tr>
-                  <td style="overflow-wrap: break-word;">{{.Address}}&nbsp<a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">🔗</a></td>
+                  <td class="truncate"><a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
                   <td style="text-align: right;">{{fmt .Confirmations}}</td>
                   <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
                 </tr>

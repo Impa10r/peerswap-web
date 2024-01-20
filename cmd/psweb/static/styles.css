@@ -36,3 +36,9 @@ header {
     text-align: center;
     transition: all 0.3s;
 }
+
+.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
