@@ -71,9 +71,9 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This can be changed in ~/.peerswap/pswebconf.json or via setting environment variables PRC_PORT and PRC_HOST on first run.
+By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This can be changed in ~/.peerswap/pswebconf.json or via setting environment variables PRC_PORT and PRC_HOST on the first run.
 
-Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable TESTNET is present and equals "testnet", the links will be configured automatically on first run.
+Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable TESTNET is present and equals "testnet", the links will be configured automatically on the first run.
 
 To enable downloading of a backup file of the Elements wallet it is necessary to have access to .elements folder where this backup is saved by elementsd. If Elements is run in a Docker container, both the internal folder (usually /home/elements/.elements) and the mapped external folder (for Umbrel it is /home/umbrel/umbrel/app-data/elements/data) must be provided in the Configuration panel.
 
