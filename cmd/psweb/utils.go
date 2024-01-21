@@ -133,7 +133,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
 		table += "<tr style=\"border: 1px dotted\">"
-		table += "<td style=\"float: left; text-align: left; width: 80%;\">"
+		table += "<td id=\"peer\" style=\"float: left; text-align: left; width: 80%;\">"
 
 		// alias is a link to open peer details page
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -268,7 +268,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			table += "!!swap asset error!!"
 		}
 
-		table += "</td><td style=\"overflow-wrap: break-word;\">"
+		table += "</td><td id=\"peer\" style=\"overflow-wrap: break-word;\">"
 
 		switch swap.Role {
 		case "receiver":

@@ -1,5 +1,9 @@
 # Versions
 
+## 1.1.3
+
+- Add Scramble mode to share home page
+
 ## 1.1.2
 
 - Add unspent outputs list on Liquid page

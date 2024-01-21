@@ -7,7 +7,16 @@
             <h3 class="title is-4">🌊 <a href="/liquid">Liquid sats:</a> {{.SatAmount}}</h3>
           </div>          
           <div class="box">
-            <h3 class="title is-4">Peer List</h3>
+            <table style="table-layout:fixed; width: 100%; ">
+              <tr>
+                <td style="padding: 0px; float: left; text-align: left;">
+                  <h3 class="title is-4">Peer List</h3>
+                </td>
+                <td style="padding: 0px; float: right; text-align: right;">
+                  <button class="button is-small" onclick="toggleScramble()">Scramble</button>
+                </td>
+              </tr>
+            </table>
             {{if not .AllowSwapRequests}}
               <table style="table-layout:fixed; width: 100%;">
                 <tr><td style="color:red">
@@ -28,5 +37,48 @@
         </div>
       </div>
     </div>
+    <script>
+      // Function to find all table cells with a specific ID
+      function findTableCellsById(id) {
+        return document.querySelectorAll('td#' + id);
+      }
+
+      function toggleScramble() {
+        var fields = findTableCellsById('peer');
+
+        fields.forEach(function(element) {
+          //var element = document.getElementById(field);
+          if (element) {
+            if (element.dataset.originalContent) {
+              // If original content is saved, show it
+              element.innerText = element.dataset.originalContent;
+              delete element.dataset.originalContent;
+            } else {
+              // Otherwise, scramble and save original content
+              element.dataset.originalContent = element.innerText;
+              element.innerText = scrambleText(element.innerText);
+            }
+          }
+        });
+      }
+
+      function scrambleText(text) {
+        // Scramble starting from the second symbol with Greek alphabet
+        var scrambledText = text[0]; // Keep the first symbol as is
+        
+        for (var i = 1; i < text.length; i++) {
+          // Replace with random Greek alphabet characters
+          scrambledText += getRandomGreekLetter();        
+        }
+        
+        return scrambledText;
+      }
+
+      function getRandomGreekLetter() {
+        var greekAlphabet = 'αβγδεζηθικλμνξοπρστυφχψω';
+        var randomIndex = Math.floor(Math.random() * greekAlphabet.length);
+        return greekAlphabet.charAt(randomIndex);
+      }
+    </script>
   {{template "footer" .}}
 {{end}}
