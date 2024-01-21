@@ -6,7 +6,13 @@
           {{if and (ne .Message "") (ne .Message "welcome")}}
             <div class="box">
               <h1>Peerswapd Log</h1>
-              <pre id="log-content"></pre>
+              <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="max-width: 100%; overflow: hidden;">
+                    <pre id="log-content"></pre>
+                  </td>
+                </tr>
+              </table>
               <script>
                   const logContent = document.getElementById('log-content');
                   let logPosition = 1;             

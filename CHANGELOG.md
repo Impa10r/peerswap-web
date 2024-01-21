@@ -2,7 +2,8 @@
 
 ## 1.1.3
 
-- Add Scramble mode to share home page
+- Add Privacy mode to home page (for screen sharing etc)
+- Add peerswapd log output if psweb cannot connect to it
 
 ## 1.1.2
 
