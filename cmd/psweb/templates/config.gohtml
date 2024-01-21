@@ -3,6 +3,31 @@
     <div class="container">
       <div class="columns">
         <div class="column"> 
+          {{if and (ne .Message "") (ne .Message "welcome")}}
+            <div class="box">
+              <h1>Peerswapd Log</h1>
+              <pre id="log-content"></pre>
+              <script>
+                  const logContent = document.getElementById('log-content');
+                  let logPosition = 1;             
+                  
+                  function updatePage(data) {
+                      logPosition = data.NextPosition;
+                      logContent.textContent += data.LogText;
+                      logContent.scrollTop = logContent.scrollHeight;               
+                  }
+                  
+                  function fetchData() {
+                      fetch('/log?pos=' + logPosition)
+                      .then(response => response.json())
+                      .then(data => updatePage(data));
+                  }
+                  
+                  const timer2 = setInterval(fetchData, 1000);
+                  fetchData;
+              </script>
+            </div>
+          {{end}}                
           <div class="box">
             <h1 class="title is-4">Configuration</h1> 
             <form autocomplete="off" action="/save" method="post">
