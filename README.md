@@ -8,13 +8,15 @@ A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustle
 
 ## Install dependencies
 
-PeerSwap Web UI requires Bitcoin Core, Elements Core and LND.
+PeerSwap requires Bitcoin Core, Elements Core and LND.
 
 ## Docker
 
 ```docker run --net=host -v ~/.lnd:/root/.lnd -v ~/.peerswap:/root/.peerswap -e NETWORK='testnet' ghcr.io/impa10r/peerswap-web:v1.1.3```
 
-Container includes both peerswapd and peerswap-web, started by supervisord. This example links to .lnd and .peerswap folders in the host machine's home directory, and connects to LND via host network. Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
+Container includes both peerswapd and peerswap-web, started by supervisord. This example links to .lnd and .peerswap folders in the host machine's home directory, and connects to LND via host network. 
+
+Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
 To call manually pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" /root/pscli```
 
@@ -71,9 +73,9 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This can be changed in ~/.peerswap/pswebconf.json or via setting environment variables PRC_PORT and PRC_HOST on the first run.
+By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This can be changed in ~/.peerswap/pswebconf.json or via environment variables PRC_PORT and PRC_HOST on the first run.
 
-Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable TESTNET is present and equals "testnet", the links will be configured automatically on the first run.
+Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable NETWORK is present and equals "testnet", the links will be configured automatically on the first run.
 
 To enable downloading of a backup file of the Elements wallet it is necessary to have access to .elements folder where this backup is saved by elementsd. If Elements is run in a Docker container, both the internal folder (usually /home/elements/.elements) and the mapped external folder (for Umbrel it is /home/umbrel/umbrel/app-data/elements/data) must be provided in the Configuration panel.
 
