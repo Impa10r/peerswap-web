@@ -121,7 +121,7 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 
 # Support
 
-Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev).
+Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev). Additionally, there is a [Telegram group](https://t.me/PeerSwapLN) for node runners with PeerSwap. Just beware of scammers who may DM you. Immediately block and report to Telegram anyone with no Username field!
 
 # Security Disclosure
 
