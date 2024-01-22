@@ -133,7 +133,11 @@ Bootstrapping a secure connection over an insecure network and avoiding MITM att
 
 **Elements Core wallet has no seed phrase recovery**
 
-Take care to backup wallet.dat after each liquid transaction, including all peer swaps. In case of a catastrophic failure of your SSD all L-BTC funds may be lost. On Umbrel, this file is located in /home/umbrel/umbrel/app-data/elements/data/liquidv1/wallets/peerswap folder. Always run your node with UPS. **DO NOT** uninstall Elements Core unless all liquid funds are spent or you have saved the wallet.dat file. **DO NOT** let this file get into wrong hands, as it is not passphrase protected. 
+Take care to backup PeerSwap wallet after each Liquid transaction. In case of a catastrophic failure of your SSD all L-BTC funds may be lost. Always run your node with a UPS. 
+
+**DO NOT** uninstall Elements Core unless all liquid funds are spent or you have backed up the wallet. Restoring it will require elements-cli command line skills. 
+
+**DO NOT** let this backup file get into wrong hands, as it is not passphrase protected. 
 
 *Only recommend using with small balances or on signet/testnet*
 
