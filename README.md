@@ -97,6 +97,26 @@ Stop and disable the service:
 sudo systemctl stop psweb
 sudo systemctl disable psweb
 ```
+# Liquid Peg-In (mainnet only)
+
+To convert some BTC on your LND into L-BTC in peerswap wallet the cheapest way is this:
+
+1. Generate special BTC address: ```elements-cli getpeginaddress```
+2. Send BTC onchain: ```lncli sendcoins --amt 100000 -addr <mainchain_address from step 1> --sat_per_vbyte <from mempool>```
+3. Wait 102 confirmations (about 17 hours). 
+4. Run ```bitcoin-cli getrawtransaction <txid from step 2>```
+5. Run ```bitcoin-cli gettxoutproof '["<txid from step 2>"]'```
+6. Run ```elements-cli claimpegin <raw from step 4> <proof from step 5> <claim_script from step 1>```
+7. Your Liquid balance should update once the tx confirms (1-2 minutes)
+
+Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-How-do-I-peg-in-BTC-to-the-Liquid-Network-). 
+
+**Hint for Umbrel** Add these lines to ~/.profile, then ```source .profile```:
+```
+alias lncli="/home/umbrel/umbrel/scripts/app compose lightning exec -T lnd lncli"
+alias bcli="/home/umbrel/umbrel/scripts/app compose bitcoin exec bitcoind bitcoin-cli"
+alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
+```
 
 # Support
 
