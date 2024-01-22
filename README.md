@@ -112,7 +112,7 @@ To convert some BTC on your LND into L-BTC in peerswap wallet the cheapest way i
 
 Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-How-do-I-peg-in-BTC-to-the-Liquid-Network-). 
 
-*Hint for Umbrel* Add these lines to ~/.profile, then ```source .profile```:
+*Hint for Umbrel guys:* Add these lines to ~/.profile, then ```source .profile```
 ```
 alias lncli="/home/umbrel/umbrel/scripts/app compose lightning exec -T lnd lncli"
 alias bcli="/home/umbrel/umbrel/scripts/app compose bitcoin exec bitcoind bitcoin-cli"
