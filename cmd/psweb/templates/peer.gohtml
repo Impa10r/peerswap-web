@@ -110,7 +110,7 @@
             <table style="width:100%; table-layout:fixed;">
               <tr style="border: 1px dotted"><td style="width: 40%; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
               <tr style="border: 1px dotted"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
-              <tr style="border: 1px dotted"><td style="text-align: right">Supported Assets:</td><td>
+              <tr style="border: 1px dotted"><td style="text-align: right">Assets:</td><td>
                 {{range .Peer.SupportedAssets}}
                   {{.}}
                 {{end}}
