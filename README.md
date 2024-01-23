@@ -73,7 +73,7 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This can be changed in ~/.peerswap/pswebconf.json or via environment variables PRC_PORT and PRC_HOST on the first run.
+By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in ~/.peerswap/pswebconf.json.
 
 Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable NETWORK is present and equals "testnet", the links will be configured automatically on the first run.
 
