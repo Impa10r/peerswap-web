@@ -100,7 +100,7 @@ sudo systemctl stop psweb
 sudo systemctl disable psweb
 ```
 
-# Liquid Peg-In (mainnet only)
+# Liquid Peg-In
 
 To convert some BTC on your LND into L-BTC in peerswap wallet you don't need any third party:
 
