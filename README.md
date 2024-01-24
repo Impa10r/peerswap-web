@@ -119,6 +119,7 @@ Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-Ho
 alias lncli="/home/umbrel/umbrel/scripts/app compose lightning exec -T lnd lncli"
 alias bcli="/home/umbrel/umbrel/scripts/app compose bitcoin exec bitcoind bitcoin-cli"
 alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
+alias pscli="docker exec -it peerswap_web_1 /root/pscli"
 ```
 
 # Support
