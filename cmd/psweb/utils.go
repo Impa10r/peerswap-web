@@ -265,7 +265,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		case "btc":
 			table += "₿"
 		default:
-			table += "!!swap asset error!!"
+			table += "?"
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
@@ -279,8 +279,9 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			table += " ?&nbsp"
 		}
 
+		table += "<a href=\"/peer?id=" + swap.PeerNodeId + "\">"
 		table += getNodeAlias(swap.PeerNodeId)
-		table += "</td></tr>"
+		table += "</a></td></tr>"
 
 		unsortedTable = append(unsortedTable, Table{
 			TimeStamp: swap.CreatedAt,
