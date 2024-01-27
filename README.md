@@ -102,7 +102,7 @@ sudo systemctl disable psweb
 
 # Liquid Peg-In
 
-To convert some BTC on your LND into L-BTC in peerswap wallet you don't need any third party:
+To convert some BTC on your LND into L-BTC in peerswap wallet you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
 
 1. Generate a special BTC address: ```elements-cli getpeginaddress```. Save claim_script for later.
 2. Send BTC onchain: ```lncli sendcoins --amt <sats to peg in> -addr <mainchain_address from step 1> --sat_per_vbyte <from mempool>```
