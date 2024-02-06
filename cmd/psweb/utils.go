@@ -89,6 +89,8 @@ func visualiseSwapStatus(statusText string, rotate bool) string {
 	switch statusText {
 	case "State_ClaimedCoop":
 		return "<a href=\"/\">❌</a>"
+	case "State_ClaimedCsv":
+		return "<a href=\"/\">❌</a>"
 	case "State_SwapCanceled":
 		return "<a href=\"/\">❌</a>"
 	case "State_SendCancel":
@@ -133,7 +135,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
 		table += "<tr style=\"border: 1px dotted\">"
-		table += "<td id=\"scramble\" style=\"float: left; text-align: left; width: 80%;\">"
+		table += "<td id=\"scramble\" style=\"float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -150,7 +152,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		table += getNodeAlias(peer.NodeId)
 		table += "</a>"
-		table += "</td><td style=\"float: right; text-align: right; width:20%;\">"
+		table += "</td><td style=\"float: right; text-align: right; width:30%;\">"
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
@@ -244,7 +246,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		// clicking on timestamp will open swap details page
 		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
-		table += "</td><td style=\"text-align: center\">"
+		table += "</td><td style=\"text-align: left\">"
 		table += visualiseSwapStatus(swap.State, false) + "&nbsp"
 		table += formatWithThousandSeparators(swap.Amount)
 
