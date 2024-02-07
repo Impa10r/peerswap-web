@@ -1,5 +1,12 @@
 # Versions
 
+## 1.1.4
+
+- Add a peerswapd log page with a link from config page
+- Disallow new swaps if there is an active swap already pending 
+  (to avoid peerswap bug 'already has an active swap on channel')
+- Log and liquid address are copied to clipboard when clicking
+
 ## 1.1.3
 
 - Add Privacy mode to home page (for screen sharing etc)

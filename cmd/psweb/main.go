@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -38,7 +39,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.3"
+const version = "v1.1.4"
 
 func main() {
 	var (
@@ -127,6 +128,7 @@ func main() {
 	r.HandleFunc("/liquid", liquidHandler)
 	r.HandleFunc("/loading", loadingHandler)
 	r.HandleFunc("/log", logHandler)
+	r.HandleFunc("/logapi", logApiHandler)
 	r.HandleFunc("/backup", backupHandler)
 
 	// Start the server
@@ -261,22 +263,22 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		redirectWithError(w, r, "/config?", err)
 		return
 	}
 	peers := res.GetPeers()
 	peer := findPeerById(peers, id)
 
 	if peer == nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		log.Printf("unable to find peer by id: %v", id)
+		redirectWithError(w, r, "/config?", errors.New("unable to find peer by id"))
 		return
 	}
 
 	res2, err := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		redirectWithError(w, r, "/config?", err)
 		return
 	}
 	allowlistedPeers := res2.GetAllowlistedPeers()
@@ -285,11 +287,19 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	res3, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/peer?id="+id+"&", err)
+		redirectWithError(w, r, "/config?", err)
 		return
 	}
 
 	satAmount := res3.GetSatAmount()
+
+	res4, err := client.ListActiveSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+
+	activeSwaps := res4.GetSwaps()
 
 	//check for error message to display
 	message := ""
@@ -309,6 +319,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		LBTC        bool
 		BTC         bool
 		SatAmount   string
+		ActiveSwaps string
 	}
 
 	data := Page{
@@ -322,6 +333,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		BTC:         stringIsInSlice("btc", peer.SupportedAssets),
 		LBTC:        stringIsInSlice("lbtc", peer.SupportedAssets),
 		SatAmount:   formatWithThousandSeparators(satAmount),
+		ActiveSwaps: convertSwapsToHTMLTable(activeSwaps),
 	}
 
 	// executing template named "peer"
@@ -496,6 +508,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config      Configuration
 		Version     string
 		Latest      string
+		LogPosition int
 	}
 
 	data := Page{
@@ -504,6 +517,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config:      config,
 		Version:     version,
 		Latest:      getLatestTag(),
+		LogPosition: 1, // from first line
 	}
 
 	// executing template named "error"
@@ -851,11 +865,13 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme string
 		Message     string
+		LogPosition int
 	}
 
 	data := Page{
 		ColorScheme: config.ColorScheme,
 		Message:     "",
+		LogPosition: 0, // new content and wait for connection
 	}
 
 	// executing template named "loading"
@@ -878,8 +894,30 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// returns log as JSON
+// shows peerswapd log
 func logHandler(w http.ResponseWriter, r *http.Request) {
+	type Page struct {
+		ColorScheme string
+		Message     string
+		LogPosition int
+	}
+
+	data := Page{
+		ColorScheme: config.ColorScheme,
+		Message:     "",
+		LogPosition: 1, // from first line
+	}
+
+	// executing template named "logpage"
+	err := templates.ExecuteTemplate(w, "logpage", data)
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
+// returns log as JSON
+func logApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	filename := config.DataDir + "/log"
 	logText := ""

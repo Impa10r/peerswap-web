@@ -65,3 +65,66 @@
     </body>
     </html>
 {{end}}
+
+{{define "log"}}
+    <div class="box">
+        <h1>Peerswapd Log</h1>
+        <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="max-width: 100%; overflow: hidden;">
+            <pre id="log-content" onclick="copyToClipboard()"></pre>
+            </td>
+        </tr>
+        </table>
+        <script>
+            const logContent = document.getElementById('log-content');
+            let logPosition = {{.LogPosition}};             
+            
+            function updatePage(data) {
+                logPosition = data.NextPosition;
+                logContent.textContent += data.LogText;
+                logContent.scrollTop = logContent.scrollHeight;    
+                
+                {{if eq .LogPosition 0}}
+                    // Wait until LogText contains the phrase "peerswapd grpc listening on"
+                    if (data.LogText.includes("peerswapd grpc listening on")) {
+                        // Redirect to home page
+                        window.location.href = '/'; 
+                    }      
+                {{end}}     
+            }
+            
+            function fetchData() {
+                fetch('/logapi?pos=' + logPosition)
+                .then(response => response.json())
+                .then(data => updatePage(data));
+            }
+            
+            function copyToClipboard() {
+                // Get the text to copy
+                var copyText = document.getElementById("log-content");
+
+                // Create a temporary textarea to hold the text
+                var textarea = document.createElement("textarea");
+                textarea.value = copyText.textContent;
+                document.body.appendChild(textarea);
+
+                // Select the text
+                textarea.select();
+                textarea.setSelectionRange(0, 99999); // For mobile devices
+
+                // Copy the selected text
+                document.execCommand("copy");
+
+                // Remove the temporary textarea
+                document.body.removeChild(textarea);
+
+                // Alert the user that the text has been copied
+                alert("Copied the log text to clipboard");
+            }
+            
+            const timer2 = setInterval(fetchData, 1000);
+            fetchData;
+        </script>
+    </div>
+{{end}}
