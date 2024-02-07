@@ -3,9 +3,8 @@
 ## 1.1.4
 
 - Add a peerswapd log page with a link from config page
-- Disallow new swaps if there is an active swap already pending 
-  (to avoid peerswap bug 'already has an active swap on channel')
-- Log and liquid address are copied to clipboard when clicking
+- Disallow new swaps if there is an active swap already pending (to avoid peerswap bug 'already has an active swap on channel')
+- Log text and liquid address are copied to clipboard when clicking on the respective fields
 
 ## 1.1.3
 
@@ -19,8 +18,7 @@
 ## 1.1.1
 
 - Add logging to psweb.log file
-- BREAKING CHANGE: remove outputs to psweb.log from psweb.service 
-  AND DELETE .peerswap/psweb.log before restarting the service!
+- BREAKING CHANGE: remove outputs to psweb.log from psweb.service AND DELETE .peerswap/psweb.log before restarting the service!
 - Add Liquid wallet backup (see README to configure)
 
 ## 1.1.0
