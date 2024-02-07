@@ -38,13 +38,23 @@
                 </center>
               </form>
             {{else}}
-              <table style="table-layout:fixed; width: 100%;">
-                <tr><td style="overflow-wrap: break-word;">
-                  <center>
-                    {{.LiquidAddress}}
-                  </center>
-                </td></tr>
-              </table>
+              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.LiquidAddress}}" readonly>               
+              <script>
+                function copyToClipboard() {
+                  // Get the text to copy
+                  var copyText = document.getElementById("copyText");
+
+                  // Select the text
+                  copyText.select();
+                  copyText.setSelectionRange(0, 99999); // For mobile devices
+
+                  // Copy the selected text
+                  document.execCommand("copy");
+
+                  // Alert the user that the text has been copied
+                  alert("Copied the text: " + copyText.value);
+                }
+              </script>
             {{end}}
           </div>
           {{if eq .TxId ""}}

@@ -31,41 +31,7 @@
               //window.onload = startProgress;
             </script>
           </div>
-          <div class="box">
-            <h1>Peerswapd Log</h1>
-            <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="max-width: 100%; overflow: hidden;">
-                  <pre id="log-content"></pre>
-                </td>
-              </tr>
-            </table>
-            <script>
-              const logContent = document.getElementById('log-content');
-              let logPosition = 0;             
-              
-              function updatePage(data) {
-                logPosition = data.NextPosition;
-                logContent.textContent += data.LogText;
-                logContent.scrollTop = logContent.scrollHeight;               
-                
-                // Wait until LogText contains the phrase "peerswapd grpc listening on"
-                if (data.LogText.includes("peerswapd grpc listening on")) {
-                  // Redirect to home page
-                  window.location.href = '/'; 
-                }
-              }
-              
-              function fetchData() {
-                fetch('/log?pos=' + logPosition)
-                  .then(response => response.json())
-                  .then(data => updatePage(data));
-              }
-              
-              const timer2 = setInterval(fetchData, 1000);
-              fetchData;
-            </script>
-          </div>
+          {{template "log" .}}
         </div>
       </div>
     </div>

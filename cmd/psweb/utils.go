@@ -229,6 +229,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 // converts a list of swaps into an HTML table
 func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
+	if len(swaps) == 0 {
+		return ""
+	}
+
 	type Table struct {
 		TimeStamp int64
 		HtmlBlob  string
@@ -236,8 +240,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	var unsortedTable []Table
 
 	for _, swap := range swaps {
-		table := "<table style=\"table-layout:fixed; width: 100%\">"
-		table += "<tr>"
+		table := "<tr>"
 		table += "<td style=\"width: 30%; text-align: left\">"
 
 		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
@@ -295,8 +298,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	})
 
 	var counter uint
-	table := ""
-
+	table := "<table style=\"table-layout:fixed; width: 100%\">"
 	for _, t := range unsortedTable {
 		counter++
 		if counter > config.MaxHistory {

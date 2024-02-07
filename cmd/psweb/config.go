@@ -126,17 +126,20 @@ func savePeerSwapdConfig() {
 	t += setPeerswapdVariable("lnd.macaroonpath", defaultLndDir+"/data/chain/bitcoin/"+config.Chain+"/admin.macaroon", "", "LND_MACAROONPATH")
 
 	if config.ElementsPass == "" || config.ElementsUser == "" {
-		// remove Liquid from config so that peerswapd keeps running
+		// disable Liquid so that peerswapd does not fail
 		t += setPeerswapdVariable("liquidswaps", "false", "", "")
+		// enable Bitcoin swaps because both cannot be disabled
+		t += setPeerswapdVariable("bitcoinswaps", "false", "true", "")
 	} else {
+		t += setPeerswapdVariable("liquidswaps", "true", "true", "")
 		t += setPeerswapdVariable("elementsd.rpcuser", "", config.ElementsUser, "ELEMENTS_USER")
 		t += setPeerswapdVariable("elementsd.rpcpass", "", config.ElementsPass, "ELEMENTS_PASS")
 		t += setPeerswapdVariable("elementsd.rpchost", "http://127.0.0.1", "", "ELEMENTS_HOST")
 		t += setPeerswapdVariable("elementsd.rpcport", "18884", "", "ELEMENTS_PORT")
-		t += setPeerswapdVariable("elementsd.rpcwallet", "peerswap", "", "ELEMENTS_WALLET")
 		t += setPeerswapdVariable("bitcoinswaps", "false", strconv.FormatBool(config.BitcoinSwaps), "")
-		t += setPeerswapdVariable("liquidswaps", "true", "true", "")
 	}
+
+	t += setPeerswapdVariable("elementsd.rpcwallet", "peerswap", "", "ELEMENTS_WALLET")
 
 	logLevel := "1"
 	if os.Getenv("DEBUG") == "1" {

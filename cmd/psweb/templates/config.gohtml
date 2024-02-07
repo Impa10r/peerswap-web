@@ -4,35 +4,7 @@
       <div class="columns">
         <div class="column"> 
           {{if and (ne .Message "") (ne .Message "welcome")}}
-            <div class="box">
-              <h1>Peerswapd Log</h1>
-              <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="max-width: 100%; overflow: hidden;">
-                    <pre id="log-content"></pre>
-                  </td>
-                </tr>
-              </table>
-              <script>
-                  const logContent = document.getElementById('log-content');
-                  let logPosition = 1;             
-                  
-                  function updatePage(data) {
-                      logPosition = data.NextPosition;
-                      logContent.textContent += data.LogText;
-                      logContent.scrollTop = logContent.scrollHeight;               
-                  }
-                  
-                  function fetchData() {
-                      fetch('/log?pos=' + logPosition)
-                      .then(response => response.json())
-                      .then(data => updatePage(data));
-                  }
-                  
-                  const timer2 = setInterval(fetchData, 1000);
-                  fetchData;
-              </script>
-            </div>
+            {{template "log" .}}
           {{end}}                
           <div class="box">
             <h1 class="title is-4">Configuration</h1> 
@@ -228,6 +200,8 @@
                   {{else}}
                     {{.Latest}}
                   {{end}}
+                  <br>
+                  <a href="/log">Peerswapd Log</a>
                 </small>         
               </center>
             </form>
