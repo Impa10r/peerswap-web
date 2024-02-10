@@ -81,17 +81,19 @@
             let logPosition = {{.LogPosition}};             
             
             function updatePage(data) {
-                logPosition = data.NextPosition;
-                logContent.textContent += data.LogText;
-                logContent.scrollTop = logContent.scrollHeight;    
+                if (data.NextPosition > logPosition) {
+                    logPosition = data.NextPosition;
+                    logContent.textContent += data.LogText;
+                    logContent.scrollTop = logContent.scrollHeight;    
                 
-                {{if eq .LogPosition 0}}
-                    // Wait until LogText contains the phrase "peerswapd grpc listening on"
-                    if (data.LogText.includes("peerswapd grpc listening on")) {
-                        // Redirect to home page
-                        window.location.href = '/'; 
-                    }      
-                {{end}}     
+                    {{if eq .LogPosition 0}}
+                        // Wait until LogText contains the phrase "peerswapd grpc listening on"
+                        if (data.LogText.includes("peerswapd grpc listening on")) {
+                            // Redirect to home page
+                            window.location.href = '/'; 
+                        }      
+                    {{end}}     
+                }      
             }
             
             function fetchData() {
