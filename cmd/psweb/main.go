@@ -971,6 +971,12 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		logText = (string(content))
+		length := len(logText)
+
+		if startPosition == 1 && length > 10000 {
+			// limit to 10000 characters
+			logText = logText[length-10000:]
+		}
 	}
 
 	// Create a response struct

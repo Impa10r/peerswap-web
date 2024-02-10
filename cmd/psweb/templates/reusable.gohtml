@@ -72,7 +72,7 @@
         <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
         <tr>
             <td style="max-width: 100%; overflow: hidden;">
-            <pre id="log-content" onclick="copyToClipboard()"></pre>
+            <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content" onclick="copyToClipboard()"></pre>
             </td>
         </tr>
         </table>
