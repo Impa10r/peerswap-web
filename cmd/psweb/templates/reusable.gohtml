@@ -25,9 +25,7 @@
             </table>
             <div id="message-container">
                 <div id="temp-message" class="hidden"></div>
-            </div>  
-        </header>
-        <section class="section">
+            </div>
             <script>
                 function displayTemporaryMessage(msg) {
                     var messageContainer = document.getElementById("message-container");
@@ -40,7 +38,9 @@
                         tempMessage.classList.add("hidden");
                     }, 3000); // 3000 milliseconds = 3 seconds
                 }
-            </script>
+            </script>  
+        </header>
+        <section class="section">
             {{if ne .Message ""}}
                 <div class="container">
                     <div class="columns">
