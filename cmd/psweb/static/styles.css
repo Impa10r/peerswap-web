@@ -58,3 +58,16 @@ pre {
     overflow-x: hidden;
     box-sizing: border-box;
 }
+
+.hidden {
+    display: none;
+}
+
+#temp-message {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    background-color: green;
+    padding: 10px;
+    border-radius: 5px;
+}

@@ -23,8 +23,24 @@
                     <a href="/config"><img src="/static/cog.png" alt="Config" width="52">&emsp;</a>
                 </td><tr>
             </table>
+            <div id="message-container">
+                <div id="temp-message" class="hidden"></div>
+            </div>  
         </header>
         <section class="section">
+            <script>
+                function displayTemporaryMessage(msg) {
+                    var messageContainer = document.getElementById("message-container");
+                    var tempMessage = document.getElementById("temp-message");
+                    
+                    tempMessage.innerHTML = msg;
+                    tempMessage.classList.remove("hidden");
+
+                    setTimeout(function() {
+                        tempMessage.classList.add("hidden");
+                    }, 3000); // 3000 milliseconds = 3 seconds
+                }
+            </script>
             {{if ne .Message ""}}
                 <div class="container">
                     <div class="columns">
@@ -122,7 +138,7 @@
                 document.body.removeChild(textarea);
 
                 // Alert the user that the text has been copied
-                alert("Copied the log text to clipboard");
+                displayTemporaryMessage("Copied the log text to clipboard");
             }
             
             const timer2 = setInterval(fetchData, 1000);
