@@ -275,6 +275,13 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var sumLocal uint64
+	var sumRemote uint64
+	for _, ch := range peer.Channels {
+		sumLocal += ch.LocalBalance
+		sumRemote += ch.RemoteBalance
+	}
+
 	res2, err := client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
@@ -320,6 +327,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		BTC         bool
 		SatAmount   string
 		ActiveSwaps string
+		DirectionIn bool
 	}
 
 	data := Page{
@@ -334,6 +342,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		LBTC:        stringIsInSlice("lbtc", peer.SupportedAssets),
 		SatAmount:   formatWithThousandSeparators(satAmount),
 		ActiveSwaps: convertSwapsToHTMLTable(activeSwaps),
+		DirectionIn: sumLocal < sumRemote,
 	}
 
 	// executing template named "peer"
