@@ -12,7 +12,7 @@ PeerSwap requires Bitcoin Core, Elements Core and LND.
 
 ## Docker
 
-```docker run --net=host -v ~/.lnd:/root/.lnd -v ~/.peerswap:/root/.peerswap -e NETWORK='testnet' ghcr.io/impa10r/peerswap-web:v1.1.4```
+```docker run --net=host -v ~/.lnd:/root/.lnd -v ~/.peerswap:/root/.peerswap -e NETWORK='testnet' ghcr.io/impa10r/peerswap-web:latest```
 
 Container includes both peerswapd and peerswap-web, started by supervisord. This example links to .lnd and .peerswap folders in the host machine's home directory, and connects to LND via host network. 
 

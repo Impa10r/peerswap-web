@@ -39,7 +39,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.4"
+const version = "v1.1.5"
 
 func main() {
 	var (
@@ -592,7 +592,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		Message       string
 		ColorScheme   string
 		LiquidAddress string
-		SatAmount     string
+		SatAmount     uint64
 		TxId          string
 		LiquidUrl     string
 		Outputs       *[]LiquidUTXO
@@ -603,7 +603,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		Message:       message,
 		ColorScheme:   config.ColorScheme,
 		LiquidAddress: addr,
-		SatAmount:     formatWithThousandSeparators(res2.GetSatAmount()),
+		SatAmount:     res2.GetSatAmount(),
 		TxId:          txid,
 		LiquidUrl:     config.LiquidApi + "/tx/" + txid,
 		Outputs:       &outputs,
@@ -657,16 +657,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
-			sendResult, err := client.LiquidSendToAddress(ctx, &peerswaprpc.SendToAddressRequest{
-				Address:   r.FormValue("sendAddress"),
-				SatAmount: amt,
-			})
+
+			txid, err := sendToAddress(
+				r.FormValue("sendAddress"),
+				amt,
+				r.FormValue("subtractfee") == "on")
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
+
 			// Redirect to liquid page with TxId
-			http.Redirect(w, r, "/liquid?msg=\"\"&txid="+sendResult.TxId, http.StatusSeeOther)
+			http.Redirect(w, r, "/liquid?msg=\"\"&txid="+txid, http.StatusSeeOther)
 			return
 		case "addPeer":
 			_, err := client.AddPeer(ctx, &peerswaprpc.AddPeerRequest{
@@ -735,7 +737,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					SwapAmount: swapAmount,
 					ChannelId:  channelId,
 					Asset:      r.FormValue("asset"),
-					Force:      r.FormValue("force") == "true",
+					Force:      r.FormValue("force") == "on",
 				})
 				if err != nil {
 					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
@@ -749,7 +751,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					SwapAmount: swapAmount,
 					ChannelId:  channelId,
 					Asset:      r.FormValue("asset"),
-					Force:      r.FormValue("force") == "true",
+					Force:      r.FormValue("force") == "on",
 				})
 				if err != nil {
 					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)

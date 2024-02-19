@@ -4,7 +4,7 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3 class="title is-4">🌊 Liquid sats: {{.SatAmount}}</h3>
+            <h3 class="title is-4">🌊 Liquid sats: {{fmt .SatAmount}}</h3>
             <center>
               <a href="/backup">Backup Wallet</a>
             </center>
@@ -26,8 +26,6 @@
               {{end}}
             </table>
           </div>     
-        </div>
-        <div class="column">
           <div class="box">
             <h1 class="title is-4">Receiving Address</h1> 
             {{if eq .LiquidAddress ""}}
@@ -57,6 +55,8 @@
               </script>
             {{end}}
           </div>
+        </div>
+        <div class="column">         
           {{if eq .TxId ""}}
             <div class="box">
               <h1 class="title is-4">Send Liquid</h1> 
@@ -81,18 +81,39 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="number" name="sendAmount" min="1000" required="required" placeholder="🌊 Liquid Amount (sats)">
+                        <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="1000" required="required" placeholder="🌊 Liquid Amount (sats)">
                       </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label"><a href="#" onclick="setMax()">Set Max</a></label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="subtractfee" name="subtractfee">
+                          <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <br>
                 <center>
-                <input type="hidden" name="action" value="sendLiquid">
-                <input class="button is-large" type="submit" value="Send Liquid">
+                  <input type="hidden" name="action" value="sendLiquid">
+                  <input class="button is-large" type="submit" value="Send Liquid">
                 </center>
               </form>
             </div>
+            <script>
+              function setMax() {
+                document.getElementById("sendAmount").value = {{.SatAmount}};
+                document.getElementById("subtractfee").checked = true;
+              }
+            </script>
           {{else}}
             <div class="box">
               <h1 class="title is-4">Payment Sent</h1> 

@@ -209,3 +209,40 @@ func listUnspent(outputs *[]LiquidUTXO) error {
 	}
 	return nil
 }
+
+type SendParams struct {
+	Address               string  `json:"address"`
+	Amount                float64 `json:"amount"`
+	SubtractFeeFromAmount bool    `json:"subtractfeefromamount"`
+}
+
+func sendToAddress(address string,
+	amountSats uint64,
+	subtractFeeFromAmount bool,
+) (string, error) {
+	client := NewClient()
+	service := &Elements{client}
+	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+
+	params := &SendParams{
+		Address:               address,
+		Amount:                toBitcoin(amountSats),
+		SubtractFeeFromAmount: subtractFeeFromAmount,
+	}
+
+	r, err := service.client.call("sendtoaddress", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements rpc: %v", err)
+		return "", err
+	}
+
+	txid := ""
+	// Unmarshal the JSON array into a txid
+
+	err = json.Unmarshal([]byte(r.Result), &txid)
+	if err != nil {
+		return "", err
+	}
+	return txid, nil
+
+}

@@ -1,5 +1,10 @@
 # Versions
 
+## 1.1.5
+
+- Use Elements RPC to send Liquid
+- Allow send max with subtractfeefromamount option
+
 ## 1.1.4
 
 - Add a peerswapd log page with a link from config page
