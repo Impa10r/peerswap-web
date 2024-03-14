@@ -149,39 +149,6 @@ type Elements struct {
 	client *RPCClient
 }
 
-// backUpWallet saves wallet file with name = master blinding key
-func backupWallet() (string, error) {
-	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
-
-	client := NewClient()
-	service := &Elements{client}
-
-	r, err := service.client.call("dumpmasterblindingkey", []string{}, "/wallet/"+wallet)
-	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements rpc: %v", err)
-		return "", err
-	}
-
-	key := ""
-	// Unmarshal the JSON array into masterblindingkey
-
-	err = json.Unmarshal([]byte(r.Result), &key)
-	if err != nil {
-		return "", err
-	}
-
-	fileName := key + ".bak"
-	params := []string{filepath.Join(config.ElementsDir, fileName)}
-
-	r, err = service.client.call("backupwallet", params, "/wallet/"+wallet)
-	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements rpc: %v", err)
-		return "", err
-	}
-
-	return fileName, nil
-}
-
 type LiquidUTXO struct {
 	TxID             string  `json:"txid"`
 	Vout             int     `json:"vout"`
