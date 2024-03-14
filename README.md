@@ -99,7 +99,7 @@ Take care to backup PeerSwap wallet after each Liquid transaction. In case of a 
 
 Back up is done from the Liquid page. The file name hexkey.bak is your master blinding key hex. The .bak contents will be equal to wallet.dat. For safety, this .bak will be zipped with the same password as the Elements RPC. For Umbrel, this is the password displayed in the Elements Core App. For the rest, this is the .elements/elements.conf rpcpassword parameter.
 
-**Make sure you write down this password and keep it safe away from your node!** 
+**Make sure you keep this password safe is a separate location!** 
 
 Restoring the wallet will require elements-cli command line skills:
 
