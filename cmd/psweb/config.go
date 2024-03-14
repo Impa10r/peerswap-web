@@ -10,22 +10,25 @@ import (
 )
 
 type Configuration struct {
-	AllowSwapRequests bool
-	RpcHost           string
-	ListenPort        string
-	ColorScheme       string
-	BitcoinApi        string // for bitcoin tx links
-	LiquidApi         string // for liquid tx links
-	NodeApi           string // for node links
-	MaxHistory        uint
-	DataDir           string
-	ElementsUser      string
-	ElementsPass      string
-	BitcoinSwaps      bool
-	Chain             string
-	LocalMempool      string
-	ElementsDir       string // what Elements see inside its docker container
-	ElementsDirMapped string // what will be mapped to PeerSwap docker
+	AllowSwapRequests    bool
+	RpcHost              string
+	ListenPort           string
+	ColorScheme          string
+	BitcoinApi           string // for bitcoin tx links
+	LiquidApi            string // for liquid tx links
+	NodeApi              string // for node links
+	MaxHistory           uint
+	DataDir              string
+	ElementsUser         string
+	ElementsPass         string
+	BitcoinSwaps         bool
+	Chain                string
+	LocalMempool         string
+	ElementsDir          string // what Elements see inside its docker container
+	ElementsDirMapped    string // what will be mapped to PeerSwap docker
+	ElementsBackupAmount uint64
+	TelegramToken        string
+	TelegramChatId       int64
 }
 
 var config Configuration

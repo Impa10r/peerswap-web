@@ -91,6 +91,34 @@ go install && \
 sudo systemctl restart psweb
 ```
 
+## Liquid wallet backup and restore
+
+**Elements Core wallet has no seed phrase recovery**
+
+Take care to backup PeerSwap wallet after each Liquid transaction. In case of a catastrophic failure of your SSD all L-BTC funds may be lost. Always run your node with a UPS. 
+
+Back up is done from the Liquid page. The file name hexkey.bak is your master blinding key hex. The .bak contents will be equal to wallet.dat. For safety, this .bak will be zipped with the same password as the Elements RPC. For Umbrel, this is the password displayed in the Elements Core App. For the rest, this is the .elements/elements.conf rpcpassword parameter.
+
+**Make sure you write down this password and keep it safe away from your node!** 
+
+Restoring the wallet will require elements-cli command line skills:
+
+```
+$ elements-cli restorewallet "wallet_name" "backup_file"
+```
+
+Default wallet_name is "peerswap", the same value as in peerswap.conf elementsd.rpcwallet parameter
+
+To restore your master blinding key use:
+
+```
+$ elements-cli importmasterblindingkey "hexkey"
+```
+
+## Automatic backup to a Telegram bot
+
+Create a new telegram bot with BotFather and save API token on Settings page. The backup file will be sent upon every change of the Liquid balance.
+
 ## Uninstall
 
 Stop and disable the service:
@@ -134,13 +162,7 @@ PeerSwap Web is currently a beta-grade software that makes the assumption that t
 
 Bootstrapping a secure connection over an insecure network and avoiding MITM attacks without being able to rely on certificate authorities is not an easy problem to solve.
 
-**Elements Core wallet has no seed phrase recovery**
-
-Take care to backup PeerSwap wallet after each Liquid transaction. In case of a catastrophic failure of your SSD all L-BTC funds may be lost. Always run your node with a UPS. 
-
-**DO NOT** uninstall Elements Core unless all liquid funds are spent or you have backed up the wallet. Restoring it will require elements-cli command line skills. 
-
-**DO NOT** let this backup file get into wrong hands, as it is not passphrase protected. 
+**DO NOT** uninstall Elements Core unless all liquid funds are spent or you have backed up your wallet.
 
 *Only recommend using with small balances or on signet/testnet*
 

@@ -349,12 +349,12 @@ func getNodeAlias(id string) string {
 				var nodes Nodes
 
 				// Unmarshal the JSON string into the struct
-				if err := json.Unmarshal([]byte(buf.String()), &nodes); err != nil {
+				if err := json.Unmarshal(buf.Bytes(), &nodes); err != nil {
 					fmt.Println("Error:", err)
 					return id[:20] // shortened id
 				}
 
-				if len(nodes.Nodes) > 0 {
+				if len(nodes.Nodes) > 0 && len(nodes.Nodes[0].Alias) > 0 {
 					cache = append(cache, AliasCache{
 						PublicKey: nodes.Nodes[0].PublicKey,
 						Alias:     nodes.Nodes[0].Alias,

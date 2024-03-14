@@ -1,5 +1,11 @@
 # Versions
 
+## 1.1.6
+
+- Zip wallet backups with Elements RPC password
+- Save master blinding key as .bak file name
+- Enable automatic backups sent to a Telegram Bot
+
 ## 1.1.5
 
 - Use Elements RPC to send Liquid

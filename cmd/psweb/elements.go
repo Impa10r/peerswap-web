@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/alexmullins/zip"
 )
 
 // A RPCClient represents a JSON RPC client (over HTTP(s)).
@@ -146,16 +149,31 @@ type Elements struct {
 	client *RPCClient
 }
 
-// backUpWallet calls Elements RPC to save wallet file to fileName path/file
+// backUpWallet saves wallet file with name = master blinding key
 func backupWallet() (string, error) {
 	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
-	fileName := wallet + ".bak"
 
 	client := NewClient()
 	service := &Elements{client}
+
+	r, err := service.client.call("dumpmasterblindingkey", []string{}, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements rpc: %v", err)
+		return "", err
+	}
+
+	key := ""
+	// Unmarshal the JSON array into masterblindingkey
+
+	err = json.Unmarshal([]byte(r.Result), &key)
+	if err != nil {
+		return "", err
+	}
+
+	fileName := key + ".bak"
 	params := []string{filepath.Join(config.ElementsDir, fileName)}
 
-	r, err := service.client.call("backupwallet", params, "/wallet/"+wallet)
+	r, err = service.client.call("backupwallet", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Elements rpc: %v", err)
 		return "", err
@@ -245,4 +263,86 @@ func sendToAddress(address string,
 	}
 	return txid, nil
 
+}
+
+// Backup wallet and zip it with Elements Core password
+// .bak's name is equal to master blinding key
+func backupAndZip(wallet string) (string, error) {
+
+	client := NewClient()
+	service := &Elements{client}
+
+	r, err := service.client.call("dumpmasterblindingkey", []string{}, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements rpc: %v", err)
+		return "", err
+	}
+
+	key := ""
+
+	// Unmarshal the JSON array into masterblindingkey
+	err = json.Unmarshal([]byte(r.Result), &key)
+	if err != nil {
+		return "", err
+	}
+
+	fileName := key + ".bak"
+	params := []string{filepath.Join(config.ElementsDir, fileName)}
+
+	r, err = service.client.call("backupwallet", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements rpc: %v", err)
+		return "", err
+	}
+
+	destinationZip := time.Now().Format("2006-01-02") + "_" + wallet + ".zip"
+	password := config.ElementsPass
+	sourceFile := filepath.Join(config.ElementsDirMapped, fileName)
+
+	// Open the file
+	file, err := os.Open(sourceFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// Get the file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+	fileSize := fileInfo.Size()
+
+	// Create a byte slice with the size of the file
+	contents := make([]byte, fileSize)
+
+	// Read the file into the byte slice
+	_, err = io.ReadFull(file, contents)
+	if err != nil {
+		return "", err
+	}
+
+	fzip, err := os.Create(filepath.Join(config.ElementsDirMapped, destinationZip))
+	if err != nil {
+		return "", err
+	}
+	zipw := zip.NewWriter(fzip)
+	defer zipw.Close()
+
+	w, err := zipw.Encrypt(fileName, password)
+	if err != nil {
+		return "", err
+	}
+	_, err = io.Copy(w, bytes.NewReader(contents))
+	if err != nil {
+		return "", err
+	}
+	zipw.Flush()
+
+	// delete .bak
+	err = os.Remove(sourceFile)
+	if err != nil {
+		return "", err
+	}
+	return destinationZip, nil
 }

@@ -178,12 +178,24 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Elements Mapped Folder </label>
+                  <label class="label">Elements Mapped Folder</label>
                 </div>
                 <div class="field-body">
                   <div class="field">
                     <p>
                       <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Telegram Bot Token</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
                     </p>
                   </div>
                 </div>

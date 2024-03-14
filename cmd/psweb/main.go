@@ -39,7 +39,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.5"
+const version = "v1.1.6"
 
 func main() {
 	var (
@@ -140,6 +140,12 @@ func main() {
 	}()
 
 	log.Println("Listening on http://localhost:" + config.ListenPort)
+
+	// Run Telegram wallet backup every minute
+	go startTimerBackup()
+
+	// Start Telegram bot
+	go telegramStart()
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -791,6 +797,11 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		config.BitcoinApi = r.FormValue("bitcoinApi")
 		config.LiquidApi = r.FormValue("liquidApi")
 
+		if config.TelegramToken != r.FormValue("telegramToken") {
+			config.TelegramToken = r.FormValue("telegramToken")
+			go telegramStart()
+		}
+
 		if config.LocalMempool != r.FormValue("localMempool") && r.FormValue("localMempool") != "" {
 			// update bitcoinApi link
 			config.BitcoinApi = r.FormValue("localMempool")
@@ -894,12 +905,18 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
-	// return .bak with the name of the wallet
-	if fileName, err := backupWallet(); err == nil {
+	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+	// returns .bak with the name of the wallet
+	if fileName, err := backupAndZip(wallet); err == nil {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 		// Serve the file for download
 		http.ServeFile(w, r, filepath.Join(config.ElementsDirMapped, fileName))
+		// Delete zip archive
+		err = os.Remove(filepath.Join(config.ElementsDirMapped, fileName))
+		if err != nil {
+			log.Println("Error deleting zip file:", err)
+		}
 	} else {
 		redirectWithError(w, r, "/liquid?", err)
 	}
@@ -1011,7 +1028,6 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 	// Send the next chunk of the log as the response
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(responseJSON))
-
 }
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
@@ -1028,4 +1044,73 @@ func showHelpMessage() {
 
 func showVersionInfo() {
 	fmt.Println("Version:", version)
+}
+
+func startTimerBackup() {
+	for range time.Tick(60 * time.Second) {
+		onTimerBackup()
+	}
+}
+
+func onTimerBackup() {
+	// skip backup if missing RPC or Telegram credentials
+	if config.ElementsPass == "" || config.ElementsUser == "" || chatId == 0 {
+		return
+	}
+
+	host := config.RpcHost
+	ctx := context.Background()
+
+	client, cleanup, err := getClient(host)
+	if err != nil {
+		log.Println(fmt.Errorf("unable to connect to RPC server: %v", err))
+		// display the error to the web page
+		return
+	}
+	defer cleanup()
+
+	// do not backup while a swap is pending
+	res, err := client.ListActiveSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
+	if err != nil {
+		return
+	}
+
+	if len(res.GetSwaps()) > 0 {
+		return
+	}
+
+	// do not backup if the sat amount did not change
+	res2, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
+	if err != nil {
+		return
+	}
+
+	satAmount := res2.GetSatAmount()
+
+	if satAmount == config.ElementsBackupAmount {
+		return
+	}
+
+	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+	destinationZip, err := backupAndZip(wallet)
+	if err != nil {
+		log.Println("Error zipping backup:", err)
+		return
+	}
+
+	err = telegramSendFile(config.ElementsDirMapped, destinationZip)
+	if err != nil {
+		log.Println("Error sending zip:", err)
+		return
+	}
+
+	// Delete zip archive
+	err = os.Remove(filepath.Join(config.ElementsDirMapped, destinationZip))
+	if err != nil {
+		log.Println("Error deleting zip file:", err)
+	}
+
+	// save the wallet amount
+	config.ElementsBackupAmount = satAmount
+	saveConfig()
 }

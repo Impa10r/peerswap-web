@@ -3,7 +3,9 @@ module peerswap-web
 go 1.21.5
 
 require (
+	github.com/alexmullins/zip v0.0.0-20180717182244-4affb64b04d0
 	github.com/elementsproject/peerswap v0.2.97
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	google.golang.org/grpc v1.60.1
 )
