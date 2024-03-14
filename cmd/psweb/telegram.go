@@ -68,7 +68,7 @@ func telegramSendMessage(msgText string) bool {
 	return true
 }
 
-func telegramSendFile(folder, fileName string) error {
+func telegramSendFile(folder, fileName, satAmount string) error {
 	// Open file
 	file, err := os.Open(filepath.Join(folder, fileName))
 	if err != nil {
@@ -81,6 +81,8 @@ func telegramSendFile(folder, fileName string) error {
 
 	// Create message config
 	msg := tgbotapi.NewDocument(chatId, fileConfig)
+
+	msg.Caption = "New L-BTC Balance: " + satAmount
 
 	// Send file
 	_, err = bot.Send(msg)

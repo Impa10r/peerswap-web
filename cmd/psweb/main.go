@@ -1098,7 +1098,7 @@ func onTimerBackup() {
 		return
 	}
 
-	err = telegramSendFile(config.ElementsDirMapped, destinationZip)
+	err = telegramSendFile(config.ElementsDirMapped, destinationZip, strconv.FormatUint(satAmount, 10))
 	if err != nil {
 		log.Println("Error sending zip:", err)
 		return

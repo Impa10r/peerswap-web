@@ -117,7 +117,7 @@ $ elements-cli importmasterblindingkey "hexkey"
 
 ## Automatic backup to a Telegram bot
 
-Create a new telegram bot with BotFather and save API token on Settings page. The backup file will be sent upon every change of the Liquid balance.
+Create a new telegram bot with BotFather and copy API token to PS Web Configuration page. The backup file will be sent upon every change of the Liquid balance.
 
 ## Uninstall
 
