@@ -10,6 +10,7 @@
 
 - Use Elements RPC to send Liquid
 - Allow send max with subtractfeefromamount option
+- Default swap direction depends on channel balance
 
 ## 1.1.4
 
