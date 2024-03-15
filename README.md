@@ -103,16 +103,16 @@ Back up is done from the Liquid page. The file name hexkey.bak is your master bl
 
 Restoring the wallet will require elements-cli command line skills:
 
-```
-$ elements-cli restorewallet "wallet_name" "backup_file"
+```bash
+elements-cli restorewallet "wallet_name" "backup_file"
 ```
 
 Default wallet_name is "peerswap", the same value as in peerswap.conf elementsd.rpcwallet parameter
 
 To restore your master blinding key use:
 
-```
-$ elements-cli importmasterblindingkey "hexkey"
+```bash
+elements-cli importmasterblindingkey "hexkey"
 ```
 
 ## Automatic backup to a Telegram bot

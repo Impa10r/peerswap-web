@@ -82,7 +82,7 @@ func telegramSendFile(folder, fileName, satAmount string) error {
 	// Create message config
 	msg := tgbotapi.NewDocument(chatId, fileConfig)
 
-	msg.Caption = "🌊New L-BTC Balance: " + satAmount
+	msg.Caption = "🌊 New L-BTC Balance: " + satAmount
 
 	// Send file
 	_, err = bot.Send(msg)
