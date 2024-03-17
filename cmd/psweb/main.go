@@ -523,8 +523,6 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config      Configuration
 		Version     string
 		Latest      string
-		LogPosition int
-		LogFile     string
 	}
 
 	data := Page{
@@ -533,8 +531,6 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config:      config,
 		Version:     version,
 		Latest:      getLatestTag(),
-		LogPosition: 1,     // from first line
-		LogFile:     "log", // peerswapd log
 	}
 
 	// executing template named "error"
