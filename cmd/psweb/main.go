@@ -39,7 +39,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.6"
+const version = "v1.1.7"
 
 func main() {
 	var (
@@ -1067,11 +1067,11 @@ func showVersionInfo() {
 
 func startTimerBackup() {
 	for range time.Tick(60 * time.Second) {
-		onTimerBackup()
+		liquidBackup(false)
 	}
 }
 
-func onTimerBackup() {
+func liquidBackup(force bool) {
 	// skip backup if missing RPC or Telegram credentials
 	if config.ElementsPass == "" || config.ElementsUser == "" || chatId == 0 {
 		return
@@ -1106,7 +1106,7 @@ func onTimerBackup() {
 
 	satAmount := res2.GetSatAmount()
 
-	if satAmount == config.ElementsBackupAmount {
+	if satAmount == config.ElementsBackupAmount && !force {
 		return
 	}
 

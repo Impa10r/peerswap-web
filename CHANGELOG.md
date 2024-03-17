@@ -1,5 +1,10 @@
 # Versions
 
+## 1.1.7
+
+- Add link on Config page to see PS Web log 
+- Add basic menu to Telegram Bot
+
 ## 1.1.6
 
 - Zip wallet backups with Elements RPC password
