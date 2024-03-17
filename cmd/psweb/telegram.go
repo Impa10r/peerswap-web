@@ -36,8 +36,8 @@ func telegramStart() {
 
 	// Try saved chatId
 	chatId = config.TelegramChatId
-	if chatId > 0 && !telegramSendMessage("PeerSwap Web UI connected") {
-		chatId = 0
+	if chatId > 0 {
+		telegramConnect()
 	}
 
 	updates := bot.GetUpdatesChan(u)
@@ -45,16 +45,45 @@ func telegramStart() {
 	// Process updates
 	for update := range updates {
 		if update.Message != nil {
-			if chatId != update.Message.Chat.ID {
+			switch update.Message.Text {
+			case "/start":
 				chatId = update.Message.Chat.ID
-				if telegramSendMessage("PeerSwap Web UI connected") {
-					config.TelegramChatId = chatId
-					saveConfig()
-				} else {
-					chatId = 0
-				}
+				telegramConnect()
+			case "/backup":
+				liquidBackup(true)
+			case "/version":
+				t := "Current version: " + version + "\n"
+				t += "Latest version: " + getLatestTag()
+				telegramSendMessage(t)
+			default:
+				telegramSendMessage("I don't understand that command")
 			}
 		}
+	}
+}
+
+func telegramConnect() {
+	if telegramSendMessage("PeerSwap Web UI connected") {
+		// successfully connected
+		cmdCfg := tgbotapi.NewSetMyCommands(
+			tgbotapi.BotCommand{
+				Command:     "start",
+				Description: "Start the bot",
+			},
+			tgbotapi.BotCommand{
+				Command:     "backup",
+				Description: "Get Liquid wallet backup",
+			},
+			tgbotapi.BotCommand{
+				Command:     "version",
+				Description: "Check version",
+			},
+		)
+		bot.Send(cmdCfg)
+		config.TelegramChatId = chatId
+		saveConfig()
+	} else {
+		chatId = 0
 	}
 }
 
@@ -82,7 +111,7 @@ func telegramSendFile(folder, fileName, satAmount string) error {
 	// Create message config
 	msg := tgbotapi.NewDocument(chatId, fileConfig)
 
-	msg.Caption = "🌊 L-BTC Balance: " + satAmount
+	msg.Caption = "🌊 Liquid Balance: " + satAmount
 
 	// Send file
 	_, err = bot.Send(msg)

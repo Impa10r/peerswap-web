@@ -3,9 +3,6 @@
     <div class="container">
       <div class="columns">
         <div class="column"> 
-          {{if and (ne .Message "") (ne .Message "welcome")}}
-            {{template "log" .}}
-          {{end}}                
           <div class="box">
             <h1 class="title is-4">Configuration</h1> 
             <form autocomplete="off" action="/save" method="post">
