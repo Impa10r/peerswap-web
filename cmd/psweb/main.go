@@ -98,7 +98,7 @@ func main() {
 	var templateNames []string
 	for _, file := range templateFiles {
 		if !file.IsDir() && filepath.Ext(file.Name()) == ".gohtml" {
-			templateNames = append(templateNames, "templates/"+file.Name())
+			templateNames = append(templateNames, filepath.Join("templates", file.Name()))
 		}
 	}
 
@@ -524,6 +524,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Version     string
 		Latest      string
 		LogPosition int
+		LogFile     string
 	}
 
 	data := Page{
@@ -532,7 +533,8 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config:      config,
 		Version:     version,
 		Latest:      getLatestTag(),
-		LogPosition: 1, // from first line
+		LogPosition: 1,     // from first line
+		LogFile:     "log", // peerswapd log
 	}
 
 	// executing template named "error"
@@ -834,9 +836,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 		ctx := context.Background()
 		host := r.FormValue("rpcHost")
-
 		clientIsDown := false
-
 		client, cleanup, err := getClient(host)
 		if err != nil {
 			clientIsDown = true
@@ -854,8 +854,8 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if err = saveConfig(); err != nil {
-			redirectWithError(w, r, "/config?", err)
+		if err2 := saveConfig(); err2 != nil {
+			redirectWithError(w, r, "/config?", err2)
 			return
 		}
 
@@ -888,12 +888,14 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme string
 		Message     string
 		LogPosition int
+		LogFile     string
 	}
 
 	data := Page{
 		ColorScheme: config.ColorScheme,
 		Message:     "",
-		LogPosition: 0, // new content and wait for connection
+		LogPosition: 0,     // new content and wait for connection
+		LogFile:     "log", // peerswapd log
 	}
 
 	// executing template named "loading"
@@ -928,12 +930,21 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme string
 		Message     string
 		LogPosition int
+		LogFile     string
+	}
+
+	logFile := "log"
+
+	keys, ok := r.URL.Query()["log"]
+	if ok && len(keys[0]) > 0 {
+		logFile = keys[0]
 	}
 
 	data := Page{
 		ColorScheme: config.ColorScheme,
 		Message:     "",
 		LogPosition: 1, // from first line
+		LogFile:     logFile,
 	}
 
 	// executing template named "logpage"
@@ -947,7 +958,6 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 // returns log as JSON
 func logApiHandler(w http.ResponseWriter, r *http.Request) {
 
-	filename := config.DataDir + "/log"
 	logText := ""
 
 	keys, ok := r.URL.Query()["pos"]
@@ -963,6 +973,15 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+
+	logFile := "log"
+
+	keys, ok = r.URL.Query()["log"]
+	if ok && len(keys[0]) > 0 {
+		logFile = keys[0]
+	}
+
+	filename := filepath.Join(config.DataDir, logFile)
 
 	file, err := os.Open(filename)
 	if err != nil {

@@ -84,7 +84,7 @@
 
 {{define "log"}}
     <div class="box">
-        <h1>Peerswapd Log</h1>
+        <h1>{{if eq .LogFile "psweb.log"}}PeerSwap Web{{else}}Peerswapd{{end}} Log</h1>
         <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
         <tr>
             <td style="max-width: 100%; overflow: hidden;">
@@ -113,7 +113,7 @@
             }
             
             function fetchData() {
-                fetch('/logapi?pos=' + logPosition)
+                fetch('/logapi?pos=' + logPosition + '&log={{.LogFile}}')
                 .then(response => response.json())
                 .then(data => updatePage(data));
             }
