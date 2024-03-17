@@ -18,7 +18,9 @@ Container includes both peerswapd and peerswap-web, started by supervisord. This
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
-To call manually pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" /root/pscli```
+To run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" /root/pscli```
+
+Please note that configuration files of the Docker version are not compatible with the manual build.
 
 ## Manual Build
 
@@ -78,6 +80,12 @@ By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). Thi
 Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable NETWORK is present and equals "testnet", the links will be configured automatically for testnet on the first run.
 
 To enable downloading of a backup file of the Elements wallet it is necessary to have access to .elements folder where this backup is saved by elementsd. If Elements is run in a Docker container, both the internal folder (usually /home/elements/.elements) and the mapped external folder (for Umbrel it is /home/umbrel/umbrel/app-data/elements/data) must be provided in the Configuration panel.
+
+**Warning** If you tried a Docker version first and then switched to the one built from source, the .peerswap configuration folder needs to be deleted with:
+
+```bash
+sudo rm -r ~/.peerswap
+```
 
 ## Update
 
