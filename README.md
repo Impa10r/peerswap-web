@@ -150,12 +150,12 @@ To convert some BTC on your LND into L-BTC in peerswap wallet you don't need any
 
 Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-How-do-I-peg-in-BTC-to-the-Liquid-Network-). 
 
-*Hint for Umbrel guys:* Add these lines to ~/.profile, then ```source .profile```
+*Hint for Umbrel guys:* Add these aliases to ~/.profile, then ```source .profile```
 ```
 alias lncli="/home/umbrel/umbrel/scripts/app compose lightning exec -T lnd lncli"
 alias bcli="/home/umbrel/umbrel/scripts/app compose bitcoin exec bitcoind bitcoin-cli"
 alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
-alias pscli="docker exec -it peerswap_web_1 /root/pscli" # for Docker peerswap only!!!
+alias pscli="docker exec -it peerswap_web_1 /root/pscli" # for the Docker peerswap only!!!
 ```
 
 # Support
