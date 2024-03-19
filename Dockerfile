@@ -37,6 +37,8 @@ COPY --from=builder /go/bin/pscli /home/peerswap/
 
 RUN chmod -R o+wx /home/peerswap
 
+ENV PATH="${PATH}:/home/peerswap"
+
 USER peerswap
 WORKDIR /home/peerswap
 
