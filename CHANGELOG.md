@@ -7,10 +7,10 @@
 
 !!! BREAKING CHANGES FOR DOCKER !!! 
 
-1. Create a non-root user if it does not exist, login with it.
-2. If your .peerswap folder in in /root/, copy it to /home/USER/. 
-3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```.
-4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/".
+1. Create a non-root user if it does not exist, login with it
+2. If your .peerswap folder in in /root/, copy it to /home/USER/
+3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```
+4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/"
 5. Run the image with new parameters:
 ```docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ghcr.io/impa10r/peerswap-web:latest```
 
