@@ -1,6 +1,6 @@
 # Versions
 
-## 1.1.8 (Docker only)
+## 1.1.8 (affects Docker only)
 
 - Use a non-root user "peerswap" inside the container
 - Docker image can no longer be run by host's root user
