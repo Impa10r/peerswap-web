@@ -2,13 +2,16 @@
 
 ## 1.1.8 (Docker only)
 
-- Run as a non-root user inside the container
+- Use a non-root user "peerswap" inside the container
+- Docker image can no longer be run by host's root user
 
-!!! BREAKING CHANGE FOR DOCKER !!! 
+!!! BREAKING CHANGES FOR DOCKER !!! 
 
-Docker image can no longer be run by root user. Docker users must run ```sudo chown user:user ~/.peerswap -R```, where user is your user:group that you use to run docker and .peerswap is the folder where peerswap data is located. Then open peerswap.conf and pswebconfig.json for edit and replace all "/root/" with "/home/peerswap/".
-
-Also note the new folder mapping to run the image:
+1. Create a non-root user if it does not exist, login with it.
+2. If your .peerswap folder in in /root/, copy it to /home/USER/. 
+3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```.
+4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/".
+5. Run the image with new parameters:
 ```docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ghcr.io/impa10r/peerswap-web:latest```
 
 ## 1.1.7
