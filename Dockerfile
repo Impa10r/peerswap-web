@@ -29,11 +29,16 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 RUN apt-get install -y ca-certificates
 
-RUN cd /root/
+RUN useradd -rm -s /bin/bash -u 1000 -U peerswap 
 
-COPY --from=builder /go/bin/peerswapd /root/
-COPY --from=builder /go/bin/psweb /root/
-COPY --from=builder /go/bin/pscli /root/
+COPY --from=builder /go/bin/peerswapd /home/peerswap/
+COPY --from=builder /go/bin/psweb /home/peerswap/
+COPY --from=builder /go/bin/pscli /home/peerswap/
+
+RUN chmod -R o+wx /home/peerswap
+
+USER peerswap
+WORKDIR /home/peerswap
 
 EXPOSE 1984
 
