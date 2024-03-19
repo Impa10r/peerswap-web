@@ -4,7 +4,7 @@
 
 - Run as a non-root user inside the docker image
     !!! BREAKING CHANGE !!! 
-    Docker users must run ```chown user:user ~/.peerswap -R```  
+    Docker users must run ```sudo chown user:user ~/.peerswap -R```  
     where user is your user:group that you use to run docker
     and .peerswap is the folder where peerswap data is located 
     Also note the new folder mapping:
