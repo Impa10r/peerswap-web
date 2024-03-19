@@ -14,7 +14,7 @@ var (
 )
 
 func telegramStart() {
-	if config.TelegramToken == "" {
+	if config.TelegramToken == "" || bot != nil {
 		return
 	}
 

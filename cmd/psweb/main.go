@@ -1084,17 +1084,16 @@ func liquidBackup(force bool) {
 	}
 	defer cleanup()
 
-	// do not backup while a swap is pending
 	res, err := client.ListActiveSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
 	if err != nil {
 		return
 	}
 
-	if len(res.GetSwaps()) > 0 {
+	// do not backup while a swap is pending
+	if len(res.GetSwaps()) > 0 && !force {
 		return
 	}
 
-	// do not backup if the sat amount did not change
 	res2, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
 		return
@@ -1102,6 +1101,7 @@ func liquidBackup(force bool) {
 
 	satAmount := res2.GetSatAmount()
 
+	// do not backup if the sat amount did not change
 	if satAmount == config.ElementsBackupAmount && !force {
 		return
 	}
@@ -1113,7 +1113,7 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	err = telegramSendFile(config.DataDir, destinationZip, strconv.FormatUint(satAmount, 10))
+	err = telegramSendFile(config.DataDir, destinationZip, formatWithThousandSeparators(satAmount))
 	if err != nil {
 		log.Println("Error sending zip:", err)
 		return
