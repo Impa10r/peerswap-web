@@ -12,9 +12,12 @@ PeerSwap requires Bitcoin Core, Elements Core and LND.
 
 ## Docker
 
-```docker run --net=host -v ~/.lnd:/home/peerswap/.lnd -v ~/.peerswap:/home/peerswap/.peerswap -e NETWORK='testnet' ghcr.io/impa10r/peerswap-web:latest```
+```
+mkdir -p ~/.peerswap && \
+docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro  -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ghcr.io/impa10r/peerswap-web:latest
+```
 
-Container includes both peerswapd and peerswap-web, started by supervisord. This example links to .lnd and .peerswap folders in the host machine's home directory, and connects to LND via host network. 
+Container includes both peerswapd and peerswap-web, started by supervisord. This example assumes .lnd, .elements and .peerswap folders in the host machine's home directory, and connects to LND via host network. 
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
@@ -121,6 +124,14 @@ To restore your master blinding key use:
 
 ```bash
 elements-cli importmasterblindingkey "hexkey"
+```
+
+For Umbrel and other Docker installs it will be necessary first to copy the backup file inside the container:
+
+```bash
+docker cp /home/umbrel/peerswap.bak elements_node_1:/home/elements/peerswap.bak
+docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=49...d1e restorewallet "peerswap" "/home/elements/peerswap.bak"
+docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=49...d1e importmasterblindingkey "hexkey"
 ```
 
 ## Automatic backup to a Telegram bot

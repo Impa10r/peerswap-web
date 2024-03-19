@@ -24,11 +24,9 @@
                 if (progressValue === 100) {
                   clearInterval(timer);
                   // Redirect to home page
-                  window.location.href = '/'; 
+                  // window.location.href = '/'; 
                 }
-              }, 300); // 30 seconds wait
-              // Call startProgress function when the page is loaded
-              //window.onload = startProgress;
+              }, 600); // 60 seconds wait
             </script>
           </div>
           {{template "log" .}}

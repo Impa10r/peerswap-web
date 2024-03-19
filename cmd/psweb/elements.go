@@ -289,7 +289,7 @@ func backupAndZip(wallet string) (string, error) {
 		return "", err
 	}
 
-	fzip, err := os.Create(filepath.Join(config.ElementsDirMapped, destinationZip))
+	fzip, err := os.Create(filepath.Join(config.DataDir, destinationZip))
 	if err != nil {
 		return "", err
 	}
@@ -306,10 +306,5 @@ func backupAndZip(wallet string) (string, error) {
 	}
 	zipw.Flush()
 
-	// delete .bak
-	err = os.Remove(sourceFile)
-	if err != nil {
-		return "", err
-	}
 	return destinationZip, nil
 }

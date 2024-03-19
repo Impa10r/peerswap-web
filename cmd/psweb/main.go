@@ -909,9 +909,9 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 		// Serve the file for download
-		http.ServeFile(w, r, filepath.Join(config.ElementsDirMapped, fileName))
+		http.ServeFile(w, r, filepath.Join(config.DataDir, fileName))
 		// Delete zip archive
-		err = os.Remove(filepath.Join(config.ElementsDirMapped, fileName))
+		err = os.Remove(filepath.Join(config.DataDir, fileName))
 		if err != nil {
 			log.Println("Error deleting zip file:", err)
 		}
@@ -1113,14 +1113,14 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	err = telegramSendFile(config.ElementsDirMapped, destinationZip, strconv.FormatUint(satAmount, 10))
+	err = telegramSendFile(config.DataDir, destinationZip, strconv.FormatUint(satAmount, 10))
 	if err != nil {
 		log.Println("Error sending zip:", err)
 		return
 	}
 
 	// Delete zip archive
-	err = os.Remove(filepath.Join(config.ElementsDirMapped, destinationZip))
+	err = os.Remove(filepath.Join(config.DataDir, destinationZip))
 	if err != nil {
 		log.Println("Error deleting zip file:", err)
 	}
