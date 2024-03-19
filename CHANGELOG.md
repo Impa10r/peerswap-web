@@ -3,6 +3,7 @@
 ## 1.1.8 (Docker only)
 
 - Run as a non-root user inside the container
+
 !!! BREAKING CHANGE FOR DOCKER !!! 
 Docker image can no longer be run by root user
 Docker users must run ```sudo chown user:user ~/.peerswap -R```  
