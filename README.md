@@ -23,7 +23,7 @@ Config files should exist or wiil be created with default values. Depending on h
 
 To run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```
 
-If Elements is run in Docker too, it should be started by tbe same user as PeerSwsp.
+If Elements is also run in a Docker container, it should be started by the same user as PeerSwap one.
 
 Please note that configuration files of the Docker version are not compatible with the manual build.
 
