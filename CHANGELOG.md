@@ -12,7 +12,7 @@
 3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```
 4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/"
 5. Run the image with new parameters:
-```docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ELEMENTS_FOLDER="/home/USER/.elements" -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" ghcr.io/impa10r/peerswap-web:latest```
+```docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ELEMENTS_FOLDER="/home/USER/.elements" -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" ghcr.io/impa10r/peerswap-web:latest``` (Change USER to your username)
 
 ## 1.1.7
 
