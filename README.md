@@ -21,9 +21,9 @@ Container includes both peerswapd and peerswap-web, started by supervisord. This
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
-To run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```
+If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```. For Umbrel it is ```docker exec -it peerswap_web_1 pscli```
 
-If Elements is also run in a Docker container, it should be started by the same user as PeerSwap one.
+If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one.
 
 Please note that configuration files of the Docker version are not compatible with the manual build.
 
