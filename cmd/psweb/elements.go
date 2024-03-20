@@ -60,8 +60,8 @@ type rpcResponse struct {
 	Err    *RPCError       `json:"error"`
 }
 
-// NewClient returns an RpcClient
-func NewClient() (c *RPCClient) {
+// ElementsClient returns an RpcClient
+func ElementsClient() (c *RPCClient) {
 	host := readVariableFromPeerswapdConfig("elementsd.rpchost")
 	port := readVariableFromPeerswapdConfig("elementsd.rpcport")
 	user := config.ElementsUser
@@ -175,7 +175,7 @@ type LiquidUTXO struct {
 }
 
 func listUnspent(outputs *[]LiquidUTXO) error {
-	client := NewClient()
+	client := ElementsClient()
 	service := &Elements{client}
 	params := []string{}
 	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
@@ -205,7 +205,7 @@ func sendToAddress(address string,
 	amountSats uint64,
 	subtractFeeFromAmount bool,
 ) (string, error) {
-	client := NewClient()
+	client := ElementsClient()
 	service := &Elements{client}
 	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
 
@@ -236,7 +236,7 @@ func sendToAddress(address string,
 // .bak's name is equal to master blinding key
 func backupAndZip(wallet string) (string, error) {
 
-	client := NewClient()
+	client := ElementsClient()
 	service := &Elements{client}
 
 	r, err := service.client.call("dumpmasterblindingkey", []string{}, "/wallet/"+wallet)
