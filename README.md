@@ -17,11 +17,13 @@ mkdir -p ~/.peerswap && \
 docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro  -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ghcr.io/impa10r/peerswap-web:latest
 ```
 
-Container includes both peerswapd and peerswap-web, started by supervisord. This example assumes .lnd, .elements and .peerswap folders in the host machine's home directory, and connects to LND via host network. 
+Container includes both peerswapd and peerswap-web, started by supervisord. This example assumes .lnd, .elements and .peerswap folders in the host user's home directory (must not be root), and connects to LND via host network. 
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
 To run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```
+
+If Elements is run in Docker too, it should be started by tbe same user as PeerSwsp.
 
 Please note that configuration files of the Docker version are not compatible with the manual build.
 
@@ -78,13 +80,13 @@ The log and the config file will be saved to ~/.peerswap/ folder.
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in ~/.peerswap/pswebconf.json.
+By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in ~/.peerswap/pswebconfig.json.
 
 Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable NETWORK is present and equals "testnet", the links will be configured automatically for testnet on the first run.
 
 To enable downloading of a backup file of the Elements wallet it is necessary to have access to .elements folder where this backup is saved by elementsd. If Elements is run in a Docker container, both the internal folder (usually /home/elements/.elements) and the mapped external folder (for Umbrel it is /home/umbrel/umbrel/app-data/elements/data) must be provided in the Configuration panel.
 
-***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete ~/.peerswap folder with:
+***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete ~/.peerswap folder with (will wipe swaps history):
 
 ```bash
 sudo rm -r ~/.peerswap
