@@ -21,7 +21,7 @@ Container includes both peerswapd and peerswap-web, started by supervisord. This
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require further parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
-If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```. For Umbrel it is ```docker exec -it peerswap_web_1 pscli```
+If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```.
 
 If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one.
 
@@ -163,12 +163,11 @@ To convert some BTC on your LND into L-BTC in peerswap wallet you don't need any
 
 Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-How-do-I-peg-in-BTC-to-the-Liquid-Network-). 
 
-*Hint for Umbrel guys:* Add these aliases to ~/.profile, then ```source .profile```
+*Hint for Umbrel guys:* To save keystrokes, add these aliases to ~/.profile, then ```source .profile```
 ```
 alias lncli="/home/umbrel/umbrel/scripts/app compose lightning exec -T lnd lncli"
 alias bcli="/home/umbrel/umbrel/scripts/app compose bitcoin exec bitcoind bitcoin-cli"
 alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
-alias pscli="docker exec -it peerswap_web_1 pscli" # for the Docker peerswap only!!!
 ```
 
 # Support
