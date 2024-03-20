@@ -567,7 +567,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	client, cleanup, err := getClient(host)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/liquid?", err)
+		redirectWithError(w, r, "/?", err)
 		return
 	}
 	defer cleanup()
@@ -575,7 +575,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	res2, err := client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/liquid?", err)
+		redirectWithError(w, r, "/?", err)
 		return
 	}
 

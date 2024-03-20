@@ -26,21 +26,12 @@ RUN apt-get update
 RUN apt-get install -y supervisor
 RUN mkdir -p /var/log/supervisor
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
 RUN apt-get install -y ca-certificates
 
+COPY --from=builder /go/bin/* /bin/
+
 RUN useradd -rm -s /bin/bash -u 1000 -U peerswap 
-
-COPY --from=builder /go/bin/peerswapd /home/peerswap/
-COPY --from=builder /go/bin/psweb /home/peerswap/
-COPY --from=builder /go/bin/pscli /home/peerswap/
-
-RUN chmod -R o+wx /home/peerswap
-
-ENV PATH="${PATH}:/home/peerswap"
-
 USER peerswap
-WORKDIR /home/peerswap
 
 EXPOSE 1984
 
