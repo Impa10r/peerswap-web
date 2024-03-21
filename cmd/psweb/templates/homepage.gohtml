@@ -4,7 +4,14 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3 class="title is-4">🌊 <a href="/liquid">Liquid sats:</a> {{.SatAmount}}</h3>
+            <div class="columns">
+              <div class="column">
+                <h3 class="title is-4">🌊 <a href="/liquid">Liquid sats:</a> {{fmt .LiquidBalance}}</h3>
+              </div>
+              <div class="column">
+                <h3 class="title is-4">₿ <a href="/bitcoin">Bitcoin sats:</a> {{fmt .BitcoinBalance}}</h3>
+              </div>
+            </div>
           </div>          
           <div class="box">
             <table style="table-layout:fixed; width: 100%; ">

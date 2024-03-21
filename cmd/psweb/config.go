@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -29,6 +30,9 @@ type Configuration struct {
 	ElementsBackupAmount uint64
 	TelegramToken        string
 	TelegramChatId       int64
+	PeginClaimScript     string
+	PeginTxId            string
+	LndDir               string
 }
 
 var config Configuration
@@ -41,9 +45,8 @@ func loadConfig(dataDir string) {
 		log.Fatalln(err)
 	}
 	if dataDir == "" {
-
 		// Default is /home/user/.peerswap
-		dataDir = currentUser.HomeDir + "/.peerswap"
+		dataDir = filepath.Join(currentUser.HomeDir, ".peerswap")
 	}
 
 	// load defaults first
@@ -60,8 +63,9 @@ func loadConfig(dataDir string) {
 	config.Chain = "mainnet"
 	config.LocalMempool = ""
 	config.ListenPort = "1984"
-	config.ElementsDir = currentUser.HomeDir + "/.elements"
-	config.ElementsDirMapped = currentUser.HomeDir + "/.elements"
+	config.ElementsDir = filepath.Join(currentUser.HomeDir, ".elements")
+	config.ElementsDirMapped = filepath.Join(currentUser.HomeDir, ".elements")
+	config.LndDir = filepath.Join(currentUser.HomeDir, ".lnd")
 
 	// environment values take priority
 	if os.Getenv("NETWORK") == "testnet" {
@@ -79,7 +83,7 @@ func loadConfig(dataDir string) {
 		config.ElementsDirMapped = os.Getenv("ELEMENTS_FOLDER_MAPPED")
 	}
 
-	configFile := dataDir + "/pswebconfig.json"
+	configFile := filepath.Join(dataDir, "pswebconfig.json")
 
 	fileData, err := os.ReadFile(configFile)
 	if err != nil {
@@ -104,7 +108,7 @@ func saveConfig() error {
 	if err != nil {
 		return err
 	}
-	filename := config.DataDir + "/pswebconfig.json"
+	filename := filepath.Join(config.DataDir, "pswebconfig.json")
 	err = os.WriteFile(filename, jsonData, 0644)
 	if err != nil {
 		return err
@@ -118,15 +122,15 @@ func savePeerSwapdConfig() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	filename := config.DataDir + "/peerswap.conf"
-	defaultLndDir := currentUser.HomeDir + "/.lnd"
+	filename := filepath.Join(config.DataDir, "peerswap.conf")
+	defaultLndDir := filepath.Join(currentUser.HomeDir, "/.lnd")
 
 	//key, default, new value, env key
 	t := setPeerswapdVariable("host", "localhost:42069", config.RpcHost, "")
 	t += setPeerswapdVariable("rpchost", "localhost:42070", "", "")
 	t += setPeerswapdVariable("lnd.host", "localhost:10009", "", "LND_HOST")
-	t += setPeerswapdVariable("lnd.tlscertpath", defaultLndDir+"/tls.cert", "", "")
-	t += setPeerswapdVariable("lnd.macaroonpath", defaultLndDir+"/data/chain/bitcoin/"+config.Chain+"/admin.macaroon", "", "LND_MACAROONPATH")
+	t += setPeerswapdVariable("lnd.tlscertpath", filepath.Join(defaultLndDir, "tls.cert"), "", "")
+	t += setPeerswapdVariable("lnd.macaroonpath", filepath.Join(defaultLndDir, "data", "chain", "bitcoin", config.Chain, "admin.macaroon"), "", "LND_MACAROONPATH")
 
 	if config.ElementsPass == "" || config.ElementsUser == "" {
 		// disable Liquid so that peerswapd does not fail
@@ -181,15 +185,24 @@ func setPeerswapdVariable(variableName, defaultValue, newValue, envKey string) s
 		v = newValue
 	} else if envKey != "" && os.Getenv(envKey) != "" {
 		v = os.Getenv(envKey)
-	} else if s := readVariableFromPeerswapdConfig(variableName); s != "" {
+	} else if s := getPeerswapConfSetting(variableName); s != "" {
 		v = s
 	}
 	return variableName + "=" + v + "\n"
 }
 
-func readVariableFromPeerswapdConfig(searchVariable string) string {
+func getPeerswapConfSetting(searchVariable string) string {
+	filePath := filepath.Join(config.DataDir, "peerswap.conf")
+	return getConfSetting(searchVariable, filePath)
+}
+
+func getLndConfSetting(searchVariable string) string {
+	filePath := filepath.Join(config.LndDir, "lnd.conf")
+	return getConfSetting(searchVariable, filePath)
+}
+
+func getConfSetting(searchVariable, filePath string) string {
 	// Read the entire content of the file
-	filePath := config.DataDir + "/peerswap.conf"
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return ""
