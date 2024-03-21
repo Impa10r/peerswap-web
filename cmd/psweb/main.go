@@ -1245,7 +1245,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		// test that txindex=1 in bitcoin.conf
 		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
-		if getLndConfSetting("bitcoin.testnet") == "true" {
+		if os.Getenv("NETWORK") == "testnet" {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
 		}
 
