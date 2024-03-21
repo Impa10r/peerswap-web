@@ -4,7 +4,7 @@
 
 - Add Bitcoin balance and utxo list display
 - Implement Liquid Peg-In functionality
-- Fallback to getblock.io if local Bitcoin Core unreacheable
+- Fallback to getblock.io if local Bitcoin Core unreachable
 
 ## 1.1.8
 
