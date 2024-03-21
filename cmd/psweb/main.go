@@ -22,6 +22,7 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
+	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
 type AliasCache struct {
@@ -39,9 +40,10 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.8"
+const version = "v1.2.0"
 
 func main() {
+
 	var (
 		dataDir     = flag.String("datadir", "", "Path to config folder")
 		showHelp    = flag.Bool("help", false, "Show help")
@@ -72,8 +74,8 @@ func main() {
 	// on first start without config there will be no elements user and password
 	if config.ElementsPass == "" || config.ElementsUser == "" {
 		// check in peerswap.conf
-		config.ElementsPass = readVariableFromPeerswapdConfig("elementsd.rpcpass")
-		config.ElementsUser = readVariableFromPeerswapdConfig("elementsd.rpcuser")
+		config.ElementsPass = getPeerswapConfSetting("elementsd.rpcpass")
+		config.ElementsUser = getPeerswapConfSetting("elementsd.rpcuser")
 
 		// check if they were passed as env
 		if config.ElementsUser == "" && os.Getenv("ELEMENTS_USER") != "" {
@@ -104,7 +106,7 @@ func main() {
 
 	// Parse all template files in the templates directory
 	templates = template.Must(templates.
-		Funcs(template.FuncMap{"sats": toSats, "fmt": formatWithThousandSeparators}).
+		Funcs(template.FuncMap{"sats": toSats, "u": toUint, "fmt": formatWithThousandSeparators}).
 		ParseFS(tplFolder, templateNames...))
 
 	// create an embedded Filesystem
@@ -130,6 +132,8 @@ func main() {
 	r.HandleFunc("/log", logHandler)
 	r.HandleFunc("/logapi", logApiHandler)
 	r.HandleFunc("/backup", backupHandler)
+	r.HandleFunc("/bitcoin", bitcoinHandler)
+	r.HandleFunc("/pegin", peginHandler)
 
 	// Start the server
 	http.Handle("/", r)
@@ -141,8 +145,8 @@ func main() {
 
 	log.Println("Listening on http://localhost:" + config.ListenPort)
 
-	// Run Telegram wallet backup every minute
-	go startTimerBackup()
+	// Run every minute
+	go startTimer()
 
 	// Start Telegram bot
 	go telegramStart()
@@ -224,18 +228,20 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		AllowSwapRequests bool
 		Message           string
 		ColorScheme       string
-		SatAmount         string
+		LiquidBalance     uint64
 		ListPeers         string
 		ListSwaps         string
+		BitcoinBalance    uint64
 	}
 
 	data := Page{
 		AllowSwapRequests: config.AllowSwapRequests,
 		Message:           message,
 		ColorScheme:       config.ColorScheme,
-		SatAmount:         formatWithThousandSeparators(satAmount),
+		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps),
+		BitcoinBalance:    uint64(lndConfirmedWalletBalance()),
 	}
 
 	// executing template named "homepage"
@@ -322,33 +328,33 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Message     string
-		ColorScheme string
-		Peer        *peerswaprpc.PeerSwapPeer
-		PeerAlias   string
-		NodeUrl     string
-		Allowed     bool
-		Suspicious  bool
-		LBTC        bool
-		BTC         bool
-		SatAmount   string
-		ActiveSwaps string
-		DirectionIn bool
+		Message       string
+		ColorScheme   string
+		Peer          *peerswaprpc.PeerSwapPeer
+		PeerAlias     string
+		NodeUrl       string
+		Allowed       bool
+		Suspicious    bool
+		LBTC          bool
+		BTC           bool
+		LiquidBalance uint64
+		ActiveSwaps   string
+		DirectionIn   bool
 	}
 
 	data := Page{
-		Message:     message,
-		ColorScheme: config.ColorScheme,
-		Peer:        peer,
-		PeerAlias:   getNodeAlias(peer.NodeId),
-		NodeUrl:     config.NodeApi,
-		Allowed:     stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:  stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:         stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:        stringIsInSlice("lbtc", peer.SupportedAssets),
-		SatAmount:   formatWithThousandSeparators(satAmount),
-		ActiveSwaps: convertSwapsToHTMLTable(activeSwaps),
-		DirectionIn: sumLocal < sumRemote,
+		Message:       message,
+		ColorScheme:   config.ColorScheme,
+		Peer:          peer,
+		PeerAlias:     getNodeAlias(peer.NodeId),
+		NodeUrl:       config.NodeApi,
+		Allowed:       stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:    stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:           stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:          stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance: satAmount,
+		ActiveSwaps:   convertSwapsToHTMLTable(activeSwaps),
+		DirectionIn:   sumLocal < sumRemote,
 	}
 
 	// executing template named "peer"
@@ -596,7 +602,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		Message       string
 		ColorScheme   string
 		LiquidAddress string
-		SatAmount     uint64
+		LiquidBalance uint64
 		TxId          string
 		LiquidUrl     string
 		Outputs       *[]LiquidUTXO
@@ -607,7 +613,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		Message:       message,
 		ColorScheme:   config.ColorScheme,
 		LiquidAddress: addr,
-		SatAmount:     res2.GetSatAmount(),
+		LiquidBalance: res2.GetSatAmount(),
 		TxId:          txid,
 		LiquidUrl:     config.LiquidApi + "/tx/" + txid,
 		Outputs:       &outputs,
@@ -662,7 +668,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			txid, err := sendToAddress(
+			txid, err := sendLiquidToAddress(
 				r.FormValue("sendAddress"),
 				amt,
 				r.FormValue("subtractfee") == "on")
@@ -903,7 +909,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
-	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
 	// returns .bak with the name of the wallet
 	if fileName, err := backupAndZip(wallet); err == nil {
 		// Set the Content-Disposition header to suggest a filename
@@ -1061,9 +1067,33 @@ func showVersionInfo() {
 	fmt.Println("Version:", version)
 }
 
-func startTimerBackup() {
+func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		liquidBackup(false)
+		if config.PeginTxId != "" {
+			confs := lndNumConfirmations(config.PeginTxId)
+			if confs >= 102 {
+				rawTx := getRawTransaction(config.PeginTxId)
+				proof := getTxOutProof(config.PeginTxId)
+				txid := claimPegin(rawTx, proof, config.PeginClaimScript)
+
+				if txid == "" {
+					log.Println("Peg-In claim FAILED!")
+					log.Println("Mainchain TxId:", config.PeginTxId)
+					log.Println("Claim Script:", config.PeginClaimScript)
+					telegramSendMessage("❗ Peg-In claim FAILED! See log for details.")
+				} else {
+					log.Println("Peg-In success! Liquid TxId:", txid)
+					telegramSendMessage("💰 Peg-In success!")
+				}
+
+				// stop trying after first attempt
+				config.PeginTxId = ""
+				saveConfig()
+
+			}
+		}
+
 	}
 }
 
@@ -1106,7 +1136,7 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
 	destinationZip, err := backupAndZip(wallet)
 	if err != nil {
 		log.Println("Error zipping backup:", err)
@@ -1128,4 +1158,117 @@ func liquidBackup(force bool) {
 	// save the wallet amount
 	config.ElementsBackupAmount = satAmount
 	saveConfig()
+}
+
+func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
+	//check for error message to display
+	message := ""
+	keys, ok := r.URL.Query()["err"]
+	if ok && len(keys[0]) > 0 {
+		message = keys[0]
+	}
+
+	utxos := lndListUnspent()
+
+	type Page struct {
+		Message        string
+		ColorScheme    string
+		BitcoinBalance uint64
+		Outputs        []*lnrpc.Utxo
+		PeginTxId      string
+		BitcoinApi     string
+		Confirmations  int32
+		ETA            string
+	}
+
+	btcBalance := lndConfirmedWalletBalance()
+	confs := int32(0)
+
+	if config.PeginTxId != "" {
+		confs = lndNumConfirmations(config.PeginTxId)
+	}
+
+	n := (102 - confs) * 10
+	futureTime := time.Now().Add(time.Duration(n) * time.Minute)
+	eta := futureTime.Format("2006-01-02 15:04")
+
+	data := Page{
+		Message:        message,
+		ColorScheme:    config.ColorScheme,
+		BitcoinBalance: uint64(btcBalance),
+		Outputs:        utxos,
+		PeginTxId:      config.PeginTxId,
+		BitcoinApi:     config.BitcoinApi,
+		Confirmations:  confs,
+		ETA:            eta,
+	}
+
+	// executing template named "bitcoin"
+	err := templates.ExecuteTemplate(w, "bitcoin", data)
+	if err != nil {
+		log.Fatalln(err)
+		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
+func peginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Parse the form data
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Error parsing form data", http.StatusBadRequest)
+			return
+		}
+
+		amount, err := strconv.ParseInt(r.FormValue("peginAmount"), 10, 64)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		btcBalance := lndConfirmedWalletBalance()
+		sweepall := amount == btcBalance
+
+		// test that txindex=1 in bitcoin.conf
+		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
+		if getLndConfSetting("bitcoin.testnet") == "true" {
+			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+		}
+		if getRawTransaction(tx) == "" {
+			redirectWithError(w, r, "/bitcoin?", errors.New("must set txindex=1 in bitcoin.conf"))
+			return
+		}
+
+		var addr PeginAddress
+
+		err = getPeginAddress(&addr)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		log.Println("Peg-In started to mainchain address:", addr.MainChainAddress, "claim script:", addr.ClaimScript, "amount:", amount)
+
+		config.PeginClaimScript = addr.ClaimScript
+		saveConfig()
+
+		txid, err := lndSendCoins(addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		config.PeginTxId = txid
+		saveConfig()
+
+		// Redirect to bitcoin page to follow the pegin progress
+		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }

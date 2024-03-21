@@ -88,6 +88,9 @@ func telegramConnect() {
 }
 
 func telegramSendMessage(msgText string) bool {
+	if chatId == 0 {
+		return false
+	}
 	msg := tgbotapi.NewMessage(chatId, msgText)
 	_, err := bot.Send(msg)
 	if err != nil {

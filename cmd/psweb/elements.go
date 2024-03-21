@@ -60,19 +60,6 @@ type rpcResponse struct {
 	Err    *RPCError       `json:"error"`
 }
 
-// NewClient returns an RpcClient
-func NewClient() (c *RPCClient) {
-	host := readVariableFromPeerswapdConfig("elementsd.rpchost")
-	port := readVariableFromPeerswapdConfig("elementsd.rpcport")
-	user := config.ElementsUser
-	passwd := config.ElementsPass
-
-	httpClient := &http.Client{}
-	serverAddr := fmt.Sprintf("%s:%s", host, port)
-	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: 5}
-	return
-}
-
 // doTimeoutRequest process a HTTP request with timeout
 func (c *RPCClient) doTimeoutRequest(timer *time.Timer, req *http.Request) (*http.Response, error) {
 	type result struct {
@@ -149,6 +136,19 @@ type Elements struct {
 	client *RPCClient
 }
 
+// ElementsClient returns an RpcClient
+func ElementsClient() (c *RPCClient) {
+	host := getPeerswapConfSetting("elementsd.rpchost")
+	port := getPeerswapConfSetting("elementsd.rpcport")
+	user := config.ElementsUser
+	passwd := config.ElementsPass
+
+	httpClient := &http.Client{}
+	serverAddr := fmt.Sprintf("%s:%s", host, port)
+	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: 5}
+	return
+}
+
 type LiquidUTXO struct {
 	TxID             string  `json:"txid"`
 	Vout             int     `json:"vout"`
@@ -175,10 +175,10 @@ type LiquidUTXO struct {
 }
 
 func listUnspent(outputs *[]LiquidUTXO) error {
-	client := NewClient()
+	client := ElementsClient()
 	service := &Elements{client}
 	params := []string{}
-	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
 
 	r, err := service.client.call("listunspent", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
@@ -187,7 +187,6 @@ func listUnspent(outputs *[]LiquidUTXO) error {
 	}
 
 	// Unmarshal the JSON array into a slice of LiquidUTXO structs
-
 	err = json.Unmarshal([]byte(r.Result), &outputs)
 	if err != nil {
 		return err
@@ -201,13 +200,13 @@ type SendParams struct {
 	SubtractFeeFromAmount bool    `json:"subtractfeefromamount"`
 }
 
-func sendToAddress(address string,
+func sendLiquidToAddress(address string,
 	amountSats uint64,
 	subtractFeeFromAmount bool,
 ) (string, error) {
-	client := NewClient()
+	client := ElementsClient()
 	service := &Elements{client}
-	wallet := readVariableFromPeerswapdConfig("elementsd.rpcwallet")
+	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
 
 	params := &SendParams{
 		Address:               address,
@@ -222,26 +221,23 @@ func sendToAddress(address string,
 	}
 
 	txid := ""
-	// Unmarshal the JSON array into a txid
-
 	err = json.Unmarshal([]byte(r.Result), &txid)
 	if err != nil {
 		return "", err
 	}
 	return txid, nil
-
 }
 
 // Backup wallet and zip it with Elements Core password
 // .bak's name is equal to master blinding key
 func backupAndZip(wallet string) (string, error) {
 
-	client := NewClient()
+	client := ElementsClient()
 	service := &Elements{client}
 
 	r, err := service.client.call("dumpmasterblindingkey", []string{}, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements rpc: %v", err)
+		log.Printf("Elements dumpmasterblindingkey: %v", err)
 		return "", err
 	}
 
@@ -258,7 +254,7 @@ func backupAndZip(wallet string) (string, error) {
 
 	r, err = service.client.call("backupwallet", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements rpc: %v", err)
+		log.Printf("Elements backupwallet: %v", err)
 		return "", err
 	}
 
@@ -307,4 +303,51 @@ func backupAndZip(wallet string) (string, error) {
 	zipw.Flush()
 
 	return destinationZip, nil
+}
+
+type PeginAddress struct {
+	MainChainAddress string `json:"mainchain_address"`
+	ClaimScript      string `json:"claim_script"`
+}
+
+func getPeginAddress(address *PeginAddress) error {
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	params := &[]string{}
+
+	r, err := service.client.call("getpeginaddress", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements getpeginaddress: %v", err)
+		return err
+	}
+
+	err = json.Unmarshal([]byte(r.Result), &address)
+	if err != nil {
+		log.Printf("Elements getpeginaddress: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func claimPegin(rawTx, proof, claimScript string) string {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := []interface{}{rawTx, proof, claimScript}
+	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+
+	r, err := service.client.call("claimpegin", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements claimpegin: %v", err)
+		return ""
+	}
+
+	txid := ""
+	err = json.Unmarshal([]byte(r.Result), &txid)
+	if err != nil {
+		log.Printf("Elements getpeginaddress: %v", err)
+		return ""
+	}
+	return txid
 }

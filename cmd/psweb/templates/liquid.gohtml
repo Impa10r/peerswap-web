@@ -4,7 +4,7 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3 class="title is-4">🌊 Liquid sats: {{fmt .SatAmount}}</h3>
+            <h3 class="title is-4">🌊 Liquid sats: {{fmt .LiquidBalance}}</h3>
             <center>
               <a href="/backup">Backup Wallet</a>
             </center>
@@ -64,7 +64,7 @@
                 <input autocomplete="false" name="hidden" type="text" style="display:none;">
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Send To Address</label>
+                    <label class="label">Address</label>
                   </div>
                   <div class="field-body">
                     <div class="field">
@@ -76,7 +76,7 @@
                 </div>
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Amount L-BTC</label>
+                    <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
                   </div>
                   <div class="field-body">
                     <div class="field">
@@ -88,7 +88,7 @@
                 </div>
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label"><a href="javascript:void(0);" onclick="setMax()">Set Max</a></label>
+                    <label class="label"> </label>
                   </div>
                   <div class="field-body">
                     <div class="field">
@@ -101,7 +101,6 @@
                     </div>
                   </div>
                 </div>
-                <br>
                 <center>
                   <input type="hidden" name="action" value="sendLiquid">
                   <input class="button is-large" type="submit" value="Send Liquid">
@@ -110,7 +109,7 @@
             </div>
             <script>
               function setMax() {
-                document.getElementById("sendAmount").value = {{.SatAmount}};
+                document.getElementById("sendAmount").value = {{.LiquidBalance}};
                 document.getElementById("subtractfee").checked = true;
               }
             </script>
