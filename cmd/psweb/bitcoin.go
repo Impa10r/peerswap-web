@@ -14,14 +14,10 @@ type Bitcoin struct {
 // ElementsClient returns an RpcClient
 func BitcoinClient() (c *RPCClient) {
 	// Connect to Bitcoin Core RPC server
-	host := getLndConfSetting("bitcoind.rpchost")
-	user := getLndConfSetting("bitcoind.rpcuser")
-	passwd := getLndConfSetting("bitcoind.rpcpass")
-
-	port := "8332"
-	if getLndConfSetting("bitcoin.testnet") == "true" {
-		port = "18332"
-	}
+	host := config.BitcoinHost
+	user := config.BitcoinUser
+	passwd := config.BitcoinPasswd
+	port := config.BitcoinPort
 
 	httpClient := &http.Client{}
 	serverAddr := fmt.Sprintf("http://%s:%s", host, port)
@@ -29,7 +25,7 @@ func BitcoinClient() (c *RPCClient) {
 	return
 }
 
-func getRawTransaction(txid string) string {
+func getRawTransaction(txid string) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
 
@@ -38,16 +34,16 @@ func getRawTransaction(txid string) string {
 	r, err := service.client.call("getrawtransaction", params, "")
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Bitcoin rpc: %v", err)
-		return ""
+		return "", err
 	}
 
 	raw := ""
 	err = json.Unmarshal([]byte(r.Result), &raw)
 	if err != nil {
 		log.Printf("Bitcoin rpc: %v", err)
-		return ""
+		return "", err
 	}
-	return raw
+	return raw, nil
 }
 
 func getTxOutProof(txid string) string {

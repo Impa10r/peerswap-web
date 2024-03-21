@@ -1073,24 +1073,30 @@ func startTimer() {
 		if config.PeginTxId != "" {
 			confs := lndNumConfirmations(config.PeginTxId)
 			if confs >= 102 {
-				rawTx := getRawTransaction(config.PeginTxId)
-				proof := getTxOutProof(config.PeginTxId)
-				txid := claimPegin(rawTx, proof, config.PeginClaimScript)
+				rawTx, err := getRawTransaction(config.PeginTxId)
+				if err == nil {
+					proof := getTxOutProof(config.PeginTxId)
+					txid := claimPegin(rawTx, proof, config.PeginClaimScript)
 
-				if txid == "" {
+					if txid == "" {
+						log.Println("Peg-In claim FAILED!")
+						log.Println("Mainchain TxId:", config.PeginTxId)
+						log.Println("Claim Script:", config.PeginClaimScript)
+						telegramSendMessage("❗ Peg-In claim FAILED! See log for details.")
+					} else {
+						log.Println("Peg-In success! Liquid TxId:", txid)
+						telegramSendMessage("💰 Peg-In success!")
+					}
+				} else {
 					log.Println("Peg-In claim FAILED!")
 					log.Println("Mainchain TxId:", config.PeginTxId)
 					log.Println("Claim Script:", config.PeginClaimScript)
 					telegramSendMessage("❗ Peg-In claim FAILED! See log for details.")
-				} else {
-					log.Println("Peg-In success! Liquid TxId:", txid)
-					telegramSendMessage("💰 Peg-In success!")
 				}
 
 				// stop trying after first attempt
 				config.PeginTxId = ""
 				saveConfig()
-
 			}
 		}
 
@@ -1239,8 +1245,10 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		if getLndConfSetting("bitcoin.testnet") == "true" {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
 		}
-		if getRawTransaction(tx) == "" {
-			redirectWithError(w, r, "/bitcoin?", errors.New("must set txindex=1 in bitcoin.conf"))
+
+		_, err = getRawTransaction(tx)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 

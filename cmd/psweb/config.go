@@ -33,6 +33,10 @@ type Configuration struct {
 	PeginClaimScript     string
 	PeginTxId            string
 	LndDir               string
+	BitcoinHost          string
+	BitcoinUser          string
+	BitcoinPasswd        string
+	BitcoinPort          string
 }
 
 var config Configuration
@@ -66,6 +70,10 @@ func loadConfig(dataDir string) {
 	config.ElementsDir = filepath.Join(currentUser.HomeDir, ".elements")
 	config.ElementsDirMapped = filepath.Join(currentUser.HomeDir, ".elements")
 	config.LndDir = filepath.Join(currentUser.HomeDir, ".lnd")
+	config.BitcoinHost = getLndConfSetting("bitcoind.rpchost")
+	config.BitcoinUser = getLndConfSetting("bitcoind.rpcuser")
+	config.BitcoinPasswd = getLndConfSetting("bitcoind.rpcpass")
+	config.BitcoinPort = "8332"
 
 	// environment values take priority
 	if os.Getenv("NETWORK") == "testnet" {
@@ -73,6 +81,7 @@ func loadConfig(dataDir string) {
 		config.NodeApi = "https://mempool.space/testnet/lightning/node"
 		config.BitcoinApi = "https://mempool.space/testnet"
 		config.LiquidApi = "https://liquid.network/testnet"
+		config.BitcoinPort = "18332"
 	}
 
 	if os.Getenv("ELEMENTS_FOLDER") != "" {
@@ -81,6 +90,22 @@ func loadConfig(dataDir string) {
 
 	if os.Getenv("ELEMENTS_FOLDER_MAPPED") != "" {
 		config.ElementsDirMapped = os.Getenv("ELEMENTS_FOLDER_MAPPED")
+	}
+
+	if os.Getenv("BITCOIN_HOST") != "" {
+		config.BitcoinHost = os.Getenv("BITCOIN_HOST")
+	}
+
+	if os.Getenv("BITCOIN_RPC_PORT") != "" {
+		config.BitcoinPort = os.Getenv("BITCOIN_RPC_PORT")
+	}
+
+	if os.Getenv("BITCOIN_RPC_USER") != "" {
+		config.BitcoinUser = os.Getenv("BITCOIN_RPC_USER")
+	}
+
+	if os.Getenv("BITCOIN_RPC_PASSWORD") != "" {
+		config.BitcoinPasswd = os.Getenv("BITCOIN_RPC_PASSWORD")
 	}
 
 	configFile := filepath.Join(dataDir, "pswebconfig.json")
