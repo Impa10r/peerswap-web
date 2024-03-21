@@ -1,5 +1,10 @@
 # Versions
 
+## 1.2.0
+
+- Add Bitcoin balance and utxo list display
+- Implement Liquid Peg-In functionality
+
 ## 1.1.8 (affects Docker only)
 
 - Use a non-root user "peerswap" inside the container

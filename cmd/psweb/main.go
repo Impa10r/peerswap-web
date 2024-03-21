@@ -40,7 +40,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.1.8"
+const version = "v1.2.0"
 
 func main() {
 
@@ -1240,7 +1240,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
 		}
 		if getRawTransaction(tx) == "" {
-			redirectWithError(w, r, "/bitcoin?", errors.New("Must set txindex=1 in bitcoin.conf"))
+			redirectWithError(w, r, "/bitcoin?", errors.New("must set txindex=1 in bitcoin.conf"))
 			return
 		}
 
