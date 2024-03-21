@@ -4,11 +4,12 @@
 
 - Add Bitcoin balance and utxo list display
 - Implement Liquid Peg-In functionality
+- Fallback to getblock.io if local Bitcoin Core unreacheable
 
-## 1.1.8 (affects Docker only)
+## 1.1.8
 
-- Use a non-root user "peerswap" inside the container
 - Docker image can no longer be run by host's root user
+- Use a non-root user "peerswap" inside the container
 
 !!! BREAKING CHANGES FOR DOCKER !!! 
 
