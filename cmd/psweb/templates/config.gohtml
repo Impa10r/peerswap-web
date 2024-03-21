@@ -7,193 +7,235 @@
             <h1 class="title is-4">Configuration</h1> 
             <form autocomplete="off" action="/save" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Swap Requests</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <div class="control">
+              <div class="columns">
+                <div class="column"> 
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Swap Requests</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="allowSwapRequests">
+                              <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
+                              <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Bitcon Swaps *</label>
+                    </div>
+                    <div class="field-body">
                       <div class="select is-medium is-fullwidth">
-                        <select name="allowSwapRequests">
-                          <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
-                          <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
+                        <select name="bitcoinSwaps">
+                          <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
+                          <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
                         </select>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Bitcon Swaps *</label>
-                </div>
-                <div class="field-body">
-                  <div class="select is-medium is-fullwidth">
-                    <select name="bitcoinSwaps">
-                      <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
-                      <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
-                    </select>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Color Theme</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="colorScheme">
+                              <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
+                              <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Color Theme</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <div class="control">
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Node Info Link</label>
+                    </div>
+                    <div class="field-body">
                       <div class="select is-medium is-fullwidth">
-                        <select name="colorScheme">
-                          <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
-                          <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                        <select name="nodeApi">
+                          {{if ne .Config.LocalMempool ""}}
+                            <option value="{{.Config.LocalMempool}}/lightning/node" {{if eq .Config.NodeApi "{{.Config.LocalMempool}}/lightning/node"}}selected{{end}}>{{.Config.LocalMempool}}/lightning/node</option>
+                          {{end}}
+                          <option value="https://mempool.space/testnet/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/testnet/lightning/node"}}selected{{end}}>https://mempool.space/testnet/lightning/node</option>
+                          <option value="https://mempool.space/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/lightning/node"}}selected{{end}}>https://mempool.space/lightning/node</option>
+                          <option value="https://amboss.space/node" {{if eq .Config.NodeApi "https://amboss.space/node"}}selected{{end}}>https://amboss.space/node</option> 
+                          <option value="https://lightningnetwork.plus/nodes" {{if eq .Config.NodeApi "https://lightningnetwork.plus/nodes"}}selected{{end}}>https://lightningnetwork.plus/nodes</option>   
                         </select>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Node Info Link</label>
-                </div>
-                <div class="field-body">
-                  <div class="select is-medium is-fullwidth">
-                    <select name="nodeApi">
-                      {{if ne .Config.LocalMempool ""}}
-                        <option value="{{.Config.LocalMempool}}/lightning/node" {{if eq .Config.NodeApi "{{.Config.LocalMempool}}/lightning/node"}}selected{{end}}>{{.Config.LocalMempool}}/lightning/node</option>
-                      {{end}}
-                      <option value="https://mempool.space/testnet/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/testnet/lightning/node"}}selected{{end}}>https://mempool.space/testnet/lightning/node</option>
-                      <option value="https://mempool.space/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/lightning/node"}}selected{{end}}>https://mempool.space/lightning/node</option>
-                      <option value="https://amboss.space/node" {{if eq .Config.NodeApi "https://amboss.space/node"}}selected{{end}}>https://amboss.space/node</option> 
-                      <option value="https://lightningnetwork.plus/nodes" {{if eq .Config.NodeApi "https://lightningnetwork.plus/nodes"}}selected{{end}}>https://lightningnetwork.plus/nodes</option>   
-                    </select>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Bitcoin Tx Link</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="select is-medium is-fullwidth">
+                        <select name="bitcoinApi">
+                          {{if ne .Config.LocalMempool ""}}
+                            <option value="{{.Config.LocalMempool}}" {{if eq .Config.NodeApi .Config.LocalMempool}}selected{{end}}>{{.Config.LocalMempool}}</option>
+                          {{end}}
+                          <option value="https://mempool.space/testnet" {{if eq .Config.BitcoinApi "https://mempool.space/testnet"}}selected{{end}}>https://mempool.space/testnet</option>
+                          <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>     
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Bitcoin Tx Link</label>
-                </div>
-                <div class="field-body">
-                  <div class="select is-medium is-fullwidth">
-                    <select name="bitcoinApi">
-                      {{if ne .Config.LocalMempool ""}}
-                        <option value="{{.Config.LocalMempool}}" {{if eq .Config.NodeApi .Config.LocalMempool}}selected{{end}}>{{.Config.LocalMempool}}</option>
-                      {{end}}
-                      <option value="https://mempool.space/testnet" {{if eq .Config.BitcoinApi "https://mempool.space/testnet"}}selected{{end}}>https://mempool.space/testnet</option>
-                      <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>     
-                    </select>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Local Mempool</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Local Mempool</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Liquid Tx Link</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="select is-medium is-fullwidth">
+                        <select name="liquidApi">
+                          <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
+                          <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>          
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Liquid Tx Link</label>
-                </div>
-                <div class="field-body">
-                  <div class="select is-medium is-fullwidth">
-                    <select name="liquidApi">
-                      <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
-                      <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>          
-                    </select>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Swaps History Limit</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="number" value="{{.Config.MaxHistory}}" name="maxHistory" placeholder="100">
+                        </p>
+                      </div>
+                    </div>
                   </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Telegram Bot Token</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
+                        </p>
+                      </div>
+                    </div>
+                  </div> 
                 </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">RPC Host</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
-                    </p>
+                <div class="column"> 
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">PeerSwap RPC Host</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Swaps History Limit</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" value="{{.Config.MaxHistory}}" name="maxHistory" placeholder="100">
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Elements RPC Username *</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Elements RPC Username *</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Elements RPC Password *</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Elements RPC Password *</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Elements Own Folder</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Elements Own Folder</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Elements Mapped Folder</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Elements Mapped Folder</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Bitcoin RPC Host</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host" required>
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Telegram Bot Token</label>
-                </div>
-                <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
-                    </p>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Bitcoin RPC Username</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.BitcoinUser}}" name="bitcoinUser" placeholder="Bitcoin Core RPC User">
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Bitcoin RPC Password</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="password" value="{{.Config.BitcoinPass}}" name="bitcoinPass" placeholder="Bitcoin Core RPC Password">
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

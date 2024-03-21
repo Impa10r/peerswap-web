@@ -828,6 +828,9 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		config.ElementsPass = r.FormValue("elementsPass")
 		config.ElementsDir = r.FormValue("elementsDir")
 		config.ElementsDirMapped = r.FormValue("elementsDirMapped")
+		config.BitcoinHost = r.FormValue("bitcoinHost")
+		config.BitcoinUser = r.FormValue("bitcoinUser")
+		config.BitcoinPass = r.FormValue("bitcoinPass")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
@@ -1248,8 +1251,18 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		_, err = getRawTransaction(tx)
 		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
+			// fallback to getblock.io
+			config.BitcoinHost = getBlockIoHost()
+			config.BitcoinUser = ""
+			config.BitcoinPass = ""
+			_, err = getRawTransaction(tx)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", errors.New("getrawtransaction request failed, check BitcoinHost in Config"))
+				return
+			} else {
+				// use getblock.io endpoint going forward
+				saveConfig()
+			}
 		}
 
 		var addr PeginAddress

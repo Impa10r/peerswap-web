@@ -35,8 +35,7 @@ type Configuration struct {
 	LndDir               string
 	BitcoinHost          string
 	BitcoinUser          string
-	BitcoinPasswd        string
-	BitcoinPort          string
+	BitcoinPass          string
 }
 
 var config Configuration
@@ -70,20 +69,11 @@ func loadConfig(dataDir string) {
 	config.ElementsDir = filepath.Join(currentUser.HomeDir, ".elements")
 	config.ElementsDirMapped = filepath.Join(currentUser.HomeDir, ".elements")
 	config.LndDir = filepath.Join(currentUser.HomeDir, ".lnd")
-	config.BitcoinHost = getLndConfSetting("bitcoind.rpchost")
-	config.BitcoinUser = getLndConfSetting("bitcoind.rpcuser")
-	config.BitcoinPasswd = getLndConfSetting("bitcoind.rpcpass")
-	config.BitcoinPort = "8332"
+
+	host := getLndConfSetting("bitcoind.rpchost")
+	port := "8332"
 
 	// environment values take priority
-	if os.Getenv("NETWORK") == "testnet" {
-		config.Chain = "testnet"
-		config.NodeApi = "https://mempool.space/testnet/lightning/node"
-		config.BitcoinApi = "https://mempool.space/testnet"
-		config.LiquidApi = "https://liquid.network/testnet"
-		config.BitcoinPort = "18332"
-	}
-
 	if os.Getenv("ELEMENTS_FOLDER") != "" {
 		config.ElementsDir = os.Getenv("ELEMENTS_FOLDER")
 	}
@@ -92,20 +82,22 @@ func loadConfig(dataDir string) {
 		config.ElementsDirMapped = os.Getenv("ELEMENTS_FOLDER_MAPPED")
 	}
 
-	if os.Getenv("BITCOIN_HOST") != "" {
-		config.BitcoinHost = os.Getenv("BITCOIN_HOST")
+	if os.Getenv("NETWORK") == "testnet" {
+		config.Chain = "testnet"
+		config.NodeApi = "https://mempool.space/testnet/lightning/node"
+		config.BitcoinApi = "https://mempool.space/testnet"
+		config.LiquidApi = "https://liquid.network/testnet"
+		port = "18332"
 	}
 
-	if os.Getenv("BITCOIN_RPC_PORT") != "" {
-		config.BitcoinPort = os.Getenv("BITCOIN_RPC_PORT")
-	}
-
-	if os.Getenv("BITCOIN_RPC_USER") != "" {
-		config.BitcoinUser = os.Getenv("BITCOIN_RPC_USER")
-	}
-
-	if os.Getenv("BITCOIN_RPC_PASSWORD") != "" {
-		config.BitcoinPasswd = os.Getenv("BITCOIN_RPC_PASSWORD")
+	if host == "" {
+		config.BitcoinHost = getBlockIoHost()
+		config.BitcoinUser = ""
+		config.BitcoinPass = ""
+	} else {
+		config.BitcoinHost = "http://" + host + ":" + port
+		config.BitcoinUser = getLndConfSetting("bitcoind.rpcuser")
+		config.BitcoinPass = getLndConfSetting("bitcoind.rpcpass")
 	}
 
 	configFile := filepath.Join(dataDir, "pswebconfig.json")
@@ -247,4 +239,12 @@ func getConfSetting(searchVariable, filePath string) string {
 		return value
 	}
 	return ""
+}
+
+func getBlockIoHost() string {
+	if os.Getenv("NETWORK") == "testnet" {
+		return "https://go.getblock.io/af084a9cb73840be95696eb29b5165e0"
+	} else {
+		return "https://go.getblock.io/6885fe0778944e28979adc739c7105b6"
+	}
 }

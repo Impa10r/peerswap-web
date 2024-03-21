@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -16,11 +15,10 @@ func BitcoinClient() (c *RPCClient) {
 	// Connect to Bitcoin Core RPC server
 	host := config.BitcoinHost
 	user := config.BitcoinUser
-	passwd := config.BitcoinPasswd
-	port := config.BitcoinPort
+	passwd := config.BitcoinPass
 
 	httpClient := &http.Client{}
-	serverAddr := fmt.Sprintf("http://%s:%s", host, port)
+	serverAddr := host
 	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: 5}
 	return
 }
