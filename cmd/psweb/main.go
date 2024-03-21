@@ -1078,13 +1078,13 @@ func startTimer() {
 				txid := claimPegin(rawTx, proof, config.PeginClaimScript)
 
 				if txid == "" {
-					log.Println("WARNING! Peg-In claim FAILED!")
+					log.Println("Peg-In claim FAILED!")
 					log.Println("Mainchain TxId:", config.PeginTxId)
 					log.Println("Claim Script:", config.PeginClaimScript)
-					telegramSendMessage("WARNING! Peg-In claim FAILED! See log for details.")
+					telegramSendMessage("❗ Peg-In claim FAILED! See log for details.")
 				} else {
 					log.Println("Peg-In success! Liquid TxId:", txid)
-					telegramSendMessage("Peg-In success!")
+					telegramSendMessage("💰 Peg-In success!")
 				}
 
 				// stop trying after first attempt
