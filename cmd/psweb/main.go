@@ -1085,7 +1085,7 @@ func startTimer() {
 
 			if confs == 1 {
 				futureTime := time.Now().Add(time.Duration(1010) * time.Minute)
-				eta := futureTime.Format("2006-01-02 15:04")
+				eta := futureTime.Format("15:04")
 				telegramSendMessage("⏰ Peg-in started (1/102 confs). ETA: " + eta)
 			}
 
@@ -1214,7 +1214,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 	n := (102 - confs) * 10
 	futureTime := time.Now().Add(time.Duration(n) * time.Minute)
-	eta := futureTime.Format("2006-01-02 15:04")
+	eta := futureTime.Format("15:04")
 
 	data := Page{
 		Message:        message,

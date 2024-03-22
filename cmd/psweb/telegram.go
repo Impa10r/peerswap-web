@@ -60,7 +60,7 @@ func telegramStart() {
 				} else {
 					confs := lndNumConfirmations(config.PeginTxId)
 					futureTime := time.Now().Add(time.Duration(10*(102-confs)) * time.Minute)
-					eta := futureTime.Format("2006-01-02 15:04")
+					eta := futureTime.Format("15:04")
 					t = "⏰ " + strconv.Itoa(int(confs)) + "/102 confs, ETA: " + eta
 				}
 				telegramSendMessage(t)
