@@ -4,10 +4,14 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3 class="title is-4">🌊&nbspLiquid:&nbsp{{fmt .LiquidBalance}}</h3>
-            <center>
-              <a href="/backup">Backup Wallet</a>
-            </center>
+            <div class="columns">
+              <div class="column">
+                <h3 class="title is-4">🌊&nbspLiquid:&nbsp{{fmt .LiquidBalance}}</h3>
+              </div>
+              <div class="column">
+                <a href="/backup">Backup Wallet</a>
+              </div> 
+            </div> 
           </div>
           {{if eq .TxId ""}}
             <div class="box">

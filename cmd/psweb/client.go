@@ -204,24 +204,20 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		table += visualiseSwapStatus(swap.State, false) + "&nbsp"
 		table += formatWithThousandSeparators(swap.Amount)
 
-		switch swap.Type + swap.Role {
-		case "swap-outsender":
-			table += " ⚡&nbsp⇨&nbsp"
-		case "swap-insender":
-			table += " ⚡&nbsp⇦&nbsp"
-		case "swap-outreceiver":
-			table += " ⚡&nbsp⇦&nbsp"
-		case "swap-inreceiver":
-			table += " ⚡&nbsp⇨&nbsp"
+		asset := "🌊"
+		if swap.Asset == "btc" {
+			asset = "<span style=\"color: orange;\">₿</span>"
 		}
 
-		switch swap.Asset {
-		case "lbtc":
-			table += "🌊"
-		case "btc":
-			table += "₿"
-		default:
-			table += "?"
+		switch swap.Type + swap.Role {
+		case "swap-outsender":
+			table += " ⚡&nbsp⇨&nbsp" + asset
+		case "swap-insender":
+			table += " " + asset + "&nbsp⇨&nbsp⚡"
+		case "swap-outreceiver":
+			table += " " + asset + "&nbsp⇨&nbsp⚡"
+		case "swap-inreceiver":
+			table += " ⚡&nbsp⇨&nbsp" + asset
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
@@ -235,9 +231,8 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 			table += " ?&nbsp"
 		}
 
-		table += "<a href=\"/peer?id=" + swap.PeerNodeId + "\">"
 		table += getNodeAlias(swap.PeerNodeId)
-		table += "</a></td></tr>"
+		table += "</td></tr>"
 
 		unsortedTable = append(unsortedTable, Table{
 			TimeStamp: swap.CreatedAt,

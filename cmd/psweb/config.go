@@ -142,8 +142,10 @@ func savePeerSwapdConfig() {
 	filename := filepath.Join(config.DataDir, "peerswap.conf")
 	defaultLndDir := filepath.Join(currentUser.HomeDir, "/.lnd")
 
+	t := "# Config managed by PeerSwap Web UI\n"
+	t += "# It is not recommended to modify this file directly\n\n"
 	//key, default, new value, env key
-	t := setPeerswapdVariable("host", "localhost:42069", config.RpcHost, "")
+	t += setPeerswapdVariable("host", "localhost:42069", config.RpcHost, "")
 	t += setPeerswapdVariable("rpchost", "localhost:42070", "", "")
 	t += setPeerswapdVariable("lnd.host", "localhost:10009", "", "LND_HOST")
 	t += setPeerswapdVariable("lnd.tlscertpath", filepath.Join(defaultLndDir, "tls.cert"), "", "")
