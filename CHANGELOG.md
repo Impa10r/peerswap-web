@@ -1,5 +1,9 @@
 # Versions
 
+## 1.2.1
+
+- Various UI style improvements
+
 ## 1.2.0
 
 - Add Bitcoin balance and utxo list display
