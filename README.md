@@ -23,11 +23,11 @@ docker run --net=host \
 ghcr.io/impa10r/peerswap-web:latest
 ```
 
-*Change USER in ELEMENTS_FOLDER path to your username. This example assumes .lnd, .elements and .peerswap folders in the host user's home directory (must be not root), and connects to LND via host network. 
+*Change USER in ELEMENTS_FOLDER path to your username. This user must be not root. This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
 
-Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require different parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
+Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require different parameters (-e). If -e NETWORK="testnet" is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
-If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then, use ```docker exec "container id" pscli```.
+If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then run ```docker exec "container id" pscli```.
 
 If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one.
 
