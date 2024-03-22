@@ -139,7 +139,7 @@ docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=49..
 
 ## Automatic backup to a Telegram bot
 
-Create a new telegram bot with [BotFather](https://t.me/botfather) and copy API token to PS Web Configuration page. Type /start. The backup file will be sent upon every change of the Liquid balance.
+Create a new telegram bot with [BotFather](https://t.me/botfather) and copy API Token to PS Web Configuration page. Type /start. The backup file will be sent upon every change of the Liquid balance. To re-use an existing bot make sure to revoke old API Token.
 
 ## Uninstall
 
