@@ -31,14 +31,14 @@ func getRawTransaction(txid string) (string, error) {
 
 	r, err := service.client.call("getrawtransaction", params, "")
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Bitcoin rpc: %v", err)
+		log.Printf("getrawtransaction: %v", err)
 		return "", err
 	}
 
 	raw := ""
 	err = json.Unmarshal([]byte(r.Result), &raw)
 	if err != nil {
-		log.Printf("Bitcoin rpc: %v", err)
+		log.Printf("getrawtransaction unmarshall: %v", err)
 		return "", err
 	}
 	return raw, nil
@@ -52,14 +52,14 @@ func getTxOutProof(txid string) string {
 
 	r, err := service.client.call("gettxoutproof", params, "")
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Bitcoin rpc: %v", err)
+		log.Printf("gettxoutproof: %v", err)
 		return ""
 	}
 
 	proof := ""
 	err = json.Unmarshal([]byte(r.Result), &proof)
 	if err != nil {
-		log.Printf("Bitcoin rpc: %v", err)
+		log.Printf("gettxoutproof unmarshall: %v", err)
 		return ""
 	}
 	return proof

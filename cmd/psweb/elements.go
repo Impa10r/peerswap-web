@@ -150,7 +150,7 @@ func ElementsClient() (c *RPCClient) {
 		user:       user,
 		passwd:     passwd,
 		httpClient: httpClient,
-		timeout:    300} // 5 minutes for claimpegin
+		timeout:    30}
 	return
 }
 
@@ -323,20 +323,20 @@ func getPeginAddress(address *PeginAddress) error {
 
 	r, err := service.client.call("getpeginaddress", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements getpeginaddress: %v", err)
+		log.Printf("getpeginaddress: %v", err)
 		return err
 	}
 
 	err = json.Unmarshal([]byte(r.Result), &address)
 	if err != nil {
-		log.Printf("Elements getpeginaddress: %v", err)
+		log.Printf("getpeginaddress unmarshall: %v", err)
 		return err
 	}
 
 	return nil
 }
 
-func claimPegin(rawTx, proof, claimScript string) string {
+func claimPegin(rawTx, proof, claimScript string) (string, error) {
 	client := ElementsClient()
 	service := &Elements{client}
 	params := []interface{}{rawTx, proof, claimScript}
@@ -344,15 +344,15 @@ func claimPegin(rawTx, proof, claimScript string) string {
 
 	r, err := service.client.call("claimpegin", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements claimpegin: %v", err)
-		return ""
+		log.Printf("claimpegin: %v", err)
+		return "", err
 	}
 
 	txid := ""
 	err = json.Unmarshal([]byte(r.Result), &txid)
 	if err != nil {
-		log.Printf("Elements getpeginaddress: %v", err)
-		return ""
+		log.Printf("claimpegin unmarshall: %v", err)
+		return "", err
 	}
-	return txid
+	return txid, nil
 }

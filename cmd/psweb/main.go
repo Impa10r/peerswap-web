@@ -1088,9 +1088,10 @@ func startTimer() {
 				rawTx, err := getRawTransaction(config.PeginTxId)
 				if err == nil {
 					proof := getTxOutProof(config.PeginTxId)
-					txid := claimPegin(rawTx, proof, config.PeginClaimScript)
+					txid, err := claimPegin(rawTx, proof, config.PeginClaimScript)
 
-					if txid == "" {
+					// claimpegin takes long time, allow it to timeout
+					if err != nil && err.Error() != "timeout reading data from server" {
 						log.Println("Peg-in claim FAILED!")
 						log.Println("Mainchain TxId:", config.PeginTxId)
 						log.Println("Claim Script:", config.PeginClaimScript)
