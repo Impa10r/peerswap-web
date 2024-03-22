@@ -145,7 +145,12 @@ func ElementsClient() (c *RPCClient) {
 
 	httpClient := &http.Client{}
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
-	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: 5}
+	c = &RPCClient{
+		serverAddr: serverAddr,
+		user:       user,
+		passwd:     passwd,
+		httpClient: httpClient,
+		timeout:    600} // 10 minutes for peg-in
 	return
 }
 
