@@ -1,4 +1,5 @@
-![image](https://github.com/Impa10r/peerswap-web/assets/101550606/f3e25d03-482f-4804-9753-0d4c3f63f391)
+![image](https://github.com/Impa10r/peerswap-web/assets/101550606/5864193b-be01-42f1-8d91-ee3693fb2c91)
+
 
 # PeerSwap Web UI
 
