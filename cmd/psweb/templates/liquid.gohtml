@@ -9,7 +9,13 @@
                 <h3 class="title is-4">🌊&nbspLiquid:&nbsp{{fmt .LiquidBalance}}</h3>
               </div>
               <div class="column">
-                <a href="/backup">Backup Wallet</a>
+                <table style="table-layout:fixed; width: 100%;">
+                  <tr>
+                    <td style="padding: 0px; float: right; text-align: right;">
+                      <button class="button is-small" onclick="window.location.href = '/backup';"">Backup Wallet</button>
+                    </td>
+                  </tr>
+                </table>
               </div> 
             </div> 
           </div>
