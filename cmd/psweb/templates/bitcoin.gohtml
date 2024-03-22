@@ -50,7 +50,15 @@
               <h1 class="title is-4">Peg-In Progress</h1> 
               <table style="table-layout:fixed; width: 100%;">
                 <tr>
-                  <td style="width: 6ch; text-align: right">
+                  <td style="width: 8ch; text-align: right">
+                    Amount: 
+                  </td>
+                  <td style="overflow-wrap: break-word;">
+                    {{fmt .PeginAmount}} sats
+                  </td>
+                </tr>
+                <tr>
+                  <td style="text-align: right">
                     Confs: 
                   </td>
                   <td style="overflow-wrap: break-word;">
@@ -59,10 +67,10 @@
                 </tr>
                 <tr>
                   <td style="text-align: right">
-                    ETA: 
+                    Time: 
                   </td>
                   <td style="overflow-wrap: break-word;">
-                    {{.ETA}}
+                    {{.Duration}}
                   </td>
                 </tr>
                 <tr>
@@ -70,7 +78,7 @@
                     TxId: 
                   </td>
                   <td style="overflow-wrap: break-word;">
-                    {{.PeginTxId}}&nbsp<a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">🔗</a>
+                    <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
                   </td>
                 </tr>
               </table>

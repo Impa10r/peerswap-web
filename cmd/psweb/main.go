@@ -1197,10 +1197,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance uint64
 		Outputs        []*lnrpc.Utxo
 		PeginTxId      string
+		PeginAmount    uint64
 		BitcoinApi     string
 		Confirmations  int32
 		Progress       int32
-		ETA            string
+		Duration       string
 	}
 
 	btcBalance := lndConfirmedWalletBalance()
@@ -1210,9 +1211,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		confs = lndNumConfirmations(config.PeginTxId)
 	}
 
-	n := (102 - confs) * 10
-	futureTime := time.Now().Add(time.Duration(n) * time.Minute)
-	eta := futureTime.Format("15:04")
+	duration := time.Duration(10*(102-confs)) * time.Minute
+	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 
 	data := Page{
 		Message:        message,
@@ -1220,10 +1220,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance: uint64(btcBalance),
 		Outputs:        utxos,
 		PeginTxId:      config.PeginTxId,
+		PeginAmount:    uint64(config.PeginAmount),
 		BitcoinApi:     config.BitcoinApi,
 		Confirmations:  confs,
 		Progress:       int32(confs * 100 / 102),
-		ETA:            eta,
+		Duration:       formattedDuration,
 	}
 
 	// executing template named "bitcoin"
@@ -1288,11 +1289,13 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		log.Println("Peg-in started to mainchain address:", addr.MainChainAddress, "claim script:", addr.ClaimScript, "amount:", amount)
-		futureTime := time.Now().Add(time.Duration(1010) * time.Minute)
-		eta := futureTime.Format("15:04")
-		telegramSendMessage("⏰ Peg-in started. ETA: " + eta)
+		duration := time.Duration(1020) * time.Minute
+		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+
+		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
 
 		config.PeginClaimScript = addr.ClaimScript
+		config.PeginAmount = amount
 		saveConfig()
 
 		txid, err := lndSendCoins(addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")

@@ -59,9 +59,9 @@ func telegramStart() {
 					t = "No pending peg-in"
 				} else {
 					confs := lndNumConfirmations(config.PeginTxId)
-					futureTime := time.Now().Add(time.Duration(10*(102-confs)) * time.Minute)
-					eta := futureTime.Format("15:04")
-					t = "⏰ " + strconv.Itoa(int(confs)) + "/102 confs, ETA: " + eta
+					duration := time.Duration(10*(102-confs)) * time.Minute
+					formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+					t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration
 				}
 				telegramSendMessage(t)
 			case "/version":

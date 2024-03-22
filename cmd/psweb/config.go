@@ -32,6 +32,7 @@ type Configuration struct {
 	TelegramChatId       int64
 	PeginClaimScript     string
 	PeginTxId            string
+	PeginAmount          int64
 	LndDir               string
 	BitcoinHost          string
 	BitcoinUser          string
