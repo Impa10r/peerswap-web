@@ -1075,6 +1075,13 @@ func startTimer() {
 		liquidBackup(false)
 		if config.PeginTxId != "" {
 			confs := lndNumConfirmations(config.PeginTxId)
+
+			if confs == 1 {
+				futureTime := time.Now().Add(time.Duration(1010) * time.Minute)
+				eta := futureTime.Format("2006-01-02 15:04")
+				telegramSendMessage("⏰ Peg-in started (1/102 confs). ETA: " + eta)
+			}
+
 			if confs >= 102 {
 				rawTx, err := getRawTransaction(config.PeginTxId)
 				if err == nil {
@@ -1082,19 +1089,19 @@ func startTimer() {
 					txid := claimPegin(rawTx, proof, config.PeginClaimScript)
 
 					if txid == "" {
-						log.Println("Peg-In claim FAILED!")
+						log.Println("Peg-in claim FAILED!")
 						log.Println("Mainchain TxId:", config.PeginTxId)
 						log.Println("Claim Script:", config.PeginClaimScript)
-						telegramSendMessage("❗ Peg-In claim FAILED! See log for details.")
+						telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 					} else {
-						log.Println("Peg-In success! Liquid TxId:", txid)
-						telegramSendMessage("💰 Peg-In success!")
+						log.Println("Peg-in success! Liquid TxId:", txid)
+						telegramSendMessage("💰 Peg-in success!")
 					}
 				} else {
-					log.Println("Peg-In claim FAILED!")
+					log.Println("Peg-In getrawtx failed.")
 					log.Println("Mainchain TxId:", config.PeginTxId)
 					log.Println("Claim Script:", config.PeginClaimScript)
-					telegramSendMessage("❗ Peg-In claim FAILED! See log for details.")
+					telegramSendMessage("❗ Peg-In getrawtx FAILED! See log for details.")
 				}
 
 				// stop trying after first attempt
