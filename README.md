@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also includes BTC->Liquid peg-in. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 # Setup
 
@@ -14,7 +14,13 @@ PeerSwap requires Bitcoin Core, Elements Core and LND.
 
 ```
 mkdir -p ~/.peerswap && \
-docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro  -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ELEMENTS_FOLDER="/home/USER/.elements" -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" ghcr.io/impa10r/peerswap-web:latest
+docker run --net=host \
+-v ~/.lnd:/home/peerswap/.lnd:ro  \
+-v ~/.elements:/home/peerswap/.elements:ro \
+-v ~/.peerswap:/home/peerswap/.peerswap \
+-e ELEMENTS_FOLDER="/home/USER/.elements" \
+-e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" \
+ghcr.io/impa10r/peerswap-web:latest
 ```
 
 Container includes both peerswapd and peerswap-web, started by supervisord. This example assumes .lnd, .elements and .peerswap folders in the host user's home directory (must not be root), and connects to LND via host network. Change USER in ELEMENTS_FOLDER path to your username.
@@ -154,7 +160,7 @@ sudo systemctl disable psweb
 
 Update: From v1.2.0 this is handled via UI on the Bitcoin page.
 
-To convert some BTC on your LND into L-BTC you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
+To convert some BTC on your node into L-BTC you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
 
 1. Generate a special BTC address: ```elements-cli getpeginaddress```. Save claim_script for later.
 2. Send BTC onchain: ```lncli sendcoins --amt <sats to peg in> -addr <mainchain_address from step 1> --sat_per_vbyte <from mempool>```
