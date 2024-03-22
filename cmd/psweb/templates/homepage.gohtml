@@ -6,10 +6,10 @@
           <div class="box">
             <div class="columns">
               <div class="column">
-                <h3 class="title is-4"><span style="color: orange;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp{{fmt .BitcoinBalance}}</h3>
+                <h3 class="title is-4"><span style="color: orange;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span></h3>
               </div>
               <div class="column">
-                <h3 class="title is-4">🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp{{fmt .LiquidBalance}}</h3>
+                <h3 class="title is-4">🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span></h3>
               </div>  
             </div>
           </div>          
@@ -46,12 +46,12 @@
     </div>
     <script>
       // Function to find all table cells with a specific ID
-      function findTableCellsById(id) {
-        return document.querySelectorAll('td#' + id);
+      function findElementsById(id) {
+        return document.querySelectorAll('#' + id);
       }
 
       function toggleScramble() {
-        var fields = findTableCellsById('scramble');
+        var fields = findElementsById('scramble');
 
         fields.forEach(function(element) {
           //var element = document.getElementById(field);
@@ -73,7 +73,7 @@
         // Scramble starting from the second symbol with Greek alphabet
         var scrambledText = text[0]; // Keep the first symbol as is
         
-        for (var i = 1; i < text.length; i++) {
+        for (var i = 0; i < text.length; i++) {
           // Replace with random Greek alphabet characters
           scrambledText += getRandomGreekLetter();        
         }
