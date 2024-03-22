@@ -89,7 +89,7 @@ To enable downloading of a backup file of the Elements wallet it is necessary to
 ***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete them:
 
 ```bash
-rm ~/.peerswap/peerswap.conf
+rm ~/.peerswap/peerswap.conf && \
 rm ~/.peerswap/pswebconfig.json
 ```
 
@@ -113,7 +113,7 @@ Take care to backup PeerSwap wallet after each Liquid transaction. In case of a 
 
 Back up is done from the Liquid page. The file name ```<hexkey>.bak``` is your master blinding key hex. The contents is the backup of wallet.dat. For safety, this .bak will be zipped with the same password as the Elements RPC. For Umbrel, this is the password displayed in the Elements Core App. For the rest, this is the .elements/elements.conf rpcpassword parameter.
 
-**Make sure you keep this password safe is a separate location!** 
+**Make sure you keep this password safe in a separate location!** 
 
 Restoring the wallet will require elements-cli command line skills:
 
@@ -121,7 +121,7 @@ Restoring the wallet will require elements-cli command line skills:
 elements-cli restorewallet "wallet_name" "backup_file"
 ```
 
-Default wallet_name is "peerswap", the same value as in peerswap.conf elementsd.rpcwallet parameter
+Default wallet_name is "peerswap", the same value as in peerswap.conf elementsd.rpcwallet parameter.
 
 To restore your master blinding key use:
 
@@ -139,7 +139,7 @@ docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=49..
 
 ## Automatic backup to a Telegram bot
 
-Create a new telegram bot with BotFather and copy API token to PS Web Configuration page. Type /start. The backup file will be sent upon every change of the Liquid balance.
+Create a new telegram bot with [BotFather](https://t.me/botfather) and copy API token to PS Web Configuration page. Type /start. The backup file will be sent upon every change of the Liquid balance.
 
 ## Uninstall
 
@@ -152,13 +152,13 @@ sudo systemctl disable psweb
 
 # Liquid Peg-In
 
-Update: From v1.2.0 this is handled via UI on Bitcoin page.
+Update: From v1.2.0 this is handled via UI on the Bitcoin page.
 
-To convert some BTC on your LND into L-BTC in peerswap wallet you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
+To convert some BTC on your LND into L-BTC you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
 
 1. Generate a special BTC address: ```elements-cli getpeginaddress```. Save claim_script for later.
 2. Send BTC onchain: ```lncli sendcoins --amt <sats to peg in> -addr <mainchain_address from step 1> --sat_per_vbyte <from mempool>```
-3. Wait 102 confirmations (about 17 hours). 
+3. Wait for 102 confirmations (about 17 hours). 
 4. Run ```bitcoin-cli getrawtransaction <txid from step 2>```
 5. Run ```bitcoin-cli gettxoutproof '["<txid from step 2>"]'```
 6. Run ```elements-cli claimpegin <raw from step 4> <proof from step 5> <claim_script from step 1>```
@@ -175,7 +175,7 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 
 # Support
 
-Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev). Additionally, there is a [Telegram group](https://t.me/PeerSwapLN) for node runners with PeerSwap. Just beware of scammers who may DM you. Immediately block and report to Telegram anyone with no Username field!
+Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev). Additionally, there is a [Telegram group](https://t.me/PeerSwapLN) for node runners with PeerSwap. Just beware of scammers who may DM you. Immediately block and report to Telegram anyone with empty Username field.
 
 # Security Disclosure
 
