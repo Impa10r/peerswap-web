@@ -1082,13 +1082,6 @@ func startTimer() {
 		liquidBackup(false)
 		if config.PeginTxId != "" {
 			confs := lndNumConfirmations(config.PeginTxId)
-
-			if confs == 1 {
-				futureTime := time.Now().Add(time.Duration(1010) * time.Minute)
-				eta := futureTime.Format("15:04")
-				telegramSendMessage("⏰ Peg-in started (1/102 confs). ETA: " + eta)
-			}
-
 			if confs >= 102 {
 				rawTx, err := getRawTransaction(config.PeginTxId)
 				if err == nil {
@@ -1289,7 +1282,10 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Println("Peg-In started to mainchain address:", addr.MainChainAddress, "claim script:", addr.ClaimScript, "amount:", amount)
+		log.Println("Peg-in started to mainchain address:", addr.MainChainAddress, "claim script:", addr.ClaimScript, "amount:", amount)
+		futureTime := time.Now().Add(time.Duration(1010) * time.Minute)
+		eta := futureTime.Format("15:04")
+		telegramSendMessage("⏰ Peg-in started. ETA: " + eta)
 
 		config.PeginClaimScript = addr.ClaimScript
 		saveConfig()
