@@ -23,7 +23,7 @@ docker run --net=host \
 ghcr.io/impa10r/peerswap-web:latest
 ```
 
-Container includes both peerswapd and peerswap-web, started by supervisord. This example assumes .lnd, .elements and .peerswap folders in the host user's home directory (must not be root), and connects to LND via host network. Change USER in ELEMENTS_FOLDER path to your username.
+*Change USER in ELEMENTS_FOLDER path to your username. This example assumes .lnd, .elements and .peerswap folders in the host user's home directory (must be not root), and connects to LND via host network. 
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require different parameters (-e). If NETWORK is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
