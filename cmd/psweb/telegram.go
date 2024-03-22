@@ -63,7 +63,7 @@ func telegramStart() {
 }
 
 func telegramConnect() {
-	if telegramSendMessage("📡 PeerSwap connected") {
+	if telegramSendMessage("📟 PeerSwap connected") {
 		// successfully connected
 		cmdCfg := tgbotapi.NewSetMyCommands(
 			tgbotapi.BotCommand{
