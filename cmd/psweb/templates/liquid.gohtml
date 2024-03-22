@@ -9,54 +9,6 @@
               <a href="/backup">Backup Wallet</a>
             </center>
           </div>
-          <div class="box">
-            <h3 class="title is-4">Unspent Outputs</h3>
-            <table id="myTable" style="width:100%; table-layout:fixed;">
-              <tr>
-                <th style="width:58%;">Address</th>
-                <th style="text-align: right;">Conf</th>
-                <th style="text-align: right;">Amount</th>
-              </tr>
-              {{range .Outputs}}
-                <tr>
-                  <td class="truncate"><a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
-                  <td style="text-align: right;">{{fmt .Confirmations}}</td>
-                  <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
-                </tr>
-              {{end}}
-            </table>
-          </div>     
-          <div class="box">
-            <h1 class="title is-4">Receiving Address</h1> 
-            {{if eq .LiquidAddress ""}}
-              <form action="/submit" method="post">
-                <center>
-                  <input type="hidden" name="action" value="newAddress">
-                  <input class="button is-large" type="submit" value="Get New Address">
-                </center>
-              </form>
-            {{else}}
-              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.LiquidAddress}}" readonly>               
-              <script>
-                function copyToClipboard() {
-                  // Get the text to copy
-                  var copyText = document.getElementById("copyText");
-
-                  // Select the text
-                  copyText.select();
-                  copyText.setSelectionRange(0, 99999); // For mobile devices
-
-                  // Copy the selected text
-                  document.execCommand("copy");
-
-                  // Alert the user that the text has been copied
-                  displayTemporaryMessage("Copied the address to clipboard");
-                }
-              </script>
-            {{end}}
-          </div>
-        </div>
-        <div class="column"> 
           {{if eq .TxId ""}}
             <div class="box">
               <h1 class="title is-4">Send Liquid</h1> 
@@ -125,6 +77,54 @@
               </table>
             </div>
           {{end}}
+        </div>
+        <div class="column"> 
+          <div class="box">
+            <h1 class="title is-4">Receiving Address</h1> 
+            {{if eq .LiquidAddress ""}}
+              <form action="/submit" method="post">
+                <center>
+                  <input type="hidden" name="action" value="newAddress">
+                  <input class="button is-large" type="submit" value="Get New Address">
+                </center>
+              </form>
+            {{else}}
+              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.LiquidAddress}}" readonly>               
+              <script>
+                function copyToClipboard() {
+                  // Get the text to copy
+                  var copyText = document.getElementById("copyText");
+
+                  // Select the text
+                  copyText.select();
+                  copyText.setSelectionRange(0, 99999); // For mobile devices
+
+                  // Copy the selected text
+                  document.execCommand("copy");
+
+                  // Alert the user that the text has been copied
+                  displayTemporaryMessage("Copied the address to clipboard");
+                }
+              </script>
+            {{end}}
+          </div>
+          <div class="box">
+            <h3 class="title is-4">Unspent Outputs</h3>
+            <table id="myTable" style="width:100%; table-layout:fixed;">
+              <tr>
+                <th style="width:58%;">Address</th>
+                <th style="text-align: right;">Conf</th>
+                <th style="text-align: right;">Amount</th>
+              </tr>
+              {{range .Outputs}}
+                <tr>
+                  <td class="truncate"><a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
+                  <td style="text-align: right;">{{fmt .Confirmations}}</td>
+                  <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
+                </tr>
+              {{end}}
+            </table>
+          </div>         
         </div>
       </div>
     </div>
