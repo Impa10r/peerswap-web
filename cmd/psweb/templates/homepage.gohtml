@@ -6,10 +6,16 @@
           <div class="box">
             <div class="columns">
               <div class="column">
-                <h3 class="title is-4"><span style="color: orange;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span></h3>
+                <h3 class="title is-4">
+                  <span style="color: orange;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span>
+                  {{if and .AllowSwapRequests .BitcoinSwaps}}✔️{{else}}❌{{end}}
+                </h3>
               </div>
               <div class="column">
-                <h3 class="title is-4">🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span></h3>
+                <h3 class="title is-4">
+                  🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span>
+                  {{if and .AllowSwapRequests .BitcoinSwaps}}✔️{{else}}❌{{end}}
+                </h3>    
               </div>  
             </div>
           </div>          
@@ -24,15 +30,6 @@
                 </td>
               </tr>
             </table>
-            {{if not .AllowSwapRequests}}
-              <table style="table-layout:fixed; width: 100%;">
-                <tr><td style="color:red">
-                  <center>
-                    Swap Requests Are Disabled
-                  </center>
-                </td></tr>
-              </table>
-            {{end}}
             {{.ListPeers}}
           </div>
         </div>

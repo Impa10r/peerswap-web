@@ -231,6 +231,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	type Page struct {
 		AllowSwapRequests bool
+		BitcoinSwaps      bool
 		Message           string
 		ColorScheme       string
 		LiquidBalance     uint64
@@ -241,6 +242,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		AllowSwapRequests: config.AllowSwapRequests,
+		BitcoinSwaps:      config.BitcoinSwaps,
 		Message:           message,
 		ColorScheme:       config.ColorScheme,
 		LiquidBalance:     satAmount,
