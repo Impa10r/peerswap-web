@@ -140,9 +140,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			}
 
 			table += "<tr style=\"background-color: " + bc + "\"; >"
-			table += "<td id=\"scramble\" style=\"width: 250px; text-align: center\">"
+			table += "<td id=\"scramble\" style=\"width: 15ch; text-align: center\">"
 			table += formatWithThousandSeparators(channel.LocalBalance)
-			table += "</td><td style=\"width: 25%; text-align: center\">"
+			table += "</td><td style=\"width: 60%; text-align: center\">"
 			local := channel.LocalBalance
 			capacity := channel.LocalBalance + channel.RemoteBalance
 			totalLocal += local
@@ -150,7 +150,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 			table += "<progress style=\"width: 100%;\" value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + ">1</progress>"
 			table += "</a></td>"
-			table += "<td id=\"scramble\" style=\"width: 250px; text-align: center\">"
+			table += "<td id=\"scramble\" style=\"width: 15ch; text-align: center\">"
 			table += formatWithThousandSeparators(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
@@ -194,7 +194,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	for _, swap := range swaps {
 		table := "<tr>"
-		table += "<td style=\"width: 30%; text-align: left\">"
+		table += "<td style=\"width: 15ch; text-align: left\">"
 
 		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
