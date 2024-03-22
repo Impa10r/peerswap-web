@@ -328,33 +328,35 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Message       string
-		ColorScheme   string
-		Peer          *peerswaprpc.PeerSwapPeer
-		PeerAlias     string
-		NodeUrl       string
-		Allowed       bool
-		Suspicious    bool
-		LBTC          bool
-		BTC           bool
-		LiquidBalance uint64
-		ActiveSwaps   string
-		DirectionIn   bool
+		Message        string
+		ColorScheme    string
+		Peer           *peerswaprpc.PeerSwapPeer
+		PeerAlias      string
+		NodeUrl        string
+		Allowed        bool
+		Suspicious     bool
+		LBTC           bool
+		BTC            bool
+		LiquidBalance  uint64
+		BitcoinBalance uint64
+		ActiveSwaps    string
+		DirectionIn    bool
 	}
 
 	data := Page{
-		Message:       message,
-		ColorScheme:   config.ColorScheme,
-		Peer:          peer,
-		PeerAlias:     getNodeAlias(peer.NodeId),
-		NodeUrl:       config.NodeApi,
-		Allowed:       stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:    stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:           stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:          stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance: satAmount,
-		ActiveSwaps:   convertSwapsToHTMLTable(activeSwaps),
-		DirectionIn:   sumLocal < sumRemote,
+		Message:        message,
+		ColorScheme:    config.ColorScheme,
+		Peer:           peer,
+		PeerAlias:      getNodeAlias(peer.NodeId),
+		NodeUrl:        config.NodeApi,
+		Allowed:        stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:     stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:            stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:           stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance:  satAmount,
+		BitcoinBalance: uint64(lndConfirmedWalletBalance()),
+		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps),
+		DirectionIn:    sumLocal < sumRemote,
 	}
 
 	// executing template named "peer"
@@ -1194,6 +1196,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		PeginTxId      string
 		BitcoinApi     string
 		Confirmations  int32
+		Progress       int32
 		ETA            string
 	}
 
@@ -1216,6 +1219,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		PeginTxId:      config.PeginTxId,
 		BitcoinApi:     config.BitcoinApi,
 		Confirmations:  confs,
+		Progress:       int32(confs * 100 / 102),
 		ETA:            eta,
 	}
 
