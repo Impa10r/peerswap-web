@@ -27,9 +27,9 @@
                 <div id="temp-message" class="hidden"></div>
             </div>
             <script>
-                function displayTemporaryMessage(msg) {
+                function displayTemporaryMessage(msg, id) {
                     var messageContainer = document.getElementById("message-container");
-                    var tempMessage = document.getElementById("temp-message");
+                    var tempMessage = document.getElementById(id);
                     
                     tempMessage.innerHTML = msg;
                     tempMessage.classList.remove("hidden");
@@ -138,7 +138,7 @@
                 document.body.removeChild(textarea);
 
                 // Alert the user that the text has been copied
-                displayTemporaryMessage("Copied the log text to clipboard");
+                displayTemporaryMessage("Copied the log text to clipboard", "temp-message");
             }
             
             const timer2 = setInterval(fetchData, 1000);
