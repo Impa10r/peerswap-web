@@ -86,10 +86,11 @@ Once opened the UI, set the Links on the Config page for testnet or mainnet. If 
 
 To enable downloading of a backup file of the Elements wallet it is necessary to have access to .elements folder where this backup is saved by elementsd. If Elements is run in a Docker container, both the internal folder (usually /home/elements/.elements) and the mapped external folder (for Umbrel it is /home/umbrel/umbrel/app-data/elements/data) must be provided in the Configuration panel.
 
-***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete ~/.peerswap folder with (will wipe swaps history):
+***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete them:
 
 ```bash
-sudo rm -r ~/.peerswap
+rm ~/.peerswap/peerswap.conf
+rm ~/.peerswap/pswebconfig.json
 ```
 
 ## Update
