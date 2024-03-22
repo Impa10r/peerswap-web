@@ -120,7 +120,7 @@
           <div class="box">
             <h3 class="title is-4">Peer Details</h3>        
             <table style="width:100%; table-layout:fixed;">
-              <tr style="border: 1px dotted"><td style="width: 40%; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
+              <tr style="border: 1px dotted"><td style="width: 15ch; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
               <tr style="border: 1px dotted"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
               <tr style="border: 1px dotted"><td style="text-align: right">Assets:</td><td>
                 {{range .Peer.SupportedAssets}}
@@ -135,28 +135,28 @@
                 <th></th>
                 <th># Out</th>
                 <th># In</th>
-                <th>Sats Out</th>
-                <th>Sats In</th>
+                <th>M Out</th>
+                <th>M In</th>
               </tr>
               <tr style="border: 1px dotted">
-                <td>Sent:
-                <td>{{fmt .Peer.AsSender.SwapsOut}}</td>
-                <td>{{fmt .Peer.AsSender.SwapsIn}}</td>
-                <td>{{fmt .Peer.AsSender.SatsOut}}</td>
-                <td>{{fmt .Peer.AsSender.SatsIn}}</td>
+                <td>Sent
+                <td>{{.Peer.AsSender.SwapsOut}}</td>
+                <td>{{.Peer.AsSender.SwapsIn}}</td>
+                <td>{{m .Peer.AsSender.SatsOut}}</td>
+                <td>{{m .Peer.AsSender.SatsIn}}</td>
               </tr>
               <tr style="border: 1px dotted">
-                <td>Rcvd:
-                <td>{{fmt .Peer.AsReceiver.SwapsOut}}</td>
-                <td>{{fmt .Peer.AsReceiver.SwapsIn}}</td>
-                <td>{{fmt .Peer.AsReceiver.SatsOut}}</td>
-                <td>{{fmt .Peer.AsReceiver.SatsIn}}</td>
+                <td>Rcvd
+                <td>{{.Peer.AsReceiver.SwapsOut}}</td>
+                <td>{{.Peer.AsReceiver.SwapsIn}}</td>
+                <td>{{m .Peer.AsReceiver.SatsOut}}</td>
+                <td>{{m .Peer.AsReceiver.SatsIn}}</td>
               </tr>
             </table>  
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 30%;">Channel Id</th>
+                <th style="width: 32%;">Channel Id</th>
                 <th>Local</th>
                 <th>Remote</th>
                 <th>Active</th>

@@ -106,7 +106,12 @@ func main() {
 
 	// Parse all template files in the templates directory
 	templates = template.Must(templates.
-		Funcs(template.FuncMap{"sats": toSats, "u": toUint, "fmt": formatWithThousandSeparators}).
+		Funcs(template.FuncMap{
+			"sats": toSats,
+			"u":    toUint,
+			"fmt":  formatWithThousandSeparators,
+			"m":    toMil,
+		}).
 		ParseFS(tplFolder, templateNames...))
 
 	// create an embedded Filesystem
