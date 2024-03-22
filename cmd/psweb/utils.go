@@ -197,3 +197,7 @@ func toBitcoin(amountSats uint64) float64 {
 func toUint(num int64) uint64 {
 	return uint64(num)
 }
+
+func toMil(num uint64) string {
+	return fmt.Sprintf("%.1f", float32(num/1000000))
+}
