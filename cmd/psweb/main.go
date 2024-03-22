@@ -1095,7 +1095,7 @@ func startTimer() {
 						telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 					} else {
 						log.Println("Peg-in success! Liquid TxId:", txid)
-						telegramSendMessage("💰 Peg-in success!")
+						telegramSendMessage("💸 Peg-in success!")
 					}
 				} else {
 					log.Println("Peg-In getrawtx failed.")
