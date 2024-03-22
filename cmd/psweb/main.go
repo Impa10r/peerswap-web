@@ -1094,6 +1094,8 @@ func startTimer() {
 					if err != nil && err.Error() != "timeout reading data from server" {
 						log.Println("Peg-in claim FAILED!")
 						log.Println("Mainchain TxId:", config.PeginTxId)
+						log.Println("Raw tx:", rawTx)
+						log.Println("Proof:", proof)
 						log.Println("Claim Script:", config.PeginClaimScript)
 						telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 					} else {
