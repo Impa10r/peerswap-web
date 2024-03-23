@@ -31,8 +31,8 @@ type AliasCache struct {
 }
 
 var (
-	cache     []AliasCache
-	templates = template.New("")
+	aliasCache []AliasCache
+	templates  = template.New("")
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
@@ -40,7 +40,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.2.1"
+const version = "v1.2.2"
 
 func main() {
 
@@ -840,6 +840,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		config.BitcoinHost = r.FormValue("bitcoinHost")
 		config.BitcoinUser = r.FormValue("bitcoinUser")
 		config.BitcoinPass = r.FormValue("bitcoinPass")
+		config.ProxyURL = r.FormValue("proxyURL")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
@@ -1258,7 +1259,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		btcBalance := lndConfirmedWalletBalance()
 		sweepall := amount == btcBalance
 
-		// test that txindex=1 in bitcoin.conf
+		// test on pre-existing tx that bitcon core can complete the peg
 		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
 		if os.Getenv("NETWORK") == "testnet" {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
@@ -1266,7 +1267,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		_, err = getRawTransaction(tx)
 		if err != nil {
-			// fallback to getblock.io
+			// automatic fallback to getblock.io
 			config.BitcoinHost = getBlockIoHost()
 			config.BitcoinUser = ""
 			config.BitcoinPass = ""

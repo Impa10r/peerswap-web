@@ -50,7 +50,7 @@
                                     <h1 class="title is-4">Welcome to PeerSwap!</h1>
                                     <center>
                                     <br>
-                                    <p>Please copy-paste your Elements Core RPC Username and Password into the configuration fields below.</p>
+                                    <p>Please copy-paste your Elements Core Username and Password into the configuration fields below.</p>
                                     <br>
                                     <img src="/static/elements.png" alt="Elements Core">
                                     </center>
@@ -88,7 +88,7 @@
         <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
         <tr>
             <td style="max-width: 100%; overflow: hidden;">
-            <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content" onclick="copyToClipboard()"></pre>
+            <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
             </td>
         </tr>
         </table>
@@ -118,31 +118,8 @@
                 .then(data => updatePage(data));
             }
             
-            function copyToClipboard() {
-                // Get the text to copy
-                var copyText = document.getElementById("log-content");
-
-                // Create a temporary textarea to hold the text
-                var textarea = document.createElement("textarea");
-                textarea.value = copyText.textContent;
-                document.body.appendChild(textarea);
-
-                // Select the text
-                textarea.select();
-                textarea.setSelectionRange(0, 99999); // For mobile devices
-
-                // Copy the selected text
-                document.execCommand("copy");
-
-                // Remove the temporary textarea
-                document.body.removeChild(textarea);
-
-                // Alert the user that the text has been copied
-                displayTemporaryMessage("Copied the log text to clipboard", "temp-message");
-            }
-            
             const timer2 = setInterval(fetchData, 1000);
-            fetchData;
+            fetchData();
         </script>
     </div>
 {{end}}

@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
+
+	"golang.org/x/net/proxy"
 )
 
 type Bitcoin struct {
@@ -17,9 +20,34 @@ func BitcoinClient() (c *RPCClient) {
 	user := config.BitcoinUser
 	passwd := config.BitcoinPass
 
-	httpClient := &http.Client{}
+	var httpClient *http.Client
+
+	if config.ProxyURL != "" {
+		p, err := url.Parse(config.ProxyURL)
+		if err != nil {
+			return nil
+		}
+		dialer, err := proxy.SOCKS5("tcp", p.Host, nil, proxy.Direct)
+		if err != nil {
+			return nil
+		}
+		httpClient = &http.Client{
+			Transport: &http.Transport{
+				Dial: dialer.Dial,
+			},
+		}
+	} else {
+		httpClient = &http.Client{}
+	}
+
 	serverAddr := host
-	c = &RPCClient{serverAddr: serverAddr, user: user, passwd: passwd, httpClient: httpClient, timeout: 5}
+	c = &RPCClient{
+		serverAddr: serverAddr,
+		user:       user,
+		passwd:     passwd,
+		httpClient: httpClient,
+		timeout:    30,
+	}
 	return
 }
 

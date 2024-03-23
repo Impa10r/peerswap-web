@@ -2,12 +2,15 @@ package main
 
 import (
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"golang.org/x/net/proxy"
 )
 
 var (
@@ -21,11 +24,35 @@ func telegramStart() {
 	}
 
 	var err error
-	// Initialize bot with token and wait for chat Id
-	bot, err = tgbotapi.NewBotAPI(config.TelegramToken)
-	if err != nil {
-		log.Println("Error connecting to Telegram bot:", err)
-		return
+	if config.ProxyURL != "" {
+		// Set up Tor proxy
+		p, err := url.Parse(config.ProxyURL)
+		if err != nil {
+			log.Println("Error connecting to Telegram bot with proxy:", err)
+			return
+		}
+		dialer, err := proxy.SOCKS5("tcp", p.Host, nil, proxy.Direct)
+		if err != nil {
+			log.Println("Error connecting to Telegram bot with proxy:", err)
+			return
+		}
+
+		// Create a bot instance
+		bot, err = tgbotapi.NewBotAPIWithClient(
+			config.TelegramToken,
+			"https://api.telegram.org/bot%s/%s",
+			&http.Client{Transport: &http.Transport{Dial: dialer.Dial}})
+		if err != nil {
+			log.Println("Error connecting to Telegram bot with proxy:", err)
+			return
+		}
+	} else {
+		// Initialize bot with token
+		bot, err = tgbotapi.NewBotAPI(config.TelegramToken)
+		if err != nil {
+			log.Println("Error connecting to Telegram bot:", err)
+			return
+		}
 	}
 
 	// Set bot to debug mode

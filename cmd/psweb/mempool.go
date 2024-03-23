@@ -5,24 +5,47 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
+
+	"golang.org/x/net/proxy"
 )
 
-func getNodeAlias(id string) string {
-	for _, n := range cache {
+func mempoolGetNodeAlias(id string) string {
+	for _, n := range aliasCache {
 		if n.PublicKey == id {
 			return n.Alias
 		}
 	}
 
-	url := config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
+	api := config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
 	if config.BitcoinApi != "" {
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", api, nil)
 		if err == nil {
-			cl := &http.Client{
-				Timeout: 5 * time.Second,
+			var httpClient *http.Client
+
+			if config.ProxyURL != "" {
+				p, err := url.Parse(config.ProxyURL)
+				if err != nil {
+					return ""
+				}
+				dialer, err := proxy.SOCKS5("tcp", p.Host, nil, proxy.Direct)
+				if err != nil {
+					return ""
+				}
+				httpClient = &http.Client{
+					Transport: &http.Transport{
+						Dial: dialer.Dial,
+					},
+					Timeout: 5 * time.Second,
+				}
+			} else {
+				httpClient = &http.Client{
+					Timeout: 5 * time.Second,
+				}
 			}
-			resp, err2 := cl.Do(req)
+
+			resp, err2 := httpClient.Do(req)
 			if err2 == nil {
 				defer resp.Body.Close()
 				buf := new(bytes.Buffer)
@@ -51,7 +74,7 @@ func getNodeAlias(id string) string {
 				}
 
 				if len(nodes.Nodes) > 0 && len(nodes.Nodes[0].Alias) > 0 {
-					cache = append(cache, AliasCache{
+					aliasCache = append(aliasCache, AliasCache{
 						PublicKey: nodes.Nodes[0].PublicKey,
 						Alias:     nodes.Nodes[0].Alias,
 					})
