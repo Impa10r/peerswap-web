@@ -4,8 +4,8 @@
 
 - Fix bug causing log loading delay
 - Add Tor proxy (socks5) parameter in config
-- Use Tor proxy to connect to Bitcoin Core, mempool.space and Telegram
-- Use LND to searh node aliases first, mempool.space as backup
+- Use Tor proxy to connect to Bitcoin Core, Mempool and Telegram
+- Use LND to search node aliases first, Mempool as backup
 
 ## 1.2.1
 
