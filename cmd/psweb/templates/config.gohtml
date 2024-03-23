@@ -41,24 +41,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Color Theme</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="field">
-                        <div class="control">
-                          <div class="select is-medium is-fullwidth">
-                            <select name="colorScheme">
-                              <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
-                              <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Node Info Link</label>
+                      <label class="label">Node Info</label>
                     </div>
                     <div class="field-body">
                       <div class="select is-medium is-fullwidth">
@@ -76,7 +59,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin Tx Link</label>
+                      <label class="label">Bitcoin Transactions</label>
                     </div>
                     <div class="field-body">
                       <div class="select is-medium is-fullwidth">
@@ -92,7 +75,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Local Mempool</label>
+                      <label class="label">Local Mempool URL</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -104,7 +87,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Liquid Tx Link</label>
+                      <label class="label">Liquid Transactions</label>
                     </div>
                     <div class="field-body">
                       <div class="select is-medium is-fullwidth">
@@ -138,12 +121,41 @@
                         </p>
                       </div>
                     </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Tor Proxy</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.ProxyURL}}" name="proxyURL" placeholder="socks5://127.0.0.1:9050">
+                        </p>
+                      </div>
+                    </div>
                   </div> 
                 </div>
                 <div class="column"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">PeerSwap RPC Host</label>
+                      <label class="label">Color Theme</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="colorScheme">
+                              <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
+                              <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">PeerSwap Host</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -155,7 +167,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Elements RPC Username *</label>
+                      <label class="label">{{if eq .Message "welcome"}}❗ {{end}}Elements Username *</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -167,7 +179,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Elements RPC Password *</label>
+                      <label class="label">{{if eq .Message "welcome"}}❗ {{end}}Elements Password *</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -203,7 +215,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin RPC Host</label>
+                      <label class="label">Bitcoin Host</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -215,7 +227,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin RPC Username</label>
+                      <label class="label">Bitcoin Username</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -227,7 +239,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin RPC Password</label>
+                      <label class="label">Bitcoin Password</label>
                     </div>
                     <div class="field-body">
                       <div class="field">

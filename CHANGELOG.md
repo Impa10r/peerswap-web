@@ -1,5 +1,12 @@
 # Versions
 
+## 1.2.2
+
+- Fix bug causing log loading delay
+- Add Tor proxy (socks5) parameter in config
+- Use Tor proxy to connect to Bitcoin Core, mempool.space and Telegram
+- Use LND to searh node aliases first, mempool.space as backup
+
 ## 1.2.1
 
 - Various UI style improvements
@@ -12,17 +19,17 @@
 
 ## 1.1.8
 
-- Docker image can no longer be run by host's root user
-- Use a non-root user "peerswap" inside the container
-
 !!! BREAKING CHANGES FOR DOCKER !!! 
 
+- Docker image can no longer be run by host's root user
+- Using a non-root user "peerswap" inside the container
+
+Migration steps if you have run it as root:
 1. Create a non-root user if it does not exist, login with it
 2. If your .peerswap folder is in /root/, copy it to /home/USER/
 3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```
 4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/"
-5. Run the image with new parameters:
-```docker run --net=host -v ~/.lnd:/home/peerswap/.lnd:ro -v ~/.elements:/home/peerswap/.elements:ro -v ~/.peerswap:/home/peerswap/.peerswap -e ELEMENTS_FOLDER="/home/USER/.elements" -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" ghcr.io/impa10r/peerswap-web:latest``` (Change USER to your username)
+5. Run the image with the new parameters per [Readme](https://github.com/Impa10r/peerswap-web?tab=readme-ov-file#docker).
 
 ## 1.1.7
 

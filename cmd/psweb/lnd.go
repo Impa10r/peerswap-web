@@ -107,7 +107,7 @@ func lndGetTransactions() []*lnrpc.Transaction {
 
 	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
 	if err != nil {
-		log.Println("lnd Cannot get transactions:", err)
+		log.Println("lnd GetTransactions:", err)
 		return nil
 	}
 
@@ -122,4 +122,16 @@ func lndNumConfirmations(txid string) int32 {
 		}
 	}
 	return 0
+}
+
+func lndGetAlias(nodeKey string) string {
+	client := lnrpc.NewLightningClient(lndConnection())
+	ctx := context.Background()
+
+	nodeInfo, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeKey})
+	if err != nil {
+		return ""
+	}
+
+	return nodeInfo.Node.Alias
 }

@@ -37,6 +37,7 @@ type Configuration struct {
 	BitcoinHost          string
 	BitcoinUser          string
 	BitcoinPass          string
+	ProxyURL             string
 }
 
 var config Configuration
