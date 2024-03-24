@@ -1,5 +1,10 @@
 # Versions
 
+## 1.2.3
+
+- Add fee rate estimate for peg-in
+- Allow fee bumping peg-in tx (first CPFP, then RBF)
+
 ## 1.2.2
 
 - Fix bug causing log loading delay

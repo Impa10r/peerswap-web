@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -21,25 +22,25 @@ func lndConnection() *grpc.ClientConn {
 
 	tlsCreds, err := credentials.NewClientTLSFromFile(tlsCertPath, "")
 	if err != nil {
-		log.Println("lnd Cannot get node tls credentials", err)
+		log.Println("lndConnection", err)
 		return nil
 	}
 
 	macaroonBytes, err := os.ReadFile(macaroonPath)
 	if err != nil {
-		log.Println("lnd Cannot read macaroon file", err)
+		log.Println("lndConnection", err)
 		return nil
 	}
 
 	mac := &macaroon.Macaroon{}
 	if err = mac.UnmarshalBinary(macaroonBytes); err != nil {
-		log.Println("lnd Cannot unmarshal macaroon", err)
+		log.Println("lndConnection", err)
 		return nil
 	}
 
 	macCred, err := macaroons.NewMacaroonCredential(mac)
 	if err != nil {
-		log.Println("lnd Cannot wrap macaroon", err)
+		log.Println("lndConnection", err)
 		return nil
 	}
 
@@ -51,7 +52,7 @@ func lndConnection() *grpc.ClientConn {
 
 	conn, err := grpc.Dial(host, opts...)
 	if err != nil {
-		fmt.Println("lnd Cannot dial to lnd", err)
+		fmt.Println("lndConnection", err)
 		return nil
 	}
 
@@ -69,7 +70,7 @@ func lndSendCoins(addr string, amount int64, feeRate uint64, sweepall bool, labe
 		Label:       label,
 	})
 	if err != nil {
-		log.Println("lnd Cannot send coins:", err)
+		log.Println("lndSendCoins:", err)
 		return "", err
 	}
 
@@ -81,7 +82,7 @@ func lndConfirmedWalletBalance() int64 {
 	ctx := context.Background()
 	resp, err := client.WalletBalance(ctx, &lnrpc.WalletBalanceRequest{})
 	if err != nil {
-		log.Println("lnd Cannot get wallet balance:", err)
+		log.Println("lndConfirmedWalletBalance:", err)
 		return 0
 	}
 
@@ -94,34 +95,30 @@ func lndListUnspent() []*lnrpc.Utxo {
 
 	resp, err := client.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: 0})
 	if err != nil {
-		log.Println("lnd Cannot list unspent:", err)
+		log.Println("lndListUnspent:", err)
 		return nil
 	}
 
 	return resp.Utxos
 }
 
-func lndGetTransactions() []*lnrpc.Transaction {
+func lndGetTransaction(txid string) (*lnrpc.Transaction, error) {
 	client := lnrpc.NewLightningClient(lndConnection())
 	ctx := context.Background()
 
 	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
 	if err != nil {
-		log.Println("lnd GetTransactions:", err)
-		return nil
+		log.Println("lndGetTransaction:", err)
+		return nil, err
 	}
-
-	return resp.Transactions
-}
-
-func lndNumConfirmations(txid string) int32 {
-	txs := lndGetTransactions()
-	for _, tx := range txs {
+	for _, tx := range resp.Transactions {
 		if tx.TxHash == txid {
-			return tx.NumConfirmations
+			return tx, nil
 		}
 	}
-	return 0
+
+	log.Println("lndGetTransaction: txid not found")
+	return nil, errors.New("txid not found")
 }
 
 func lndGetAlias(nodeKey string) string {
@@ -134,4 +131,24 @@ func lndGetAlias(nodeKey string) string {
 	}
 
 	return nodeInfo.Node.Alias
+}
+
+func lndBumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
+	client := walletrpc.NewWalletKitClient(lndConnection())
+	ctx := context.Background()
+
+	_, err := client.BumpFee(ctx, &walletrpc.BumpFeeRequest{
+		Outpoint: &lnrpc.OutPoint{
+			TxidStr:     TxId,
+			OutputIndex: outputIndex,
+		},
+		SatPerVbyte: newFeeRate,
+	})
+
+	if err != nil {
+		log.Println("lndBumpFee:", err)
+		return err
+	}
+
+	return nil
 }
