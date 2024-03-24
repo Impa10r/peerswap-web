@@ -222,6 +222,7 @@ func getNodeAlias(key string) string {
 		return key[:20]
 	}
 
+	// save to cache
 	aliasCache = append(aliasCache, AliasCache{
 		PublicKey: key,
 		Alias:     alias,

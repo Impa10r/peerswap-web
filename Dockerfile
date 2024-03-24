@@ -13,9 +13,7 @@ WORKDIR /app
 COPY . .
 
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /go/bin/psweb cmd/psweb/*.go
-
 RUN git clone https://github.com/ElementsProject/peerswap.git && cd peerswap && git checkout $COMMIT
-
 RUN cd peerswap && make -j$(nproc) lnd-release
 
 FROM debian:buster-slim

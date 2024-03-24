@@ -12,6 +12,7 @@ require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/lightningnetwork/lnd v0.17.4-beta.rc1
+	golang.org/x/net v0.22.0
 	google.golang.org/grpc v1.62.1
 	gopkg.in/macaroon.v2 v2.1.0
 )
@@ -137,7 +138,6 @@ require (
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/exp v0.0.0-20240318143956-a85f2c67cd81 // indirect
 	golang.org/x/mod v0.16.0 // indirect
-	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

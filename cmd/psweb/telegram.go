@@ -56,7 +56,7 @@ func telegramStart() {
 	}
 
 	// Set bot to debug mode
-	bot.Debug = false
+	bot.Debug = false // os.Getenv("DEBUG") == "1"
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
@@ -85,7 +85,11 @@ func telegramStart() {
 				if config.PeginTxId == "" {
 					t = "No pending peg-in"
 				} else {
-					confs := lndNumConfirmations(config.PeginTxId)
+					tx, err := lndGetTransaction(config.PeginTxId)
+					confs := int32(0)
+					if err == nil {
+						confs = tx.NumConfirmations
+					}
 					duration := time.Duration(10*(102-confs)) * time.Minute
 					formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 					t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration

@@ -139,6 +139,7 @@ func main() {
 	r.HandleFunc("/backup", backupHandler)
 	r.HandleFunc("/bitcoin", bitcoinHandler)
 	r.HandleFunc("/pegin", peginHandler)
+	r.HandleFunc("/bumpfee", bumpfeeHandler)
 
 	// Start the server
 	http.Handle("/", r)
@@ -1084,7 +1085,11 @@ func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		liquidBackup(false)
 		if config.PeginTxId != "" {
-			confs := lndNumConfirmations(config.PeginTxId)
+			tx, err := lndGetTransaction(config.PeginTxId)
+			confs := int32(0)
+			if err == nil {
+				confs = tx.NumConfirmations
+			}
 			if confs >= 102 {
 				rawTx, err := getRawTransaction(config.PeginTxId)
 				if err == nil {
@@ -1193,39 +1198,48 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	utxos := lndListUnspent()
 
 	type Page struct {
-		Message        string
-		ColorScheme    string
-		BitcoinBalance uint64
-		Outputs        []*lnrpc.Utxo
-		PeginTxId      string
-		PeginAmount    uint64
-		BitcoinApi     string
-		Confirmations  int32
-		Progress       int32
-		Duration       string
+		Message          string
+		ColorScheme      string
+		BitcoinBalance   uint64
+		Outputs          []*lnrpc.Utxo
+		PeginTxId        string
+		PeginAmount      uint64
+		BitcoinApi       string
+		Confirmations    int32
+		Progress         int32
+		Duration         string
+		SuggestedFeeRate uint32
 	}
 
 	btcBalance := lndConfirmedWalletBalance()
 	confs := int32(0)
+	fee := mempoolGetFee()
 
 	if config.PeginTxId != "" {
-		confs = lndNumConfirmations(config.PeginTxId)
+		tx, err := lndGetTransaction(config.PeginTxId)
+		if err == nil {
+			confs = tx.NumConfirmations
+			if confs == 0 {
+				fee = uint32(float32(fee) * 1.5)
+			}
+		}
 	}
 
 	duration := time.Duration(10*(102-confs)) * time.Minute
 	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 
 	data := Page{
-		Message:        message,
-		ColorScheme:    config.ColorScheme,
-		BitcoinBalance: uint64(btcBalance),
-		Outputs:        utxos,
-		PeginTxId:      config.PeginTxId,
-		PeginAmount:    uint64(config.PeginAmount),
-		BitcoinApi:     config.BitcoinApi,
-		Confirmations:  confs,
-		Progress:       int32(confs * 100 / 102),
-		Duration:       formattedDuration,
+		Message:          message,
+		ColorScheme:      config.ColorScheme,
+		BitcoinBalance:   uint64(btcBalance),
+		Outputs:          utxos,
+		PeginTxId:        config.PeginTxId,
+		PeginAmount:      uint64(config.PeginAmount),
+		BitcoinApi:       config.BitcoinApi,
+		Confirmations:    confs,
+		Progress:         int32(confs * 100 / 102),
+		Duration:         formattedDuration,
+		SuggestedFeeRate: fee,
 	}
 
 	// executing template named "bitcoin"
@@ -1307,6 +1321,57 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		config.PeginTxId = txid
 		saveConfig()
+
+		// Redirect to bitcoin page to follow the pegin progress
+		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// Parse the form data
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Error parsing form data", http.StatusBadRequest)
+			return
+		}
+
+		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		if config.PeginTxId == "" {
+			redirectWithError(w, r, "/bitcoin?", errors.New("No pending peg-in"))
+			return
+		}
+
+		tx, err := lndGetTransaction(config.PeginTxId)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		index := uint32(0)
+		for i, output := range tx.OutputDetails {
+			if output.Amount != config.PeginAmount {
+				index = uint32(i)
+				break
+			}
+		}
+
+		if tx.OutputDetails[index].Amount == config.PeginAmount {
+			redirectWithError(w, r, "/bitcoin?", errors.New("Peg-in tx has no change, not possible to bump"))
+			return
+		}
+
+		err = lndBumpFee(config.PeginTxId, uint32(index), fee)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
