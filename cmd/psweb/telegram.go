@@ -56,7 +56,7 @@ func telegramStart() {
 	}
 
 	// Set bot to debug mode
-	bot.Debug = os.Getenv("DEBUG") == "1"
+	bot.Debug = false // os.Getenv("DEBUG") == "1"
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
