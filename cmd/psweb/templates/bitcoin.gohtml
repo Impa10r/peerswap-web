@@ -35,7 +35,7 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="number" name="feeRate" min="1" required="required" value="" placeholder="Sats/vByte">
+                        <input class="input is-medium" type="number" name="feeRate" min="1" required="required" value="{{if gt .FeeRate 0}}{{.FeeRate}}{{end}}" placeholder="Sats/vByte">
                       </p>
                     </div>
                   </div>

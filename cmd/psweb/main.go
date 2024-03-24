@@ -1203,6 +1203,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations  int32
 		Progress       int32
 		Duration       string
+		FeeRate        uint32
 	}
 
 	btcBalance := lndConfirmedWalletBalance()
@@ -1226,6 +1227,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations:  confs,
 		Progress:       int32(confs * 100 / 102),
 		Duration:       formattedDuration,
+		FeeRate:        mempoolGetFee(),
 	}
 
 	// executing template named "bitcoin"
