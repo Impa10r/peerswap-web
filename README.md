@@ -57,7 +57,6 @@ sudo nano /etc/systemd/system/psweb.service
 ```
 [Unit]
 Description=PeerSwap Web UI
-Requires=peerswapd.service
 After=peerswapd.service
 
 [Service]
