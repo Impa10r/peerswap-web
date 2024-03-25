@@ -40,7 +40,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.2.2"
+const version = "v1.2.3"
 
 func main() {
 
