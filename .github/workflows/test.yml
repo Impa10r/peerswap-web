@@ -35,7 +35,7 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/arm64,linux/amd64 \
-            --tag ghcr.io/impa10r/peerswap-web:${GITHUB_REF#refs/tags/} \
+            --tag ghcr.io/impa10r/peerswap-web:v1.2.4 \
             --tag ghcr.io/impa10r/peerswap-web:latest \
             --output "type=registry" \
             .
