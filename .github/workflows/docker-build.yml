@@ -21,15 +21,11 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
   
-      - name: Set tag variable
-        id: tag
-        run: echo ::set-output name=TAG::$(echo "${GITHUB_REF#refs/tags/}")
-
       - name: Build Docker image and push to registry
         run: |
           docker buildx build \
             --platform linux/arm64,linux/amd64 \
-            --tag ghcr.io/impa10r/peerswap-web:${{ steps.tag.outputs.TAG }} \
+            --tag ghcr.io/impa10r/peerswap-web:${GITHUB_REF#refs/tags/} \
             --tag ghcr.io/impa10r/peerswap-web:latest \
             --output "type=registry" \
             .
