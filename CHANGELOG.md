@@ -3,7 +3,7 @@
 ## 1.2.4
 
 - Retry connecting to Telegram bot every minute if failed on start
-- Display rpc connection error in plain Engligh
+- Display rpc connection error in plain English
 - Add github workflow to build docker image
 
 ## 1.2.3
