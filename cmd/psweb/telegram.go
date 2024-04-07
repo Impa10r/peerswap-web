@@ -132,6 +132,7 @@ func telegramConnect() {
 		saveConfig()
 	} else {
 		chatId = 0
+		bot = nil
 	}
 }
 

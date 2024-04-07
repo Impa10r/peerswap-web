@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 	"text/template"
 	"time"
@@ -40,7 +41,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.2.2"
+const version = "v1.2.4"
 
 func main() {
 
@@ -153,9 +154,6 @@ func main() {
 
 	// Run every minute
 	go startTimer()
-
-	// Start Telegram bot
-	go telegramStart()
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -1066,8 +1064,14 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
+	t := fmt.Sprintln(err)
+	// translate some errors into plain English
+	switch {
+	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
+		t = "Cannot connect to peerswapd. It either failed to start, awaits LND or has wrong configuration. Check log and peerswap.conf."
+	}
 	// display the error to the web page header
-	msg := url.QueryEscape(fmt.Sprintln(err))
+	msg := url.QueryEscape(t)
 	http.Redirect(w, r, redirectUrl+"err="+msg, http.StatusSeeOther)
 }
 
@@ -1083,7 +1087,13 @@ func showVersionInfo() {
 
 func startTimer() {
 	for range time.Tick(60 * time.Second) {
+		// Start Telegram bot if not already running
+		telegramStart()
+
+		// Back up to Telegram if Liquid balance changed
 		liquidBackup(false)
+
+		// Check Peg-in status
 		if config.PeginTxId != "" {
 			tx, err := lndGetTransaction(config.PeginTxId)
 			confs := int32(0)
