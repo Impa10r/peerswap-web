@@ -1,0 +1,35 @@
+name: Build Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on tags starting with 'v'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+  
+      - name: Set tag variable
+        id: tag
+        run: echo ::set-output name=TAG::$(echo "${GITHUB_REF#refs/tags/}")
+
+      - name: Build Docker image and push to registry
+        run: |
+          docker buildx build \
+            --platform linux/arm64,linux/amd64 \
+            --tag ghcr.io/impa10r/peerswap-web:${{ steps.tag.outputs.TAG }} \
+            --tag ghcr.io/impa10r/peerswap-web:latest \
+            --output "type=registry" \
+            .
