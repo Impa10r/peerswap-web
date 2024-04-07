@@ -1,5 +1,4 @@
-![image](https://github.com/Impa10r/peerswap-web/assets/101550606/5864193b-be01-42f1-8d91-ee3693fb2c91)
-
+![image](https://github.com/Impa10r/peerswap-web/assets/101550606/7ca46925-d892-491e-8e0b-326dd882b836)
 
 # PeerSwap Web UI
 
@@ -58,7 +57,6 @@ sudo nano /etc/systemd/system/psweb.service
 ```
 [Unit]
 Description=PeerSwap Web UI
-Requires=peerswapd.service
 After=peerswapd.service
 
 [Service]
