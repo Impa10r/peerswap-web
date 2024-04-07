@@ -2,3 +2,4 @@
 push.sh
 __debug*
 .gitignore
+.vscode/tasks.json
