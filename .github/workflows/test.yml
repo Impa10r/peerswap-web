@@ -31,7 +31,7 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/arm64,linux/amd64 \
-            --tag ghcr.io/impa10r/peerswap-web:${{ env.TAG }} \
+            --tag ghcr.io/impa10r/peerswap-web:v1.2.4 \
             --tag ghcr.io/impa10r/peerswap-web:latest \
             .
       
@@ -45,5 +45,5 @@ jobs:
       - name: Push Docker images
         run: |
           docker push ghcr.io/impa10r/peerswap-web:latest
-          docker push ghcr.io/impa10r/peerswap-web:${{ env.TAG }}
+          docker push ghcr.io/impa10r/peerswap-web:v1.2.4
       
