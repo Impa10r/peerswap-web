@@ -199,7 +199,7 @@ func toUint(num int64) uint64 {
 }
 
 func toMil(num uint64) string {
-	return fmt.Sprintf("%.1f", float32(num/1000000))
+	return fmt.Sprintf("%.1f", float32(num)/1000000)
 }
 
 func getNodeAlias(key string) string {
