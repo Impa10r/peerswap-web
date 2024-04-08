@@ -23,7 +23,7 @@ docker run --net=host \
 ghcr.io/impa10r/peerswap-web:latest
 ```
 
-The user must not be root and have id 1000 (i.e. was the first one created in your node). 
+The user must not be root and have id 1000 (i.e. was the first one created on your node). 
 
 This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
 
