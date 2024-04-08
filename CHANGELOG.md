@@ -33,10 +33,11 @@
 !!! BREAKING CHANGES FOR DOCKER !!! 
 
 - Docker image can no longer be run by host's root user
-- Using a non-root user "peerswap" inside the container
+- It must be run by the user with id 1000
+- Running a non-root user "peerswap" with id 1000 inside the container
 
 Migration steps:
-1. Create a non-root user if it does not exist, login with it
+1. Create a non-root user if it does not exist, login with it. Otherwise, use user with id 1000 (the first one you created on your node).
 2. If your .peerswap folder is in /root/, copy it to /home/USER/
 3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```
 4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/"
