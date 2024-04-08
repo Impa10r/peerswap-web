@@ -164,8 +164,8 @@
               {{range .Peer.Channels}}
                 <tr style="border: 1px dotted">
                   <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
-                  <td>{{fmt .LocalBalance}}</td>
-                  <td>{{fmt .RemoteBalance}}</td>
+                  <td>{{m .LocalBalance}}</td>
+                  <td>{{m .RemoteBalance}}</td>
                   <td>{{.Active}}</td>
                 </tr>
               {{end}}

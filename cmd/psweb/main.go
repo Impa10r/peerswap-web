@@ -152,6 +152,9 @@ func main() {
 
 	log.Println("Listening on http://localhost:" + config.ListenPort)
 
+	// Start Telegram bot
+	go telegramStart()
+
 	// Run every minute
 	go startTimer()
 
@@ -1088,7 +1091,7 @@ func showVersionInfo() {
 func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		// Start Telegram bot if not already running
-		telegramStart()
+		go telegramStart()
 
 		// Back up to Telegram if Liquid balance changed
 		liquidBackup(false)

@@ -20,6 +20,7 @@ var (
 
 func telegramStart() {
 	if config.TelegramToken == "" || bot != nil {
+		// disabled or already started
 		return
 	}
 

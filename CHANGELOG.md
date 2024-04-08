@@ -1,5 +1,9 @@
 # Versions
 
+## 1.2.5
+
+- Bug fix for peg-in claim not working in v1.2.4
+
 ## 1.2.4
 
 - Retry connecting to Telegram bot every minute if failed on start
