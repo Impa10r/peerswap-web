@@ -13,7 +13,7 @@ type Bitcoin struct {
 	client *RPCClient
 }
 
-// ElementsClient returns an RpcClient
+// BitcoinClient returns an RpcClient
 func BitcoinClient() (c *RPCClient) {
 	// Connect to Bitcoin Core RPC server
 	host := config.BitcoinHost
