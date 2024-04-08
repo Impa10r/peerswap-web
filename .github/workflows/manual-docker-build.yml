@@ -1,4 +1,6 @@
-name: Manual Workflow Trigger
+name: Manual Build Docker Images
+permissions:
+  packages: write
 
 on:
   workflow_dispatch:

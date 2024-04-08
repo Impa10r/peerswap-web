@@ -1,4 +1,6 @@
-name: Build Docker Image
+name: Build Docker Images
+permissions:
+  packages: write
 
 on:
   push:
