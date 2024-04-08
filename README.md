@@ -18,12 +18,14 @@ docker run --net=host \
 -v ~/.lnd:/home/peerswap/.lnd:ro  \
 -v ~/.elements:/home/peerswap/.elements:ro \
 -v ~/.peerswap:/home/peerswap/.peerswap \
--e ELEMENTS_FOLDER="/home/USER/.elements" \
+-e ELEMENTS_FOLDER="/home/$(whoami)/.elements" \
 -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" \
 ghcr.io/impa10r/peerswap-web:latest
 ```
 
-*Change USER in ELEMENTS_FOLDER path to your username. This user must be not root. This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
+The user must not be root and have id 1000 (i.e. was the first one created in your node). 
+
+This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
 
 Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require different parameters (-e). If -e NETWORK="testnet" is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
 
