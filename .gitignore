@@ -1,5 +1,5 @@
 .env
 push.sh
 __debug*
+.vscode/*
 .gitignore
-.vscode/tasks.json
