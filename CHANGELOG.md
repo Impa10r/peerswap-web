@@ -1,5 +1,9 @@
 # Versions
 
+## 1.2.6
+
+- Fix conversion to millions in Peer Details
+
 ## 1.2.5
 
 - Bug fix for peg-in claim not working in v1.2.4
