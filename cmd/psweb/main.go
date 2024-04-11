@@ -41,7 +41,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.2.5"
+const version = "v1.2.6"
 
 func main() {
 
@@ -1357,7 +1357,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if config.PeginTxId == "" {
-			redirectWithError(w, r, "/bitcoin?", errors.New("No pending peg-in"))
+			redirectWithError(w, r, "/bitcoin?", errors.New("no pending peg-in"))
 			return
 		}
 
@@ -1376,7 +1376,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if tx.OutputDetails[index].Amount == config.PeginAmount {
-			redirectWithError(w, r, "/bitcoin?", errors.New("Peg-in tx has no change, not possible to bump"))
+			redirectWithError(w, r, "/bitcoin?", errors.New("peg-in tx has no change, not possible to bump"))
 			return
 		}
 

@@ -30,7 +30,6 @@ func getClientConn(address string) (*grpc.ClientConn, error) {
 	maxMsgRecvSize := grpc.MaxCallRecvMsgSize(1 * 1024 * 1024 * 200)
 	opts := []grpc.DialOption{
 		grpc.WithDefaultCallOptions(maxMsgRecvSize),
-		//grpc.WithInsecure(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 

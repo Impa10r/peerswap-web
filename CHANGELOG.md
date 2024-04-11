@@ -1,5 +1,10 @@
 # Versions
 
+## 1.2.6
+
+- Fix bug in conversion to millions
+- Add Makefile, update installation instructions
+
 ## 1.2.5
 
 - Bug fix for peg-in claim not working in v1.2.4

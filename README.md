@@ -45,8 +45,8 @@ Clone the repository and build PeerSwap Web UI:
 
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
-cd peerswap-web/cmd/psweb && \
-go install
+cd peerswap-web && \
+make install
 ```
 
 This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. If not, add the bin path in .profile and reload with `source .profile`.
@@ -107,8 +107,8 @@ When a new version comes out, just build the app again and restart:
 ```bash
 rm -rf peerswap-web && \
 git clone https://github.com/Impa10r/peerswap-web && \
-cd peerswap-web/cmd/psweb && \
-go install && \
+cd peerswap-web && \
+make install && \
 sudo systemctl restart psweb
 ```
 
