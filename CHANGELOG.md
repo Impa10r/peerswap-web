@@ -2,7 +2,8 @@
 
 ## 1.2.6
 
-- Fix conversion to millions in Peer Details
+- Fix bug in conversion to millions
+- Add Makefile, update installation instructions
 
 ## 1.2.5
 
