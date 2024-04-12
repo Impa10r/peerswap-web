@@ -9,6 +9,8 @@ import (
 
 	"log"
 
+	"peerswap-web/cmd/psweb/config"
+
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -43,7 +45,7 @@ func getClientConn(address string) (*grpc.ClientConn, error) {
 }
 
 func stopPeerSwapd() {
-	host := config.RpcHost
+	host := config.Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -126,14 +128,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			// red background for inactive channels
 			bc := "#590202"
-			if config.ColorScheme == "light" {
+			if config.Config.ColorScheme == "light" {
 				bc = "#fcb6b6"
 			}
 
 			if channel.Active {
 				// green background for active channels
 				bc = "#224725"
-				if config.ColorScheme == "light" {
+				if config.Config.ColorScheme == "light" {
 					bc = "#e6ffe8"
 				}
 			}
@@ -248,7 +250,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	table := "<table style=\"table-layout:fixed; width: 100%\">"
 	for _, t := range unsortedTable {
 		counter++
-		if counter > config.MaxHistory {
+		if counter > config.Config.MaxHistory {
 			break
 		}
 		table += t.HtmlBlob

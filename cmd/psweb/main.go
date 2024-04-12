@@ -21,9 +21,12 @@ import (
 	"text/template"
 	"time"
 
+	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/ln"
+	"peerswap-web/cmd/psweb/mempool"
+
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
-	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
 type AliasCache struct {
@@ -64,31 +67,15 @@ func main() {
 	}
 
 	// loading from the config file or assigning defaults
-	loadConfig(*dataDir)
+	config.Load(*dataDir)
+
+	// save config to confirm any defaults
+	config.Save()
 
 	// set logging params
 	err := setLogging()
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	// on first start without config there will be no elements user and password
-	if config.ElementsPass == "" || config.ElementsUser == "" {
-		// check in peerswap.conf
-		config.ElementsPass = getPeerswapConfSetting("elementsd.rpcpass")
-		config.ElementsUser = getPeerswapConfSetting("elementsd.rpcuser")
-
-		// check if they were passed as env
-		if config.ElementsUser == "" && os.Getenv("ELEMENTS_USER") != "" {
-			config.ElementsUser = os.Getenv("ELEMENTS_USER")
-		}
-		if config.ElementsPass == "" && os.Getenv("ELEMENTS_PASS") != "" {
-			config.ElementsPass = os.Getenv("ELEMENTS_PASS")
-		}
-
-		saveConfig()
-		// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
-		savePeerSwapdConfig()
 	}
 
 	// Get all HTML template files from the embedded filesystem
@@ -145,12 +132,12 @@ func main() {
 	// Start the server
 	http.Handle("/", r)
 	go func() {
-		if err := http.ListenAndServe(":"+config.ListenPort, nil); err != nil {
+		if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	log.Println("Listening on http://localhost:" + config.ListenPort)
+	log.Println("Listening on http://localhost:" + config.Config.ListenPort)
 
 	// Start Telegram bot
 	go telegramStart()
@@ -175,12 +162,12 @@ func main() {
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 
-	if config.ElementsPass == "" || config.ElementsUser == "" {
+	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
 		return
 	}
 
-	host := config.RpcHost
+	host := config.Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -243,14 +230,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		AllowSwapRequests: config.AllowSwapRequests,
-		BitcoinSwaps:      config.BitcoinSwaps,
+		AllowSwapRequests: config.Config.AllowSwapRequests,
+		BitcoinSwaps:      config.Config.BitcoinSwaps,
 		Message:           message,
-		ColorScheme:       config.ColorScheme,
+		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps),
-		BitcoinBalance:    uint64(lndConfirmedWalletBalance()),
+		BitcoinBalance:    uint64(ln.ConfirmedWalletBalance()),
 	}
 
 	// executing template named "homepage"
@@ -270,7 +257,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	host := config.RpcHost
+	host := config.Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -354,16 +341,16 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:        message,
-		ColorScheme:    config.ColorScheme,
+		ColorScheme:    config.Config.ColorScheme,
 		Peer:           peer,
 		PeerAlias:      getNodeAlias(peer.NodeId),
-		NodeUrl:        config.NodeApi,
+		NodeUrl:        config.Config.NodeApi,
 		Allowed:        stringIsInSlice(peer.NodeId, allowlistedPeers),
 		Suspicious:     stringIsInSlice(peer.NodeId, suspiciousPeers),
 		BTC:            stringIsInSlice("btc", peer.SupportedAssets),
 		LBTC:           stringIsInSlice("lbtc", peer.SupportedAssets),
 		LiquidBalance:  satAmount,
-		BitcoinBalance: uint64(lndConfirmedWalletBalance()),
+		BitcoinBalance: uint64(ln.ConfirmedWalletBalance()),
 		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps),
 		DirectionIn:    sumLocal < sumRemote,
 	}
@@ -392,7 +379,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.ColorScheme,
+		ColorScheme: config.Config.ColorScheme,
 		Id:          id,
 		Message:     "",
 	}
@@ -415,7 +402,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := keys[0]
-	host := config.RpcHost
+	host := config.Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -437,9 +424,9 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
-	url := config.BitcoinApi + "/tx/"
+	url := config.Config.BitcoinApi + "/tx/"
 	if swap.Asset == "lbtc" {
-		url = config.LiquidApi + "/tx/"
+		url = config.Config.LiquidApi + "/tx/"
 	}
 	swapData := `<div class="container">
 	<div class="columns">
@@ -479,12 +466,12 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
 	swapData += getNodeAlias(swap.InitiatorNodeId)
 	swapData += `&nbsp<a href="`
-	swapData += config.NodeApi + "/" + swap.InitiatorNodeId
+	swapData += config.Config.NodeApi + "/" + swap.InitiatorNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
 	swapData += getNodeAlias(swap.PeerNodeId)
 	swapData += `&nbsp<a href="`
-	swapData += config.NodeApi + "/" + swap.PeerNodeId
+	swapData += config.Config.NodeApi + "/" + swap.PeerNodeId
 	swapData += `" target="_blank">🔗</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
 	swapData += formatWithThousandSeparators(swap.Amount)
@@ -537,15 +524,15 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		Message     string
 		ColorScheme string
-		Config      Configuration
+		Config      config.Configuration
 		Version     string
 		Latest      string
 	}
 
 	data := Page{
 		Message:     message,
-		ColorScheme: config.ColorScheme,
-		Config:      config,
+		ColorScheme: config.Config.ColorScheme,
+		Config:      config.Config,
 		Version:     version,
 		Latest:      getLatestTag(),
 	}
@@ -578,7 +565,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	host := config.RpcHost
+	host := config.Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -622,13 +609,13 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:       message,
-		ColorScheme:   config.ColorScheme,
+		ColorScheme:   config.Config.ColorScheme,
 		LiquidAddress: addr,
 		LiquidBalance: res2.GetSatAmount(),
 		TxId:          txid,
-		LiquidUrl:     config.LiquidApi + "/tx/" + txid,
+		LiquidUrl:     config.Config.LiquidApi + "/tx/" + txid,
 		Outputs:       &outputs,
-		LiquidApi:     config.LiquidApi,
+		LiquidApi:     config.Config.LiquidApi,
 	}
 
 	// executing template named "liquid"
@@ -649,7 +636,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		action := r.FormValue("action")
 		nodeId := r.FormValue("nodeId")
-		host := config.RpcHost
+		host := config.Config.RpcHost
 		ctx := context.Background()
 
 		client, cleanup, err := getClient(host)
@@ -807,22 +794,22 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		config.ColorScheme = r.FormValue("colorScheme")
-		config.NodeApi = r.FormValue("nodeApi")
-		config.BitcoinApi = r.FormValue("bitcoinApi")
-		config.LiquidApi = r.FormValue("liquidApi")
+		config.Config.ColorScheme = r.FormValue("colorScheme")
+		config.Config.NodeApi = r.FormValue("nodeApi")
+		config.Config.BitcoinApi = r.FormValue("bitcoinApi")
+		config.Config.LiquidApi = r.FormValue("liquidApi")
 
-		if config.TelegramToken != r.FormValue("telegramToken") {
-			config.TelegramToken = r.FormValue("telegramToken")
+		if config.Config.TelegramToken != r.FormValue("telegramToken") {
+			config.Config.TelegramToken = r.FormValue("telegramToken")
 			go telegramStart()
 		}
 
-		if config.LocalMempool != r.FormValue("localMempool") && r.FormValue("localMempool") != "" {
+		if config.Config.LocalMempool != r.FormValue("localMempool") && r.FormValue("localMempool") != "" {
 			// update bitcoinApi link
-			config.BitcoinApi = r.FormValue("localMempool")
+			config.Config.BitcoinApi = r.FormValue("localMempool")
 		}
 
-		config.LocalMempool = r.FormValue("localMempool")
+		config.Config.LocalMempool = r.FormValue("localMempool")
 
 		bitcoinSwaps, err := strconv.ParseBool(r.FormValue("bitcoinSwaps"))
 		if err != nil {
@@ -830,26 +817,26 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		mustRestart := false
-		if config.BitcoinSwaps != bitcoinSwaps || config.ElementsUser != r.FormValue("elementsUser") || config.ElementsPass != r.FormValue("elementsPass") {
+		if config.Config.BitcoinSwaps != bitcoinSwaps || config.Config.ElementsUser != r.FormValue("elementsUser") || config.Config.ElementsPass != r.FormValue("elementsPass") {
 			mustRestart = true
 		}
 
-		config.BitcoinSwaps = bitcoinSwaps
-		config.ElementsUser = r.FormValue("elementsUser")
-		config.ElementsPass = r.FormValue("elementsPass")
-		config.ElementsDir = r.FormValue("elementsDir")
-		config.ElementsDirMapped = r.FormValue("elementsDirMapped")
-		config.BitcoinHost = r.FormValue("bitcoinHost")
-		config.BitcoinUser = r.FormValue("bitcoinUser")
-		config.BitcoinPass = r.FormValue("bitcoinPass")
-		config.ProxyURL = r.FormValue("proxyURL")
+		config.Config.BitcoinSwaps = bitcoinSwaps
+		config.Config.ElementsUser = r.FormValue("elementsUser")
+		config.Config.ElementsPass = r.FormValue("elementsPass")
+		config.Config.ElementsDir = r.FormValue("elementsDir")
+		config.Config.ElementsDirMapped = r.FormValue("elementsDirMapped")
+		config.Config.BitcoinHost = r.FormValue("bitcoinHost")
+		config.Config.BitcoinUser = r.FormValue("bitcoinUser")
+		config.Config.BitcoinPass = r.FormValue("bitcoinPass")
+		config.Config.ProxyURL = r.FormValue("proxyURL")
 
 		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
 		if err != nil {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
-		config.MaxHistory = uint(mh)
+		config.Config.MaxHistory = uint(mh)
 
 		ctx := context.Background()
 		host := r.FormValue("rpcHost")
@@ -866,12 +853,12 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 				// RPC Host entered is bad
 				clientIsDown = true
 			} else { // values are good, save them
-				config.RpcHost = host
-				config.AllowSwapRequests = allowSwapRequests
+				config.Config.RpcHost = host
+				config.Config.AllowSwapRequests = allowSwapRequests
 			}
 		}
 
-		if err2 := saveConfig(); err2 != nil {
+		if err2 := config.Save(); err2 != nil {
 			redirectWithError(w, r, "/config?", err2)
 			return
 		}
@@ -879,7 +866,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if mustRestart {
 			// show progress bar and log
 			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
-			savePeerSwapdConfig()
+			config.SavePS()
 			stopPeerSwapd()
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
@@ -909,7 +896,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.ColorScheme,
+		ColorScheme: config.Config.ColorScheme,
 		Message:     "",
 		LogPosition: 0,     // new content and wait for connection
 		LogFile:     "log", // peerswapd log
@@ -924,15 +911,15 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
-	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	wallet := config.Config.ElementsWallet
 	// returns .bak with the name of the wallet
 	if fileName, err := backupAndZip(wallet); err == nil {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 		// Serve the file for download
-		http.ServeFile(w, r, filepath.Join(config.DataDir, fileName))
+		http.ServeFile(w, r, filepath.Join(config.Config.DataDir, fileName))
 		// Delete zip archive
-		err = os.Remove(filepath.Join(config.DataDir, fileName))
+		err = os.Remove(filepath.Join(config.Config.DataDir, fileName))
 		if err != nil {
 			log.Println("Error deleting zip file:", err)
 		}
@@ -958,7 +945,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.ColorScheme,
+		ColorScheme: config.Config.ColorScheme,
 		Message:     "",
 		LogPosition: 1, // from first line
 		LogFile:     logFile,
@@ -998,7 +985,7 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 		logFile = keys[0]
 	}
 
-	filename := filepath.Join(config.DataDir, logFile)
+	filename := filepath.Join(config.Config.DataDir, logFile)
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -1097,25 +1084,21 @@ func startTimer() {
 		liquidBackup(false)
 
 		// Check Peg-in status
-		if config.PeginTxId != "" {
-			tx, err := lndGetTransaction(config.PeginTxId)
-			confs := int32(0)
-			if err == nil {
-				confs = tx.NumConfirmations
-			}
+		if config.Config.PeginTxId != "" {
+			confs := ln.GetTxConfirmations(config.Config.PeginTxId)
 			if confs >= 102 {
-				rawTx, err := getRawTransaction(config.PeginTxId)
+				rawTx, err := getRawTransaction(config.Config.PeginTxId)
 				if err == nil {
-					proof := getTxOutProof(config.PeginTxId)
-					txid, err := claimPegin(rawTx, proof, config.PeginClaimScript)
+					proof := getTxOutProof(config.Config.PeginTxId)
+					txid, err := claimPegin(rawTx, proof, config.Config.PeginClaimScript)
 
 					// claimpegin takes long time, allow it to timeout
 					if err != nil && err.Error() != "timeout reading data from server" {
 						log.Println("Peg-in claim FAILED!")
-						log.Println("Mainchain TxId:", config.PeginTxId)
+						log.Println("Mainchain TxId:", config.Config.PeginTxId)
 						log.Println("Raw tx:", rawTx)
 						log.Println("Proof:", proof)
-						log.Println("Claim Script:", config.PeginClaimScript)
+						log.Println("Claim Script:", config.Config.PeginClaimScript)
 						telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 					} else {
 						log.Println("Peg-in success! Liquid TxId:", txid)
@@ -1123,14 +1106,14 @@ func startTimer() {
 					}
 				} else {
 					log.Println("Peg-In getrawtx FAILED.")
-					log.Println("Mainchain TxId:", config.PeginTxId)
-					log.Println("Claim Script:", config.PeginClaimScript)
+					log.Println("Mainchain TxId:", config.Config.PeginTxId)
+					log.Println("Claim Script:", config.Config.PeginClaimScript)
 					telegramSendMessage("❗ Peg-In getrawtx FAILED! See log for details.")
 				}
 
 				// stop trying after first attempt
-				config.PeginTxId = ""
-				saveConfig()
+				config.Config.PeginTxId = ""
+				config.Save()
 			}
 		}
 
@@ -1139,11 +1122,11 @@ func startTimer() {
 
 func liquidBackup(force bool) {
 	// skip backup if missing RPC or Telegram credentials
-	if config.ElementsPass == "" || config.ElementsUser == "" || chatId == 0 {
+	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" || chatId == 0 {
 		return
 	}
 
-	host := config.RpcHost
+	host := config.Config.RpcHost
 	ctx := context.Background()
 
 	client, cleanup, err := getClient(host)
@@ -1172,32 +1155,32 @@ func liquidBackup(force bool) {
 	satAmount := res2.GetSatAmount()
 
 	// do not backup if the sat amount did not change
-	if satAmount == config.ElementsBackupAmount && !force {
+	if satAmount == config.Config.ElementsBackupAmount && !force {
 		return
 	}
 
-	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	wallet := config.Config.ElementsWallet
 	destinationZip, err := backupAndZip(wallet)
 	if err != nil {
 		log.Println("Error zipping backup:", err)
 		return
 	}
 
-	err = telegramSendFile(config.DataDir, destinationZip, formatWithThousandSeparators(satAmount))
+	err = telegramSendFile(config.Config.DataDir, destinationZip, formatWithThousandSeparators(satAmount))
 	if err != nil {
 		log.Println("Error sending zip:", err)
 		return
 	}
 
 	// Delete zip archive
-	err = os.Remove(filepath.Join(config.DataDir, destinationZip))
+	err = os.Remove(filepath.Join(config.Config.DataDir, destinationZip))
 	if err != nil {
 		log.Println("Error deleting zip file:", err)
 	}
 
 	// save the wallet amount
-	config.ElementsBackupAmount = satAmount
-	saveConfig()
+	config.Config.ElementsBackupAmount = satAmount
+	config.Save()
 }
 
 func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
@@ -1208,13 +1191,14 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		message = keys[0]
 	}
 
-	utxos := lndListUnspent()
+	var utxos []ln.UTXO
+	ln.ListUnspent(&utxos)
 
 	type Page struct {
 		Message          string
 		ColorScheme      string
 		BitcoinBalance   uint64
-		Outputs          []*lnrpc.Utxo
+		Outputs          *[]ln.UTXO
 		PeginTxId        string
 		PeginAmount      uint64
 		BitcoinApi       string
@@ -1222,18 +1206,19 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Progress         int32
 		Duration         string
 		SuggestedFeeRate uint32
+		MinBumpFeeRate   uint32
 	}
 
-	btcBalance := lndConfirmedWalletBalance()
+	btcBalance := ln.ConfirmedWalletBalance()
+	fee := mempool.GetFee()
 	confs := int32(0)
-	fee := mempoolGetFee()
 
-	if config.PeginTxId != "" {
-		tx, err := lndGetTransaction(config.PeginTxId)
-		if err == nil {
-			confs = tx.NumConfirmations
-			if confs == 0 {
-				fee = uint32(float32(fee) * 1.5)
+	if config.Config.PeginTxId != "" {
+		confs = ln.GetTxConfirmations(config.Config.PeginTxId)
+		if confs == 0 {
+			fee = uint32(float32(fee) * 1.5)
+			if fee < config.Config.PeginFeeRate+1 {
+				fee = config.Config.PeginFeeRate + 1
 			}
 		}
 	}
@@ -1243,16 +1228,17 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:          message,
-		ColorScheme:      config.ColorScheme,
+		ColorScheme:      config.Config.ColorScheme,
 		BitcoinBalance:   uint64(btcBalance),
-		Outputs:          utxos,
-		PeginTxId:        config.PeginTxId,
-		PeginAmount:      uint64(config.PeginAmount),
-		BitcoinApi:       config.BitcoinApi,
+		Outputs:          &utxos,
+		PeginTxId:        config.Config.PeginTxId,
+		PeginAmount:      uint64(config.Config.PeginAmount),
+		BitcoinApi:       config.Config.BitcoinApi,
 		Confirmations:    confs,
 		Progress:         int32(confs * 100 / 102),
 		Duration:         formattedDuration,
 		SuggestedFeeRate: fee,
+		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 	}
 
 	// executing template named "bitcoin"
@@ -1283,7 +1269,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		btcBalance := lndConfirmedWalletBalance()
+		btcBalance := ln.ConfirmedWalletBalance()
 		sweepall := amount == btcBalance
 
 		// test on pre-existing tx that bitcon core can complete the peg
@@ -1295,16 +1281,16 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		_, err = getRawTransaction(tx)
 		if err != nil {
 			// automatic fallback to getblock.io
-			config.BitcoinHost = getBlockIoHost()
-			config.BitcoinUser = ""
-			config.BitcoinPass = ""
+			config.Config.BitcoinHost = config.GetBlockIoHost()
+			config.Config.BitcoinUser = ""
+			config.Config.BitcoinPass = ""
 			_, err = getRawTransaction(tx)
 			if err != nil {
 				redirectWithError(w, r, "/bitcoin?", errors.New("getrawtransaction request failed, check BitcoinHost in Config"))
 				return
 			} else {
 				// use getblock.io endpoint going forward
-				saveConfig()
+				config.Save()
 			}
 		}
 
@@ -1322,18 +1308,19 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
 
-		config.PeginClaimScript = addr.ClaimScript
-		config.PeginAmount = amount
-		saveConfig()
+		config.Config.PeginClaimScript = addr.ClaimScript
+		config.Config.PeginAmount = amount
+		config.Save()
 
-		txid, err := lndSendCoins(addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
+		txid, err := ln.SendCoins(addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		config.PeginTxId = txid
-		saveConfig()
+		config.Config.PeginTxId = txid
+		config.Config.PeginFeeRate = uint32(fee)
+		config.Save()
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -1356,12 +1343,12 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if config.PeginTxId == "" {
+		if config.Config.PeginTxId == "" {
 			redirectWithError(w, r, "/bitcoin?", errors.New("no pending peg-in"))
 			return
 		}
 
-		tx, err := lndGetTransaction(config.PeginTxId)
+		tx, err := ln.GetTransaction(config.Config.PeginTxId)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -1369,26 +1356,60 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 
 		index := uint32(0)
 		for i, output := range tx.OutputDetails {
-			if output.Amount != config.PeginAmount {
+			if output.Amount != config.Config.PeginAmount {
 				index = uint32(i)
 				break
 			}
 		}
 
-		if tx.OutputDetails[index].Amount == config.PeginAmount {
+		if tx.OutputDetails[index].Amount == config.Config.PeginAmount {
 			redirectWithError(w, r, "/bitcoin?", errors.New("peg-in tx has no change, not possible to bump"))
 			return
 		}
 
-		err = lndBumpFee(config.PeginTxId, uint32(index), fee)
+		err = ln.BumpFee(config.Config.PeginTxId, uint32(index), fee)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
+		// save the new rate, so the next bump cannot be lower
+		config.Config.PeginFeeRate = uint32(fee)
+		config.Save()
+
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func setLogging() error {
+	// Set log file name
+	logFileName := filepath.Join(config.Config.DataDir, "psweb.log")
+	var err error
+	// Open log file in append mode, create if it doesn't exist
+	logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	// Set log output to both file and standard output
+	multi := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(multi)
+
+	log.SetFlags(log.Ldate | log.Ltime)
+	if os.Getenv("DEBUG") == "1" {
+		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	}
+
+	return nil
+}
+
+func closeLogFile() {
+	if logFile != nil {
+		if err := logFile.Close(); err != nil {
+			log.Println("Error closing log file:", err)
+		}
 	}
 }

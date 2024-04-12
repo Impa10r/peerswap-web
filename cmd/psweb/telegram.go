@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/ln"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"golang.org/x/net/proxy"
 )
@@ -19,15 +22,15 @@ var (
 )
 
 func telegramStart() {
-	if config.TelegramToken == "" || bot != nil {
+	if config.Config.TelegramToken == "" || bot != nil {
 		// disabled or already started
 		return
 	}
 
 	var err error
-	if config.ProxyURL != "" {
+	if config.Config.ProxyURL != "" {
 		// Set up Tor proxy
-		p, err := url.Parse(config.ProxyURL)
+		p, err := url.Parse(config.Config.ProxyURL)
 		if err != nil {
 			log.Println("Error connecting to Telegram bot with proxy:", err)
 			return
@@ -40,7 +43,7 @@ func telegramStart() {
 
 		// Create a bot instance
 		bot, err = tgbotapi.NewBotAPIWithClient(
-			config.TelegramToken,
+			config.Config.TelegramToken,
 			"https://api.telegram.org/bot%s/%s",
 			&http.Client{Transport: &http.Transport{Dial: dialer.Dial}})
 		if err != nil {
@@ -49,7 +52,7 @@ func telegramStart() {
 		}
 	} else {
 		// Initialize bot with token
-		bot, err = tgbotapi.NewBotAPI(config.TelegramToken)
+		bot, err = tgbotapi.NewBotAPI(config.Config.TelegramToken)
 		if err != nil {
 			log.Println("Error connecting to Telegram bot:", err)
 			return
@@ -65,7 +68,7 @@ func telegramStart() {
 	u.Timeout = 60
 
 	// Try saved chatId
-	chatId = config.TelegramChatId
+	chatId = config.Config.TelegramChatId
 	if chatId > 0 {
 		telegramConnect()
 	}
@@ -83,17 +86,13 @@ func telegramStart() {
 				liquidBackup(true)
 			case "/pegin":
 				t := ""
-				if config.PeginTxId == "" {
+				if config.Config.PeginTxId == "" {
 					t = "No pending peg-in"
 				} else {
-					tx, err := lndGetTransaction(config.PeginTxId)
-					confs := int32(0)
-					if err == nil {
-						confs = tx.NumConfirmations
-					}
+					confs := ln.GetTxConfirmations(config.Config.PeginTxId)
 					duration := time.Duration(10*(102-confs)) * time.Minute
 					formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-					t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration
+					t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration
 				}
 				telegramSendMessage(t)
 			case "/version":
@@ -129,8 +128,8 @@ func telegramConnect() {
 			},
 		)
 		bot.Send(cmdCfg)
-		config.TelegramChatId = chatId
-		saveConfig()
+		config.Config.TelegramChatId = chatId
+		config.Save()
 	} else {
 		chatId = 0
 		bot = nil

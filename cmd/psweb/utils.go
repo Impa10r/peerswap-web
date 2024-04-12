@@ -3,13 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
+
+	"peerswap-web/cmd/psweb/ln"
+	"peerswap-web/cmd/psweb/mempool"
 )
 
 // returns time passed as a srting
@@ -156,36 +156,6 @@ func getLatestTag() string {
 	}
 }
 
-func setLogging() error {
-	// Set log file name
-	logFileName := filepath.Join(config.DataDir, "psweb.log")
-	var err error
-	// Open log file in append mode, create if it doesn't exist
-	logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-
-	// Set log output to both file and standard output
-	multi := io.MultiWriter(os.Stdout, logFile)
-	log.SetOutput(multi)
-
-	log.SetFlags(log.Ldate | log.Ltime)
-	if os.Getenv("DEBUG") == "1" {
-		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	}
-
-	return nil
-}
-
-func closeLogFile() {
-	if logFile != nil {
-		if err := logFile.Close(); err != nil {
-			log.Println("Error closing log file:", err)
-		}
-	}
-}
-
 func toSats(amount float64) uint64 {
 	return uint64(float64(100000000) * amount)
 }
@@ -210,11 +180,11 @@ func getNodeAlias(key string) string {
 	}
 
 	// try lnd
-	alias := lndGetAlias(key)
+	alias := ln.GetAlias(key)
 
 	if alias == "" {
 		// try mempool
-		alias = mempoolGetNodeAlias(key)
+		alias = mempool.GetNodeAlias(key)
 	}
 
 	if alias == "" {

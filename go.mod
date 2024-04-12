@@ -8,7 +8,8 @@ replace google.golang.org/protobuf => github.com/lightninglabs/protobuf-go-hex-d
 
 require (
 	github.com/alexmullins/zip v0.0.0-20180717182244-4affb64b04d0
-	github.com/elementsproject/peerswap v0.2.97
+	github.com/elementsproject/glightning v0.0.0-20240224063423-55240d61b52a
+	github.com/elementsproject/peerswap v0.2.98-0.20240408181051-0f0d34c6c506
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/lightningnetwork/lnd v0.17.4-beta.rc1
@@ -45,7 +46,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/decred/dcrd/lru v1.1.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/elementsproject/glightning v0.0.0-20221013194807-73978c84cee8 // indirect
 	github.com/fergusstrange/embedded-postgres v1.26.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect

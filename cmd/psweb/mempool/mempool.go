@@ -1,4 +1,4 @@
-package main
+package mempool
 
 import (
 	"bytes"
@@ -8,14 +8,16 @@ import (
 	"net/url"
 	"time"
 
+	"peerswap-web/cmd/psweb/config"
+
 	"golang.org/x/net/proxy"
 )
 
 func getHttpClient() *http.Client {
 	var httpClient *http.Client
 
-	if config.ProxyURL != "" {
-		p, err := url.Parse(config.ProxyURL)
+	if config.Config.ProxyURL != "" {
+		p, err := url.Parse(config.Config.ProxyURL)
 		if err != nil {
 			log.Println("mempool getHttpClient:", err)
 			return nil
@@ -39,9 +41,9 @@ func getHttpClient() *http.Client {
 	return httpClient
 }
 
-func mempoolGetNodeAlias(id string) string {
-	if config.BitcoinApi != "" {
-		api := config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
+func GetNodeAlias(id string) string {
+	if config.Config.BitcoinApi != "" {
+		api := config.Config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
 		req, err := http.NewRequest("GET", api, nil)
 		if err == nil {
 			cl := getHttpClient()
@@ -87,9 +89,9 @@ func mempoolGetNodeAlias(id string) string {
 	return id[:20] // shortened id
 }
 
-func mempoolGetFee() uint32 {
-	if config.BitcoinApi != "" {
-		api := config.BitcoinApi + "/api/v1/fees/recommended"
+func GetFee() uint32 {
+	if config.Config.BitcoinApi != "" {
+		api := config.Config.BitcoinApi + "/api/v1/fees/recommended"
 		req, err := http.NewRequest("GET", api, nil)
 		if err == nil {
 			cl := getHttpClient()
@@ -121,6 +123,45 @@ func mempoolGetFee() uint32 {
 				}
 
 				return fees.FastestFee
+			}
+		}
+	}
+	return 0
+}
+
+func GetTxHeight(txid string) int32 {
+	if config.Config.BitcoinApi != "" {
+		api := config.Config.BitcoinApi + "/api/tx/" + txid + "/status"
+		req, err := http.NewRequest("GET", api, nil)
+		if err == nil {
+			cl := getHttpClient()
+			if cl == nil {
+				return 0
+			}
+			resp, err2 := cl.Do(req)
+			if err2 == nil {
+				defer resp.Body.Close()
+				buf := new(bytes.Buffer)
+				_, _ = buf.ReadFrom(resp.Body)
+
+				// Define a struct to match the JSON structure
+				type Status struct {
+					Confirmed   bool   `json:"confirmed"`
+					BlockHeight int32  `json:"block_height"`
+					BlockHash   string `json:"block_hash"`
+					BlockTime   uint64 `json:"block_time"`
+				}
+
+				// Create an instance of the struct to store the parsed data
+				var status Status
+
+				// Unmarshal the JSON string into the struct
+				if err := json.Unmarshal(buf.Bytes(), &status); err != nil {
+					log.Println("Mempool Error:", err)
+					return 0
+				}
+
+				return status.BlockHeight
 			}
 		}
 	}

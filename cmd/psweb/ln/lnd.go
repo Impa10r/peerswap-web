@@ -1,4 +1,6 @@
-package main
+//go:build !cln
+
+package ln
 
 import (
 	"context"
@@ -6,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"peerswap-web/cmd/psweb/config"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
@@ -16,9 +20,9 @@ import (
 )
 
 func lndConnection() *grpc.ClientConn {
-	tlsCertPath := getPeerswapConfSetting("lnd.tlscertpath")
-	macaroonPath := getPeerswapConfSetting("lnd.macaroonpath")
-	host := getPeerswapConfSetting("lnd.host")
+	tlsCertPath := config.GetPeerswapLNDSetting("lnd.tlscertpath")
+	macaroonPath := config.GetPeerswapLNDSetting("lnd.macaroonpath")
+	host := config.GetPeerswapLNDSetting("lnd.host")
 
 	tlsCreds, err := credentials.NewClientTLSFromFile(tlsCertPath, "")
 	if err != nil {
@@ -59,7 +63,7 @@ func lndConnection() *grpc.ClientConn {
 	return conn
 }
 
-func lndSendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
+func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
 	client := lnrpc.NewLightningClient(lndConnection())
 	ctx := context.Background()
 	resp, err := client.SendCoins(ctx, &lnrpc.SendCoinsRequest{
@@ -70,45 +74,60 @@ func lndSendCoins(addr string, amount int64, feeRate uint64, sweepall bool, labe
 		Label:       label,
 	})
 	if err != nil {
-		log.Println("lndSendCoins:", err)
+		log.Println("SendCoins:", err)
 		return "", err
 	}
 
 	return resp.Txid, nil
 }
 
-func lndConfirmedWalletBalance() int64 {
+func ConfirmedWalletBalance() int64 {
 	client := lnrpc.NewLightningClient(lndConnection())
 	ctx := context.Background()
 	resp, err := client.WalletBalance(ctx, &lnrpc.WalletBalanceRequest{})
 	if err != nil {
-		log.Println("lndConfirmedWalletBalance:", err)
+		log.Println("WalletBalance:", err)
 		return 0
 	}
 
 	return resp.ConfirmedBalance
 }
 
-func lndListUnspent() []*lnrpc.Utxo {
+func ListUnspent(list *[]UTXO) error {
 	client := walletrpc.NewWalletKitClient(lndConnection())
 	ctx := context.Background()
 
 	resp, err := client.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: 0})
 	if err != nil {
-		log.Println("lndListUnspent:", err)
-		return nil
+		log.Println("ListUnspent:", err)
+		return err
 	}
 
-	return resp.Utxos
+	// Dereference the pointer to get the actual array
+	a := *list
+
+	// Append the value to the array
+	for _, i := range resp.Utxos {
+		a = append(a, UTXO{
+			Address:       i.Address,
+			AmountSat:     i.AmountSat,
+			Confirmations: i.Confirmations,
+		})
+	}
+
+	// Update the array through the pointer
+	*list = a
+
+	return nil
 }
 
-func lndGetTransaction(txid string) (*lnrpc.Transaction, error) {
+func GetTransaction(txid string) (*lnrpc.Transaction, error) {
 	client := lnrpc.NewLightningClient(lndConnection())
 	ctx := context.Background()
 
 	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
 	if err != nil {
-		log.Println("lndGetTransaction:", err)
+		log.Println("GetTransaction:", err)
 		return nil, err
 	}
 	for _, tx := range resp.Transactions {
@@ -117,11 +136,21 @@ func lndGetTransaction(txid string) (*lnrpc.Transaction, error) {
 		}
 	}
 
-	log.Println("lndGetTransaction: txid not found")
+	log.Println("GetTransaction: txid not found")
 	return nil, errors.New("txid not found")
 }
 
-func lndGetAlias(nodeKey string) string {
+func GetTxConfirmations(txid string) int32 {
+	tx, err := GetTransaction(txid)
+	if err == nil {
+		return tx.NumConfirmations
+	}
+
+	log.Println("GetTxConfirmations:", err)
+	return 0
+}
+
+func GetAlias(nodeKey string) string {
 	client := lnrpc.NewLightningClient(lndConnection())
 	ctx := context.Background()
 
@@ -133,7 +162,7 @@ func lndGetAlias(nodeKey string) string {
 	return nodeInfo.Node.Alias
 }
 
-func lndBumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
+func BumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
 	client := walletrpc.NewWalletKitClient(lndConnection())
 	ctx := context.Background()
 
@@ -146,7 +175,7 @@ func lndBumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
 	})
 
 	if err != nil {
-		log.Println("lndBumpFee:", err)
+		log.Println("BumpFee:", err)
 		return err
 	}
 
