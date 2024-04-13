@@ -1,4 +1,4 @@
-//go:build !clnversion
+//go:build !cln
 
 package ps
 
@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func getClient(rpcServer string) (peerswaprpc.PeerSwapClient, func(), error) {
+func GetClient(rpcServer string) (peerswaprpc.PeerSwapClient, func(), error) {
 	conn, err := getClientConn(rpcServer)
 	if err != nil {
 		log.Println("PS LND Connection:", err)
@@ -46,7 +46,7 @@ func Stop() {
 	host := config.Config.RpcHost
 	ctx := context.Background()
 
-	client, cleanup, err := getClient(host)
+	client, cleanup, err := GetClient(host)
 	if err != nil {
 		return
 	}
@@ -60,204 +60,105 @@ func Stop() {
 	}
 }
 
-func ReloadPolicyFile() (*peerswaprpc.Policy, error) {
-	host := config.Config.RpcHost
+func ReloadPolicyFile(client peerswaprpc.PeerSwapClient) (*peerswaprpc.Policy, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.ReloadPolicyFile(ctx, &peerswaprpc.ReloadPolicyFileRequest{})
 }
 
-func ListPeers() (*peerswaprpc.ListPeersResponse, error) {
-	host := config.Config.RpcHost
+func ListPeers(client peerswaprpc.PeerSwapClient) (*peerswaprpc.ListPeersResponse, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.ListPeers(ctx, &peerswaprpc.ListPeersRequest{})
 }
 
-func ListSwaps() (*peerswaprpc.ListSwapsResponse, error) {
-	host := config.Config.RpcHost
+func ListSwaps(client peerswaprpc.PeerSwapClient) (*peerswaprpc.ListSwapsResponse, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
 }
 
-func LiquidGetBalance() (*peerswaprpc.GetBalanceResponse, error) {
-	host := config.Config.RpcHost
+func LiquidGetBalance(client peerswaprpc.PeerSwapClient) (*peerswaprpc.GetBalanceResponse, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})
 }
 
-func ListActiveSwaps() (*peerswaprpc.ListSwapsResponse, error) {
-	host := config.Config.RpcHost
+func ListActiveSwaps(client peerswaprpc.PeerSwapClient) (*peerswaprpc.ListSwapsResponse, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.ListActiveSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
 }
 
-func GetSwap(id string) (*peerswaprpc.SwapResponse, error) {
-	host := config.Config.RpcHost
+func GetSwap(client peerswaprpc.PeerSwapClient, id string) (*peerswaprpc.SwapResponse, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.GetSwap(ctx, &peerswaprpc.GetSwapRequest{
 		SwapId: id,
 	})
 }
 
-func LiquidGetAddress() (*peerswaprpc.GetAddressResponse, error) {
-	host := config.Config.RpcHost
+func LiquidGetAddress(client peerswaprpc.PeerSwapClient) (*peerswaprpc.GetAddressResponse, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.LiquidGetAddress(ctx, &peerswaprpc.GetAddressRequest{})
 }
 
-func AddPeer(nodeId string) (*peerswaprpc.Policy, error) {
-	host := config.Config.RpcHost
+func AddPeer(client peerswaprpc.PeerSwapClient, nodeId string) (*peerswaprpc.Policy, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.AddPeer(ctx, &peerswaprpc.AddPeerRequest{
 		PeerPubkey: nodeId,
 	})
 }
 
-func RemovePeer(nodeId string) (*peerswaprpc.Policy, error) {
-	host := config.Config.RpcHost
+func RemovePeer(client peerswaprpc.PeerSwapClient, nodeId string) (*peerswaprpc.Policy, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.RemovePeer(ctx, &peerswaprpc.RemovePeerRequest{
 		PeerPubkey: nodeId,
 	})
 }
 
-func AddSusPeer(nodeId string) (*peerswaprpc.Policy, error) {
-	host := config.Config.RpcHost
+func AddSusPeer(client peerswaprpc.PeerSwapClient, nodeId string) (*peerswaprpc.Policy, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.AddSusPeer(ctx, &peerswaprpc.AddPeerRequest{
 		PeerPubkey: nodeId,
 	})
 }
 
-func RemoveSusPeer(nodeId string) (*peerswaprpc.Policy, error) {
-	host := config.Config.RpcHost
+func RemoveSusPeer(client peerswaprpc.PeerSwapClient, nodeId string) (*peerswaprpc.Policy, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.RemoveSusPeer(ctx, &peerswaprpc.RemovePeerRequest{
 		PeerPubkey: nodeId,
 	})
 }
 
-func SwapIn(swapAmount, channelId uint64, asset string, force bool) (*peerswaprpc.SwapResponse, error) {
-	host := config.Config.RpcHost
+func SwapIn(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, asset string, force bool) (string, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	return client.SwapIn(ctx, &peerswaprpc.SwapInRequest{
+	resp, err := client.SwapIn(ctx, &peerswaprpc.SwapInRequest{
 		SwapAmount: swapAmount,
 		ChannelId:  channelId,
 		Asset:      asset,
 		Force:      force,
 	})
+
+	if err == nil {
+		return resp.Swap.Id, nil
+	} else {
+		return "", err
+	}
 }
 
-func SwapOut(swapAmount, channelId uint64, asset string, force bool) (*peerswaprpc.SwapResponse, error) {
-	host := config.Config.RpcHost
+func SwapOut(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, asset string, force bool) (string, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	return client.SwapOut(ctx, &peerswaprpc.SwapOutRequest{
+	resp, err := client.SwapOut(ctx, &peerswaprpc.SwapOutRequest{
 		SwapAmount: swapAmount,
 		ChannelId:  channelId,
 		Asset:      asset,
 		Force:      force,
 	})
+
+	if err == nil {
+		return resp.Swap.Id, nil
+	} else {
+		return "", err
+	}
 }
 
-func AllowSwapRequests(host string, allowSwapRequests bool) (*peerswaprpc.Policy, error) {
+func AllowSwapRequests(client peerswaprpc.PeerSwapClient, allowSwapRequests bool) (*peerswaprpc.Policy, error) {
 	ctx := context.Background()
-
-	client, cleanup, err := getClient(host)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	return client.AllowSwapRequests(ctx, &peerswaprpc.AllowSwapRequestsRequest{
 		Allow: allowSwapRequests,
 	})

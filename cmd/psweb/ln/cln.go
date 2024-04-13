@@ -1,4 +1,4 @@
-//go:build clnversion
+//go:build cln
 
 package ln
 
@@ -14,26 +14,22 @@ import (
 
 const fileRPC = "lightning-rpc"
 
-func getClient() (*glightning.Lightning, func(), error) {
+func GetClient() (*glightning.Lightning, func(), error) {
 	lightning := glightning.NewLightning()
 	err := lightning.StartUp(fileRPC, config.Config.RpcHost)
 	if err != nil {
-		log.Println("clnConnection", err)
+		log.Println("PS CLN Connection:", err)
 		return nil, nil, err
 	}
 
-	cleanup := func() { lightning.Shutdown() }
+	cleanup := func() {
+		//lightning.Shutdown()
+	}
 
 	return lightning, cleanup, nil
 }
 
-func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
-	client, cleanup, err := getClient()
-	if err != nil {
-		return "", err
-	}
-	defer cleanup()
-
+func SendCoins(client *glightning.Lightning, addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
 	minConf := uint16(1)
 	res, err := client.Withdraw(addr, &glightning.Sat{
 		Value:   uint64(amount),
@@ -50,16 +46,10 @@ func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label s
 	return res.TxId, nil
 }
 
-func ConfirmedWalletBalance() int64 {
-	client, cleanup, err := getClient()
-	if err != nil {
-		return 0
-	}
-	defer cleanup()
-
+func ConfirmedWalletBalance(client *glightning.Lightning) int64 {
 	var response map[string]interface{}
 
-	err = client.Request(&glightning.ListFundsRequest{}, &response)
+	err := client.Request(&glightning.ListFundsRequest{}, &response)
 	if err != nil {
 		log.Println("ListFunds:", err)
 		return 0
@@ -81,13 +71,7 @@ func ConfirmedWalletBalance() int64 {
 	return totalAmount
 }
 
-func ListUnspent(list *[]UTXO) error {
-	client, cleanup, err := getClient()
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
+func ListUnspent(client *glightning.Lightning, list *[]UTXO) error {
 	res, err := client.GetInfo()
 	if err != nil {
 		log.Println("GetInfo:", err)
@@ -106,16 +90,22 @@ func ListUnspent(list *[]UTXO) error {
 	// Dereference the pointer to get the actual array
 	a := *list
 
-	// Iterate over outputs and append to a
+	// Iterate over outputs and append to a list
 	outputs := response["outputs"].([]interface{})
 	for _, output := range outputs {
 		outputMap := output.(map[string]interface{})
 		amountMsat := outputMap["amount_msat"].(float64)
-		blockHeight := outputMap["blockheight"].(float64)
+		status := outputMap["status"].(string)
+		confs := int64(0)
+		if status == "confirmed" {
+			blockHeight := outputMap["blockheight"].(float64)
+			confs = int64(tip - uint(blockHeight))
+		}
+
 		a = append(a, UTXO{
 			Address:       outputMap["address"].(string),
 			AmountSat:     int64(amountMsat / 1000),
-			Confirmations: int64(tip - uint(blockHeight)),
+			Confirmations: confs,
 		})
 	}
 
@@ -125,13 +115,7 @@ func ListUnspent(list *[]UTXO) error {
 	return nil
 }
 
-func GetTxConfirmations(txid string) int32 {
-	client, cleanup, err := getClient()
-	if err != nil {
-		return 0
-	}
-	defer cleanup()
-
+func GetTxConfirmations(client *glightning.Lightning, txid string) int32 {
 	res, err := client.GetInfo()
 	if err != nil {
 		log.Println("GetInfo:", err)

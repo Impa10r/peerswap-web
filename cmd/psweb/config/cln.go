@@ -1,4 +1,4 @@
-//go:build clnversion
+//go:build cln
 
 package config
 
@@ -12,7 +12,7 @@ import (
 
 // Config defaults for CLN
 func loadDefaults(home, dataDir string) {
-	Config.Implementation = "cln"
+	Config.Implementation = "CLN"
 	if dataDir == "" {
 		Config.LightningDir = filepath.Join(home, ".lightning")
 	} else {

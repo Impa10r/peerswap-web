@@ -54,6 +54,12 @@ func main() {
 		showVersion = flag.Bool("version", false, "Show version")
 	)
 
+	// loading from the config file or assigning defaults
+	config.Load(*dataDir)
+
+	// save config to confirm any defaults
+	config.Save()
+
 	flag.Parse()
 
 	if *showHelp {
@@ -65,12 +71,6 @@ func main() {
 		showVersionInfo()
 		return
 	}
-
-	// loading from the config file or assigning defaults
-	config.Load(*dataDir)
-
-	// save config to confirm any defaults
-	config.Save()
 
 	// set logging params
 	err := setLogging()
@@ -168,7 +168,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// this method will fail if peerswap is not running or misconfigured
-	res, err := ps.ReloadPolicyFile()
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ReloadPolicyFile(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
@@ -177,27 +184,36 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	allowlistedPeers := res.GetAllowlistedPeers()
 	suspiciousPeers := res.GetSuspiciousPeerList()
 
-	res2, err := ps.ListPeers()
+	res2, err := ps.ListPeers(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
 	peers := res2.GetPeers()
 
-	res3, err := ps.ListSwaps()
+	res3, err := ps.ListSwaps(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
 	swaps := res3.GetSwaps()
 
-	res4, err := ps.LiquidGetBalance()
+	res4, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
 
 	satAmount := res4.GetSatAmount()
+
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		redirectWithError(w, r, "/config?", er)
+		return
+	}
+	defer clean()
+
+	btcBalance := ln.ConfirmedWalletBalance(cl)
 
 	//check for error message to display
 	message := ""
@@ -225,7 +241,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps),
-		BitcoinBalance:    uint64(ln.ConfirmedWalletBalance()),
+		BitcoinBalance:    uint64(btcBalance),
 	}
 
 	// executing template named "homepage"
@@ -246,7 +262,14 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	id := keys[0]
 
-	res, err := ps.ListPeers()
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/config?", err)
@@ -268,7 +291,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		sumRemote += ch.RemoteBalance
 	}
 
-	res2, err := ps.ReloadPolicyFile()
+	res2, err := ps.ReloadPolicyFile(client)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/config?", err)
@@ -277,7 +300,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	allowlistedPeers := res2.GetAllowlistedPeers()
 	suspiciousPeers := res2.GetSuspiciousPeerList()
 
-	res3, err := ps.LiquidGetBalance()
+	res3, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/config?", err)
@@ -286,13 +309,22 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res3.GetSatAmount()
 
-	res4, err := ps.ListActiveSwaps()
+	res4, err := ps.ListActiveSwaps(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
 
 	activeSwaps := res4.GetSwaps()
+
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		redirectWithError(w, r, "/config?", er)
+		return
+	}
+	defer clean()
+
+	btcBalance := ln.ConfirmedWalletBalance(cl)
 
 	//check for error message to display
 	message := ""
@@ -328,7 +360,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		BTC:            stringIsInSlice("btc", peer.SupportedAssets),
 		LBTC:           stringIsInSlice("lbtc", peer.SupportedAssets),
 		LiquidBalance:  satAmount,
-		BitcoinBalance: uint64(ln.ConfirmedWalletBalance()),
+		BitcoinBalance: uint64(btcBalance),
 		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps),
 		DirectionIn:    sumLocal < sumRemote,
 	}
@@ -350,20 +382,52 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id := keys[0]
 
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.GetSwap(client, id)
+	if err != nil {
+		redirectWithError(w, r, "/swap?id="+id+"&", err)
+		return
+	}
+
+	swap := res.GetSwap()
+
+	isPending := true
+
+	switch swap.State {
+	case "State_ClaimedCoop":
+		isPending = false
+	case "State_ClaimedCsv":
+		isPending = false
+	case "State_SwapCanceled":
+		isPending = false
+	case "State_SendCancel":
+		isPending = false
+	case "State_ClaimedPreimage":
+		isPending = false
+	}
+
 	type Page struct {
 		ColorScheme string
 		Id          string
 		Message     string
+		IsPending   bool
 	}
 
 	data := Page{
 		ColorScheme: config.Config.ColorScheme,
 		Id:          id,
 		Message:     "",
+		IsPending:   isPending,
 	}
 
 	// executing template named "swap"
-	err := templates.ExecuteTemplate(w, "swap", data)
+	err = templates.ExecuteTemplate(w, "swap", data)
 	if err != nil {
 		log.Fatalln(err)
 		http.Error(w, http.StatusText(500), 500)
@@ -381,7 +445,14 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 	id := keys[0]
 
-	res, err := ps.GetSwap(id)
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.GetSwap(client, id)
 	if err != nil {
 		log.Printf("onSwap: %v", err)
 		redirectWithError(w, r, "/swap?id="+id+"&", err)
@@ -531,7 +602,14 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	res2, err := ps.LiquidGetBalance()
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
 		redirectWithError(w, r, "/?", err)
@@ -592,9 +670,16 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		action := r.FormValue("action")
 		nodeId := r.FormValue("nodeId")
 
+		client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+		defer cleanup()
+
 		switch action {
 		case "newAddress":
-			res, err := ps.LiquidGetAddress()
+			res, err := ps.LiquidGetAddress(client)
 			if err != nil {
 				log.Printf("unable to connect to RPC server: %v", err)
 				redirectWithError(w, r, "/liquid?", err)
@@ -625,7 +710,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/liquid?msg=\"\"&txid="+txid, http.StatusSeeOther)
 			return
 		case "addPeer":
-			_, err := ps.AddPeer(nodeId)
+			_, err := ps.AddPeer(client, nodeId)
 			if err != nil {
 				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
@@ -635,7 +720,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case "removePeer":
-			_, err := ps.RemovePeer(nodeId)
+			_, err := ps.RemovePeer(client, nodeId)
 			if err != nil {
 				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
@@ -645,7 +730,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case "suspectPeer":
-			_, err := ps.AddSusPeer(nodeId)
+			_, err := ps.AddSusPeer(client, nodeId)
 			if err != nil {
 				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
@@ -655,7 +740,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case "unsuspectPeer":
-			_, err := ps.RemoveSusPeer(nodeId)
+			_, err := ps.RemoveSusPeer(client, nodeId)
 			if err != nil {
 				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
@@ -679,22 +764,22 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch r.FormValue("direction") {
 			case "swapIn":
-				resp, err := ps.SwapIn(swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+				id, err := ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
 				if err != nil {
 					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 					return
 				}
 				// Redirect to swap page to follow the swap
-				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
+				http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
 
 			case "swapOut":
-				resp, err := ps.SwapOut(swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+				id, err := ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
 				if err != nil {
 					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 					return
 				}
 				// Redirect to swap page to follow the swap
-				http.Redirect(w, r, "/swap?id="+resp.Swap.Id, http.StatusSeeOther)
+				http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
 			}
 
 		default:
@@ -769,13 +854,19 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		host := r.FormValue("rpcHost")
 		clientIsDown := false
 
-		_, err = ps.AllowSwapRequests(host, allowSwapRequests)
+		client, cleanup, err := ps.GetClient(host)
 		if err != nil {
-			// RPC Host entered is bad
 			clientIsDown = true
-		} else { // values are good, save them
-			config.Config.RpcHost = host
-			config.Config.AllowSwapRequests = allowSwapRequests
+		} else {
+			defer cleanup()
+			_, err = ps.AllowSwapRequests(client, allowSwapRequests)
+			if err != nil {
+				// RPC Host entered is bad
+				clientIsDown = true
+			} else { // values are good, save them
+				config.Config.RpcHost = host
+				config.Config.AllowSwapRequests = allowSwapRequests
+			}
 		}
 
 		if err2 := config.Save(); err2 != nil {
@@ -813,13 +904,22 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 		Message     string
 		LogPosition int
 		LogFile     string
+		SearchText  string
+	}
+
+	logFile := "log" // peerswapd log
+	searchText := "peerswapd grpc listening on"
+	if config.Config.Implementation == "CLN" {
+		logFile = "cln.log"
+		searchText = "plugin-peerswap: peerswap initialized"
 	}
 
 	data := Page{
 		ColorScheme: config.Config.ColorScheme,
 		Message:     "",
-		LogPosition: 0,     // new content and wait for connection
-		LogFile:     "log", // peerswapd log
+		LogPosition: 0, // new content and wait for connection
+		LogFile:     logFile,
+		SearchText:  searchText,
 	}
 
 	// executing template named "loading"
@@ -907,6 +1007,10 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	filename := filepath.Join(config.Config.DataDir, logFile)
 
+	if logFile == "cln.log" {
+		filename = filepath.Join(config.Config.LightningDir, logFile)
+	}
+
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Println("Error opening file:", err)
@@ -992,7 +1096,7 @@ func showHelpMessage() {
 }
 
 func showVersionInfo() {
-	fmt.Println("Version:", version)
+	fmt.Println("Version:", version, "for", config.Config.Implementation)
 }
 
 func startTimer() {
@@ -1005,7 +1109,13 @@ func startTimer() {
 
 		// Check Peg-in status
 		if config.Config.PeginTxId != "" {
-			confs := ln.GetTxConfirmations(config.Config.PeginTxId)
+			cl, clean, er := ln.GetClient()
+			if er != nil {
+				return
+			}
+			defer clean()
+
+			confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 			if confs >= 102 {
 				rawTx, err := getRawTransaction(config.Config.PeginTxId)
 				if err == nil {
@@ -1046,7 +1156,12 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	res, err := ps.ListActiveSwaps()
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+	res, err := ps.ListActiveSwaps(client)
 	if err != nil {
 		return
 	}
@@ -1056,7 +1171,7 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	res2, err := ps.LiquidGetBalance()
+	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		return
 	}
@@ -1101,7 +1216,14 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var utxos []ln.UTXO
-	ln.ListUnspent(&utxos)
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		redirectWithError(w, r, "/config?", er)
+		return
+	}
+	defer clean()
+
+	ln.ListUnspent(cl, &utxos)
 
 	type Page struct {
 		Message          string
@@ -1118,12 +1240,12 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MinBumpFeeRate   uint32
 	}
 
-	btcBalance := ln.ConfirmedWalletBalance()
+	btcBalance := ln.ConfirmedWalletBalance(cl)
 	fee := mempool.GetFee()
 	confs := int32(0)
 
 	if config.Config.PeginTxId != "" {
-		confs = ln.GetTxConfirmations(config.Config.PeginTxId)
+		confs = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 		if confs == 0 {
 			fee = uint32(float32(fee) * 1.5)
 			if fee < config.Config.PeginFeeRate+1 {
@@ -1178,7 +1300,14 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		btcBalance := ln.ConfirmedWalletBalance()
+		cl, clean, er := ln.GetClient()
+		if er != nil {
+			redirectWithError(w, r, "/bitcoin?", er)
+			return
+		}
+		defer clean()
+
+		btcBalance := ln.ConfirmedWalletBalance(cl)
 		sweepall := amount == btcBalance
 
 		// test on pre-existing tx that bitcon core can complete the peg
@@ -1221,7 +1350,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginAmount = amount
 		config.Save()
 
-		txid, err := ln.SendCoins(addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
+		txid, err := ln.SendCoins(cl, addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return

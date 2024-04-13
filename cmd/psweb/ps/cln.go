@@ -1,10 +1,13 @@
-//go:build clnversion
+//go:build cln
 
 package ps
 
 import (
+	"fmt"
 	"log"
 	"peerswap-web/cmd/psweb/config"
+	"strconv"
+	"strings"
 
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/clightning"
@@ -13,7 +16,7 @@ import (
 
 const fileRPC = "lightning-rpc"
 
-func getClient(dirRPC string) (*glightning.Lightning, func(), error) {
+func GetClient(dirRPC string) (*glightning.Lightning, func(), error) {
 	lightning := glightning.NewLightning()
 	err := lightning.StartUp(fileRPC, dirRPC)
 	if err != nil {
@@ -21,364 +24,326 @@ func getClient(dirRPC string) (*glightning.Lightning, func(), error) {
 		return nil, nil, err
 	}
 
-	cleanup := func() { lightning.Shutdown() }
+	cleanup := func() {
+		// lightning.Shutdown()
+	}
 
 	return lightning, cleanup, nil
 }
 
-func ReloadPolicyFile() (*peerswaprpc.Policy, error) {
-	client, cleanup, err := getClient(config.Config.RpcHost)
+func ReloadPolicyFile(client *glightning.Lightning) (*peerswaprpc.Policy, error) {
+	var res map[string]interface{}
+
+	err := client.Request(&clightning.ReloadPolicyFile{}, &res)
 	if err != nil {
+		log.Println("ReloadPolicyFile:", err)
 		return nil, err
+	}
+
+	var allowed []string
+	var suspected []string
+
+	for _, p := range res["allowlisted_peers"].([]interface{}) {
+		allowed = append(allowed, p.(string))
+	}
+
+	for _, p := range res["suspicious_peers"].([]interface{}) {
+		suspected = append(suspected, p.(string))
+	}
+
+	return &peerswaprpc.Policy{
+		AllowlistedPeers:   allowed,
+		SuspiciousPeerList: suspected,
+	}, nil
+}
+
+func Stop() {
+	log.Println("Stopping lightningd...")
+	client, cleanup, err := GetClient(config.Config.RpcHost)
+	if err != nil {
+		log.Println("Unable to stop lightningd:", err)
+		return
 	}
 	defer cleanup()
 
-	var res peerswaprpc.Policy
+	_, err = client.Stop()
 
-	err = client.Request(&clightning.ReloadPolicyFile{}, &res)
 	if err != nil {
-		log.Println("ReloadPolicyFile:", err)
+		log.Println("Unable to stop lightningd:", err)
+	}
+}
+
+func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, error) {
+	var res []map[string]interface{}
+
+	err := client.Request(&clightning.ListPeers{}, &res)
+	if err != nil {
+		log.Println("ListPeers:", err)
+		return nil, err
+	}
+
+	var peers []*peerswaprpc.PeerSwapPeer
+
+	for _, data := range res {
+		peer := peerswaprpc.PeerSwapPeer{}
+		peer.NodeId = data["nodeid"].(string)
+		peer.SwapsAllowed = data["swaps_allowed"].(bool)
+
+		assets := data["supported_assets"].([]interface{})
+		for _, asset := range assets {
+			peer.SupportedAssets = append(peer.SupportedAssets, asset.(string))
+		}
+
+		channels := data["channels"].([]interface{})
+		for _, channel := range channels {
+			channelData := channel.(map[string]interface{})
+			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+				ChannelId:     clToLndScid(channelData["short_channel_id"].(string)),
+				LocalBalance:  uint64(channelData["local_balance"].(float64)),
+				RemoteBalance: uint64(channelData["remote_balance"].(float64)),
+				Active:        channelData["state"].(string) == "CHANNELD_NORMAL",
+			})
+		}
+
+		asSender := data["sent"].(map[string]interface{})
+		peer.AsSender = &peerswaprpc.SwapStats{
+			SwapsOut: uint64(asSender["total_swaps_out"].(float64)),
+			SwapsIn:  uint64(asSender["total_swaps_in"].(float64)),
+			SatsOut:  uint64(asSender["total_sats_swapped_out"].(float64)),
+			SatsIn:   uint64(asSender["total_sats_swapped_in"].(float64)),
+		}
+
+		asReceiver := data["received"].(map[string]interface{})
+		peer.AsReceiver = &peerswaprpc.SwapStats{
+			SwapsOut: uint64(asReceiver["total_swaps_out"].(float64)),
+			SwapsIn:  uint64(asReceiver["total_swaps_in"].(float64)),
+			SatsOut:  uint64(asReceiver["total_sats_swapped_out"].(float64)),
+			SatsIn:   uint64(asReceiver["total_sats_swapped_in"].(float64)),
+		}
+
+		peer.PaidFee = 0
+
+		peers = append(peers, &peer)
+	}
+
+	list := peerswaprpc.ListPeersResponse{
+		Peers: peers,
+	}
+
+	return &list, nil
+}
+
+func ListSwaps(client *glightning.Lightning) (*peerswaprpc.ListSwapsResponse, error) {
+	var res peerswaprpc.ListSwapsResponse
+
+	err := client.Request(&clightning.ListSwaps{}, &res)
+	if err != nil {
+		log.Println("ListSwaps:", err)
 		return nil, err
 	}
 
 	return &res, nil
 }
 
-/*
-	func Stop() {
-		client, cleanup, err := getClient(config.Config.RpcHost)
+func LiquidGetBalance(client *glightning.Lightning) (*peerswaprpc.GetBalanceResponse, error) {
+	var res map[string]interface{}
 
-		if err != nil {
-			return
-		}
-
-		defer cleanup()
-
-		log.Println("Stopping lightningd...")
-
-		_, err = client.Stop()
-
-		if err != nil {
-			log.Println("Unable to stop lightningd:", err)
-		}
+	err := client.Request(&clightning.LiquidGetBalance{}, &res)
+	if err != nil {
+		log.Println("LiquidGetBalance:", err)
+		return nil, err
 	}
 
-	func ListPeers() (*peerswaprpc.ListPeersResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.ListPeersResponse
-
-		err = client.Request(&clightning.ListPeers{}, &res)
-		if err != nil {
-			log.Println("ListPeers:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func ListSwaps() (*peerswaprpc.ListSwapsResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.ListSwapsResponse
-
-		err = client.Request(&clightning.ListSwaps{}, &res)
-		if err != nil {
-			log.Println("ListSwaps:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func LiquidGetBalance() (*peerswaprpc.GetBalanceResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.GetBalanceResponse
-
-		err = client.Request(&clightning.LiquidGetBalance{}, &res)
-		if err != nil {
-			log.Println("LiquidGetBalance:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func ListActiveSwaps() (*peerswaprpc.ListSwapsResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.ListSwapsResponse
-
-		err = client.Request(&clightning.ListActiveSwaps{}, &res)
-		if err != nil {
-			log.Println("ListActiveSwaps:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func GetSwap(id string) (*peerswaprpc.SwapResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.SwapResponse
-
-		err = client.Request(&clightning.GetSwap{
-			SwapId: id,
-		}, &res)
-		if err != nil {
-			log.Println("GetSwap:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func LiquidGetAddress() (*peerswaprpc.GetAddressResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.GetAddressResponse
-
-		err = client.Request(&clightning.LiquidGetAddress{}, &res)
-		if err != nil {
-			log.Println("LiquidGetAddress:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func AddPeer(nodeId string) (*peerswaprpc.Policy, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.Policy
-
-		err = client.Request(&clightning.AddPeer{
-			PeerPubkey: nodeId
-		}, &res)
-		if err != nil {
-			log.Println("AddPeer:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func RemovePeer(nodeId string) (*peerswaprpc.Policy, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.Policy
-
-		err = client.Request(&clightning.RemovePeer{
-			PeerPubkey: nodeId
-		}, &res)
-		if err != nil {
-			log.Println("RemovePeer:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func AddSusPeer(nodeId string) (*peerswaprpc.Policy, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.Policy
-
-		err = client.Request(&clightning.AddSuspiciousPeer{
-			PeerPubkey: nodeId
-		}, &res)
-		if err != nil {
-			log.Println("AddSuspiciousPeer:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func RemoveSusPeer(nodeId string) (*peerswaprpc.Policy, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.Policy
-
-		err = client.Request(&clightning.RemoveSuspiciousPeer{
-			PeerPubkey: nodeId
-		}, &res)
-		if err != nil {
-			log.Println("RemoveSuspiciousPeer:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func SwapIn(swapAmount, channelId uint64, asset string, force bool) (*peerswaprpc.SwapResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.SwapResponse
-
-		err = client.Request(&clightning.SwapIn{
-			ShortChannelId: strconv.FormatUint(channelId, 10),
-			SatAmt: swapAmount,
-			Asset: asset,
-			Force: force,
-
-		}, &res)
-
-		if err != nil {
-			log.Println("SwapIn:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func SwapOut(swapAmount, channelId uint64, asset string, force bool) (*peerswaprpc.SwapResponse, error) {
-		client, cleanup, err := getClient(config.Config.RpcHost)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.SwapResponse
-
-		err = client.Request(&clightning.SwapOut{
-			ShortChannelId: strconv.FormatUint(channelId, 10),
-			SatAmt: swapAmount,
-			Asset: asset,
-			Force: force,
-
-		}, &res)
-
-		if err != nil {
-			log.Println("SwapOut:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-
-	func AllowSwapRequests(host string, allowSwapRequests bool) (*peerswaprpc.Policy, error) {
-		client, cleanup, err := getClient(host)
-		if err != nil {
-			return nil, err
-		}
-		defer cleanup()
-
-		var res peerswaprpc.Policy
-		allow := "0"
-		if allowSwapRequests {
-	        allow =  "1"
-	    }
-
-		err = client.Request(&clightning.AllowSwapRequests{
-			AllowSwapRequestsString: allow,
-		}, &res)
-		if err != nil {
-			log.Println("allowSwapRequests:", err)
-			return nil, err
-		}
-
-		return &res, nil
-	}
-*/
-
-func Stop() {
+	return &peerswaprpc.GetBalanceResponse{
+		SatAmount: uint64(res["lbtc_balance_sat"].(float64)),
+	}, nil
 }
 
-func ListPeers() (*peerswaprpc.ListPeersResponse, error) {
-	return nil, nil
+func ListActiveSwaps(client *glightning.Lightning) (*peerswaprpc.ListSwapsResponse, error) {
+	var res peerswaprpc.ListSwapsResponse
+
+	err := client.Request(&clightning.ListActiveSwaps{}, &res)
+	if err != nil {
+		log.Println("ListActiveSwaps:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }
 
-func ListSwaps() (*peerswaprpc.ListSwapsResponse, error) {
-	return nil, nil
+func GetSwap(client *glightning.Lightning, id string) (*peerswaprpc.SwapResponse, error) {
+	var res peerswaprpc.ListSwapsResponse
+
+	err := client.Request(&clightning.ListSwaps{}, &res)
+	if err != nil {
+		log.Println("ListSwaps:", err)
+		return nil, err
+	}
+
+	for _, swap := range res.GetSwaps() {
+		if swap.Id == id {
+			return &peerswaprpc.SwapResponse{
+				Swap: swap,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("swap not found")
 }
 
-func LiquidGetBalance() (*peerswaprpc.GetBalanceResponse, error) {
-	return nil, nil
+func LiquidGetAddress(client *glightning.Lightning) (*peerswaprpc.GetAddressResponse, error) {
+	var res map[string]interface{}
+
+	err := client.Request(&clightning.LiquidGetAddress{}, &res)
+	if err != nil {
+		log.Println("LiquidGetAddress:", err)
+		return nil, err
+	}
+
+	return &peerswaprpc.GetAddressResponse{
+		Address: res["lbtc_address"].(string),
+	}, nil
 }
 
-func ListActiveSwaps() (*peerswaprpc.ListSwapsResponse, error) {
-	return nil, nil
+func AddPeer(client *glightning.Lightning, nodeId string) (*peerswaprpc.Policy, error) {
+	var res peerswaprpc.Policy
+
+	err := client.Request(&clightning.AddPeer{
+		PeerPubkey: nodeId,
+	}, &res)
+	if err != nil {
+		log.Println("AddPeer:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }
 
-func GetSwap(id string) (*peerswaprpc.SwapResponse, error) {
-	return nil, nil
+func RemovePeer(client *glightning.Lightning, nodeId string) (*peerswaprpc.Policy, error) {
+	var res peerswaprpc.Policy
+
+	err := client.Request(&clightning.RemovePeer{
+		PeerPubkey: nodeId,
+	}, &res)
+	if err != nil {
+		log.Println("RemovePeer:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }
 
-func LiquidGetAddress() (*peerswaprpc.GetAddressResponse, error) {
-	return nil, nil
+func AddSusPeer(client *glightning.Lightning, nodeId string) (*peerswaprpc.Policy, error) {
+	var res peerswaprpc.Policy
+
+	err := client.Request(&clightning.AddSuspiciousPeer{
+		PeerPubkey: nodeId,
+	}, &res)
+	if err != nil {
+		log.Println("AddSuspiciousPeer:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }
 
-func AddPeer(nodeId string) (*peerswaprpc.Policy, error) {
-	return nil, nil
+func RemoveSusPeer(client *glightning.Lightning, nodeId string) (*peerswaprpc.Policy, error) {
+	var res peerswaprpc.Policy
+
+	err := client.Request(&clightning.RemoveSuspiciousPeer{
+		PeerPubkey: nodeId,
+	}, &res)
+	if err != nil {
+		log.Println("RemoveSuspiciousPeer:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }
 
-func RemovePeer(nodeId string) (*peerswaprpc.Policy, error) {
-	return nil, nil
+func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset string, force bool) (string, error) {
+	var res map[string]interface{}
+
+	err := client.Request(&clightning.SwapIn{
+		ShortChannelId: lndToClScid(channelId),
+		SatAmt:         swapAmount,
+		Asset:          asset,
+		Force:          force,
+	}, &res)
+
+	if err != nil {
+		log.Println("SwapIn:", err)
+		return "", err
+	}
+
+	return res["id"].(string), nil
 }
 
-func AddSusPeer(nodeId string) (*peerswaprpc.Policy, error) {
-	return nil, nil
+func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset string, force bool) (string, error) {
+	var res map[string]interface{}
+
+	err := client.Request(&clightning.SwapOut{
+		ShortChannelId: lndToClScid(channelId),
+		SatAmt:         swapAmount,
+		Asset:          asset,
+		Force:          force,
+	}, &res)
+
+	if err != nil {
+		log.Println("SwapOut:", err)
+		return "", err
+	}
+
+	return res["id"].(string), nil
 }
 
-func RemoveSusPeer(nodeId string) (*peerswaprpc.Policy, error) {
-	return nil, nil
+func AllowSwapRequests(client *glightning.Lightning, allowSwapRequests bool) (*peerswaprpc.Policy, error) {
+	var res peerswaprpc.Policy
+	allow := "0"
+	if allowSwapRequests {
+		allow = "1"
+	}
+
+	err := client.Request(&clightning.AllowSwapRequests{
+		AllowSwapRequestsString: allow,
+	}, &res)
+	if err != nil {
+		log.Println("allowSwapRequests:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }
 
-func SwapIn(swapAmount, channelId uint64, asset string, force bool) (*peerswaprpc.SwapResponse, error) {
-	return nil, nil
+// convert short channel id 2568777x70x1 to LND format
+func clToLndScid(s string) uint64 {
+	parts := strings.Split(s, "x")
+	if len(parts) != 3 {
+		return 0 // or handle error appropriately
+	}
+
+	var scid uint64
+	for i, part := range parts {
+		val, err := strconv.Atoi(part)
+		if err != nil {
+			return 0 // or handle error appropriately
+		}
+		switch i {
+		case 0:
+			scid |= uint64(val) << 40
+		case 1:
+			scid |= uint64(val) << 16
+		case 2:
+			scid |= uint64(val)
+		}
+	}
+	return scid
 }
 
-func SwapOut(swapAmount, channelId uint64, asset string, force bool) (*peerswaprpc.SwapResponse, error) {
-	return nil, nil
-}
-
-func AllowSwapRequests(host string, allowSwapRequests bool) (*peerswaprpc.Policy, error) {
-	return nil, nil
+// convert LND channel id to CLN 2568777x70x1
+func lndToClScid(s uint64) string {
+	block := strconv.FormatUint(s>>40, 10)
+	tx := strconv.FormatUint((s>>16)&0xFFFFFF, 10)
+	output := strconv.FormatUint(s&0xFFFF, 10)
+	return block + "x" + tx + "x" + output
 }

@@ -89,10 +89,16 @@ func telegramStart() {
 				if config.Config.PeginTxId == "" {
 					t = "No pending peg-in"
 				} else {
-					confs := ln.GetTxConfirmations(config.Config.PeginTxId)
-					duration := time.Duration(10*(102-confs)) * time.Minute
-					formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-					t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration
+					cl, clean, er := ln.GetClient()
+					if er != nil {
+						t = "❗ Error: " + er.Error()
+					} else {
+						defer clean()
+						confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+						duration := time.Duration(10*(102-confs)) * time.Minute
+						formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+						t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration
+					}
 				}
 				telegramSendMessage(t)
 			case "/version":

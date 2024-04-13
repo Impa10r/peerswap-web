@@ -1,4 +1,4 @@
-//go:build !clnversion
+//go:build !cln
 
 package config
 
@@ -12,7 +12,7 @@ import (
 
 // Config defaults for LND
 func loadDefaults(home, dataDir string) {
-	Config.Implementation = "lnd"
+	Config.Implementation = "LND"
 	Config.LightningDir = filepath.Join(home, ".lnd")
 	Config.RpcHost = "localhost:42069"
 

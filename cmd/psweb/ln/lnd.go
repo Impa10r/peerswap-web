@@ -1,4 +1,4 @@
-//go:build !clnversion
+//go:build !cln
 
 package ln
 
@@ -19,7 +19,7 @@ import (
 	"gopkg.in/macaroon.v2"
 )
 
-func lndConnection() *grpc.ClientConn {
+func lndConnection() (*grpc.ClientConn, error) {
 	tlsCertPath := config.GetPeerswapLNDSetting("lnd.tlscertpath")
 	macaroonPath := config.GetPeerswapLNDSetting("lnd.macaroonpath")
 	host := config.GetPeerswapLNDSetting("lnd.host")
@@ -27,25 +27,25 @@ func lndConnection() *grpc.ClientConn {
 	tlsCreds, err := credentials.NewClientTLSFromFile(tlsCertPath, "")
 	if err != nil {
 		log.Println("lndConnection", err)
-		return nil
+		return nil, err
 	}
 
 	macaroonBytes, err := os.ReadFile(macaroonPath)
 	if err != nil {
 		log.Println("lndConnection", err)
-		return nil
+		return nil, err
 	}
 
 	mac := &macaroon.Macaroon{}
 	if err = mac.UnmarshalBinary(macaroonBytes); err != nil {
 		log.Println("lndConnection", err)
-		return nil
+		return nil, err
 	}
 
 	macCred, err := macaroons.NewMacaroonCredential(mac)
 	if err != nil {
 		log.Println("lndConnection", err)
-		return nil
+		return nil, err
 	}
 
 	opts := []grpc.DialOption{
@@ -57,14 +57,24 @@ func lndConnection() *grpc.ClientConn {
 	conn, err := grpc.Dial(host, opts...)
 	if err != nil {
 		fmt.Println("lndConnection", err)
-		return nil
+		return nil, err
 	}
 
-	return conn
+	return conn, nil
 }
 
-func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
-	client := lnrpc.NewLightningClient(lndConnection())
+func GetClient() (lnrpc.LightningClient, func(), error) {
+	conn, err := lndConnection()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cleanup := func() { conn.Close() }
+
+	return lnrpc.NewLightningClient(conn), cleanup, nil
+}
+
+func SendCoins(client lnrpc.LightningClient, addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
 	ctx := context.Background()
 	resp, err := client.SendCoins(ctx, &lnrpc.SendCoinsRequest{
 		Addr:        addr,
@@ -81,8 +91,7 @@ func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label s
 	return resp.Txid, nil
 }
 
-func ConfirmedWalletBalance() int64 {
-	client := lnrpc.NewLightningClient(lndConnection())
+func ConfirmedWalletBalance(client lnrpc.LightningClient) int64 {
 	ctx := context.Background()
 	resp, err := client.WalletBalance(ctx, &lnrpc.WalletBalanceRequest{})
 	if err != nil {
@@ -93,11 +102,14 @@ func ConfirmedWalletBalance() int64 {
 	return resp.ConfirmedBalance
 }
 
-func ListUnspent(list *[]UTXO) error {
-	client := walletrpc.NewWalletKitClient(lndConnection())
+func ListUnspent(_ lnrpc.LightningClient, list *[]UTXO) error {
 	ctx := context.Background()
-
-	resp, err := client.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: 0})
+	conn, err := lndConnection()
+	if err != nil {
+		return err
+	}
+	cl := walletrpc.NewWalletKitClient(conn)
+	resp, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: 0})
 	if err != nil {
 		log.Println("ListUnspent:", err)
 		return err
@@ -118,12 +130,17 @@ func ListUnspent(list *[]UTXO) error {
 	// Update the array through the pointer
 	*list = a
 
+	conn.Close()
 	return nil
 }
 
 func GetTransaction(txid string) (*lnrpc.Transaction, error) {
-	client := lnrpc.NewLightningClient(lndConnection())
 	ctx := context.Background()
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
 
 	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
 	if err != nil {
@@ -140,7 +157,7 @@ func GetTransaction(txid string) (*lnrpc.Transaction, error) {
 	return nil, errors.New("txid not found")
 }
 
-func GetTxConfirmations(txid string) int32 {
+func GetTxConfirmations(client lnrpc.LightningClient, txid string) int32 {
 	tx, err := GetTransaction(txid)
 	if err == nil {
 		return tx.NumConfirmations
@@ -151,9 +168,13 @@ func GetTxConfirmations(txid string) int32 {
 }
 
 func GetAlias(nodeKey string) string {
-	client := lnrpc.NewLightningClient(lndConnection())
-	ctx := context.Background()
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return ""
+	}
+	defer cleanup()
 
+	ctx := context.Background()
 	nodeInfo, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeKey})
 	if err != nil {
 		return ""
@@ -163,10 +184,14 @@ func GetAlias(nodeKey string) string {
 }
 
 func BumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
-	client := walletrpc.NewWalletKitClient(lndConnection())
 	ctx := context.Background()
+	conn, err := lndConnection()
+	if err != nil {
+		return err
+	}
+	cl := walletrpc.NewWalletKitClient(conn)
 
-	_, err := client.BumpFee(ctx, &walletrpc.BumpFeeRequest{
+	_, err = cl.BumpFee(ctx, &walletrpc.BumpFeeRequest{
 		Outpoint: &lnrpc.OutPoint{
 			TxidStr:     TxId,
 			OutputIndex: outputIndex,
@@ -179,5 +204,6 @@ func BumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
 		return err
 	}
 
+	conn.Close()
 	return nil
 }
