@@ -1,4 +1,4 @@
-//go:build !cln
+//go:build !clnversion
 
 package config
 
@@ -81,6 +81,7 @@ func SavePS() {
 
 	t := "# Config managed by PeerSwap Web UI\n"
 	t += "# It is not recommended to modify this file directly\n\n"
+
 	//key, default, new value, env key
 	t += setPeerswapdVariable("host", "localhost:42069", Config.RpcHost, "")
 	t += setPeerswapdVariable("rpchost", "localhost:42070", "", "")

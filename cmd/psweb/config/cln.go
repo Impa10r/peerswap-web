@@ -1,4 +1,4 @@
-//go:build cln
+//go:build clnversion
 
 package config
 
@@ -94,7 +94,7 @@ func SavePS() {
 
 	t := "# Config managed by PeerSwap Web UI\n"
 	t += "# It is not recommended to modify this file directly\n\n"
-	//key, default, new value, env key
+
 	if Config.ElementsPass == "" || Config.ElementsUser == "" {
 		// disable Liquid so that peerswapd does not fail
 		t += "[Liquid]\n"
@@ -104,18 +104,32 @@ func SavePS() {
 		t += "bitcoinswaps=true\n"
 	} else {
 		t += "[Liquid]\n"
-		t += setPeerswapVariable("Liquid", "liquidswaps", "true", "true", "")
-		t += setPeerswapVariable("Liquid", "rpcuser", "", Config.ElementsUser, "ELEMENTS_USER")
-		t += setPeerswapVariable("Liquid", "rpcpassword", "", Config.ElementsPass, "ELEMENTS_PASS")
-		t += setPeerswapVariable("Liquid", "rpchost", "http://127.0.0.1", Config.ElementsHost, "ELEMENTS_HOST")
-		t += setPeerswapVariable("Liquid", "rpcport", "18884", Config.ElementsPort, "ELEMENTS_PORT")
-		t += setPeerswapVariable("Liquid", "rpcwallet", "peerswap", Config.ElementsWallet, "ELEMENTS_WALLET")
+		t += setPeerswapVariable("Liquid", "liquidswaps", "true", "true", "", false)
+		t += setPeerswapVariable("Liquid", "rpcuser", "", Config.ElementsUser, "ELEMENTS_USER", true)
+		t += setPeerswapVariable("Liquid", "rpcpassword", "", Config.ElementsPass, "ELEMENTS_PASS", true)
+		t += setPeerswapVariable("Liquid", "rpchost", "http://127.0.0.1", Config.ElementsHost, "ELEMENTS_HOST", true)
+		t += setPeerswapVariable("Liquid", "rpcport", "18884", Config.ElementsPort, "ELEMENTS_PORT", false)
+		t += setPeerswapVariable("Liquid", "rpcwallet", "peerswap", Config.ElementsWallet, "ELEMENTS_WALLET", true)
+
+		rpcpasswordfile := GetPeerswapCLNSetting("Liquid", "rpcpasswordfile")
+		if rpcpasswordfile != "" {
+			t += setPeerswapVariable("Liquid", "rpcpasswordfile", "", "", "", true)
+		}
+
 		t += "\n[Bitcoin]\n"
-		t += setPeerswapVariable("Bitcoin", "bitcoinswaps", "false", strconv.FormatBool(Config.BitcoinSwaps), "")
+		t += setPeerswapVariable("Bitcoin", "bitcoinswaps", "false", strconv.FormatBool(Config.BitcoinSwaps), "", false)
 	}
 
-	t += setPeerswapVariable("Bitcoin", "rpcuser", "", "", "")
-	t += setPeerswapVariable("Bitcoin", "rpcpassword", "", "", "")
+	t += setPeerswapVariable("Bitcoin", "rpcuser", "", "", "", true)
+	t += setPeerswapVariable("Bitcoin", "rpcpassword", "", "", "", true)
+	rpchost := GetPeerswapCLNSetting("Bitcoin", "rpchost")
+	if rpchost != "" {
+		t += setPeerswapVariable("Bitcoin", "rpchost", "", "", "", true)
+	}
+	cookiefilepath := GetPeerswapCLNSetting("Bitcoin", "cookiefilepath")
+	if cookiefilepath != "" {
+		t += setPeerswapVariable("Bitcoin", "cookiefilepath", "", "", "", true)
+	}
 
 	data := []byte(t)
 
@@ -135,7 +149,7 @@ func SavePS() {
 	}
 }
 
-func setPeerswapVariable(section, variableName, defaultValue, newValue, envKey string) string {
+func setPeerswapVariable(section, variableName, defaultValue, newValue, envKey string, isString bool) string {
 	// returns variable=value string\n
 	// priority:
 	// 1. newValue
@@ -151,6 +165,11 @@ func setPeerswapVariable(section, variableName, defaultValue, newValue, envKey s
 	} else if s := GetPeerswapCLNSetting(section, variableName); s != "" {
 		v = s
 	}
+
+	if isString {
+		v = "\"" + v + "\""
+	}
+
 	return variableName + "=" + v + "\n"
 }
 
@@ -175,7 +194,9 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 				if char == '\n' || char == '\r' {
 					break
 				}
-				value += string(char)
+				if char != '"' {
+					value += string(char)
+				}
 			}
 		}
 	}

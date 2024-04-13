@@ -1,4 +1,4 @@
-//go:build !cln
+//go:build !clnversion
 
 package ln
 

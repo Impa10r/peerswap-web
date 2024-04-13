@@ -1,4 +1,4 @@
-//go:build cln
+//go:build clnversion
 
 package ln
 
@@ -14,18 +14,25 @@ import (
 
 const fileRPC = "lightning-rpc"
 
-func client() *glightning.Lightning {
+func getClient() (*glightning.Lightning, func(), error) {
 	lightning := glightning.NewLightning()
 	err := lightning.StartUp(fileRPC, config.Config.RpcHost)
 	if err != nil {
 		log.Println("clnConnection", err)
-		return nil
+		return nil, nil, err
 	}
-	return lightning
+
+	cleanup := func() { lightning.Shutdown() }
+
+	return lightning, cleanup, nil
 }
 
 func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
-	client := client()
+	client, cleanup, err := getClient()
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
 
 	minConf := uint16(1)
 	res, err := client.Withdraw(addr, &glightning.Sat{
@@ -44,10 +51,15 @@ func SendCoins(addr string, amount int64, feeRate uint64, sweepall bool, label s
 }
 
 func ConfirmedWalletBalance() int64 {
-	client := client()
+	client, cleanup, err := getClient()
+	if err != nil {
+		return 0
+	}
+	defer cleanup()
+
 	var response map[string]interface{}
 
-	err := client.Request(&glightning.ListFundsRequest{}, &response)
+	err = client.Request(&glightning.ListFundsRequest{}, &response)
 	if err != nil {
 		log.Println("ListFunds:", err)
 		return 0
@@ -70,7 +82,11 @@ func ConfirmedWalletBalance() int64 {
 }
 
 func ListUnspent(list *[]UTXO) error {
-	client := client()
+	client, cleanup, err := getClient()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 
 	res, err := client.GetInfo()
 	if err != nil {
@@ -110,7 +126,11 @@ func ListUnspent(list *[]UTXO) error {
 }
 
 func GetTxConfirmations(txid string) int32 {
-	client := client()
+	client, cleanup, err := getClient()
+	if err != nil {
+		return 0
+	}
+	defer cleanup()
 
 	res, err := client.GetInfo()
 	if err != nil {
