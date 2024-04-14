@@ -10,7 +10,7 @@ A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p
 
 PeerSwap requires Bitcoin Core, Elements Core and LND or Core Lightning installed.
 
-## Docker
+## Docker (LND only)
 
 ```
 mkdir -p ~/.peerswap && \
