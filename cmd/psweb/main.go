@@ -142,7 +142,10 @@ func main() {
 	// Start Telegram bot
 	go telegramStart()
 
-	// Run every minute
+	// Check if peg-in can be claimed
+	go checkPegin()
+
+	// Start timer to run every minute
 	go startTimer()
 
 	// Handle termination signals
@@ -874,6 +877,9 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// reset Aliases cache
+		aliasCache = []AliasCache{}
+
 		if mustRestart {
 			// show progress bar and log
 			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
@@ -1079,10 +1085,14 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
 	t := fmt.Sprintln(err)
-	// translate some errors into plain English
+	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Cannot connect to peerswapd. It either failed to start, awaits LND or has wrong configuration. Check log and peerswap.conf."
+		t = "Cannot connect to peerswapd. It either failed to start, awaits LND or has wrong configuration. Check logs."
+	case strings.HasPrefix(t, "Unable to dial socket"):
+		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
+	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
+		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
 	}
 	// display the error to the web page header
 	msg := url.QueryEscape(t)
@@ -1107,46 +1117,8 @@ func startTimer() {
 		// Back up to Telegram if Liquid balance changed
 		liquidBackup(false)
 
-		// Check Peg-in status
-		if config.Config.PeginTxId != "" {
-			cl, clean, er := ln.GetClient()
-			if er != nil {
-				return
-			}
-			defer clean()
-
-			confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
-			if confs >= 102 {
-				rawTx, err := getRawTransaction(config.Config.PeginTxId)
-				if err == nil {
-					proof := getTxOutProof(config.Config.PeginTxId)
-					txid, err := claimPegin(rawTx, proof, config.Config.PeginClaimScript)
-
-					// claimpegin takes long time, allow it to timeout
-					if err != nil && err.Error() != "timeout reading data from server" {
-						log.Println("Peg-in claim FAILED!")
-						log.Println("Mainchain TxId:", config.Config.PeginTxId)
-						log.Println("Raw tx:", rawTx)
-						log.Println("Proof:", proof)
-						log.Println("Claim Script:", config.Config.PeginClaimScript)
-						telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
-					} else {
-						log.Println("Peg-in success! Liquid TxId:", txid)
-						telegramSendMessage("💸 Peg-in success!")
-					}
-				} else {
-					log.Println("Peg-In getrawtx FAILED.")
-					log.Println("Mainchain TxId:", config.Config.PeginTxId)
-					log.Println("Claim Script:", config.Config.PeginClaimScript)
-					telegramSendMessage("❗ Peg-In getrawtx FAILED! See log for details.")
-				}
-
-				// stop trying after first attempt
-				config.Config.PeginTxId = ""
-				config.Save()
-			}
-		}
-
+		// Check if pegin can be claimed
+		checkPegin()
 	}
 }
 
@@ -1238,6 +1210,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration         string
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
+		CanBump          bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -1270,6 +1243,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration:         formattedDuration,
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
+		CanBump:          confs == 0 && config.Config.Implementation == "LND",
 	}
 
 	// executing template named "bitcoin"
@@ -1647,4 +1621,48 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	}
 	table += "</table>"
 	return table
+}
+
+// Check Peg-in status
+func checkPegin() {
+	if config.Config.PeginTxId == "" {
+		return
+	}
+
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		return
+	}
+	defer clean()
+
+	confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+	if confs >= 102 {
+		rawTx, err := getRawTransaction(config.Config.PeginTxId)
+		if err == nil {
+			proof := getTxOutProof(config.Config.PeginTxId)
+			txid, err := claimPegin(rawTx, proof, config.Config.PeginClaimScript)
+
+			// claimpegin takes long time, allow it to timeout
+			if err != nil && err.Error() != "timeout reading data from server" {
+				log.Println("Peg-in claim FAILED!")
+				log.Println("Mainchain TxId:", config.Config.PeginTxId)
+				log.Println("Raw tx:", rawTx)
+				log.Println("Proof:", proof)
+				log.Println("Claim Script:", config.Config.PeginClaimScript)
+				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+			} else {
+				log.Println("Peg-in success! Liquid TxId:", txid)
+				telegramSendMessage("💸 Peg-in success!")
+			}
+		} else {
+			log.Println("Peg-In getrawtx FAILED.")
+			log.Println("Mainchain TxId:", config.Config.PeginTxId)
+			log.Println("Claim Script:", config.Config.PeginClaimScript)
+			telegramSendMessage("❗ Peg-In getrawtx FAILED! See log for details.")
+		}
+
+		// stop trying after first attempt
+		config.Config.PeginTxId = ""
+		config.Save()
+	}
 }

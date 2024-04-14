@@ -8,13 +8,14 @@ A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p
 
 ## Install dependencies
 
-PeerSwap requires Bitcoin Core, Elements Core and LND or Core Lightning.
+PeerSwap requires Bitcoin Core, Elements Core and LND or Core Lightning installed.
 
 ## Docker
 
 ```
 mkdir -p ~/.peerswap && \
 docker run --net=host \
+--user 1000:1000 \
 -v ~/.lnd:/home/peerswap/.lnd:ro  \
 -v ~/.elements:/home/peerswap/.elements:ro \
 -v ~/.peerswap:/home/peerswap/.peerswap \
@@ -22,8 +23,6 @@ docker run --net=host \
 -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" \
 ghcr.io/impa10r/peerswap-web:latest
 ```
-
-The user must not be root and have id 1000 (i.e. was the first one created on your node). 
 
 This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
 
@@ -69,7 +68,6 @@ sudo nano /etc/systemd/system/psweb.service
 ```
 [Unit]
 Description=PeerSwap Web UI
-After=peerswapd.service
 
 [Service]
 ExecStart=/home/USER/go/bin/psweb
@@ -93,11 +91,11 @@ sudo systemctl status psweb
 sudo systemctl enable psweb
 ```
 
-The log and the config file will be saved to ~/.peerswap/ folder. 
+The log and the config file will be saved to peerswap folder (```~/.peerswap``` for LND and ```~/.lightning/bitcoin/peerswap``` for CLN). 
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in pswebconfig.json.
+By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in ```pswebconfig.json```.
 
 Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable NETWORK is present and equals "testnet", the links will be configured automatically for testnet on the first run.
 

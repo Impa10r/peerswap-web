@@ -173,13 +173,14 @@ func toMil(num uint64) string {
 }
 
 func getNodeAlias(key string) string {
+	// search in cache
 	for _, n := range aliasCache {
 		if n.PublicKey == key {
 			return n.Alias
 		}
 	}
 
-	// try lnd
+	// try lightning
 	alias := ln.GetAlias(key)
 
 	if alias == "" {
@@ -192,7 +193,7 @@ func getNodeAlias(key string) string {
 		return key[:20]
 	}
 
-	// save to cache
+	// save to cache if alias was found
 	aliasCache = append(aliasCache, AliasCache{
 		PublicKey: key,
 		Alias:     alias,

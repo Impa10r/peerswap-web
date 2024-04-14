@@ -81,7 +81,7 @@
                     <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
                   </td>
                 </tr>
-                {{if eq .Confirmations 0}}
+                {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
                       CPFP:
@@ -92,7 +92,7 @@
                   </tr>
                 {{end}}
               </table>
-              {{if eq .Confirmations 0}}
+              {{if .CanBump}}
                 <form autocomplete="off" action="/bumpfee" method="post">
                   <input autocomplete="false" name="hidden" type="text" style="display:none;">
                   <div class="field is-horizontal">

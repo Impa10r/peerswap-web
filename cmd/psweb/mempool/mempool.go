@@ -81,12 +81,12 @@ func GetNodeAlias(id string) string {
 				if len(nodes.Nodes) > 0 && len(nodes.Nodes[0].Alias) > 0 {
 					return nodes.Nodes[0].Alias
 				} else {
-					return id[:20] // shortened id
+					return ""
 				}
 			}
 		}
 	}
-	return id[:20] // shortened id
+	return ""
 }
 
 func GetFee() uint32 {

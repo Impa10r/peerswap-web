@@ -70,6 +70,8 @@ func Stop() {
 
 	if err != nil {
 		log.Println("Unable to stop lightningd:", err)
+	} else {
+		log.Println("Stopped lightningd.")
 	}
 }
 
@@ -298,7 +300,7 @@ func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset s
 }
 
 func AllowSwapRequests(client *glightning.Lightning, allowSwapRequests bool) (*peerswaprpc.Policy, error) {
-	var res peerswaprpc.Policy
+	var res map[string]interface{}
 	allow := "0"
 	if allowSwapRequests {
 		allow = "1"
@@ -312,7 +314,8 @@ func AllowSwapRequests(client *glightning.Lightning, allowSwapRequests bool) (*p
 		return nil, err
 	}
 
-	return &res, nil
+	// return empty object as it is not used
+	return &peerswaprpc.Policy{}, nil
 }
 
 // convert short channel id 2568777x70x1 to LND format

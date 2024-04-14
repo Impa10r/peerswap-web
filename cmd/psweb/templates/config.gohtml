@@ -155,7 +155,13 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">PeerSwap Host</label>
+                      <label class="label">
+                        {{if eq .Config.Implementation "CLN"}}
+                          JSON RPC Dir
+                        {{else}}
+                          PeerSwap Host
+                        {{end}}
+                      </label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -252,7 +258,11 @@
                 </div>
               </div>
               <center>
-                <p>* Changing these values will restart peerswapd</p>
+                <p>* Changing these values will restart {{if eq .Config.Implementation "CLN"}}
+                    lightningd
+                {{else}}
+                    peerswapd
+                {{end}}</p>
                 <br>
                 <input class="button is-large" type="submit" value="Save Configuration">     
                 <br>

@@ -56,8 +56,11 @@ func Stop() {
 
 	_, err = client.Stop(ctx, &peerswaprpc.Empty{})
 	if err != nil {
-		log.Printf("Unable to stop peerswapd:", err)
+		log.Println("Unable to stop peerswapd:", err)
+	} else {
+		log.Println("Stopped peerswapd.")
 	}
+
 }
 
 func ReloadPolicyFile(client peerswaprpc.PeerSwapClient) (*peerswaprpc.Policy, error) {
