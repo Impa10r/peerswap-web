@@ -81,7 +81,7 @@
                     <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
                   </td>
                 </tr>
-                {{if eq .Confirmations 0}}
+                {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
                       CPFP:
@@ -92,7 +92,7 @@
                   </tr>
                 {{end}}
               </table>
-              {{if eq .Confirmations 0}}
+              {{if .CanBump}}
                 <form autocomplete="off" action="/bumpfee" method="post">
                   <input autocomplete="false" name="hidden" type="text" style="display:none;">
                   <div class="field is-horizontal">
@@ -102,7 +102,7 @@
                     <div class="field-body">
                       <div class="field">
                         <p>
-                          <input class="input is-medium" type="number" name="feeRate" min="1" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sats/vByte">
+                          <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sats/vByte">
                         </p>
                       </div>
                     </div>

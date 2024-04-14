@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"peerswap-web/cmd/psweb/config"
+
 	"github.com/alexmullins/zip"
 )
 
@@ -138,17 +140,12 @@ type Elements struct {
 
 // ElementsClient returns an RpcClient
 func ElementsClient() (c *RPCClient) {
-	host := getPeerswapConfSetting("elementsd.rpchost")
-	port := getPeerswapConfSetting("elementsd.rpcport")
-	user := config.ElementsUser
-	passwd := config.ElementsPass
-
 	httpClient := &http.Client{}
-	serverAddr := fmt.Sprintf("%s:%s", host, port)
+	serverAddr := fmt.Sprintf("%s:%s", config.Config.ElementsHost, config.Config.ElementsPort)
 	c = &RPCClient{
 		serverAddr: serverAddr,
-		user:       user,
-		passwd:     passwd,
+		user:       config.Config.ElementsUser,
+		passwd:     config.Config.ElementsPass,
 		httpClient: httpClient,
 		timeout:    30}
 	return
@@ -183,7 +180,7 @@ func listUnspent(outputs *[]LiquidUTXO) error {
 	client := ElementsClient()
 	service := &Elements{client}
 	params := []string{}
-	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	wallet := config.Config.ElementsWallet
 
 	r, err := service.client.call("listunspent", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
@@ -211,7 +208,7 @@ func sendLiquidToAddress(address string,
 ) (string, error) {
 	client := ElementsClient()
 	service := &Elements{client}
-	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	wallet := config.Config.ElementsWallet
 
 	params := &SendParams{
 		Address:               address,
@@ -255,7 +252,7 @@ func backupAndZip(wallet string) (string, error) {
 	}
 
 	fileName := key + ".bak"
-	params := []string{filepath.Join(config.ElementsDir, fileName)}
+	params := []string{filepath.Join(config.Config.ElementsDir, fileName)}
 
 	r, err = service.client.call("backupwallet", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
@@ -264,8 +261,8 @@ func backupAndZip(wallet string) (string, error) {
 	}
 
 	destinationZip := time.Now().Format("2006-01-02") + "_" + wallet + ".zip"
-	password := config.ElementsPass
-	sourceFile := filepath.Join(config.ElementsDirMapped, fileName)
+	password := config.Config.ElementsPass
+	sourceFile := filepath.Join(config.Config.ElementsDirMapped, fileName)
 
 	// Open the file
 	file, err := os.Open(sourceFile)
@@ -290,7 +287,7 @@ func backupAndZip(wallet string) (string, error) {
 		return "", err
 	}
 
-	fzip, err := os.Create(filepath.Join(config.DataDir, destinationZip))
+	fzip, err := os.Create(filepath.Join(config.Config.DataDir, destinationZip))
 	if err != nil {
 		return "", err
 	}
@@ -318,7 +315,7 @@ type PeginAddress struct {
 func getPeginAddress(address *PeginAddress) error {
 	client := ElementsClient()
 	service := &Elements{client}
-	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	wallet := config.Config.ElementsWallet
 	params := &[]string{}
 
 	r, err := service.client.call("getpeginaddress", params, "/wallet/"+wallet)
@@ -340,7 +337,7 @@ func claimPegin(rawTx, proof, claimScript string) (string, error) {
 	client := ElementsClient()
 	service := &Elements{client}
 	params := []interface{}{rawTx, proof, claimScript}
-	wallet := getPeerswapConfSetting("elementsd.rpcwallet")
+	wallet := config.Config.ElementsWallet
 
 	r, err := service.client.call("claimpegin", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {

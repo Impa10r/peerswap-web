@@ -12,7 +12,9 @@
           .then(data => updatePage(data));
       }
       fetchData()
-      setInterval(fetchData, 1000);
+      {{if .IsPending}}
+        setInterval(fetchData, 1000);
+      {{end}}
     </script>
   {{template "footer" .}}
 {{end}}

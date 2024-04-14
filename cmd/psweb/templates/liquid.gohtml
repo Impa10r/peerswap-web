@@ -90,6 +90,23 @@
         </div>
         <div class="column"> 
           <div class="box">
+            <h3 class="title is-4">Unspent Outputs</h3>
+            <table id="myTable" style="width:100%; table-layout:fixed;">
+              <tr>
+                <th style="width:58%;">Address</th>
+                <th style="text-align: right;">Conf</th>
+                <th style="text-align: right;">Amount</th>
+              </tr>
+              {{range .Outputs}}
+                <tr>
+                  <td class="truncate"><a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
+                  <td style="text-align: right;">{{fmt .Confirmations}}</td>
+                  <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
+                </tr>
+              {{end}}
+            </table>
+          </div>
+          <div class="box">
             <h1 class="title is-4">Receiving Address</h1> 
             {{if eq .LiquidAddress ""}}
               <form action="/submit" method="post">
@@ -117,24 +134,7 @@
                 }
               </script>
             {{end}}
-          </div>
-          <div class="box">
-            <h3 class="title is-4">Unspent Outputs</h3>
-            <table id="myTable" style="width:100%; table-layout:fixed;">
-              <tr>
-                <th style="width:58%;">Address</th>
-                <th style="text-align: right;">Conf</th>
-                <th style="text-align: right;">Amount</th>
-              </tr>
-              {{range .Outputs}}
-                <tr>
-                  <td class="truncate"><a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
-                  <td style="text-align: right;">{{fmt .Confirmations}}</td>
-                  <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
-                </tr>
-              {{end}}
-            </table>
-          </div>         
+          </div>        
         </div>
       </div>
     </div>

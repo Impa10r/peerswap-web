@@ -2,19 +2,20 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 # Setup
 
 ## Install dependencies
 
-PeerSwap requires Bitcoin Core, Elements Core and LND.
+PeerSwap requires Bitcoin Core, Elements Core and LND or Core Lightning installed.
 
-## Docker
+## Docker (LND only)
 
 ```
 mkdir -p ~/.peerswap && \
 docker run --net=host \
+--user 1000:1000 \
 -v ~/.lnd:/home/peerswap/.lnd:ro  \
 -v ~/.elements:/home/peerswap/.elements:ro \
 -v ~/.peerswap:/home/peerswap/.peerswap \
@@ -22,8 +23,6 @@ docker run --net=host \
 -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" \
 ghcr.io/impa10r/peerswap-web:latest
 ```
-
-The user must not be root and have id 1000 (i.e. was the first one created on your node). 
 
 This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
 
@@ -39,14 +38,24 @@ Please note that configuration files of the Docker version are not compatible wi
 
 Install golang from https://go.dev/doc/install
 
-Install and configure PeerSwap for LND. Please consult [these instructions](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md).
+Install and configure PeerSwap. Please consult [these instructions for LND](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_lnd.md) and [these for CLN](https://github.com/ElementsProject/peerswap/blob/master/docs/setup_cln.md).
 
 Clone the repository and build PeerSwap Web UI:
+
+### LND:
 
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
-make install
+make install-lnd
+```
+
+### CLN:
+
+```bash
+git clone https://github.com/Impa10r/peerswap-web && \
+cd peerswap-web && \
+make install-cln
 ```
 
 This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. If not, add the bin path in .profile and reload with `source .profile`.
@@ -59,7 +68,6 @@ sudo nano /etc/systemd/system/psweb.service
 ```
 [Unit]
 Description=PeerSwap Web UI
-After=peerswapd.service
 
 [Service]
 ExecStart=/home/USER/go/bin/psweb
@@ -83,32 +91,39 @@ sudo systemctl status psweb
 sudo systemctl enable psweb
 ```
 
-The log and the config file will be saved to ~/.peerswap/ folder. 
+The log and the config file will be saved to peerswap folder (```~/.peerswap``` for LND and ```~/.lightning/bitcoin/peerswap``` for CLN). 
 
 ## Configuration
 
-By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in ~/.peerswap/pswebconfig.json.
+By default, PeerSwap Web UI will listen on [localhost:1984](localhost:1984). This port can be changed in ```pswebconfig.json```.
 
 Once opened the UI, set the Links on the Config page for testnet or mainnet. If an environment variable NETWORK is present and equals "testnet", the links will be configured automatically for testnet on the first run.
 
 To enable downloading of a backup file of the Elements wallet it is necessary to have access to .elements folder where this backup is saved by elementsd. If Elements is run in a Docker container, both the internal folder (usually /home/elements/.elements) and the mapped external folder (for Umbrel it is /home/umbrel/umbrel/app-data/elements/data) must be provided in the Configuration panel.
 
-***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete them:
-
-```bash
-rm ~/.peerswap/peerswap.conf && \
-rm ~/.peerswap/pswebconfig.json
-```
+***Warning*** If you tried a Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete ```peerswap.conf``` and ```pswebconfig.json```.
 
 ## Update
 
 When a new version comes out, just build the app again and restart:
 
+### LND:
+
 ```bash
 rm -rf peerswap-web && \
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
-make install && \
+make install-lnd && \
+sudo systemctl restart psweb
+```
+
+### CLN:
+
+```bash
+rm -rf peerswap-web && \
+git clone https://github.com/Impa10r/peerswap-web && \
+cd peerswap-web && \
+make install-cln && \
 sudo systemctl restart psweb
 ```
 

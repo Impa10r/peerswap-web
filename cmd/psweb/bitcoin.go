@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"peerswap-web/cmd/psweb/config"
+
 	"golang.org/x/net/proxy"
 )
 
@@ -16,14 +18,14 @@ type Bitcoin struct {
 // BitcoinClient returns an RpcClient
 func BitcoinClient() (c *RPCClient) {
 	// Connect to Bitcoin Core RPC server
-	host := config.BitcoinHost
-	user := config.BitcoinUser
-	passwd := config.BitcoinPass
+	host := config.Config.BitcoinHost
+	user := config.Config.BitcoinUser
+	passwd := config.Config.BitcoinPass
 
 	var httpClient *http.Client
 
-	if config.ProxyURL != "" {
-		p, err := url.Parse(config.ProxyURL)
+	if config.Config.ProxyURL != "" {
+		p, err := url.Parse(config.Config.ProxyURL)
 		if err != nil {
 			return nil
 		}
