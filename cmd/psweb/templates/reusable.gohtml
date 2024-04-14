@@ -90,7 +90,11 @@
                 {{if eq .LogFile "cln.log"}}
                     Lightningd
                 {{else}}
-                    Peerswapd
+                    {{if eq .LogFile "lnd.log"}}
+                        LND
+                    {{else}}
+                        Peerswapd
+                    {{end}}
                 {{end}}
             {{end}} Log</h1>
         <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">

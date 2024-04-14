@@ -44,7 +44,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.3.0"
+const version = "v1.3.1"
 
 func main() {
 
@@ -1015,6 +1015,8 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	if logFile == "cln.log" {
 		filename = filepath.Join(config.Config.LightningDir, logFile)
+	} else if logFile == "lnd.log" {
+		filename = filepath.Join(config.Config.LightningDir, "logs", "bitcoin", config.Config.Chain, logFile)
 	}
 
 	file, err := os.Open(filename)
@@ -1286,7 +1288,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		// test on pre-existing tx that bitcon core can complete the peg
 		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
-		if os.Getenv("NETWORK") == "testnet" {
+		if config.Config.Chain == "testnet" {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
 		}
 

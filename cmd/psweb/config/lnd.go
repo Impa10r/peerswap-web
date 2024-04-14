@@ -30,7 +30,7 @@ func loadDefaults(home, dataDir string) {
 		Config.BitcoinPass = ""
 	} else {
 		port := "8332"
-		if os.Getenv("NETWORK") == "testnet" {
+		if Config.Chain == "testnet" {
 			port = "18332"
 		}
 		Config.BitcoinHost = "http://" + host + ":" + port

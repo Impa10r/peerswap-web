@@ -19,11 +19,11 @@ func loadDefaults(home, dataDir string) {
 		Config.LightningDir = dataDir
 	}
 
-	if os.Getenv("NETWORK") == "testnet" {
+	if Config.Chain == "testnet" {
 		Config.RpcHost = filepath.Join(Config.LightningDir, "testnet")
 		Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
 	} else {
-		Config.RpcHost = filepath.Join(Config.LightningDir, "testnet")
+		Config.RpcHost = filepath.Join(Config.LightningDir, "bitcoin")
 		Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
 	}
 }

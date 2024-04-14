@@ -1,5 +1,9 @@
 # Versions
 
+## 1.3.1
+
+- Add LND log link
+
 ## 1.3.0
 
 - Enable Core Lightning manual build
