@@ -4,6 +4,7 @@ package ln
 
 import (
 	"log"
+	"sort"
 
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/mempool"
@@ -108,6 +109,11 @@ func ListUnspent(client *glightning.Lightning, list *[]UTXO) error {
 			Confirmations: confs,
 		})
 	}
+
+	// sort the table on Confirmations field
+	sort.Slice(a, func(i, j int) bool {
+		return a[i].Confirmations < a[j].Confirmations
+	})
 
 	// Update the array through the pointer
 	*list = a

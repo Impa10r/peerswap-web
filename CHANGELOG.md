@@ -3,6 +3,7 @@
 ## 1.3.1
 
 - Add LND log link
+- Bug fixes
 
 ## 1.3.0
 
