@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 # Setup
 
@@ -30,7 +30,7 @@ Config files should exist or wiil be created with default values. Depending on h
 
 If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then run ```docker exec "container id" pscli```.
 
-If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one.
+If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one (user id 1000:1000).
 
 Please note that configuration files of the Docker version are not compatible with the manual build.
 

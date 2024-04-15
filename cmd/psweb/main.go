@@ -54,13 +54,10 @@ func main() {
 		showVersion = flag.Bool("version", false, "Show version")
 	)
 
-	// loading from the config file or assigning defaults
-	config.Load(*dataDir)
-
-	// save config to confirm any defaults
-	config.Save()
-
 	flag.Parse()
+
+	// loading from config file or creating default one
+	config.Load(*dataDir)
 
 	if *showHelp {
 		showHelpMessage()
@@ -73,10 +70,11 @@ func main() {
 	}
 
 	// set logging params
-	err := setLogging()
+	cleanup, err := setLogging()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer cleanup()
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -142,9 +140,6 @@ func main() {
 	// Start Telegram bot
 	go telegramStart()
 
-	// Check if peg-in can be claimed
-	go checkPegin()
-
 	// Start timer to run every minute
 	go startTimer()
 
@@ -155,9 +150,6 @@ func main() {
 	// Wait for termination signal
 	<-signalChan
 	log.Println("Received termination signal")
-
-	// close log
-	closeLogFile()
 
 	// Exit the program gracefully
 	os.Exit(0)
@@ -957,10 +949,11 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 // shows peerswapd log
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
-		ColorScheme string
-		Message     string
-		LogPosition int
-		LogFile     string
+		ColorScheme    string
+		Message        string
+		LogPosition    int
+		LogFile        string
+		Implementation string
 	}
 
 	logFile := "log"
@@ -971,10 +964,11 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.Config.ColorScheme,
-		Message:     "",
-		LogPosition: 1, // from first line
-		LogFile:     logFile,
+		ColorScheme:    config.Config.ColorScheme,
+		Message:        "",
+		LogPosition:    1, // from first line
+		LogFile:        logFile,
+		Implementation: config.Config.Implementation,
 	}
 
 	// executing template named "logpage"
@@ -1398,14 +1392,14 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func setLogging() error {
+func setLogging() (func(), error) {
 	// Set log file name
 	logFileName := filepath.Join(config.Config.DataDir, "psweb.log")
 	var err error
 	// Open log file in append mode, create if it doesn't exist
 	logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Set log output to both file and standard output
@@ -1417,15 +1411,15 @@ func setLogging() error {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	}
 
-	return nil
-}
-
-func closeLogFile() {
-	if logFile != nil {
-		if err := logFile.Close(); err != nil {
-			log.Println("Error closing log file:", err)
+	cleanup := func() {
+		if logFile != nil {
+			if err := logFile.Close(); err != nil {
+				log.Println("Error closing log file:", err)
+			}
 		}
 	}
+
+	return cleanup, nil
 }
 
 func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswaprpc.PeerSwapPeer {

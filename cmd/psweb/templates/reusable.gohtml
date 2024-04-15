@@ -82,56 +82,54 @@
     </html>
 {{end}}
 
-{{define "log"}}
-    <div class="box">
-        <h1>{{if eq .LogFile "psweb.log"}}
-                PeerSwap Web
+{{define "log"}}  
+    <h1>{{if eq .LogFile "psweb.log"}}
+            PeerSwap Web
+        {{else}}
+            {{if eq .LogFile "cln.log"}}
+                Lightningd
             {{else}}
-                {{if eq .LogFile "cln.log"}}
-                    Lightningd
+                {{if eq .LogFile "lnd.log"}}
+                    LND
                 {{else}}
-                    {{if eq .LogFile "lnd.log"}}
-                        LND
-                    {{else}}
-                        Peerswapd
-                    {{end}}
+                    Peerswapd
                 {{end}}
-            {{end}} Log</h1>
-        <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
-        <tr>
-            <td style="max-width: 100%; overflow: hidden;">
-            <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
-            </td>
-        </tr>
-        </table>
-        <script>
-            const logContent = document.getElementById('log-content');
-            let logPosition = {{.LogPosition}};             
+            {{end}}
+        {{end}} Log</h1>
+    <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
+    <tr>
+        <td style="max-width: 100%; overflow: hidden;">
+        <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
+        </td>
+    </tr>
+    </table>
+    <script>
+        const logContent = document.getElementById('log-content');
+        let logPosition = {{.LogPosition}};             
+        
+        function updatePage(data) {
+            if (data.NextPosition > logPosition) {
+                logPosition = data.NextPosition;
+                logContent.textContent += data.LogText;
+                logContent.scrollTop = logContent.scrollHeight;    
             
-            function updatePage(data) {
-                if (data.NextPosition > logPosition) {
-                    logPosition = data.NextPosition;
-                    logContent.textContent += data.LogText;
-                    logContent.scrollTop = logContent.scrollHeight;    
-                
-                    {{if eq .LogPosition 0}}
-                        // Wait until peerswapd is initialized
-                        if (data.LogText.includes("{{.SearchText}}")) {
-                            // Redirect to home page
-                            window.location.href = '/'; 
-                        }      
-                    {{end}}     
-                }      
-            }
-            
-            function fetchData() {
-                fetch('/logapi?pos=' + logPosition + '&log={{.LogFile}}')
-                .then(response => response.json())
-                .then(data => updatePage(data));
-            }
-            
-            const timer2 = setInterval(fetchData, 1000);
-            fetchData();
-        </script>
-    </div>
+                {{if eq .LogPosition 0}}
+                    // Wait until peerswapd is initialized
+                    if (data.LogText.includes("{{.SearchText}}")) {
+                        // Redirect to home page
+                        window.location.href = '/'; 
+                    }      
+                {{end}}     
+            }      
+        }
+        
+        function fetchData() {
+            fetch('/logapi?pos=' + logPosition + '&log={{.LogFile}}')
+            .then(response => response.json())
+            .then(data => updatePage(data));
+        }
+        
+        const timer2 = setInterval(fetchData, 1000);
+        fetchData();
+    </script>
 {{end}}
