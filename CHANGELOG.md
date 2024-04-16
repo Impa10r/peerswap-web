@@ -1,5 +1,9 @@
 # Versions
 
+## 1.3.2
+
+-
+
 ## 1.3.1
 
 - Enable peg-in transaction fee bumping for CLN
