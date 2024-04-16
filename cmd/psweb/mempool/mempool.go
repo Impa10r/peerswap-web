@@ -3,6 +3,7 @@ package mempool
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -166,4 +167,31 @@ func GetTxHeight(txid string) int32 {
 		}
 	}
 	return 0
+}
+
+func SendRawTransaction(rawTx string) string {
+	if config.Config.BitcoinApi != "" {
+		api := config.Config.BitcoinApi + "/api/tx"
+		// Define the request body
+		requestBody := []byte(rawTx)
+
+		// Send POST request
+		resp, err := http.Post(api, "application/octet-stream", bytes.NewBuffer(requestBody))
+		if err != nil {
+			log.Println("Error sending POST request:", err)
+			return ""
+		}
+		defer resp.Body.Close()
+
+		// Read the response body
+		responseBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Println("Error reading response body:", err)
+			return ""
+		}
+
+		// Return the response
+		return string(responseBody)
+	}
+	return ""
 }

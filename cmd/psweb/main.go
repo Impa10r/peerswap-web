@@ -20,7 +20,9 @@ import (
 	"text/template"
 	"time"
 
+	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/mempool"
 	"peerswap-web/cmd/psweb/ps"
@@ -611,9 +613,9 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var outputs []LiquidUTXO
+	var outputs []liquid.UTXO
 
-	if err := listUnspent(&outputs); err != nil {
+	if err := liquid.ListUnspent(&outputs); err != nil {
 		log.Printf("unable get listUnspent: %v", err)
 		redirectWithError(w, r, "/liquid?", err)
 		return
@@ -631,7 +633,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		LiquidBalance uint64
 		TxId          string
 		LiquidUrl     string
-		Outputs       *[]LiquidUTXO
+		Outputs       *[]liquid.UTXO
 		LiquidApi     string
 	}
 
@@ -692,7 +694,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			txid, err := sendLiquidToAddress(
+			txid, err := liquid.SendToAddress(
 				r.FormValue("sendAddress"),
 				amt,
 				r.FormValue("subtractfee") == "on")
@@ -931,7 +933,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 func backupHandler(w http.ResponseWriter, r *http.Request) {
 	wallet := config.Config.ElementsWallet
 	// returns .bak with the name of the wallet
-	if fileName, err := backupAndZip(wallet); err == nil {
+	if fileName, err := liquid.BackupAndZip(wallet); err == nil {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 		// Serve the file for download
@@ -1152,7 +1154,7 @@ func liquidBackup(force bool) {
 	}
 
 	wallet := config.Config.ElementsWallet
-	destinationZip, err := backupAndZip(wallet)
+	destinationZip, err := liquid.BackupAndZip(wallet)
 	if err != nil {
 		log.Println("Error zipping backup:", err)
 		return
@@ -1183,6 +1185,12 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		message = keys[0]
 	}
 
+	child := ""
+	keys, ok = r.URL.Query()["child"]
+	if ok && len(keys[0]) > 0 {
+		child = keys[0]
+	}
+
 	var utxos []ln.UTXO
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -1207,6 +1215,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
 		CanBump          bool
+		ChildTxId        string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -1220,6 +1229,9 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 			if fee < config.Config.PeginFeeRate+1 {
 				fee = config.Config.PeginFeeRate + 1
 			}
+		}
+		if child == "" {
+			child = ln.FindChildTx(cl)
 		}
 	}
 
@@ -1239,7 +1251,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration:         formattedDuration,
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
-		CanBump:          confs == 0 && config.Config.Implementation == "LND",
+		CanBump:          confs == 0,
+		ChildTxId:        child,
 	}
 
 	// executing template named "bitcoin"
@@ -1286,39 +1299,30 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
 		}
 
-		_, err = getRawTransaction(tx)
+		_, err = bitcoin.GetTxOutProof(tx)
 		if err != nil {
 			// automatic fallback to getblock.io
 			config.Config.BitcoinHost = config.GetBlockIoHost()
 			config.Config.BitcoinUser = ""
 			config.Config.BitcoinPass = ""
-			_, err = getRawTransaction(tx)
+			_, err = bitcoin.GetTxOutProof(tx)
 			if err != nil {
-				redirectWithError(w, r, "/bitcoin?", errors.New("getrawtransaction request failed, check BitcoinHost in Config"))
+				redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
 				return
 			} else {
 				// use getblock.io endpoint going forward
+				log.Println("Switching to getblock.io bitcoin host endpoint")
 				config.Save()
 			}
 		}
 
-		var addr PeginAddress
+		var addr liquid.PeginAddress
 
-		err = getPeginAddress(&addr)
+		err = liquid.GetPeginAddress(&addr)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
-
-		log.Println("Peg-in started to mainchain address:", addr.MainChainAddress, "claim script:", addr.ClaimScript, "amount:", amount)
-		duration := time.Duration(1020) * time.Minute
-		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
-
-		config.Config.PeginClaimScript = addr.ClaimScript
-		config.Config.PeginAmount = amount
-		config.Save()
 
 		txid, err := ln.SendCoins(cl, addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
 		if err != nil {
@@ -1326,6 +1330,23 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		rawtx, err := ln.GetRawTransaction(cl, txid)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		// just to be sure, broadcast it directly to mempool.space
+		mempool.SendRawTransaction(rawtx)
+
+		log.Println("Peg-in txid:", txid, "claim script:", addr.ClaimScript, "amount:", amount, "rawTx:", rawtx)
+		duration := time.Duration(1020) * time.Minute
+		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+
+		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
+
+		config.Config.PeginClaimScript = addr.ClaimScript
+		config.Config.PeginAmount = amount
 		config.Config.PeginTxId = txid
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
@@ -1356,26 +1377,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		tx, err := ln.GetTransaction(config.Config.PeginTxId)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		index := uint32(0)
-		for i, output := range tx.OutputDetails {
-			if output.Amount != config.Config.PeginAmount {
-				index = uint32(i)
-				break
-			}
-		}
-
-		if tx.OutputDetails[index].Amount == config.Config.PeginAmount {
-			redirectWithError(w, r, "/bitcoin?", errors.New("peg-in tx has no change, not possible to bump"))
-			return
-		}
-
-		err = ln.BumpFee(config.Config.PeginTxId, uint32(index), fee)
+		txid, err := ln.BumpPeginFee(fee)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -1385,8 +1387,26 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
 
+		if txid != "" {
+			// broadcast directly to make sure
+			cl, clean, err := ln.GetClient()
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+			defer clean()
+
+			rawtx, err := ln.GetRawTransaction(cl, txid)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			mempool.SendRawTransaction(rawtx)
+		}
+
 		// Redirect to bitcoin page to follow the pegin progress
-		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+		http.Redirect(w, r, "/bitcoin?child="+txid, http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -1633,31 +1653,38 @@ func checkPegin() {
 
 	confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 	if confs >= 102 {
-		rawTx, err := getRawTransaction(config.Config.PeginTxId)
+		failed := false
+		proof := ""
+		txid := ""
+		rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
 		if err == nil {
-			proof := getTxOutProof(config.Config.PeginTxId)
-			txid, err := claimPegin(rawTx, proof, config.Config.PeginClaimScript)
-
-			// claimpegin takes long time, allow it to timeout
-			if err != nil && err.Error() != "timeout reading data from server" {
-				log.Println("Peg-in claim FAILED!")
-				log.Println("Mainchain TxId:", config.Config.PeginTxId)
-				log.Println("Raw tx:", rawTx)
-				log.Println("Proof:", proof)
-				log.Println("Claim Script:", config.Config.PeginClaimScript)
-				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+			proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+			if err == nil {
+				txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
+				// claimpegin takes long time, allow it to timeout
+				if err != nil && err.Error() != "timeout reading data from server" {
+					failed = true
+				}
 			} else {
-				log.Println("Peg-in success! Liquid TxId:", txid)
-				telegramSendMessage("💸 Peg-in success!")
+				failed = true
 			}
 		} else {
-			log.Println("Peg-In getrawtx FAILED.")
-			log.Println("Mainchain TxId:", config.Config.PeginTxId)
-			log.Println("Claim Script:", config.Config.PeginClaimScript)
-			telegramSendMessage("❗ Peg-In getrawtx FAILED! See log for details.")
+			failed = true
 		}
 
-		// stop trying after first attempt
+		if failed {
+			log.Println("Peg-in claim FAILED!")
+			log.Println("Mainchain TxId:", config.Config.PeginTxId)
+			log.Println("Raw tx:", rawTx)
+			log.Println("Proof:", proof)
+			log.Println("Claim Script:", config.Config.PeginClaimScript)
+			telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+		} else {
+			log.Println("Peg-in success! Liquid TxId:", txid)
+			telegramSendMessage("💸 Peg-in success!")
+		}
+
+		// stop trying after one attempt
 		config.Config.PeginTxId = ""
 		config.Save()
 	}
