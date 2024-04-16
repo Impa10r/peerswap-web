@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"peerswap-web/cmd/psweb/config"
 
@@ -102,14 +103,14 @@ func ConfirmedWalletBalance(client lnrpc.LightningClient) int64 {
 	return resp.ConfirmedBalance
 }
 
-func ListUnspent(_ lnrpc.LightningClient, list *[]UTXO) error {
+func ListUnspent(_ lnrpc.LightningClient, list *[]UTXO, minConfs int32) error {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
 		return err
 	}
 	cl := walletrpc.NewWalletKitClient(conn)
-	resp, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: 0})
+	resp, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: minConfs})
 	if err != nil {
 		log.Println("ListUnspent:", err)
 		return err
@@ -134,14 +135,8 @@ func ListUnspent(_ lnrpc.LightningClient, list *[]UTXO) error {
 	return nil
 }
 
-func GetTransaction(txid string) (*lnrpc.Transaction, error) {
+func getTransaction(client lnrpc.LightningClient, txid string) (*lnrpc.Transaction, error) {
 	ctx := context.Background()
-	client, cleanup, err := GetClient()
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
 	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
 	if err != nil {
 		log.Println("GetTransaction:", err)
@@ -158,7 +153,7 @@ func GetTransaction(txid string) (*lnrpc.Transaction, error) {
 }
 
 func GetTxConfirmations(client lnrpc.LightningClient, txid string) int32 {
-	tx, err := GetTransaction(txid)
+	tx, err := getTransaction(client, txid)
 	if err == nil {
 		return tx.NumConfirmations
 	}
@@ -183,17 +178,40 @@ func GetAlias(nodeKey string) string {
 	return nodeInfo.Node.Alias
 }
 
-func BumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
+func BumpPeginFee(newFeeRate uint64) (string, error) {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+
+	tx, err := getTransaction(client, config.Config.PeginTxId)
+	if err != nil {
+		return "", err
+	}
+
+	if len(tx.OutputDetails) == 1 {
+		return "", errors.New("peg-in transaction has no change output, not possible to CPFP")
+	}
+
+	outputIndex := uint32(999) // will fail if output not found
+	for _, output := range tx.OutputDetails {
+		if output.Amount != config.Config.PeginAmount {
+			outputIndex = uint32(output.OutputIndex)
+			break
+		}
+	}
+
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
-		return err
+		return "", err
 	}
 	cl := walletrpc.NewWalletKitClient(conn)
 
 	_, err = cl.BumpFee(ctx, &walletrpc.BumpFeeRequest{
 		Outpoint: &lnrpc.OutPoint{
-			TxidStr:     TxId,
+			TxidStr:     config.Config.PeginTxId,
 			OutputIndex: outputIndex,
 		},
 		SatPerVbyte: newFeeRate,
@@ -201,9 +219,62 @@ func BumpFee(TxId string, outputIndex uint32, newFeeRate uint64) error {
 
 	if err != nil {
 		log.Println("BumpFee:", err)
-		return err
+		return "", err
 	}
 
+	log.Println("Fee bump successful")
 	conn.Close()
-	return nil
+	return "", nil
+}
+
+func GetRawTransaction(client lnrpc.LightningClient, txid string) (string, error) {
+	tx, err := getTransaction(client, txid)
+
+	if err != nil {
+		return "", err
+	}
+
+	return tx.RawTxHex, nil
+}
+
+func FindChildTx(client lnrpc.LightningClient) string {
+	tx, err := getTransaction(client, config.Config.PeginTxId)
+	if err != nil {
+		return ""
+	}
+
+	if len(tx.OutputDetails) == 1 {
+		return ""
+	}
+
+	outputIndex := uint32(999) // will fail if output not found
+	for _, output := range tx.OutputDetails {
+		if output.Amount != config.Config.PeginAmount {
+			outputIndex = uint32(output.OutputIndex)
+			break
+		}
+	}
+
+	ctx := context.Background()
+
+	// find the child tx in the wallet
+	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
+	if err != nil {
+		return ""
+	}
+
+	txid := ""
+	timestamp := int64(0)
+	vin := config.Config.PeginTxId + ":" + strconv.FormatUint(uint64(outputIndex), 10)
+	for _, tx := range resp.Transactions {
+		for _, in := range tx.PreviousOutpoints {
+			// find the latest child spending our output
+			if in.Outpoint == vin && tx.TimeStamp > timestamp {
+				txid = tx.TxHash
+				timestamp = tx.TimeStamp
+			}
+		}
+	}
+
+	return txid
 }

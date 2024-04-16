@@ -275,11 +275,12 @@
                   {{end}}
                   <br>
                   Logs: 
-                    {{if eq .Config.Implementation "CLN"}}
-                      <a href="/log?log=cln.log">CLN</a>
-                    {{else}}
-                      <a href="/log">PSd</a>
-                    {{end}} <a href="/log?log=psweb.log">PSw</a>
+                  {{if eq .Config.Implementation "CLN"}}
+                    <a href="/log?log=cln.log">CLN</a>
+                  {{else}}
+                    <a href="/log?log=lnd.log">LND</a>
+                    <a href="/log">PSd</a>
+                  {{end}} <a href="/log?log=psweb.log">PSw</a>
                 </small>         
               </center>
             </form>

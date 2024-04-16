@@ -1,4 +1,4 @@
-package main
+package liquid
 
 import (
 	"bytes"
@@ -151,7 +151,7 @@ func ElementsClient() (c *RPCClient) {
 	return
 }
 
-type LiquidUTXO struct {
+type UTXO struct {
 	TxID             string  `json:"txid"`
 	Vout             int     `json:"vout"`
 	Address          string  `json:"address,omitempty"`
@@ -176,7 +176,7 @@ type LiquidUTXO struct {
 	Safe             bool    `json:"safe"`
 }
 
-func listUnspent(outputs *[]LiquidUTXO) error {
+func ListUnspent(outputs *[]UTXO) error {
 	client := ElementsClient()
 	service := &Elements{client}
 	params := []string{}
@@ -202,7 +202,7 @@ type SendParams struct {
 	SubtractFeeFromAmount bool    `json:"subtractfeefromamount"`
 }
 
-func sendLiquidToAddress(address string,
+func SendToAddress(address string,
 	amountSats uint64,
 	subtractFeeFromAmount bool,
 ) (string, error) {
@@ -232,7 +232,7 @@ func sendLiquidToAddress(address string,
 
 // Backup wallet and zip it with Elements Core password
 // .bak's name is equal to master blinding key
-func backupAndZip(wallet string) (string, error) {
+func BackupAndZip(wallet string) (string, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
@@ -312,7 +312,7 @@ type PeginAddress struct {
 	ClaimScript      string `json:"claim_script"`
 }
 
-func getPeginAddress(address *PeginAddress) error {
+func GetPeginAddress(address *PeginAddress) error {
 	client := ElementsClient()
 	service := &Elements{client}
 	wallet := config.Config.ElementsWallet
@@ -333,7 +333,7 @@ func getPeginAddress(address *PeginAddress) error {
 	return nil
 }
 
-func claimPegin(rawTx, proof, claimScript string) (string, error) {
+func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 	client := ElementsClient()
 	service := &Elements{client}
 	params := []interface{}{rawTx, proof, claimScript}
@@ -352,4 +352,8 @@ func claimPegin(rawTx, proof, claimScript string) (string, error) {
 		return "", err
 	}
 	return txid, nil
+}
+
+func toBitcoin(amountSats uint64) float64 {
+	return float64(amountSats) / float64(100000000)
 }

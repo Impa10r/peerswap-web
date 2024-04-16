@@ -1,5 +1,11 @@
 # Versions
 
+## 1.3.1
+
+- Enable peg-in transaction fee bumping for CLN
+- Add LND log link
+- Various bug fixes
+
 ## 1.3.0
 
 - Enable Core Lightning manual build
@@ -105,7 +111,7 @@ Migration steps:
 
 ## 1.0.3
 
-- Change dafault links to mainnet
+- Change default links to mainnet
 - Better format peer details 
 - Reuse header in swap.gohtml
 - Dissolve utils package

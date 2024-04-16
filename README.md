@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 # Setup
 
@@ -30,7 +30,7 @@ Config files should exist or wiil be created with default values. Depending on h
 
 If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then run ```docker exec "container id" pscli```.
 
-If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one.
+If Elements is also run in a Docker container, it should be started by the same user as the PeerSwap one (user id 1000:1000).
 
 Please note that configuration files of the Docker version are not compatible with the manual build.
 
@@ -113,7 +113,7 @@ When a new version comes out, just build the app again and restart:
 rm -rf peerswap-web && \
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
-make install-lnd && \
+make -j$(nproc) install-lnd && \
 sudo systemctl restart psweb
 ```
 
@@ -123,7 +123,7 @@ sudo systemctl restart psweb
 rm -rf peerswap-web && \
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
-make install-cln && \
+make -j$(nproc) install-cln && \
 sudo systemctl restart psweb
 ```
 
@@ -158,6 +158,8 @@ docker cp /home/umbrel/peerswap.bak elements_node_1:/home/elements/peerswap.bak
 docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=49...d1e restorewallet "peerswap" "/home/elements/peerswap.bak"
 docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=49...d1e importmasterblindingkey "hexkey"
 ```
+
+**DO NOT** uninstall Elements Core unless all liquid funds are spent or you have backed up your wallet.
 
 ## Automatic backup to a Telegram bot
 
@@ -198,17 +200,3 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 # Support
 
 Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev). Additionally, there is a [Telegram group](https://t.me/PeerSwapLN) for node runners with PeerSwap. Just beware of scammers who may DM you. Immediately block and report to Telegram anyone with empty Username field.
-
-# Security Disclosure
-
-**Assuming the local network is secure**
-
-PeerSwap Web is currently a beta-grade software that makes the assumption that the local network is secure. This means local network communication is unencrypted using plain text HTTP. 
-
-Bootstrapping a secure connection over an insecure network and avoiding MITM attacks without being able to rely on certificate authorities is not an easy problem to solve.
-
-**DO NOT** uninstall Elements Core unless all liquid funds are spent or you have backed up your wallet.
-
-*Only recommend using with small balances or on signet/testnet*
-
-*See [license](/LICENSE) for other disclaimers*

@@ -53,9 +53,6 @@ func Load(dataDir string) {
 		log.Fatalln(err)
 	}
 
-	// different defaults for LND and CLN
-	loadDefaults(currentUser.HomeDir, dataDir)
-
 	// load defaults first
 	Config.AllowSwapRequests = true
 	Config.ColorScheme = "dark" // dark or light
@@ -90,6 +87,9 @@ func Load(dataDir string) {
 	if os.Getenv("ELEMENTS_FOLDER_MAPPED") != "" {
 		Config.ElementsDirMapped = os.Getenv("ELEMENTS_FOLDER_MAPPED")
 	}
+
+	// different defaults for LND and CLN
+	loadDefaults(currentUser.HomeDir, dataDir)
 
 	// load config from peerswap.conf
 	LoadPS()

@@ -13,7 +13,7 @@
                 <input autocomplete="false" name="hidden" type="text" style="display:none;">
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
+                    <label class="label">Amount</label>
                   </div>
                   <div class="field-body">
                     <div class="field">
@@ -23,11 +23,6 @@
                     </div>
                   </div>
                 </div>
-                <script>
-                  function setMax() {
-                    document.getElementById("peginAmount").value = {{.BitcoinBalance}};
-                  }
-                </script>
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
                     <label class="label">Fee Rate</label>
@@ -81,13 +76,23 @@
                     <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
                   </td>
                 </tr>
+                {{if .ChildTxId}}
+                  <tr>
+                    <td style="text-align: right">
+                      Child:
+                    </td>
+                    <td style="overflow-wrap: break-word;">
+                      <a href="{{.BitcoinApi}}/tx/{{.ChildTxId}}" target="_blank">{{.ChildTxId}}</a>
+                    </td>
+                  </tr>
+                {{end}}
                 {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
                       CPFP:
                     </td>
                     <td>
-                      If you want to bump, suggesting child tx fee 1.5x the current market rate 
+                      If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child). 
                     </td>
                   </tr>
                 {{end}}

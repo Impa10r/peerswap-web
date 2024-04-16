@@ -20,7 +20,9 @@ import (
 	"text/template"
 	"time"
 
+	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/mempool"
 	"peerswap-web/cmd/psweb/ps"
@@ -44,7 +46,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.3.0"
+const version = "v1.3.1"
 
 func main() {
 
@@ -54,13 +56,10 @@ func main() {
 		showVersion = flag.Bool("version", false, "Show version")
 	)
 
-	// loading from the config file or assigning defaults
-	config.Load(*dataDir)
-
-	// save config to confirm any defaults
-	config.Save()
-
 	flag.Parse()
+
+	// loading from config file or creating default one
+	config.Load(*dataDir)
 
 	if *showHelp {
 		showHelpMessage()
@@ -73,10 +72,11 @@ func main() {
 	}
 
 	// set logging params
-	err := setLogging()
+	cleanup, err := setLogging()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer cleanup()
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -142,9 +142,6 @@ func main() {
 	// Start Telegram bot
 	go telegramStart()
 
-	// Check if peg-in can be claimed
-	go checkPegin()
-
 	// Start timer to run every minute
 	go startTimer()
 
@@ -155,9 +152,6 @@ func main() {
 	// Wait for termination signal
 	<-signalChan
 	log.Println("Received termination signal")
-
-	// close log
-	closeLogFile()
 
 	// Exit the program gracefully
 	os.Exit(0)
@@ -619,9 +613,9 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var outputs []LiquidUTXO
+	var outputs []liquid.UTXO
 
-	if err := listUnspent(&outputs); err != nil {
+	if err := liquid.ListUnspent(&outputs); err != nil {
 		log.Printf("unable get listUnspent: %v", err)
 		redirectWithError(w, r, "/liquid?", err)
 		return
@@ -639,7 +633,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		LiquidBalance uint64
 		TxId          string
 		LiquidUrl     string
-		Outputs       *[]LiquidUTXO
+		Outputs       *[]liquid.UTXO
 		LiquidApi     string
 	}
 
@@ -700,7 +694,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			txid, err := sendLiquidToAddress(
+			txid, err := liquid.SendToAddress(
 				r.FormValue("sendAddress"),
 				amt,
 				r.FormValue("subtractfee") == "on")
@@ -939,7 +933,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 func backupHandler(w http.ResponseWriter, r *http.Request) {
 	wallet := config.Config.ElementsWallet
 	// returns .bak with the name of the wallet
-	if fileName, err := backupAndZip(wallet); err == nil {
+	if fileName, err := liquid.BackupAndZip(wallet); err == nil {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 		// Serve the file for download
@@ -957,10 +951,11 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 // shows peerswapd log
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
-		ColorScheme string
-		Message     string
-		LogPosition int
-		LogFile     string
+		ColorScheme    string
+		Message        string
+		LogPosition    int
+		LogFile        string
+		Implementation string
 	}
 
 	logFile := "log"
@@ -971,10 +966,11 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.Config.ColorScheme,
-		Message:     "",
-		LogPosition: 1, // from first line
-		LogFile:     logFile,
+		ColorScheme:    config.Config.ColorScheme,
+		Message:        "",
+		LogPosition:    1, // from first line
+		LogFile:        logFile,
+		Implementation: config.Config.Implementation,
 	}
 
 	// executing template named "logpage"
@@ -1015,6 +1011,8 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 
 	if logFile == "cln.log" {
 		filename = filepath.Join(config.Config.LightningDir, logFile)
+	} else if logFile == "lnd.log" {
+		filename = filepath.Join(config.Config.LightningDir, "logs", "bitcoin", config.Config.Chain, logFile)
 	}
 
 	file, err := os.Open(filename)
@@ -1156,7 +1154,7 @@ func liquidBackup(force bool) {
 	}
 
 	wallet := config.Config.ElementsWallet
-	destinationZip, err := backupAndZip(wallet)
+	destinationZip, err := liquid.BackupAndZip(wallet)
 	if err != nil {
 		log.Println("Error zipping backup:", err)
 		return
@@ -1187,6 +1185,12 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		message = keys[0]
 	}
 
+	child := ""
+	keys, ok = r.URL.Query()["child"]
+	if ok && len(keys[0]) > 0 {
+		child = keys[0]
+	}
+
 	var utxos []ln.UTXO
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -1195,7 +1199,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer clean()
 
-	ln.ListUnspent(cl, &utxos)
+	ln.ListUnspent(cl, &utxos, 1)
 
 	type Page struct {
 		Message          string
@@ -1211,6 +1215,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
 		CanBump          bool
+		ChildTxId        string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -1224,6 +1229,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 			if fee < config.Config.PeginFeeRate+1 {
 				fee = config.Config.PeginFeeRate + 1
 			}
+			if child == "" {
+				child = ln.FindChildTx(cl)
+			}
+		} else {
+			child = ""
 		}
 	}
 
@@ -1243,7 +1253,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration:         formattedDuration,
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
-		CanBump:          confs == 0 && config.Config.Implementation == "LND",
+		CanBump:          confs == 0,
+		ChildTxId:        child,
 	}
 
 	// executing template named "bitcoin"
@@ -1286,43 +1297,34 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		// test on pre-existing tx that bitcon core can complete the peg
 		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
-		if os.Getenv("NETWORK") == "testnet" {
+		if config.Config.Chain == "testnet" {
 			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
 		}
 
-		_, err = getRawTransaction(tx)
+		_, err = bitcoin.GetTxOutProof(tx)
 		if err != nil {
 			// automatic fallback to getblock.io
 			config.Config.BitcoinHost = config.GetBlockIoHost()
 			config.Config.BitcoinUser = ""
 			config.Config.BitcoinPass = ""
-			_, err = getRawTransaction(tx)
+			_, err = bitcoin.GetTxOutProof(tx)
 			if err != nil {
-				redirectWithError(w, r, "/bitcoin?", errors.New("getrawtransaction request failed, check BitcoinHost in Config"))
+				redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
 				return
 			} else {
 				// use getblock.io endpoint going forward
+				log.Println("Switching to getblock.io bitcoin host endpoint")
 				config.Save()
 			}
 		}
 
-		var addr PeginAddress
+		var addr liquid.PeginAddress
 
-		err = getPeginAddress(&addr)
+		err = liquid.GetPeginAddress(&addr)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
-
-		log.Println("Peg-in started to mainchain address:", addr.MainChainAddress, "claim script:", addr.ClaimScript, "amount:", amount)
-		duration := time.Duration(1020) * time.Minute
-		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
-
-		config.Config.PeginClaimScript = addr.ClaimScript
-		config.Config.PeginAmount = amount
-		config.Save()
 
 		txid, err := ln.SendCoins(cl, addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
 		if err != nil {
@@ -1330,6 +1332,23 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		rawtx, err := ln.GetRawTransaction(cl, txid)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		// just to be sure, broadcast it directly to mempool.space
+		mempool.SendRawTransaction(rawtx)
+
+		log.Println("Peg-in txid:", txid, "claim script:", addr.ClaimScript, "amount:", amount, "rawTx:", rawtx)
+		duration := time.Duration(1020) * time.Minute
+		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+
+		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
+
+		config.Config.PeginClaimScript = addr.ClaimScript
+		config.Config.PeginAmount = amount
 		config.Config.PeginTxId = txid
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
@@ -1360,26 +1379,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		tx, err := ln.GetTransaction(config.Config.PeginTxId)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		index := uint32(0)
-		for i, output := range tx.OutputDetails {
-			if output.Amount != config.Config.PeginAmount {
-				index = uint32(i)
-				break
-			}
-		}
-
-		if tx.OutputDetails[index].Amount == config.Config.PeginAmount {
-			redirectWithError(w, r, "/bitcoin?", errors.New("peg-in tx has no change, not possible to bump"))
-			return
-		}
-
-		err = ln.BumpFee(config.Config.PeginTxId, uint32(index), fee)
+		txid, err := ln.BumpPeginFee(fee)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -1389,21 +1389,39 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
 
+		if txid != "" {
+			// broadcast directly to make sure
+			cl, clean, err := ln.GetClient()
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+			defer clean()
+
+			rawtx, err := ln.GetRawTransaction(cl, txid)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			mempool.SendRawTransaction(rawtx)
+		}
+
 		// Redirect to bitcoin page to follow the pegin progress
-		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+		http.Redirect(w, r, "/bitcoin?child="+txid, http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func setLogging() error {
+func setLogging() (func(), error) {
 	// Set log file name
 	logFileName := filepath.Join(config.Config.DataDir, "psweb.log")
 	var err error
 	// Open log file in append mode, create if it doesn't exist
 	logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Set log output to both file and standard output
@@ -1415,15 +1433,15 @@ func setLogging() error {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	}
 
-	return nil
-}
-
-func closeLogFile() {
-	if logFile != nil {
-		if err := logFile.Close(); err != nil {
-			log.Println("Error closing log file:", err)
+	cleanup := func() {
+		if logFile != nil {
+			if err := logFile.Close(); err != nil {
+				log.Println("Error closing log file:", err)
+			}
 		}
 	}
+
+	return cleanup, nil
 }
 
 func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswaprpc.PeerSwapPeer {
@@ -1637,31 +1655,38 @@ func checkPegin() {
 
 	confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 	if confs >= 102 {
-		rawTx, err := getRawTransaction(config.Config.PeginTxId)
+		failed := false
+		proof := ""
+		txid := ""
+		rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
 		if err == nil {
-			proof := getTxOutProof(config.Config.PeginTxId)
-			txid, err := claimPegin(rawTx, proof, config.Config.PeginClaimScript)
-
-			// claimpegin takes long time, allow it to timeout
-			if err != nil && err.Error() != "timeout reading data from server" {
-				log.Println("Peg-in claim FAILED!")
-				log.Println("Mainchain TxId:", config.Config.PeginTxId)
-				log.Println("Raw tx:", rawTx)
-				log.Println("Proof:", proof)
-				log.Println("Claim Script:", config.Config.PeginClaimScript)
-				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+			proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+			if err == nil {
+				txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
+				// claimpegin takes long time, allow it to timeout
+				if err != nil && err.Error() != "timeout reading data from server" {
+					failed = true
+				}
 			} else {
-				log.Println("Peg-in success! Liquid TxId:", txid)
-				telegramSendMessage("💸 Peg-in success!")
+				failed = true
 			}
 		} else {
-			log.Println("Peg-In getrawtx FAILED.")
-			log.Println("Mainchain TxId:", config.Config.PeginTxId)
-			log.Println("Claim Script:", config.Config.PeginClaimScript)
-			telegramSendMessage("❗ Peg-In getrawtx FAILED! See log for details.")
+			failed = true
 		}
 
-		// stop trying after first attempt
+		if failed {
+			log.Println("Peg-in claim FAILED!")
+			log.Println("Mainchain TxId:", config.Config.PeginTxId)
+			log.Println("Raw tx:", rawTx)
+			log.Println("Proof:", proof)
+			log.Println("Claim Script:", config.Config.PeginClaimScript)
+			telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+		} else {
+			log.Println("Peg-in success! Liquid TxId:", txid)
+			telegramSendMessage("💸 Peg-in success!")
+		}
+
+		// stop trying after one attempt
 		config.Config.PeginTxId = ""
 		config.Save()
 	}
