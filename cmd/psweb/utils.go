@@ -160,10 +160,6 @@ func toSats(amount float64) uint64 {
 	return uint64(float64(100000000) * amount)
 }
 
-func toBitcoin(amountSats uint64) float64 {
-	return float64(amountSats) / float64(100000000)
-}
-
 func toUint(num int64) uint64 {
 	return uint64(num)
 }

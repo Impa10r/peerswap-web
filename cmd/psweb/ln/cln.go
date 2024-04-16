@@ -75,7 +75,7 @@ func ConfirmedWalletBalance(client *glightning.Lightning) int64 {
 	return totalAmount
 }
 
-func ListUnspent(client *glightning.Lightning, list *[]UTXO) error {
+func ListUnspent(client *glightning.Lightning, list *[]UTXO, minConfs int32) error {
 	res, err := client.GetInfo()
 	if err != nil {
 		log.Println("GetInfo:", err)
@@ -105,12 +105,13 @@ func ListUnspent(client *glightning.Lightning, list *[]UTXO) error {
 			blockHeight := outputMap["blockheight"].(float64)
 			confs = int64(tip - uint(blockHeight))
 		}
-
-		a = append(a, UTXO{
-			Address:       outputMap["address"].(string),
-			AmountSat:     int64(amountMsat / 1000),
-			Confirmations: confs,
-		})
+		if confs > int64(minConfs) {
+			a = append(a, UTXO{
+				Address:       outputMap["address"].(string),
+				AmountSat:     int64(amountMsat / 1000),
+				Confirmations: confs,
+			})
+		}
 	}
 
 	// sort the table on Confirmations field
@@ -174,7 +175,7 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 	addr := ""
 	outputIndex := uint(999) // will fail if output not found
 	for _, output := range decodedTx.Vout {
-		if int64(output.Value*100000000) != config.Config.PeginAmount {
+		if toSats(output.Value) != config.Config.PeginAmount {
 			outputIndex = output.N
 			addr = output.ScriptPubKey.Address // re-use address
 			break
@@ -306,7 +307,7 @@ func FindChildTx(client *glightning.Lightning) string {
 
 	outputIndex := uint(999) // will fail if output not found
 	for _, output := range decodedTx.Vout {
-		if int64(output.Value*100000000) != config.Config.PeginAmount {
+		if toSats(output.Value) != config.Config.PeginAmount {
 			outputIndex = output.N
 			break
 		}
@@ -328,4 +329,8 @@ func FindChildTx(client *glightning.Lightning) string {
 	}
 
 	return txid
+}
+
+func toSats(amount float64) int64 {
+	return int64(float64(100000000) * amount)
 }

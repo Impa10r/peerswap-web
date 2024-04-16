@@ -103,14 +103,14 @@ func ConfirmedWalletBalance(client lnrpc.LightningClient) int64 {
 	return resp.ConfirmedBalance
 }
 
-func ListUnspent(_ lnrpc.LightningClient, list *[]UTXO) error {
+func ListUnspent(_ lnrpc.LightningClient, list *[]UTXO, minConfs int32) error {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
 		return err
 	}
 	cl := walletrpc.NewWalletKitClient(conn)
-	resp, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: 0})
+	resp, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{MinConfs: minConfs})
 	if err != nil {
 		log.Println("ListUnspent:", err)
 		return err

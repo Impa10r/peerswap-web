@@ -1199,7 +1199,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer clean()
 
-	ln.ListUnspent(cl, &utxos)
+	ln.ListUnspent(cl, &utxos, 1)
 
 	type Page struct {
 		Message          string

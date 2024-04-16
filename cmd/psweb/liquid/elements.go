@@ -212,7 +212,7 @@ func SendToAddress(address string,
 
 	params := &SendParams{
 		Address:               address,
-		Amount:                float64(amountSats) / float64(100000000),
+		Amount:                toBitcoin(amountSats),
 		SubtractFeeFromAmount: subtractFeeFromAmount,
 	}
 
@@ -352,4 +352,8 @@ func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 		return "", err
 	}
 	return txid, nil
+}
+
+func toBitcoin(amountSats uint64) float64 {
+	return float64(amountSats) / float64(100000000)
 }
