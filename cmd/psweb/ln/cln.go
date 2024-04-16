@@ -171,20 +171,22 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 		return "", errors.New("peg-in transaction has no change output, not possible to CPFP")
 	}
 
+	addr := ""
 	outputIndex := uint(999) // will fail if output not found
 	for _, output := range decodedTx.Vout {
 		if int64(output.Value*100000000) != config.Config.PeginAmount {
 			outputIndex = output.N
+			addr = output.ScriptPubKey.Address // re-use address
 			break
 		}
 	}
-
-	addr, err := client.NewAddr()
-	if err != nil {
-		log.Println("NewAddr:", err)
-		return "", err
-	}
-
+	/*
+		addr, err := client.NewAddr()
+		if err != nil {
+			log.Println("NewAddr:", err)
+			return "", err
+		}
+	*/
 	utxos := []*glightning.Utxo{
 		&glightning.Utxo{
 			TxId:  config.Config.PeginTxId,
@@ -209,6 +211,8 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 		vin := config.Config.PeginTxId + ":" + strconv.FormatUint(uint64(outputIndex), 10)
 		cmd := "bash"
 		args := []string{"-c", "psbt=$(lightning-cli utxopsbt -k satoshi=\"all\" feerate=3000perkb startweight=0 utxos='[\"" + vin + "\"]' reserve=0 reservedok=true | jq -r .psbt) && lightning-cli unreserveinputs -k psbt=\"$psbt\" reserve=1000"}
+
+		log.Println("Unreserving utxo using bash command...")
 
 		_, err := exec.Command(cmd, args...).Output()
 		if err != nil {

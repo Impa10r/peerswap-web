@@ -1229,9 +1229,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 			if fee < config.Config.PeginFeeRate+1 {
 				fee = config.Config.PeginFeeRate + 1
 			}
-		}
-		if child == "" {
-			child = ln.FindChildTx(cl)
+			if child == "" {
+				child = ln.FindChildTx(cl)
+			}
+		} else {
+			child = ""
 		}
 	}
 
