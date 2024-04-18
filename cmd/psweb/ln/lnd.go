@@ -178,20 +178,20 @@ func GetAlias(nodeKey string) string {
 	return nodeInfo.Node.Alias
 }
 
-func BumpPeginFee(newFeeRate uint64) (string, error) {
+func BumpPeginFee(newFeeRate uint64) error {
 	client, cleanup, err := GetClient()
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer cleanup()
 
 	tx, err := getTransaction(client, config.Config.PeginTxId)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if len(tx.OutputDetails) == 1 {
-		return "", errors.New("peg-in transaction has no change output, not possible to CPFP")
+		return errors.New("peg-in transaction has no change output, not possible to CPFP")
 	}
 
 	outputIndex := uint32(999) // will fail if output not found
@@ -205,7 +205,7 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
-		return "", err
+		return err
 	}
 	cl := walletrpc.NewWalletKitClient(conn)
 
@@ -219,12 +219,12 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 
 	if err != nil {
 		log.Println("BumpFee:", err)
-		return "", err
+		return err
 	}
 
 	log.Println("Fee bump successful")
 	conn.Close()
-	return "", nil
+	return nil
 }
 
 func GetRawTransaction(client lnrpc.LightningClient, txid string) (string, error) {

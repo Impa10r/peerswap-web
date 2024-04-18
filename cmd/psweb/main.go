@@ -1185,12 +1185,6 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		message = keys[0]
 	}
 
-	child := ""
-	keys, ok = r.URL.Query()["child"]
-	if ok && len(keys[0]) > 0 {
-		child = keys[0]
-	}
-
 	var utxos []ln.UTXO
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -1198,8 +1192,6 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clean()
-
-	ln.ListUnspent(cl, &utxos, 1)
 
 	type Page struct {
 		Message          string
@@ -1221,6 +1213,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 	fee := mempool.GetFee()
 	confs := int32(0)
+	child := ""
+	minConfs := int32(1)
 
 	if config.Config.PeginTxId != "" {
 		confs = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
@@ -1229,16 +1223,14 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 			if fee < config.Config.PeginFeeRate+1 {
 				fee = config.Config.PeginFeeRate + 1
 			}
-			if child == "" {
-				child = ln.FindChildTx(cl)
-			}
-		} else {
-			child = ""
+			child = ln.FindChildTx(cl)
+			minConfs = 0
 		}
 	}
 
 	duration := time.Duration(10*(102-confs)) * time.Minute
 	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+	ln.ListUnspent(cl, &utxos, minConfs)
 
 	data := Page{
 		Message:          message,
@@ -1379,7 +1371,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		txid, err := ln.BumpPeginFee(fee)
+		err = ln.BumpPeginFee(fee)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -1389,26 +1381,8 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
 
-		if txid != "" {
-			// broadcast directly to make sure
-			cl, clean, err := ln.GetClient()
-			if err != nil {
-				redirectWithError(w, r, "/bitcoin?", err)
-				return
-			}
-			defer clean()
-
-			rawtx, err := ln.GetRawTransaction(cl, txid)
-			if err != nil {
-				redirectWithError(w, r, "/bitcoin?", err)
-				return
-			}
-
-			mempool.SendRawTransaction(rawtx)
-		}
-
 		// Redirect to bitcoin page to follow the pegin progress
-		http.Redirect(w, r, "/bitcoin?child="+txid, http.StatusSeeOther)
+		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -1589,7 +1563,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		asset := "🌊"
 		if swap.Asset == "btc" {
-			asset = "<span style=\"color: orange;\">₿</span>"
+			asset = "<span style=\"color: #FF9900; font-weight: bold;\">₿</span>"
 		}
 
 		switch swap.Type + swap.Role {

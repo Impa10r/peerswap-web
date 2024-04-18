@@ -105,7 +105,7 @@ func ListUnspent(client *glightning.Lightning, list *[]UTXO, minConfs int32) err
 			blockHeight := outputMap["blockheight"].(float64)
 			confs = int64(tip - uint(blockHeight))
 		}
-		if confs > int64(minConfs) {
+		if confs >= int64(minConfs) {
 			a = append(a, UTXO{
 				Address:       outputMap["address"].(string),
 				AmountSat:     int64(amountMsat / 1000),
@@ -147,29 +147,28 @@ func GetAlias(nodeKey string) string {
 	return ""
 }
 
-// returns txid of child tx
-func BumpPeginFee(newFeeRate uint64) (string, error) {
+func BumpPeginFee(newFeeRate uint64) error {
 
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)
-		return "", err
+		return err
 	}
 	defer clean()
 
 	tx, err := getTransaction(client, config.Config.PeginTxId)
 	if err != nil {
-		return "", err
+		return err
 	}
 	// BUG: outputs show "" Satoshis, must decode raw
 
 	decodedTx, err := bitcoin.DecodeRawTransaction(tx.RawTx)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if len(decodedTx.Vout) == 1 {
-		return "", errors.New("peg-in transaction has no change output, not possible to CPFP")
+		return errors.New("peg-in transaction has no change output, not possible to CPFP")
 	}
 
 	addr := ""
@@ -181,13 +180,7 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 			break
 		}
 	}
-	/*
-		addr, err := client.NewAddr()
-		if err != nil {
-			log.Println("NewAddr:", err)
-			return "", err
-		}
-	*/
+
 	utxos := []*glightning.Utxo{
 		&glightning.Utxo{
 			TxId:  config.Config.PeginTxId,
@@ -204,7 +197,7 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 
 	if err != nil {
 		log.Println("Method_GetUtxOut:", err)
-		return "", err
+		return err
 	}
 
 	if response["amount"] == nil {
@@ -218,7 +211,7 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 		_, err := exec.Command(cmd, args...).Output()
 		if err != nil {
 			log.Println("Command:", err)
-			return "", err
+			return err
 		}
 	}
 
@@ -232,14 +225,14 @@ func BumpPeginFee(newFeeRate uint64) (string, error) {
 
 	if err != nil {
 		log.Println("WithdrawWithUtxos:", err)
-		return "", err
+		return err
 	}
 
 	// use mempool.space to broadcast raw tx
 	mempool.SendRawTransaction(res.Tx)
 
 	log.Println("Fee bump successful, child TxId:", res.TxId)
-	return res.TxId, nil
+	return nil
 }
 
 // returns "1234sat" amount of output, "" if non-existent

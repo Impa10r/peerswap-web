@@ -20,12 +20,12 @@ func getHttpClient() *http.Client {
 	if config.Config.ProxyURL != "" {
 		p, err := url.Parse(config.Config.ProxyURL)
 		if err != nil {
-			log.Println("mempool getHttpClient:", err)
+			log.Println("Mempool getHttpClient:", err)
 			return nil
 		}
 		dialer, err := proxy.SOCKS5("tcp", p.Host, nil, proxy.Direct)
 		if err != nil {
-			log.Println("mempool getHttpClient:", err)
+			log.Println("Mempool getHttpClient:", err)
 			return nil
 		}
 		httpClient = &http.Client{
@@ -75,7 +75,7 @@ func GetNodeAlias(id string) string {
 
 				// Unmarshal the JSON string into the struct
 				if err := json.Unmarshal(buf.Bytes(), &nodes); err != nil {
-					log.Println("Mempool Error:", err)
+					log.Println("Mempool GetNodeAlias:", err)
 					return id[:20] // shortened id
 				}
 
@@ -119,7 +119,7 @@ func GetFee() uint32 {
 
 				// Unmarshal the JSON string into the struct
 				if err := json.Unmarshal(buf.Bytes(), &fees); err != nil {
-					log.Println("Mempool Error:", err)
+					log.Println("Mempool GetFee:", err)
 					return 0
 				}
 
@@ -158,7 +158,7 @@ func GetTxHeight(txid string) int32 {
 
 				// Unmarshal the JSON string into the struct
 				if err := json.Unmarshal(buf.Bytes(), &status); err != nil {
-					log.Println("Mempool Error:", err)
+					log.Println("Mempool GetTxHeight:", err)
 					return 0
 				}
 
@@ -178,7 +178,7 @@ func SendRawTransaction(rawTx string) string {
 		// Send POST request
 		resp, err := http.Post(api, "application/octet-stream", bytes.NewBuffer(requestBody))
 		if err != nil {
-			log.Println("Error sending POST request:", err)
+			log.Println("Mempool SendRawTransaction:", err)
 			return ""
 		}
 		defer resp.Body.Close()
@@ -186,7 +186,7 @@ func SendRawTransaction(rawTx string) string {
 		// Read the response body
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Println("Error reading response body:", err)
+			log.Println("Mempool SendRawTransaction:", err)
 			return ""
 		}
 
