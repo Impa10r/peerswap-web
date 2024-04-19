@@ -39,7 +39,7 @@ func SendCoins(client *glightning.Lightning, addr string, amount int64, feeRate 
 		Value:   uint64(amount),
 		SendAll: sweepall,
 	}, &glightning.FeeRate{
-		Rate: uint(feeRate * 1000),
+		Rate: uint(feeRate * 932), // better translates to sat/vB
 	}, &minConf)
 
 	if err != nil {
@@ -167,60 +167,46 @@ func BumpPeginFee(newFeeRate uint64) error {
 		return err
 	}
 
-	if len(decodedTx.Vout) == 1 {
-		return errors.New("peg-in transaction has no change output, not possible to CPFP")
-	}
-
 	addr := ""
-	outputIndex := uint(999) // will fail if output not found
 	for _, output := range decodedTx.Vout {
-		if toSats(output.Value) != config.Config.PeginAmount {
-			outputIndex = output.N
-			addr = output.ScriptPubKey.Address // re-use address
+		if toSats(output.Value) == config.Config.PeginAmount {
+			addr = output.ScriptPubKey.Address // peg-in address
 			break
 		}
 	}
 
-	utxos := []*glightning.Utxo{
-		&glightning.Utxo{
-			TxId:  config.Config.PeginTxId,
-			Index: outputIndex,
-		},
-	}
-
-	// check that the output is not reserved
-	var response map[string]interface{}
-	err = client.Request(&glightning.Method_GetUtxOut{
-		TxId: config.Config.PeginTxId,
-		Vout: uint32(outputIndex),
-	}, &response)
-
-	if err != nil {
-		log.Println("Method_GetUtxOut:", err)
-		return err
-	}
-
-	if response["amount"] == nil {
-		// need to unreserve utxo
-		vin := config.Config.PeginTxId + ":" + strconv.FormatUint(uint64(outputIndex), 10)
-		cmd := "bash"
-		args := []string{"-c", "psbt=$(lightning-cli utxopsbt -k satoshi=\"all\" feerate=3000perkb startweight=0 utxos='[\"" + vin + "\"]' reserve=0 reservedok=true | jq -r .psbt) && lightning-cli unreserveinputs -k psbt=\"$psbt\" reserve=1000"}
-
-		log.Println("Unreserving utxo using bash command...")
-
-		_, err := exec.Command(cmd, args...).Output()
-		if err != nil {
-			log.Println("Command:", err)
-			return err
+	utxos := []*glightning.Utxo{}
+	vin := ""
+	for _, input := range decodedTx.Vin {
+		utxos = append(utxos, &glightning.Utxo{
+			TxId:  input.TXID,
+			Index: input.Vout,
+		})
+		if vin != "" {
+			vin += ","
 		}
+		vin += "\"" + input.TXID + ":" + strconv.FormatUint(uint64(input.Vout), 10) + "\""
+	}
+
+	// unreserve utxos
+	cmd := "bash"
+	args := []string{"-c", "psbt=$(lightning-cli utxopsbt -k satoshi=\"all\" feerate=3000perkb startweight=0 utxos='[" + vin + "]' reserve=0 reservedok=true | jq -r .psbt) && lightning-cli unreserveinputs -k psbt=\"$psbt\" reserve=1000"}
+
+	// log.Println("Unreserving utxos using bash script:", args[1])
+
+	out, err := exec.Command(cmd, args...).Output()
+	if err != nil {
+		log.Println("Command:", err)
+		log.Println("Output:", out)
+		return err
 	}
 
 	minConf := uint16(0)
 	res, err := client.WithdrawWithUtxos(addr, &glightning.Sat{
-		Value:   uint64(0),
-		SendAll: true,
+		Value:   uint64(config.Config.PeginAmount),
+		SendAll: false,
 	}, &glightning.FeeRate{
-		Rate: uint(newFeeRate * 932), // this closer translates to sat/vB when SendAll
+		Rate: uint(newFeeRate * 932), // better translates to sat/vB
 	}, &minConf, utxos)
 
 	if err != nil {
@@ -231,7 +217,10 @@ func BumpPeginFee(newFeeRate uint64) error {
 	// use mempool.space to broadcast raw tx
 	mempool.SendRawTransaction(res.Tx)
 
-	log.Println("Fee bump successful, child TxId:", res.TxId)
+	config.Config.PeginTxId = res.TxId
+	config.Save()
+
+	log.Println("Fee bump successful, new TxId:", res.TxId)
 	return nil
 }
 

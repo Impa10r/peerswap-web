@@ -2,7 +2,7 @@
 
 ## 1.3.2
 
--
+- CLN: Bump peg-in fee with RBF, not CPFP
 
 ## 1.3.1
 

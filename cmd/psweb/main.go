@@ -469,12 +469,12 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		  <table style="table-layout:fixed; width: 100%;">
 				<tr>
 			  <td style="float: left; text-align: left; width: 80%;">
-				<h3 class="title is-4">Swap Details</h3>
+				<h4 class="title is-4">Swap Details</h4>
 			  </td>
 			  </td><td style="float: right; text-align: right; width:20%;">
-				<h3 class="title is-4">`
+				<h4 class="title is-4">`
 	swapData += visualiseSwapStatus(swap.State, true)
-	swapData += `</h3>
+	swapData += `</h4>
 			  </td>
 			</tr>
 		  <table>
@@ -1208,6 +1208,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MinBumpFeeRate   uint32
 		CanBump          bool
 		ChildTxId        string
+		Implementation   string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -1219,7 +1220,10 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	if config.Config.PeginTxId != "" {
 		confs = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 		if confs == 0 {
-			fee = uint32(float32(fee) * 1.5)
+			if config.Config.Implementation == "LND" {
+				fee = uint32(float32(fee) * 1.5)
+			}
+
 			if fee < config.Config.PeginFeeRate+1 {
 				fee = config.Config.PeginFeeRate + 1
 			}
@@ -1247,6 +1251,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          confs == 0,
 		ChildTxId:        child,
+		Implementation:   config.Config.Implementation,
 	}
 
 	// executing template named "bitcoin"
@@ -1551,7 +1556,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	for _, swap := range swaps {
 		table := "<tr>"
-		table += "<td style=\"width: 25%; text-align: left\">"
+		table += "<td style=\"width: 30%; text-align: left\">"
 
 		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 

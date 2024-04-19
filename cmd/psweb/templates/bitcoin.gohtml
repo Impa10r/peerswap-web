@@ -4,11 +4,11 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3 class="title is-4"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h3>
+            <h4 class="title is-4"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h4>
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box">
-              <h1 class="title is-4">Liquid Peg-In</h1> 
+              <h4 class="title is-4">Liquid Peg-In</h4> 
               <form autocomplete="off" action="/pegin" method="post">
                 <input autocomplete="false" name="hidden" type="text" style="display:none;">
                 <div class="field is-horizontal">
@@ -42,7 +42,7 @@
             </div>
           {{else}}
             <div class="box">
-              <h1 class="title is-4">Peg-In Progress</h1> 
+              <h4 class="title is-4">Peg-In Progress</h4> 
               <table style="table-layout:fixed; width: 100%;">
                 <tr>
                   <td style="width: 8ch; text-align: right">
@@ -89,10 +89,18 @@
                 {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
-                      CPFP:
+                      {{if eq .Implementation "CLN"}}
+                        RBF
+                      {{else}}
+                        CPFP
+                      {{end}}:
                     </td>
                     <td>
-                      If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child). 
+                      {{if eq .Implementation "CLN"}}
+                        If the tx does not confirm for a long time, consider replacing the peg-in transaction with a new one, paying a higher fee rate. 
+                      {{else}}
+                        If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child). 
+                      {{end}}
                     </td>
                   </tr>
                 {{end}}
@@ -127,7 +135,7 @@
         </div> 
         <div class="column"> 
           <div class="box">
-            <h3 class="title is-4">Unspent Outputs</h3>
+            <h4 class="title is-4">Unspent Outputs</h4>
             <table id="myTable" style="width:100%; table-layout:fixed;">
               <tr>
                 <th style="width:58%;">Address</th>
