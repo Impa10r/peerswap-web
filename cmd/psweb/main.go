@@ -1207,27 +1207,19 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
 		CanBump          bool
-		ChildTxId        string
-		Implementation   string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 	fee := mempool.GetFee()
 	confs := int32(0)
-	child := ""
 	minConfs := int32(1)
 
 	if config.Config.PeginTxId != "" {
 		confs = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 		if confs == 0 {
-			if config.Config.Implementation == "LND" {
-				fee = uint32(float32(fee) * 1.5)
-			}
-
 			if fee < config.Config.PeginFeeRate+1 {
 				fee = config.Config.PeginFeeRate + 1
 			}
-			child = ln.FindChildTx(cl)
 			minConfs = 0
 		}
 	}
@@ -1250,8 +1242,6 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          confs == 0,
-		ChildTxId:        child,
-		Implementation:   config.Config.Implementation,
 	}
 
 	// executing template named "bitcoin"
@@ -1282,15 +1272,8 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		cl, clean, er := ln.GetClient()
-		if er != nil {
-			redirectWithError(w, r, "/bitcoin?", er)
-			return
-		}
-		defer clean()
-
-		btcBalance := ln.ConfirmedWalletBalance(cl)
-		sweepall := amount == btcBalance
+		selectedOutputs := r.Form["selected_outputs[]"]
+		subtractFeeFromAmount := r.FormValue("subtractfee") == "on"
 
 		// test on pre-existing tx that bitcon core can complete the peg
 		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
@@ -1323,32 +1306,41 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		txid, err := ln.SendCoins(cl, addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
+		rawTx, peginAmount, err := ln.PrepareRawTxWithUtxos(&selectedOutputs, addr.MainChainAddress, amount, fee, subtractFeeFromAmount)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		rawtx, err := ln.GetRawTransaction(cl, txid)
+		// broadcast the transaction
+		txId, err := ln.PublishTransaction(rawTx, "Liquid peg-in")
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		// just to be sure, broadcast it directly to mempool.space
-		mempool.SendRawTransaction(rawtx)
+		// to speed things up, also broadcast it to mempool.space
+		mempool.SendRawTransaction(rawTx)
 
-		log.Println("Peg-in txid:", txid, "claim script:", addr.ClaimScript, "amount:", amount, "rawTx:", rawtx)
+		log.Println("Peg-in rawTx:", rawTx, "claim script:", addr.ClaimScript)
 		duration := time.Duration(1020) * time.Minute
 		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
+		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(peginAmount)) + " sats. Time left: " + formattedDuration)
 
 		config.Config.PeginClaimScript = addr.ClaimScript
-		config.Config.PeginAmount = amount
-		config.Config.PeginTxId = txid
+		config.Config.PeginAddress = addr.MainChainAddress
+		config.Config.PeginAmount = peginAmount
+		config.Config.PeginTxId = txId
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
+
+		rawTx, newAmount, err := ln.RbfPegin(fee + 1)
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+		fmt.Println(newAmount, rawTx)
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -1376,15 +1368,29 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = ln.BumpPeginFee(fee)
+		rawTx, newAmount, err := ln.RbfPegin(fee)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
+		// broadcast the transaction
+		txId, err := ln.PublishTransaction(rawTx, "Liquid peg-in")
+		if err != nil {
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		// to speed things up, also broadcast it to mempool.space
+		mempool.SendRawTransaction(rawTx)
+
 		// save the new rate, so the next bump cannot be lower
+		config.Config.PeginAmount = newAmount
+		config.Config.PeginTxId = txId
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
+
+		log.Println("Fee bump successful, new TxId:", txId)
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)

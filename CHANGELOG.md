@@ -2,7 +2,9 @@
 
 ## 1.3.2
 
-- CLN: Bump peg-in fee with RBF, not CPFP
+- Add Bitcoin UTXOs selection for Liquid Peg-in
+- Add taking peg-in fee from the amount to avoid change output
+- Bump peg-in chain fees with RBF, not CPFP
 
 ## 1.3.1
 

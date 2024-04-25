@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"sort"
 	"strconv"
+	"strings"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
@@ -147,102 +148,55 @@ func GetAlias(nodeKey string) string {
 	return ""
 }
 
-func BumpPeginFee(newFeeRate uint64) error {
-
+func RbfPegin(newFeeRate uint64) (string, int64, error) {
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)
-		return err
+		return "", 0, err
 	}
 	defer clean()
 
 	tx, err := getTransaction(client, config.Config.PeginTxId)
 	if err != nil {
-		return err
+		return "", 0, err
 	}
-	// BUG: outputs show "" Satoshis, must decode raw
 
 	decodedTx, err := bitcoin.DecodeRawTransaction(tx.RawTx)
 	if err != nil {
-		return err
+		return "", 0, err
 	}
 
-	addr := ""
-	for _, output := range decodedTx.Vout {
-		if toSats(output.Value) == config.Config.PeginAmount {
-			addr = output.ScriptPubKey.Address // peg-in address
-			break
-		}
-	}
+	vins := ""
+	var utxos []string
 
-	utxos := []*glightning.Utxo{}
-	vin := ""
 	for _, input := range decodedTx.Vin {
-		utxos = append(utxos, &glightning.Utxo{
-			TxId:  input.TXID,
-			Index: input.Vout,
-		})
-		if vin != "" {
-			vin += ","
+		vin := input.TXID + ":" + strconv.FormatUint(uint64(input.Vout), 10)
+		utxos = append(utxos, vin)
+		if vins != "" {
+			vins += ","
 		}
-		vin += "\"" + input.TXID + ":" + strconv.FormatUint(uint64(input.Vout), 10) + "\""
+		vins += "\"" + vin + "\""
 	}
 
 	// unreserve utxos
 	cmd := "bash"
-	args := []string{"-c", "psbt=$(lightning-cli utxopsbt -k satoshi=\"all\" feerate=3000perkb startweight=0 utxos='[" + vin + "]' reserve=0 reservedok=true | jq -r .psbt) && lightning-cli unreserveinputs -k psbt=\"$psbt\" reserve=1000"}
-
-	// log.Println("Unreserving utxos using bash script:", args[1])
+	args := []string{"-c", "psbt=$(lightning-cli utxopsbt -k satoshi=\"all\" feerate=3000perkb startweight=0 utxos='[" + vins + "]' reserve=0 reservedok=true | jq -r .psbt) && lightning-cli unreserveinputs -k psbt=\"$psbt\" reserve=1000"}
 
 	out, err := exec.Command(cmd, args...).Output()
 	if err != nil {
 		log.Println("Command:", err)
 		log.Println("Output:", out)
-		return err
+		return "", 0, err
 	}
 
-	minConf := uint16(0)
-	res, err := client.WithdrawWithUtxos(addr, &glightning.Sat{
-		Value:   uint64(config.Config.PeginAmount),
-		SendAll: false,
-	}, &glightning.FeeRate{
-		Rate: uint(newFeeRate * 932), // better translates to sat/vB
-	}, &minConf, utxos)
+	sendAll := len(decodedTx.Vout) == 1
 
-	if err != nil {
-		log.Println("WithdrawWithUtxos:", err)
-		return err
-	}
-
-	// use mempool.space to broadcast raw tx
-	mempool.SendRawTransaction(res.Tx)
-
-	config.Config.PeginTxId = res.TxId
-	config.Save()
-
-	log.Println("Fee bump successful, new TxId:", res.TxId)
-	return nil
-}
-
-// returns "1234sat" amount of output, "" if non-existent
-func getUtxOut(client *glightning.Lightning, txId string, vout uint32) (string, error) {
-	var response map[string]interface{}
-
-	err := client.Request(&glightning.Method_GetUtxOut{
-		TxId: txId,
-		Vout: vout,
-	}, &response)
-
-	if err != nil {
-		log.Println("Method_GetUtxOut:", err)
-		return "", err
-	}
-
-	if response["amount"] == nil {
-		return "", nil
-	} else {
-		return response["amount"].(string), nil
-	}
+	return PrepareRawTxWithUtxos(
+		&utxos,
+		config.Config.PeginAddress,
+		config.Config.PeginAmount,
+		newFeeRate,
+		sendAll)
 }
 
 func getTransaction(client *glightning.Lightning, txid string) (*glightning.Transaction, error) {
@@ -272,47 +226,56 @@ func GetRawTransaction(client *glightning.Lightning, txid string) (string, error
 	return tx.RawTx, nil
 }
 
-func FindChildTx(client *glightning.Lightning) string {
-	tx, err := getTransaction(client, config.Config.PeginTxId)
+// utxos: ["txid:index", ....]
+// return rawTx hex string, final output amount, error
+func PrepareRawTxWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool) (string, int64, error) {
+	client, clean, err := GetClient()
 	if err != nil {
-		return ""
+		log.Println("GetClient:", err)
+		return "", 0, err
+	}
+	defer clean()
+
+	inputs := []*glightning.Utxo{}
+	for _, i := range *utxos {
+		parts := strings.Split(i, ":")
+
+		index, err := strconv.Atoi(parts[1])
+		if err != nil {
+			log.Println("Invalid UTXOs:", err)
+			return "", 0, err
+		}
+
+		inputs = append(inputs, &glightning.Utxo{
+			TxId:  parts[0],
+			Index: uint(index),
+		})
 	}
 
-	decodedTx, err := bitcoin.DecodeRawTransaction(tx.RawTx)
+	minConf := uint16(1)
+	res, err := client.WithdrawWithUtxos(
+		addr,
+		&glightning.Sat{
+			Value:   uint64(amount),
+			SendAll: subtractFeeFromAmount,
+		},
+		&glightning.FeeRate{
+			Rate: uint(feeRate * 932), // better translates to sat/vB
+		},
+		&minConf,
+		inputs)
+
 	if err != nil {
-		return ""
+		log.Println("WithdrawWithUtxos:", err)
+		return "", 0, err
 	}
 
-	if len(decodedTx.Vout) == 1 {
-		return ""
-	}
-
-	outputIndex := uint(999) // will fail if output not found
-	for _, output := range decodedTx.Vout {
-		if toSats(output.Value) != config.Config.PeginAmount {
-			outputIndex = output.N
-			break
+	amountSent := config.Config.PeginAmount
+	if subtractFeeFromAmount {
+		decodedTx, err := bitcoin.DecodeRawTransaction(res.Tx)
+		if err == nil && len(decodedTx.Vout) == 1 {
+			amountSent = toSats(decodedTx.Vout[0].Value)
 		}
 	}
-
-	txs, err := client.ListTransactions()
-	if err != nil {
-		return ""
-	}
-
-	txid := ""
-	for _, tx := range txs {
-		for _, in := range tx.Inputs {
-			// find the latest child spending our output
-			if in.TxId == config.Config.PeginTxId && in.Index == outputIndex {
-				txid = tx.Hash
-			}
-		}
-	}
-
-	return txid
-}
-
-func toSats(amount float64) int64 {
-	return int64(float64(100000000) * amount)
+	return res.Tx, amountSent, nil
 }

@@ -298,3 +298,28 @@ func SendRawTransaction(hexstring string) (string, error) {
 
 	return txid, nil
 }
+
+// extracts Fee from PSBT
+func GetFeeFromPsbt(base64string string) (float64, error) {
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+
+	params := []string{base64string}
+
+	r, err := service.client.call("decodepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("DecodePsbt: %v", err)
+		return 0, err
+	}
+
+	var data map[string]interface{}
+	err = json.Unmarshal([]byte(r.Result), &data)
+	if err != nil {
+		log.Printf("DecodePsbt unmarshall: %v", err)
+		return 0, err
+	}
+
+	fee := data["fee"].(float64)
+
+	return fee, nil
+}
