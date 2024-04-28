@@ -93,7 +93,7 @@ func telegramStart() {
 					if er != nil {
 						t = "❗ Error: " + er.Error()
 					} else {
-						confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+						confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 						duration := time.Duration(10*(102-confs)) * time.Minute
 						formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 						t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration

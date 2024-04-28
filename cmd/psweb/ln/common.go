@@ -9,6 +9,12 @@ type UTXO struct {
 	OutputIndex   uint32
 }
 
+type SentResult struct {
+	RawHex    string
+	AmountSat int64
+	TxId      string
+}
+
 func toSats(amount float64) int64 {
 	return int64(float64(100000000) * amount)
 }

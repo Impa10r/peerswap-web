@@ -2,7 +2,7 @@
   {{template "header" .}}
     <div class="container">
       {{if eq .PeginTxId ""}}
-        <form autocomplete="off" action="/pegin" method="post">
+        <form id="myForm" autocomplete="off" action="/pegin" method="post" onsubmit="return confirmSubmit()">
       {{end}}
       <div class="columns">
         <div class="column">
@@ -20,7 +20,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="number" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
+                      <input class="input is-medium" type="number" onchange="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
                     </p>
                   </div>
                 </div>
@@ -95,10 +95,26 @@
                 {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
-                      RBF:
+                      Fee rate:
                     </td>
                     <td>
-                      If the tx does not confirm for a long time, consider replacing the peg-in transaction with a new one, paying a higher fee rate.
+                      {{.FeeRate}} sats/vB
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="text-align: right">
+                      {{if .CanRBF}}
+                        RBF
+                      {{else}}
+                        CPFP
+                      {{end}}
+                    </td>
+                    <td>
+                      {{if .CanRBF}}
+                        If the tx does not confirm for a long time, consider replacing the peg-in transaction with a new one, paying a higher fee rate.
+                      {{else}}
+                        If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child).
+                      {{end}}
                     </td>
                   </tr>
                 {{end}}
@@ -127,6 +143,12 @@
                   <div class="current-progress" style="width: {{.Progress}}%">
                   </div>
                 </div>
+                <script>
+                  // Reload the page every minute (60000 milliseconds)
+                  setInterval(function(){
+                      location.reload();
+                  }, 60000);
+                </script>
               {{end}}
             </div>
           {{end}}
@@ -137,22 +159,24 @@
             <table id="myTable" style="width:100%; table-layout:fixed;">
               <tr>
                 {{if eq .PeginTxId ""}}
-                  <th style="width:8%;">Select</th>
                   <th style="width:50%;">Address</th>
                 {{else}}
                   <th style="width:58%;">Address</th>
                 {{end}}
                 <th style="text-align: right;">Conf</th>
                 <th style="text-align: right;">Amount</th>
+                {{if eq .PeginTxId ""}}
+                  <th style="width:8%;">Use</th>
+                {{end}}
               </tr>
               {{range .Outputs}}
                 <tr>
-                  {{if eq $.PeginTxId ""}}
-                    <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}})" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
-                  {{end}}
                   <td class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
                   <td style="text-align: right;">{{fmt (u .Confirmations)}}</td>
                   <td style="text-align: right;">{{fmt (u .AmountSat)}}</td>
+                  {{if eq $.PeginTxId ""}}
+                    <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}})" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
+                  {{end}}
                 </tr>
               {{end}}
             </table>
@@ -162,6 +186,9 @@
       {{if eq .PeginTxId ""}}
         </form>
         <script>
+          function uncheckSubtractFee() {
+            document.getElementById("subtractfee").checked = false;
+          }
           function onSelect(checked, amountStr) {
             var amountInt = Number(amountStr);
             if (checked) {
@@ -181,6 +208,18 @@
             fields.forEach(function(element) {
               element.checked = true
             });
+          }
+          function confirmSubmit() {
+            {{if not .CanRBF}}
+              if (document.getElementById("subtractfee").checked) {
+                // Display confirmation dialog
+                var confirmed = confirm("You have chosen to send the transaction without change output. Fee bumping with CPFP will not be possible and your LND version does not permit RBF. Are you sure the fee will be sufficient?");
+                if (!confirmed) {
+                  // user cancels, prevent form submission
+                  return false;
+                }
+              }
+            {{end}}  
           }
         </script>
       {{end}}
