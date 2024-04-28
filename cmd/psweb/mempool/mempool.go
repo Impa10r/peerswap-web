@@ -102,6 +102,10 @@ func GetFee() uint32 {
 			resp, err2 := cl.Do(req)
 			if err2 == nil {
 				defer resp.Body.Close()
+				if resp.StatusCode != 200 {
+					return 0
+				}
+
 				buf := new(bytes.Buffer)
 				_, _ = buf.ReadFrom(resp.Body)
 

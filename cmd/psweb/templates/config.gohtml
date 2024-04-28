@@ -156,7 +156,7 @@
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">
-                        {{if eq .Config.Implementation "CLN"}}
+                        {{if eq .Implementation "CLN"}}
                           JSON RPC Dir
                         {{else}}
                           PeerSwap Host
@@ -258,7 +258,7 @@
                 </div>
               </div>
               <center>
-                <p>* Changing these values will restart {{if eq .Config.Implementation "CLN"}}
+                <p>* Changing these values will restart {{if eq .Implementation "CLN"}}
                     lightningd
                 {{else}}
                     peerswapd
@@ -275,7 +275,7 @@
                   {{end}}
                   <br>
                   Logs: 
-                  {{if eq .Config.Implementation "CLN"}}
+                  {{if eq .Implementation "CLN"}}
                     <a href="/log?log=cln.log">CLN</a>
                   {{else}}
                     <a href="/log?log=lnd.log">LND</a>

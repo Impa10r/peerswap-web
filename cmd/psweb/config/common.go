@@ -33,6 +33,8 @@ type Configuration struct {
 	TelegramChatId       int64
 	PeginClaimScript     string
 	PeginTxId            string
+	PeginReplacedTxId    string
+	PeginAddress         string
 	PeginAmount          int64
 	PeginFeeRate         uint32
 	LightningDir         string
@@ -40,7 +42,6 @@ type Configuration struct {
 	BitcoinUser          string
 	BitcoinPass          string
 	ProxyURL             string
-	Implementation       string
 }
 
 var Config Configuration

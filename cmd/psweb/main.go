@@ -556,19 +556,21 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Message     string
-		ColorScheme string
-		Config      config.Configuration
-		Version     string
-		Latest      string
+		Message        string
+		ColorScheme    string
+		Config         config.Configuration
+		Version        string
+		Latest         string
+		Implementation string
 	}
 
 	data := Page{
-		Message:     message,
-		ColorScheme: config.Config.ColorScheme,
-		Config:      config.Config,
-		Version:     version,
-		Latest:      getLatestTag(),
+		Message:        message,
+		ColorScheme:    config.Config.ColorScheme,
+		Config:         config.Config,
+		Version:        version,
+		Latest:         getLatestTag(),
+		Implementation: ln.Implementation,
 	}
 
 	// executing template named "error"
@@ -909,7 +911,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 
 	logFile := "log" // peerswapd log
 	searchText := "peerswapd grpc listening on"
-	if config.Config.Implementation == "CLN" {
+	if ln.Implementation == "CLN" {
 		logFile = "cln.log"
 		searchText = "plugin-peerswap: peerswap initialized"
 	}
@@ -970,7 +972,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 		Message:        "",
 		LogPosition:    1, // from first line
 		LogFile:        logFile,
-		Implementation: config.Config.Implementation,
+		Implementation: ln.Implementation,
 	}
 
 	// executing template named "logpage"
@@ -1104,7 +1106,7 @@ func showHelpMessage() {
 }
 
 func showVersionInfo() {
-	fmt.Println("Version:", version, "for", config.Config.Implementation)
+	fmt.Println("Version:", version, "for", ln.Implementation)
 }
 
 func startTimer() {
@@ -1204,31 +1206,35 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations    int32
 		Progress         int32
 		Duration         string
+		FeeRate          uint32
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
 		CanBump          bool
-		ChildTxId        string
-		Implementation   string
+		CanRBF           bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 	fee := mempool.GetFee()
 	confs := int32(0)
-	child := ""
 	minConfs := int32(1)
+	canBump := false
+	canCPFP := false
 
 	if config.Config.PeginTxId != "" {
-		confs = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+		confs, canCPFP = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 		if confs == 0 {
-			if config.Config.Implementation == "LND" {
-				fee = uint32(float32(fee) * 1.5)
+			canBump = true
+			if !ln.CanRBF() {
+				// can bump only if there is a change output
+				canBump = canCPFP
+				if fee > 0 {
+					// for CPFP the fee must be 1.5x the market
+					fee = fee + fee/2
+				}
 			}
-
-			if fee < config.Config.PeginFeeRate+1 {
-				fee = config.Config.PeginFeeRate + 1
+			if fee < config.Config.PeginFeeRate+2 {
+				fee = config.Config.PeginFeeRate + 2 // +1 can be too small and fail
 			}
-			child = ln.FindChildTx(cl)
-			minConfs = 0
 		}
 	}
 
@@ -1247,11 +1253,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations:    confs,
 		Progress:         int32(confs * 100 / 102),
 		Duration:         formattedDuration,
+		FeeRate:          config.Config.PeginFeeRate,
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
-		CanBump:          confs == 0,
-		ChildTxId:        child,
-		Implementation:   config.Config.Implementation,
+		CanBump:          canBump,
+		CanRBF:           ln.CanRBF(),
 	}
 
 	// executing template named "bitcoin"
@@ -1282,15 +1288,54 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		cl, clean, er := ln.GetClient()
-		if er != nil {
-			redirectWithError(w, r, "/bitcoin?", er)
+		selectedOutputs := r.Form["selected_outputs[]"]
+		subtractFeeFromAmount := r.FormValue("subtractfee") == "on"
+
+		totalAmount := int64(0)
+
+		if len(selectedOutputs) > 0 {
+			// check that outputs add up
+
+			cl, clean, er := ln.GetClient()
+			if er != nil {
+				redirectWithError(w, r, "/config?", er)
+				return
+			}
+			defer clean()
+
+			var utxos []ln.UTXO
+			ln.ListUnspent(cl, &utxos, int32(1))
+
+			for _, utxo := range utxos {
+				for _, output := range selectedOutputs {
+					vin := utxo.TxidStr + ":" + strconv.FormatUint(uint64(utxo.OutputIndex), 10)
+					if vin == output {
+						totalAmount += utxo.AmountSat
+					}
+				}
+			}
+
+			if amount > totalAmount {
+				redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot exceed the sum of the selected outputs"))
+				return
+			}
+		}
+
+		if subtractFeeFromAmount {
+			if uint64(amount) < fee*uint64(len(selectedOutputs))*250 {
+				redirectWithError(w, r, "/bitcoin?", errors.New("amount does not cover the total fee"))
+				return
+			}
+			if amount != totalAmount {
+				redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
+				return
+			}
+		}
+
+		if !subtractFeeFromAmount && amount == totalAmount {
+			redirectWithError(w, r, "/bitcoin?", errors.New("'subtract fee' option should be used when amount adds up to the selected outputs"))
 			return
 		}
-		defer clean()
-
-		btcBalance := ln.ConfirmedWalletBalance(cl)
-		sweepall := amount == btcBalance
 
 		// test on pre-existing tx that bitcon core can complete the peg
 		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
@@ -1323,30 +1368,26 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		txid, err := ln.SendCoins(cl, addr.MainChainAddress, amount, fee, sweepall, "Liquid pegin")
+		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, addr.MainChainAddress, amount, fee, subtractFeeFromAmount)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		rawtx, err := ln.GetRawTransaction(cl, txid)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
+		// to speed things up, also broadcast it to mempool.space
+		mempool.SendRawTransaction(res.RawHex)
 
-		// just to be sure, broadcast it directly to mempool.space
-		mempool.SendRawTransaction(rawtx)
-
-		log.Println("Peg-in txid:", txid, "claim script:", addr.ClaimScript, "amount:", amount, "rawTx:", rawtx)
+		log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", addr.ClaimScript)
 		duration := time.Duration(1020) * time.Minute
 		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(amount)) + " sats. Time left: " + formattedDuration)
+		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration)
 
 		config.Config.PeginClaimScript = addr.ClaimScript
-		config.Config.PeginAmount = amount
-		config.Config.PeginTxId = txid
+		config.Config.PeginAddress = addr.MainChainAddress
+		config.Config.PeginAmount = res.AmountSat
+		config.Config.PeginTxId = res.TxId
+		config.Config.PeginReplacedTxId = ""
 		config.Config.PeginFeeRate = uint32(fee)
 		config.Save()
 
@@ -1376,10 +1417,36 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = ln.BumpPeginFee(fee)
+		cl, clean, er := ln.GetClient()
+		if er != nil {
+			redirectWithError(w, r, "/config?", er)
+			return
+		}
+		defer clean()
+
+		confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+		if confs > 0 {
+			// transaction has been confirmed already
+			http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+			return
+		}
+
+		res, err := ln.BumpPeginFee(fee)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
+		}
+
+		// to speed things up, also broadcast it to mempool.space
+		mempool.SendRawTransaction(res.RawHex)
+
+		if ln.CanRBF() {
+			log.Println("RBF TxId:", res.TxId)
+			config.Config.PeginReplacedTxId = config.Config.PeginTxId
+			config.Config.PeginAmount = res.AmountSat
+			config.Config.PeginTxId = res.TxId
+		} else {
+			log.Println("CPFP successful")
 		}
 
 		// save the new rate, so the next bump cannot be lower
@@ -1632,8 +1699,19 @@ func checkPegin() {
 	}
 	defer clean()
 
-	confs := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+	confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+	if confs < 0 && config.Config.PeginReplacedTxId != "" {
+		confs, _ = ln.GetTxConfirmations(cl, config.Config.PeginReplacedTxId)
+		if confs > 0 {
+			// RBF replacement conflict: the old transaction mined before the new one
+			config.Config.PeginTxId = config.Config.PeginReplacedTxId
+			config.Config.PeginReplacedTxId = ""
+			log.Println("The last RBF failed as previous tx mined earlier, switching to prior txid for the peg-in progress:", config.Config.PeginTxId)
+		}
+	}
+
 	if confs >= 102 {
+		// claim pegin
 		failed := false
 		proof := ""
 		txid := ""
