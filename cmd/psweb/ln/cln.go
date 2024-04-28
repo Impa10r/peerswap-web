@@ -318,7 +318,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	minConf := uint16(1)
 	multiplier := uint64(1000)
 	if !subtractFeeFromAmount {
-		multiplier = 932 // better sets fee rate for tx with change
+		multiplier = 935 // better sets fee rate for tx with change
 	}
 
 	res, err := client.WithdrawWithUtxos(

@@ -394,10 +394,14 @@ func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 		Txid: config.Config.PeginTxId,
 	})
 	if err != nil {
+		log.Println("RemoveTransaction:", err)
 		return nil, err
 	}
 
-	log.Println(res.Status)
+	if res.Status != "Successfully removed transaction" {
+		log.Println("RemoveTransaction:", res.Status)
+		return nil, errors.New("cannot remove the previous transaction: " + res.Status)
+	}
 
 	var utxos []string
 	for _, input := range tx.PreviousOutpoints {
