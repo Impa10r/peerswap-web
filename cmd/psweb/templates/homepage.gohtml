@@ -6,24 +6,24 @@
           <div class="box">
             <div class="columns">
               <div class="column">
-                <h3 class="title is-4">
-                  <span style="color: orange;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span>
+                <h4 class="title is-4">
+                  <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span>
                   <small><small><small>{{if and .AllowSwapRequests .BitcoinSwaps}}✔️{{else}}❌{{end}}</small></small></small>
-                </h3>
+                </h4>
               </div>
               <div class="column">
-                <h3 class="title is-4">
+                <h4 class="title is-4">
                   🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span>
                   <small><small><small>{{if .AllowSwapRequests}}✔️{{else}}❌{{end}}</small></small></small>
-                </h3>    
-              </div>  
+                </h4>    
+              </div> 
             </div>
           </div>          
           <div class="box">
             <table style="table-layout:fixed; width: 100%;">
               <tr>
                 <td style="padding: 0px; float: left; text-align: left;">
-                  <h3 class="title is-4">Peer List</h3>
+                  <h4 class="title is-4">Peer List</h4>
                 </td>
                 <td style="padding: 0px; float: right; text-align: right;">
                   <button class="button is-small" onclick="toggleScramble()">Privacy</button>
@@ -35,7 +35,7 @@
         </div>
         <div class="column">
           <div class="box">
-            <h3 class="title is-4">Swaps History</h3>            
+            <h4 class="title is-4">Swaps History</h4>            
             {{.ListSwaps}}
           </div>
         </div>

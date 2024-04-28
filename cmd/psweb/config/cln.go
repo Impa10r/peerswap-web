@@ -12,7 +12,6 @@ import (
 
 // Config defaults for CLN
 func loadDefaults(home, dataDir string) {
-	Config.Implementation = "CLN"
 	if dataDir == "" {
 		Config.LightningDir = filepath.Join(home, ".lightning")
 	} else {

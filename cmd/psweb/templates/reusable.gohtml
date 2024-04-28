@@ -1,6 +1,6 @@
 {{define "header"}}
     <!DOCTYPE html>
-    <html>
+    <html lang="en-US">
     <head>
     <meta charset="utf-8">
     <meta name="HandheldFriendly" content="True">
@@ -47,7 +47,7 @@
                         <div class="column">
                             <div class="box">
                                 {{if eq .Message "welcome"}} 
-                                    <h1 class="title is-4">Welcome to PeerSwap!</h1>
+                                    <h4 class="title is-4">Welcome to PeerSwap!</h4>
                                     <center>
                                     <br>
                                     <p>Please copy-paste your Elements Core Username and Password into the configuration fields below.</p>
@@ -83,7 +83,7 @@
 {{end}}
 
 {{define "log"}}  
-    <h1>{{if eq .LogFile "psweb.log"}}
+    <h4 class="title is-4">{{if eq .LogFile "psweb.log"}}
             PeerSwap Web
         {{else}}
             {{if eq .LogFile "cln.log"}}
@@ -95,7 +95,7 @@
                     Peerswapd
                 {{end}}
             {{end}}
-        {{end}} Log</h1>
+        {{end}} Log</h4>
     <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
     <tr>
         <td style="max-width: 100%; overflow: hidden;">

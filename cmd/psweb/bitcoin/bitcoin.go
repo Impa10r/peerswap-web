@@ -175,24 +175,34 @@ func BitcoinClient() (c *RPCClient) {
 	return
 }
 
-func GetRawTransaction(txid string) (string, error) {
+func GetRawTransaction(txid string, result *Transaction) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
 
-	params := []interface{}{txid}
+	params := []interface{}{txid, result != nil}
 
 	r, err := service.client.call("getrawtransaction", params, "")
 	if err = handleError(err, &r); err != nil {
-		log.Printf("GetRawTransaction: %v", err)
 		return "", err
 	}
 
 	raw := ""
-	err = json.Unmarshal([]byte(r.Result), &raw)
-	if err != nil {
-		log.Printf("GetRawTransaction unmarshall: %v", err)
-		return "", err
+	if result == nil {
+		// return raw hex
+		err = json.Unmarshal([]byte(r.Result), &raw)
+		if err != nil {
+			log.Printf("GetRawTransaction unmarshall raw: %v", err)
+			return "", err
+		}
+	} else {
+		// decode into result
+		err = json.Unmarshal([]byte(r.Result), &result)
+		if err != nil {
+			log.Printf("GetRawTransaction decode: %v", err)
+			return "", err
+		}
 	}
+
 	return raw, nil
 }
 
@@ -218,15 +228,20 @@ func GetTxOutProof(txid string) (string, error) {
 }
 
 type Transaction struct {
-	TXID     string `json:"txid"`
-	Hash     string `json:"hash"`
-	Version  int    `json:"version"`
-	Size     int    `json:"size"`
-	VSize    int    `json:"vsize"`
-	Weight   int    `json:"weight"`
-	Locktime int    `json:"locktime"`
-	Vin      []Vin  `json:"vin"`
-	Vout     []Vout `json:"vout"`
+	TXID          string `json:"txid"`
+	Hash          string `json:"hash"`
+	Version       int    `json:"version"`
+	Size          int    `json:"size"`
+	VSize         int    `json:"vsize"`
+	Weight        int    `json:"weight"`
+	Locktime      int    `json:"locktime"`
+	Vin           []Vin  `json:"vin"`
+	Vout          []Vout `json:"vout"`
+	Hex           string `json:"hex"`
+	BlockHash     string `json:"blockhash,omitempty"`
+	Confirmations int32  `json:"confirmations,omitempty"`
+	Time          int64  `json:"time,omitempty"`
+	BlockTime     int64  `json:"blocktime,omitempty"`
 }
 
 type Vin struct {
@@ -297,4 +312,29 @@ func SendRawTransaction(hexstring string) (string, error) {
 	}
 
 	return txid, nil
+}
+
+// extracts Fee from PSBT
+func GetFeeFromPsbt(base64string string) (float64, error) {
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+
+	params := []string{base64string}
+
+	r, err := service.client.call("decodepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("DecodePsbt: %v", err)
+		return 0, err
+	}
+
+	var data map[string]interface{}
+	err = json.Unmarshal([]byte(r.Result), &data)
+	if err != nil {
+		log.Printf("DecodePsbt unmarshall: %v", err)
+		return 0, err
+	}
+
+	fee := data["fee"].(float64)
+
+	return fee, nil
 }

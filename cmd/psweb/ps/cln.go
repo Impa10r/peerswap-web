@@ -66,13 +66,7 @@ func Stop() {
 	}
 	defer cleanup()
 
-	_, err = client.Stop()
-
-	if err != nil {
-		log.Println("Unable to stop lightningd:", err)
-	} else {
-		log.Println("Stopped lightningd.")
-	}
+	client.Stop()
 }
 
 func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, error) {

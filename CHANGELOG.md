@@ -1,5 +1,13 @@
 # Versions
 
+## 1.3.2
+
+- Add Bitcoin UTXOs selection for Liquid Peg-ins
+- Allow deducting peg-in chain fee from the amount to avoid change output
+- CLN: Always bump peg-in chain fees with RBF
+- LND 0.18+: Bump peg-in chain fees with RBF
+- LND below 0.18: Bump peg-in chain fees with CPFP
+
 ## 1.3.1
 
 - Enable peg-in transaction fee bumping for CLN
@@ -60,7 +68,7 @@ Migration steps:
 2. If your .peerswap folder is in /root/, copy it to /home/USER/
 3. Take ownershp of data folder with ```sudo chown USER:USER ~/.peerswap -R```
 4. Open peerswap.conf and pswebconfig.json for edit, search and replace all "/root/" with "/home/peerswap/"
-5. Run the image with the new parameters per [Readme](https://github.com/Impa10r/peerswap-web?tab=readme-ov-file#docker).
+5. Run the image with the new parameters per [Readme](https://github.com/Impa10r/peerswap-web/blob/main/README.md#docker-lnd-only).
 
 ## 1.1.7
 

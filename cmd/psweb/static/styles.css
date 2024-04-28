@@ -4,7 +4,7 @@ html{
 
 th, td {
     padding: 5px;
-    text-size-adjust: none               /* text is never inflated */
+    text-size-adjust: none
 }
 
 header {
@@ -15,7 +15,6 @@ header {
 }
     
 .rotate-span {
-    display: inline-block;
     float: right; 
     text-align: right;
     transform: rotate(270deg);

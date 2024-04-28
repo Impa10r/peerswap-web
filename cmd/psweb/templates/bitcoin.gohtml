@@ -1,48 +1,64 @@
 {{define "bitcoin"}}
   {{template "header" .}}
     <div class="container">
+      {{if eq .PeginTxId ""}}
+        <form id="myForm" autocomplete="off" action="/pegin" method="post" onsubmit="return confirmSubmit()">
+      {{end}}
       <div class="columns">
         <div class="column">
           <div class="box">
-            <h3 class="title is-4"><span style="color: orange;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h3>
+            <h4 class="title is-4"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h4>
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box">
-              <h1 class="title is-4">Liquid Peg-In</h1> 
-              <form autocomplete="off" action="/pegin" method="post">
-                <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Amount</label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="number" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
-                      </p>
-                    </div>
+              <h4 class="title is-4">Liquid Peg-In</h4> 
+              <input autocomplete="false" name="hidden" type="text" style="display:none;">
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="number" onchange="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
+                    </p>
                   </div>
                 </div>
-                <div class="field is-horizontal">
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Fee Rate</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="number" name="feeRate" min="1" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sats/vByte">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Fee Rate</label>
+                    <label class="label"> </label>
                   </div>
                   <div class="field-body">
                     <div class="field">
-                      <p>
-                        <input class="input is-medium" type="number" name="feeRate" min="1" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sats/vByte">
-                      </p>
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="subtractfee" name="subtractfee">
+                          <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <center>
-                  <input class="button is-large" type="submit" value="Start Peg-In">
-                </center>
-              </form>
+                <input class="button is-large" type="submit" value="Start Peg-In">
+              </center>
             </div>
           {{else}}
             <div class="box">
-              <h1 class="title is-4">Peg-In Progress</h1> 
+              <h4 class="title is-4">Peg-In Progress</h4> 
               <table style="table-layout:fixed; width: 100%;">
                 <tr>
                   <td style="width: 8ch; text-align: right">
@@ -76,23 +92,29 @@
                     <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
                   </td>
                 </tr>
-                {{if .ChildTxId}}
-                  <tr>
-                    <td style="text-align: right">
-                      Child:
-                    </td>
-                    <td style="overflow-wrap: break-word;">
-                      <a href="{{.BitcoinApi}}/tx/{{.ChildTxId}}" target="_blank">{{.ChildTxId}}</a>
-                    </td>
-                  </tr>
-                {{end}}
                 {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
-                      CPFP:
+                      Fee rate:
                     </td>
                     <td>
-                      If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child). 
+                      {{.FeeRate}} sats/vB
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="text-align: right">
+                      {{if .CanRBF}}
+                        RBF
+                      {{else}}
+                        CPFP
+                      {{end}}
+                    </td>
+                    <td>
+                      {{if .CanRBF}}
+                        If the tx does not confirm for a long time, consider replacing the peg-in transaction with a new one, paying a higher fee rate.
+                      {{else}}
+                        If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child).
+                      {{end}}
                     </td>
                   </tr>
                 {{end}}
@@ -121,30 +143,86 @@
                   <div class="current-progress" style="width: {{.Progress}}%">
                   </div>
                 </div>
+                <script>
+                  // Reload the page every minute (60000 milliseconds)
+                  setInterval(function(){
+                      location.reload();
+                  }, 60000);
+                </script>
               {{end}}
             </div>
           {{end}}
         </div> 
         <div class="column"> 
           <div class="box">
-            <h3 class="title is-4">Unspent Outputs</h3>
+            <h4 class="title is-4">Unspent Outputs</h4>
             <table id="myTable" style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width:58%;">Address</th>
+                {{if eq .PeginTxId ""}}
+                  <th style="width:50%;">Address</th>
+                {{else}}
+                  <th style="width:58%;">Address</th>
+                {{end}}
                 <th style="text-align: right;">Conf</th>
                 <th style="text-align: right;">Amount</th>
+                {{if eq .PeginTxId ""}}
+                  <th style="width:8%;">Use</th>
+                {{end}}
               </tr>
               {{range .Outputs}}
                 <tr>
                   <td class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
                   <td style="text-align: right;">{{fmt (u .Confirmations)}}</td>
                   <td style="text-align: right;">{{fmt (u .AmountSat)}}</td>
+                  {{if eq $.PeginTxId ""}}
+                    <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}})" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
+                  {{end}}
                 </tr>
               {{end}}
             </table>
           </div>
         </div>
       </div>
+      {{if eq .PeginTxId ""}}
+        </form>
+        <script>
+          function uncheckSubtractFee() {
+            document.getElementById("subtractfee").checked = false;
+          }
+          function onSelect(checked, amountStr) {
+            var amountInt = Number(amountStr);
+            if (checked) {
+              document.getElementById("peginAmount").value = Number(document.getElementById("peginAmount").value) + amountInt;
+              document.getElementById("subtractfee").checked = true;
+            } else {
+              document.getElementById("peginAmount").value = Number(document.getElementById("peginAmount").value) - amountInt;
+              if (Number(document.getElementById("peginAmount").value)<0) {
+                document.getElementById("peginAmount").value = 0
+              }
+            }
+          }
+          function setMax() {
+            document.getElementById("peginAmount").value = {{.BitcoinBalance}};
+            document.getElementById("subtractfee").checked = true;
+            var fields = document.querySelectorAll('#select');
+            fields.forEach(function(element) {
+              element.checked = true
+            });
+          }
+          function confirmSubmit() {
+            {{if not .CanRBF}}
+              if (document.getElementById("subtractfee").checked) {
+                // Display confirmation dialog
+                var confirmed = confirm("You have chosen to send the transaction without change output. Fee bumping with CPFP will not be possible and your LND version does not permit RBF. Are you sure the fee will be sufficient?");
+                if (!confirmed) {
+                  // user cancels, prevent form submission
+                  return false;
+                }
+              }
+            {{end}}  
+          }
+        </script>
+      {{end}}
     </div>
   {{template "footer" .}}
 {{end}}
