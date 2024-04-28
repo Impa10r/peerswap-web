@@ -346,7 +346,7 @@ func fundPsbt(cl walletrpc.WalletKitClient, utxos *[]string, outputs map[string]
 		},
 		MinConfs:         int32(1),
 		SpendUnconfirmed: false,
-		//ChangeType:       1, //P2TR in 0.17.5
+		ChangeType:       walletrpc.ChangeAddressType_CHANGE_ADDRESS_TYPE_P2TR,
 	})
 
 	if err != nil {
@@ -450,7 +450,6 @@ func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeR
 		return err
 	}
 
-	log.Println("CPFP successful")
 	return nil
 }
 

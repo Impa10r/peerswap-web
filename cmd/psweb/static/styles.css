@@ -39,7 +39,7 @@ header {
 .truncate {
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: clip;
 }
 
 pre {
@@ -66,6 +66,7 @@ pre {
     position: fixed;
     top: 10px;
     right: 20px;
+    color: white;
     background-color: green;
     padding: 10px;
     border-radius: 5px;
