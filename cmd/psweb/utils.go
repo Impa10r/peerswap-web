@@ -42,6 +42,10 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 
 // formats 100000 as 100,000
 func formatWithThousandSeparators(n uint64) string {
+	if n == 0 {
+		return "-"
+	}
+
 	// Convert the integer to a string
 	numStr := strconv.FormatUint(n, 10)
 
@@ -118,5 +122,8 @@ func toUint(num int64) uint64 {
 }
 
 func toMil(num uint64) string {
-	return fmt.Sprintf("%.1f", float32(num)/1000000)
+	if num == 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%.1f", float32(num)/1000000) + "m"
 }

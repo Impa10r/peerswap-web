@@ -129,16 +129,16 @@
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Sent
-                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}m</td>
+                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
-                <td style="text-align: center">{{m .Peer.AsSender.SatsIn}}m</td>
+                <td style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsSender.SwapsIn}}</td>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Rcvd
-                <td style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}m</td>
+                <td style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsOut}}</td>
-                <td style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}m</td>
+                <td style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsIn}}</td>
               </tr>
             </table>  
@@ -154,23 +154,23 @@
               {{range .Stats}}
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">7d
-                  <td style="text-align: center">{{m .AmountOut7d}}m</td>
+                  <td style="text-align: center">{{m .AmountOut7d}}</td>
                   <td style="text-align: center">{{fmt .FeeSat7d}}</td>
-                  <td style="text-align: center">{{m .AmountIn7d}}m</td>
+                  <td style="text-align: center">{{m .AmountIn7d}}</td>
                   <td style="text-align: center">{{fmt .AssistedFeeSat7d}}</td>
                 </tr>
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">30d
-                  <td style="text-align: center">{{m .AmountOut30d}}m</td>
+                  <td style="text-align: center">{{m .AmountOut30d}}</td>
                   <td style="text-align: center">{{fmt .FeeSat30d}}</td>
-                  <td style="text-align: center">{{m .AmountIn30d}}m</td>
+                  <td style="text-align: center">{{m .AmountIn30d}}</td>
                   <td style="text-align: center">{{fmt .AssistedFeeSat30d}}</td>
                 </tr>
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">6m
-                  <td style="text-align: center">{{m .AmountOut6m}}m</td>
+                  <td style="text-align: center">{{m .AmountOut6m}}</td>
                   <td style="text-align: center">{{fmt .FeeSat6m}}</td>
-                  <td style="text-align: center">{{m .AmountIn6m}}m</td>
+                  <td style="text-align: center">{{m .AmountIn6m}}</td>
                   <td style="text-align: center">{{fmt .AssistedFeeSat6m}}</td>
                 </tr>
               {{end}}
@@ -185,8 +185,8 @@
               {{range .Peer.Channels}}
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">{{.ChannelId}}</td>
-                  <td style="text-align: center">{{m .LocalBalance}}m</td>
-                  <td style="text-align: center">{{m .RemoteBalance}}m</td>
+                  <td style="text-align: center">{{m .LocalBalance}}</td>
+                  <td style="text-align: center">{{m .RemoteBalance}}</td>
                 </tr>
               {{end}}
             </table>
