@@ -1,4 +1,4 @@
-package mempool
+package internet
 
 import (
 	"bytes"
@@ -6,48 +6,17 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
-	"time"
 
 	"peerswap-web/cmd/psweb/config"
-
-	"golang.org/x/net/proxy"
 )
 
-func getHttpClient() *http.Client {
-	var httpClient *http.Client
-
-	if config.Config.ProxyURL != "" {
-		p, err := url.Parse(config.Config.ProxyURL)
-		if err != nil {
-			log.Println("Mempool getHttpClient:", err)
-			return nil
-		}
-		dialer, err := proxy.SOCKS5("tcp", p.Host, nil, proxy.Direct)
-		if err != nil {
-			log.Println("Mempool getHttpClient:", err)
-			return nil
-		}
-		httpClient = &http.Client{
-			Transport: &http.Transport{
-				Dial: dialer.Dial,
-			},
-			Timeout: 5 * time.Second,
-		}
-	} else {
-		httpClient = &http.Client{
-			Timeout: 5 * time.Second,
-		}
-	}
-	return httpClient
-}
-
+// fetch node alias from mempool.space
 func GetNodeAlias(id string) string {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/v1/lightning/search?searchText=" + id
 		req, err := http.NewRequest("GET", api, nil)
 		if err == nil {
-			cl := getHttpClient()
+			cl := GetHttpClient(config.Config.BitcoinApi != config.Config.LocalMempool)
 			if cl == nil {
 				return id[:20] // shortened id
 			}
@@ -90,12 +59,13 @@ func GetNodeAlias(id string) string {
 	return ""
 }
 
+// fetch high priority fee rate from mempool.space
 func GetFee() uint32 {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/v1/fees/recommended"
 		req, err := http.NewRequest("GET", api, nil)
 		if err == nil {
-			cl := getHttpClient()
+			cl := GetHttpClient(config.Config.BitcoinApi != config.Config.LocalMempool)
 			if cl == nil {
 				return 0
 			}
@@ -134,12 +104,13 @@ func GetFee() uint32 {
 	return 0
 }
 
+// fetch transaction block height from mempool.space
 func GetTxHeight(txid string) int32 {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/tx/" + txid + "/status"
 		req, err := http.NewRequest("GET", api, nil)
 		if err == nil {
-			cl := getHttpClient()
+			cl := GetHttpClient(config.Config.BitcoinApi != config.Config.LocalMempool)
 			if cl == nil {
 				return 0
 			}
@@ -173,14 +144,20 @@ func GetTxHeight(txid string) int32 {
 	return 0
 }
 
+// broadcast new transaction to mempool.space
 func SendRawTransaction(rawTx string) string {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/tx"
 		// Define the request body
 		requestBody := []byte(rawTx)
 
+		cl := GetHttpClient(config.Config.BitcoinApi != config.Config.LocalMempool)
+		if cl == nil {
+			return ""
+		}
+
 		// Send POST request
-		resp, err := http.Post(api, "application/octet-stream", bytes.NewBuffer(requestBody))
+		resp, err := cl.Post(api, "application/octet-stream", bytes.NewBuffer(requestBody))
 		if err != nil {
 			log.Println("Mempool SendRawTransaction:", err)
 			return ""

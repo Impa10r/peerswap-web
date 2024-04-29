@@ -1,5 +1,10 @@
 # Versions
 
+## 1.3.3
+
+- Add channel routing statistics on the peer screen
+- Visual improvements for mobile browsers
+
 ## 1.3.2
 
 - Add Bitcoin UTXOs selection for Liquid Peg-ins

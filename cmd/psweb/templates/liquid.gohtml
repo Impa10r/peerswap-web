@@ -9,13 +9,9 @@
                 <h4 class="title is-4">🌊&nbspLiquid:&nbsp{{fmt .LiquidBalance}}</h4>
               </div>
               <div class="column">
-                <table style="table-layout:fixed; width: 100%;">
-                  <tr>
-                    <td style="padding: 0px; float: right; text-align: right;">
-                      <button class="button is-small" onclick="window.location.href = '/backup';"">Backup Wallet</button>
-                    </td>
-                  </tr>
-                </table>
+                <div style="display: flex; justify-content: flex-end;">
+                  <button class="button is-small" onclick="window.location.href = '/backup';"">Backup Wallet</button>       
+                </div>
               </div> 
             </div> 
           </div>
@@ -93,9 +89,9 @@
             <h4 class="title is-4">Unspent Outputs</h4>
             <table id="myTable" style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width:58%;">Address</th>
-                <th style="text-align: right;">Conf</th>
-                <th style="text-align: right;">Amount</th>
+                <th>Address</th>
+                <th style="width: 9ch; text-align: right;">Confs</th>
+                <th style="width: 10ch; text-align: right;">Amount</th>
               </tr>
               {{range .Outputs}}
                 <tr>

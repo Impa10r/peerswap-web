@@ -11,7 +11,26 @@
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box">
-              <h4 class="title is-4">Liquid Peg-In</h4> 
+              <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+                <div style="text-align: left;">
+                    <h4 class="title is-4">Liquid Peg-In</h4>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    {{if .CanRBF}}
+                      <div style="text-align: center; max-width: 6ch;">
+                        <p style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                          RBF
+                        </p>
+                      </div>
+                    {{else}}
+                      <div style="text-align: center; max-width: 7ch;">
+                        <p style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
+                          CPFP
+                        </p>
+                      </div>
+                    {{end}}
+                </div>
+              </div>
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
@@ -38,23 +57,23 @@
                 </div>
               </div>
               <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label"> </label>
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" id="subtractfee" name="subtractfee">
-                          <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                        </label>
-                      </div>
+                <div class="field-label is-normal">
+                  <label class="label"> </label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" id="subtractfee" name="subtractfee">
+                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                      </label>
                     </div>
                   </div>
                 </div>
-                <center>
+              </div>
+              <div style="text-align: center;">
                 <input class="button is-large" type="submit" value="Start Peg-In">
-              </center>
+              </div>
             </div>
           {{else}}
             <div class="box">
@@ -104,9 +123,17 @@
                   <tr>
                     <td style="text-align: right">
                       {{if .CanRBF}}
-                        RBF
+                        <div style="text-align: center; max-width: 6ch;">
+                          <p style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                            RBF
+                          </p>
+                        </div>
                       {{else}}
-                        CPFP
+                        <div style="text-align: center; max-width: 7ch;">
+                          <p style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
+                            CPFP
+                          </p>
+                        </div>
                       {{end}}
                     </td>
                     <td>
@@ -158,15 +185,11 @@
             <h4 class="title is-4">Unspent Outputs</h4>
             <table id="myTable" style="width:100%; table-layout:fixed;">
               <tr>
+                <th>Address</th>
+                <th style="width: 9ch; text-align: right;">Confs</th>
+                <th style="width: 10ch; text-align: right;">Amount</th>
                 {{if eq .PeginTxId ""}}
-                  <th style="width:50%;">Address</th>
-                {{else}}
-                  <th style="width:58%;">Address</th>
-                {{end}}
-                <th style="text-align: right;">Conf</th>
-                <th style="text-align: right;">Amount</th>
-                {{if eq .PeginTxId ""}}
-                  <th style="width:8%;">Use</th>
+                  <th style="width: 3ch;">Use</th>
                 {{end}}
               </tr>
               {{range .Outputs}}

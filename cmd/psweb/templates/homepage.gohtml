@@ -20,16 +20,14 @@
             </div>
           </div>          
           <div class="box">
-            <table style="table-layout:fixed; width: 100%;">
-              <tr>
-                <td style="padding: 0px; float: left; text-align: left;">
-                  <h4 class="title is-4">Peer List</h4>
-                </td>
-                <td style="padding: 0px; float: right; text-align: right;">
-                  <button class="button is-small" onclick="toggleScramble()">Privacy</button>
-                </td>
-              </tr>
-            </table>
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Peer List</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <button class="button is-small" onclick="toggleScramble()">Privacy</button>
+              </div>
+            </div>
             {{.ListPeers}}
           </div>
         </div>

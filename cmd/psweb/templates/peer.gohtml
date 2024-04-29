@@ -118,54 +118,75 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4">Peer Details</h4>        
-            <table style="width:100%; table-layout:fixed;">
-              <tr style="border: 1px dotted"><td style="width: 15ch; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
-              <tr style="border: 1px dotted"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
-              <tr style="border: 1px dotted"><td style="text-align: right">Assets:</td><td>
-                {{range .Peer.SupportedAssets}}
-                  {{.}}
-                {{end}}
-              </td></tr>
-            </table>
-            <p style="margin:0.5em;"></p>
+            <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>        
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th></th>
-                <th># Out</th>
-                <th># In</th>
-                <th>M Out</th>
-                <th>M In</th>
+                <th style="text-align: center">Swaps</th>
+                <th style="text-align: center">Out</th>
+                <th style="text-align: center"># Out</th>
+                <th style="text-align: center">In</th>
+                <th style="text-align: center"># In</th>   
               </tr>
               <tr style="border: 1px dotted">
-                <td>Sent
-                <td>{{.Peer.AsSender.SwapsOut}}</td>
-                <td>{{.Peer.AsSender.SwapsIn}}</td>
-                <td>{{m .Peer.AsSender.SatsOut}}</td>
-                <td>{{m .Peer.AsSender.SatsIn}}</td>
+                <td style="text-align: center">Sent
+                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
+                <td style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsIn}}</td>
               </tr>
               <tr style="border: 1px dotted">
-                <td>Rcvd
-                <td>{{.Peer.AsReceiver.SwapsOut}}</td>
-                <td>{{.Peer.AsReceiver.SwapsIn}}</td>
-                <td>{{m .Peer.AsReceiver.SatsOut}}</td>
-                <td>{{m .Peer.AsReceiver.SatsIn}}</td>
+                <td style="text-align: center">Rcvd
+                <td style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsOut}}</td>
+                <td style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsIn}}</td>
               </tr>
             </table>  
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 32%;">Channel Id</th>
-                <th>Local</th>
-                <th>Remote</th>
-                <th>Active</th>
+                <th style="text-align: center">Flow</th>
+                <th style="text-align: center">Out</th>
+                <th style="text-align: center">Revenue</th>
+                <th style="text-align: center">In</th>
+                <th style="text-align: center">Assisted</th>
+              </tr>
+              {{range .Stats}}
+                <tr style="border: 1px dotted">
+                  <td style="text-align: center">7d
+                  <td style="text-align: center">{{m .AmountOut7d}}</td>
+                  <td style="text-align: center">{{fmt .FeeSat7d}}</td>
+                  <td style="text-align: center">{{m .AmountIn7d}}</td>
+                  <td style="text-align: center">{{fmt .AssistedFeeSat7d}}</td>
+                </tr>
+                <tr style="border: 1px dotted">
+                  <td style="text-align: center">30d
+                  <td style="text-align: center">{{m .AmountOut30d}}</td>
+                  <td style="text-align: center">{{fmt .FeeSat30d}}</td>
+                  <td style="text-align: center">{{m .AmountIn30d}}</td>
+                  <td style="text-align: center">{{fmt .AssistedFeeSat30d}}</td>
+                </tr>
+                <tr style="border: 1px dotted">
+                  <td style="text-align: center">6m
+                  <td style="text-align: center">{{m .AmountOut6m}}</td>
+                  <td style="text-align: center">{{fmt .FeeSat6m}}</td>
+                  <td style="text-align: center">{{m .AmountIn6m}}</td>
+                  <td style="text-align: center">{{fmt .AssistedFeeSat6m}}</td>
+                </tr>
+              {{end}}
+            </table>  
+            <p style="margin:0.5em;"></p>
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <th style="width: 21ch; text-align: center">Channel Id</th>
+                <th style="text-align: center">Local</th>
+                <th style="text-align: center">Remote</th>
               </tr>
               {{range .Peer.Channels}}
                 <tr style="border: 1px dotted">
-                  <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
-                  <td>{{m .LocalBalance}}</td>
-                  <td>{{m .RemoteBalance}}</td>
-                  <td>{{.Active}}</td>
+                  <td style="text-align: center">{{.ChannelId}}</td>
+                  <td style="text-align: center">{{m .LocalBalance}}</td>
+                  <td style="text-align: center">{{m .RemoteBalance}}</td>
                 </tr>
               {{end}}
             </table>

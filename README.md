@@ -47,7 +47,7 @@ Clone the repository and build PeerSwap Web UI:
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
-make install-lnd
+make -j$(nproc) install-lnd
 ```
 
 ### CLN:
@@ -55,7 +55,7 @@ make install-lnd
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
-make install-cln
+make -j$(nproc) install-cln
 ```
 
 This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. If not, add the path in ~/.profile and reload with `source .profile`.

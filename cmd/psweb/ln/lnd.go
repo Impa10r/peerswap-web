@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
@@ -28,14 +29,16 @@ import (
 
 const Implementation = "LND"
 
-var LndVerson = float64(0) // 0.18+ for RBF ability
-
-var internalLockId = []byte{
-	0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
-	0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
-	0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
-	0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
-}
+var (
+	LndVerson        = float64(0) // must be 0.18+ for RBF ability
+	forwardingEvents []*lnrpc.ForwardingEvent
+	internalLockId   = []byte{
+		0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
+		0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
+		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
+		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
+	}
+)
 
 func lndConnection() (*grpc.ClientConn, error) {
 	tlsCertPath := config.GetPeerswapLNDSetting("lnd.tlscertpath")
@@ -346,7 +349,7 @@ func fundPsbt(cl walletrpc.WalletKitClient, utxos *[]string, outputs map[string]
 		},
 		MinConfs:         int32(1),
 		SpendUnconfirmed: false,
-		//ChangeType:       1, //P2TR in 0.17.5
+		ChangeType:       walletrpc.ChangeAddressType_CHANGE_ADDRESS_TYPE_P2TR,
 	})
 
 	if err != nil {
@@ -450,7 +453,6 @@ func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeR
 		return err
 	}
 
-	log.Println("CPFP successful")
 	return nil
 }
 
@@ -487,4 +489,100 @@ func CanRBF() bool {
 	}
 
 	return LndVerson >= 0.18
+}
+
+// fetch routing statistics for a channel from a given timestamp
+func GetForwardingStats(channelId uint64) *ForwardingStats {
+	var (
+		result          ForwardingStats
+		feeMsat7d       uint64
+		assistedMsat7d  uint64
+		feeMsat30d      uint64
+		assistedMsat30d uint64
+		feeMsat6m       uint64
+		assistedMsat6m  uint64
+	)
+
+	// refresh history
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return &result
+	}
+	defer cleanup()
+
+	// only go back 6 months
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+
+	if len(forwardingEvents) > 0 {
+		// continue from the last timestamp in seconds
+		start = forwardingEvents[len(forwardingEvents)-1].TimestampNs/1_000_000_000 + 1
+	}
+
+	offset := uint32(0)
+	for {
+		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
+			StartTime:       start,
+			IndexOffset:     offset,
+			PeerAliasLookup: false,
+			NumMaxEvents:    50000,
+		})
+		if err != nil {
+			return &result
+		}
+
+		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
+		if len(res.ForwardingEvents) < 50000 {
+			// all events retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastOffsetIndex + 1
+	}
+
+	// historic timestamps in ns
+	now := time.Now()
+	timestamp7d := uint64(now.AddDate(0, 0, -7).Unix()) * 1_000_000_000
+	timestamp30d := uint64(now.AddDate(0, 0, -30).Unix()) * 1_000_000_000
+	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
+
+	for _, e := range forwardingEvents {
+		if e.ChanIdOut == channelId {
+			if e.TimestampNs > timestamp6m {
+				result.AmountOut6m += e.AmtOut
+				feeMsat6m += e.FeeMsat
+				if e.TimestampNs > timestamp30d {
+					result.AmountOut30d += e.AmtOut
+					feeMsat30d += e.FeeMsat
+					if e.TimestampNs > timestamp7d {
+						result.AmountOut7d += e.AmtOut
+						feeMsat7d += e.FeeMsat
+					}
+				}
+			}
+		}
+		if e.ChanIdIn == channelId {
+			if e.TimestampNs > timestamp6m {
+				result.AmountIn6m += e.AmtIn
+				assistedMsat6m += e.FeeMsat
+				if e.TimestampNs > timestamp30d {
+					result.AmountIn30d += e.AmtIn
+					assistedMsat30d += e.FeeMsat
+					if e.TimestampNs > timestamp7d {
+						result.AmountIn7d += e.AmtIn
+						assistedMsat7d += e.FeeMsat
+					}
+				}
+			}
+		}
+	}
+
+	result.FeeSat7d = feeMsat7d / 1000
+	result.AssistedFeeSat7d = assistedMsat7d / 1000
+	result.FeeSat30d = feeMsat30d / 1000
+	result.AssistedFeeSat30d = assistedMsat30d / 1000
+	result.FeeSat6m = feeMsat6m / 1000
+	result.AssistedFeeSat6m = assistedMsat6m / 1000
+
+	return &result
 }

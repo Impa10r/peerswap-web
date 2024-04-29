@@ -22,9 +22,9 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/internet"
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
-	"peerswap-web/cmd/psweb/mempool"
 	"peerswap-web/cmd/psweb/ps"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
@@ -46,7 +46,7 @@ var (
 	logFile   *os.File
 )
 
-const version = "v1.3.2"
+const version = "v1.3.3"
 
 func main() {
 
@@ -283,9 +283,13 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	var sumLocal uint64
 	var sumRemote uint64
+	var stats []*ln.ForwardingStats
+
 	for _, ch := range peer.Channels {
 		sumLocal += ch.LocalBalance
 		sumRemote += ch.RemoteBalance
+		stat := ln.GetForwardingStats(ch.ChannelId)
+		stats = append(stats, stat)
 	}
 
 	res2, err := ps.ReloadPolicyFile(client)
@@ -330,6 +334,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		message = keys[0]
 	}
 
+	// get routing stats
+
 	type Page struct {
 		Message        string
 		ColorScheme    string
@@ -344,6 +350,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance uint64
 		ActiveSwaps    string
 		DirectionIn    bool
+		Stats          []*ln.ForwardingStats
 	}
 
 	data := Page{
@@ -360,6 +367,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance: uint64(btcBalance),
 		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps),
 		DirectionIn:    sumLocal < sumRemote,
+		Stats:          stats,
 	}
 
 	// executing template named "peer"
@@ -569,7 +577,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme:    config.Config.ColorScheme,
 		Config:         config.Config,
 		Version:        version,
-		Latest:         getLatestTag(),
+		Latest:         internet.GetLatestTag(),
 		Implementation: ln.Implementation,
 	}
 
@@ -1100,7 +1108,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 }
 
 func showHelpMessage() {
-	fmt.Println("A lightweight server-side rendered Web UI for PeerSwap LND, which allows trustless P2P submarine swaps Lightning <-> BTC and Lightning <-> L-BTC.")
+	fmt.Println("A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to rebalance lightning channels.")
 	fmt.Println("Usage:")
 	flag.PrintDefaults()
 }
@@ -1214,7 +1222,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := mempool.GetFee()
+	fee := internet.GetFee()
 	confs := int32(0)
 	minConfs := int32(1)
 	canBump := false
@@ -1232,8 +1240,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 					fee = fee + fee/2
 				}
 			}
-			if fee < config.Config.PeginFeeRate+2 {
-				fee = config.Config.PeginFeeRate + 2 // +1 can be too small and fail
+			if fee < config.Config.PeginFeeRate+1 {
+				fee = config.Config.PeginFeeRate + 1 // min increment
 			}
 		}
 	}
@@ -1375,7 +1383,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// to speed things up, also broadcast it to mempool.space
-		mempool.SendRawTransaction(res.RawHex)
+		internet.SendRawTransaction(res.RawHex)
 
 		log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", addr.ClaimScript)
 		duration := time.Duration(1020) * time.Minute
@@ -1438,7 +1446,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// to speed things up, also broadcast it to mempool.space
-		mempool.SendRawTransaction(res.RawHex)
+		internet.SendRawTransaction(res.RawHex)
 
 		if ln.CanRBF() {
 			log.Println("RBF TxId:", res.TxId)
@@ -1747,4 +1755,34 @@ func checkPegin() {
 		config.Config.PeginTxId = ""
 		config.Save()
 	}
+}
+
+func getNodeAlias(key string) string {
+	// search in cache
+	for _, n := range aliasCache {
+		if n.PublicKey == key {
+			return n.Alias
+		}
+	}
+
+	// try lightning
+	alias := ln.GetAlias(key)
+
+	if alias == "" {
+		// try mempool
+		alias = internet.GetNodeAlias(key)
+	}
+
+	if alias == "" {
+		// return first 20 chars of key
+		return key[:20]
+	}
+
+	// save to cache if alias was found
+	aliasCache = append(aliasCache, AliasCache{
+		PublicKey: key,
+		Alias:     alias,
+	})
+
+	return alias
 }

@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"log"
 	"peerswap-web/cmd/psweb/config"
-	"strconv"
-	"strings"
+	"peerswap-web/cmd/psweb/ln"
 
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/clightning"
@@ -36,7 +35,6 @@ func ReloadPolicyFile(client *glightning.Lightning) (*peerswaprpc.Policy, error)
 
 	err := client.Request(&clightning.ReloadPolicyFile{}, &res)
 	if err != nil {
-		log.Println("ReloadPolicyFile:", err)
 		return nil, err
 	}
 
@@ -94,7 +92,7 @@ func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, er
 		for _, channel := range channels {
 			channelData := channel.(map[string]interface{})
 			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-				ChannelId:     clToLndScid(channelData["short_channel_id"].(string)),
+				ChannelId:     ln.ConvertClnToLndChannelId(channelData["short_channel_id"].(string)),
 				LocalBalance:  uint64(channelData["local_balance"].(float64)),
 				RemoteBalance: uint64(channelData["remote_balance"].(float64)),
 				Active:        channelData["state"].(string) == "CHANNELD_NORMAL",
@@ -261,7 +259,7 @@ func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset st
 	var res map[string]interface{}
 
 	err := client.Request(&clightning.SwapIn{
-		ShortChannelId: lndToClScid(channelId),
+		ShortChannelId: ln.ConvertLndToClnChannelId(channelId),
 		SatAmt:         swapAmount,
 		Asset:          asset,
 		Force:          force,
@@ -279,7 +277,7 @@ func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset s
 	var res map[string]interface{}
 
 	err := client.Request(&clightning.SwapOut{
-		ShortChannelId: lndToClScid(channelId),
+		ShortChannelId: ln.ConvertLndToClnChannelId(channelId),
 		SatAmt:         swapAmount,
 		Asset:          asset,
 		Force:          force,
@@ -310,37 +308,4 @@ func AllowSwapRequests(client *glightning.Lightning, allowSwapRequests bool) (*p
 
 	// return empty object as it is not used
 	return &peerswaprpc.Policy{}, nil
-}
-
-// convert short channel id 2568777x70x1 to LND format
-func clToLndScid(s string) uint64 {
-	parts := strings.Split(s, "x")
-	if len(parts) != 3 {
-		return 0 // or handle error appropriately
-	}
-
-	var scid uint64
-	for i, part := range parts {
-		val, err := strconv.Atoi(part)
-		if err != nil {
-			return 0 // or handle error appropriately
-		}
-		switch i {
-		case 0:
-			scid |= uint64(val) << 40
-		case 1:
-			scid |= uint64(val) << 16
-		case 2:
-			scid |= uint64(val)
-		}
-	}
-	return scid
-}
-
-// convert LND channel id to CLN 2568777x70x1
-func lndToClScid(s uint64) string {
-	block := strconv.FormatUint(s>>40, 10)
-	tx := strconv.FormatUint((s>>16)&0xFFFFFF, 10)
-	output := strconv.FormatUint(s&0xFFFF, 10)
-	return block + "x" + tx + "x" + output
 }

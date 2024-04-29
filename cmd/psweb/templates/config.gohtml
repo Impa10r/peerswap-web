@@ -269,7 +269,7 @@
                 <small>
                   Version: {{.Version}}, latest: 
                   {{if ne .Version .Latest}}
-                    <a href="https://github.com/Impa10r/peerswap-web/blob/main/CHANGELOG.md" target="_blank">{{.Latest}}</a>
+                    <a href="https://github.com/Impa10r/peerswap-web/releases/tag/{{.Latest}}" target="_blank">{{.Latest}}</a>
                   {{else}}
                     {{.Latest}}
                   {{end}}
