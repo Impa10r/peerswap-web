@@ -499,7 +499,7 @@ func updateForwardingEvents() {
 	defer cleanup()
 
 	// only go back 6 months
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix()) * 1_000_000_000
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	if len(forwardingEvents) > 0 {
 		// continue from the last timestamp in seconds
@@ -540,9 +540,10 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	updateForwardingEvents()
 
 	// historic timestamps in Ns
-	timestamp7dNs := uint64(time.Now().AddDate(0, 0, -7).Unix()) * 1_000_000_000
-	timestamp30dNs := uint64(time.Now().AddDate(0, 0, -30).Unix()) * 1_000_000_000
-	timestamp6mNs := uint64(time.Now().AddDate(0, -6, 0).Unix()) * 1_000_000_000
+	now := time.Now()
+	timestamp7dNs := uint64(now.AddDate(0, 0, -7).Unix()) * 1_000_000_000
+	timestamp30dNs := uint64(now.AddDate(0, 0, -30).Unix()) * 1_000_000_000
+	timestamp6mNs := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	var (
 		result          ForwardingStats
