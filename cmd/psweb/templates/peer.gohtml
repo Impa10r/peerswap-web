@@ -129,7 +129,7 @@
               </td></tr>
             </table><table style="width:100%; table-layout:fixed;">
               <tr>
-                <th>Swapped</th>
+                <th>Swaps</th>
                 <th>M Out</th>
                 <th># Out</th>
                 <th>M In</th>
@@ -153,36 +153,41 @@
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th>Routed 7d</th>
+                <th>Flow</th>
                 <th>M Out</th>
                 <th>Profit</th>
                 <th>M In</th>
-                <th>Assisted</th>
+                <th>Assist</th>
               </tr>
               {{range .Stats}}
                 <tr style="border: 1px dotted">
-                  <td>channel {{.ChannelId}}
+                  <td>7d
                   <td>{{m .AmountOut}}</td>
                   <td>{{fmt .FeeSat}}</td>
                   <td>{{m .AmountIn}}</td>
                   <td>{{fmt .AssistedFeeSat}}</td>
+                </tr>
+                <tr style="border: 1px dotted">
+                  <td>30d
+                  <td>{{m .AmountOut30d}}</td>
+                  <td>{{fmt .FeeSat30d}}</td>
+                  <td>{{m .AmountIn30d}}</td>
+                  <td>{{fmt .AssistedFeeSat30d}}</td>
                 </tr>
               {{end}}
             </table>  
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 32%;">Channel Id</th>
+                <th style="width: 21ch">Channel Id</th>
                 <th>Local</th>
                 <th>Remote</th>
-                <th>Active</th>
               </tr>
               {{range .Peer.Channels}}
                 <tr style="border: 1px dotted">
-                  <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
+                  <td>{{.ChannelId}}</td>
                   <td>{{m .LocalBalance}}</td>
                   <td>{{m .RemoteBalance}}</td>
-                  <td>{{.Active}}</td>
                 </tr>
               {{end}}
             </table>
