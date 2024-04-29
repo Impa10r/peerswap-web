@@ -8,16 +8,17 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/mempool"
+	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/elementsproject/glightning/glightning"
 )
 
 const (
-	Implementation = "LND"
+	Implementation = "CLN"
 	fileRPC        = "lightning-rpc"
 )
 
@@ -25,7 +26,6 @@ func GetClient() (*glightning.Lightning, func(), error) {
 	lightning := glightning.NewLightning()
 	err := lightning.StartUp(fileRPC, config.Config.RpcHost)
 	if err != nil {
-		log.Println("PS CLN Connection:", err)
 		return nil, nil, err
 	}
 
@@ -34,23 +34,6 @@ func GetClient() (*glightning.Lightning, func(), error) {
 	}
 
 	return lightning, cleanup, nil
-}
-
-func SendCoins(client *glightning.Lightning, addr string, amount int64, feeRate uint64, sweepall bool, label string) (string, error) {
-	minConf := uint16(1)
-	res, err := client.Withdraw(addr, &glightning.Sat{
-		Value:   uint64(amount),
-		SendAll: sweepall,
-	}, &glightning.FeeRate{
-		Rate: uint(feeRate * 932), // better translates to sat/vB
-	}, &minConf)
-
-	if err != nil {
-		log.Println("Withdraw:", err)
-		return "", err
-	}
-
-	return res.TxId, nil
 }
 
 func ConfirmedWalletBalance(client *glightning.Lightning) int64 {
@@ -140,7 +123,7 @@ func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool)
 
 	tip := int32(res.Blockheight)
 
-	height := mempool.GetTxHeight(txid)
+	height := internet.GetTxHeight(txid)
 
 	if height == 0 {
 		// mempool api error, use bitcoin core
@@ -355,6 +338,102 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	return &result, nil
 }
 
+// always true for c-lightning
 func CanRBF() bool {
 	return true
+}
+
+// fetch routing statistics for a channel from a given timestamp
+func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
+	var (
+		result          ForwardingStats
+		amountOut7d     uint64
+		amountOut30d    uint64
+		amountOut6m     uint64
+		amountIn7d      uint64
+		amountIn30d     uint64
+		amountIn6m      uint64
+		feeMsat7d       uint64
+		assistedMsat7d  uint64
+		feeMsat30d      uint64
+		assistedMsat30d uint64
+		feeMsat6m       uint64
+		assistedMsat6m  uint64
+	)
+
+	// refresh history
+	client, clean, err := GetClient()
+	if err != nil {
+		log.Println("GetClient:", err)
+		return &result
+	}
+	defer clean()
+
+	var forwards struct {
+		Forwards []glightning.Forwarding `json:"forwards"`
+	}
+
+	err = client.Request(&glightning.ListForwardsRequest{}, &forwards)
+	if err != nil {
+		log.Println(err)
+		return &result
+	}
+
+	// historic timestamps in sec
+	now := time.Now()
+	timestamp7d := float64(now.AddDate(0, 0, -7).Unix())
+	timestamp30d := float64(now.AddDate(0, 0, -30).Unix())
+	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
+
+	channelId := ConvertLndToClnChannelId(lndChannelId)
+
+	for _, e := range forwards.Forwards {
+		if e.Status == "settled" {
+			if e.OutChannel == channelId {
+				if e.ReceivedTime > timestamp6m {
+					amountOut6m += e.MilliSatoshiOut
+					feeMsat6m += e.Fee
+					if e.ReceivedTime > timestamp30d {
+						amountOut30d += e.MilliSatoshiOut
+						feeMsat30d += e.Fee
+						if e.ReceivedTime > timestamp7d {
+							amountOut7d += e.MilliSatoshiOut
+							feeMsat7d += e.Fee
+							log.Println(e)
+						}
+					}
+				}
+			}
+			if e.InChannel == channelId {
+				if e.ReceivedTime > timestamp6m {
+					amountIn6m += e.MilliSatoshiOut
+					assistedMsat6m += e.Fee
+					if e.ReceivedTime > timestamp30d {
+						amountIn30d += e.MilliSatoshiOut
+						assistedMsat30d += e.Fee
+						if e.ReceivedTime > timestamp7d {
+							amountIn7d += e.MilliSatoshiOut
+							assistedMsat7d += e.Fee
+						}
+					}
+				}
+			}
+		}
+	}
+
+	result.AmountOut7d = amountOut7d / 1000
+	result.AmountOut30d = amountOut30d / 1000
+	result.AmountOut6m = amountOut6m / 1000
+	result.AmountIn7d = amountIn7d / 1000
+	result.AmountIn30d = amountIn30d / 1000
+	result.AmountIn6m = amountIn6m / 1000
+
+	result.FeeSat7d = feeMsat7d
+	result.AssistedFeeSat7d = assistedMsat7d
+	result.FeeSat30d = feeMsat30d
+	result.AssistedFeeSat30d = assistedMsat30d
+	result.FeeSat6m = feeMsat6m
+	result.AssistedFeeSat6m = assistedMsat6m
+
+	return &result
 }

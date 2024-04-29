@@ -1122,9 +1122,6 @@ func startTimer() {
 		// Start Telegram bot if not already running
 		go telegramStart()
 
-		// Update forwards cache
-		go ln.UpdateForwardingEvents()
-
 		// Back up to Telegram if Liquid balance changed
 		liquidBackup(false)
 

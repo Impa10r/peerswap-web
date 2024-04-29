@@ -491,10 +491,22 @@ func CanRBF() bool {
 	return LndVerson >= 0.18
 }
 
-func updateForwardingEvents() {
+// fetch routing statistics for a channel from a given timestamp
+func GetForwardingStats(channelId uint64) *ForwardingStats {
+	var (
+		result          ForwardingStats
+		feeMsat7d       uint64
+		assistedMsat7d  uint64
+		feeMsat30d      uint64
+		assistedMsat30d uint64
+		feeMsat6m       uint64
+		assistedMsat6m  uint64
+	)
+
+	// refresh history
 	client, cleanup, err := GetClient()
 	if err != nil {
-		return
+		return &result
 	}
 	defer cleanup()
 
@@ -515,7 +527,7 @@ func updateForwardingEvents() {
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
-			return
+			return &result
 		}
 
 		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
@@ -527,65 +539,40 @@ func updateForwardingEvents() {
 		// next pull start from the next index
 		offset = res.LastOffsetIndex + 1
 	}
-}
 
-// load htlc history from LND to internal cache
-func UpdateForwardingEvents() {
-	updateForwardingEvents()
-}
-
-// fetch routing statistics for a channel from a given timestamp
-func GetForwardingStats(channelId uint64) *ForwardingStats {
-	// refresh history
-	updateForwardingEvents()
-
-	// historic timestamps in Ns
+	// historic timestamps in ns
 	now := time.Now()
-	timestamp7dNs := uint64(now.AddDate(0, 0, -7).Unix()) * 1_000_000_000
-	timestamp30dNs := uint64(now.AddDate(0, 0, -30).Unix()) * 1_000_000_000
-	timestamp6mNs := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
-
-	var (
-		result          ForwardingStats
-		feeMsat7d       uint64
-		assistedMsat7d  uint64
-		feeMsat30d      uint64
-		assistedMsat30d uint64
-		feeMsat6m       uint64
-		assistedMsat6m  uint64
-	)
+	timestamp7d := uint64(now.AddDate(0, 0, -7).Unix()) * 1_000_000_000
+	timestamp30d := uint64(now.AddDate(0, 0, -30).Unix()) * 1_000_000_000
+	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	for _, e := range forwardingEvents {
 		if e.ChanIdOut == channelId {
-			if e.TimestampNs > timestamp7dNs {
-				result.AmountOut7d += e.AmtOut
-				feeMsat7d += e.FeeMsat
-				log.Println(e)
-			}
-			if e.TimestampNs > timestamp30dNs {
-				result.AmountOut30d += e.AmtOut
-				feeMsat30d += e.FeeMsat
-			}
-			if e.TimestampNs > timestamp6mNs {
+			if e.TimestampNs > timestamp6m {
 				result.AmountOut6m += e.AmtOut
 				feeMsat6m += e.FeeMsat
+				if e.TimestampNs > timestamp30d {
+					result.AmountOut30d += e.AmtOut
+					feeMsat30d += e.FeeMsat
+					if e.TimestampNs > timestamp7d {
+						result.AmountOut7d += e.AmtOut
+						feeMsat7d += e.FeeMsat
+					}
+				}
 			}
 		}
 		if e.ChanIdIn == channelId {
-			if e.TimestampNs > timestamp7dNs {
-				result.AmountIn7d += e.AmtIn
-				assistedMsat7d += e.FeeMsat
-				//log.Println(e)
-			}
-			if e.TimestampNs > timestamp30dNs {
-				result.AmountIn30d += e.AmtIn
-				assistedMsat30d += e.FeeMsat
-				//log.Println(e)
-			}
-			if e.TimestampNs > timestamp6mNs {
+			if e.TimestampNs > timestamp6m {
 				result.AmountIn6m += e.AmtIn
 				assistedMsat6m += e.FeeMsat
-				//log.Println(e)
+				if e.TimestampNs > timestamp30d {
+					result.AmountIn30d += e.AmtIn
+					assistedMsat30d += e.FeeMsat
+					if e.TimestampNs > timestamp7d {
+						result.AmountIn7d += e.AmtIn
+						assistedMsat7d += e.FeeMsat
+					}
+				}
 			}
 		}
 	}
