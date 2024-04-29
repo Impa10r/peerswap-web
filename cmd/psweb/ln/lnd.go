@@ -594,8 +594,8 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	result.AssistedFeeSat7d = assistedMsat7d / 1000
 	result.FeeSat30d = feeMsat30d / 1000
 	result.AssistedFeeSat30d = assistedMsat30d / 1000
-	result.FeeSat30d = feeMsat6m / 1000
-	result.AssistedFeeSat6m = assistedMsat30d / 1000
+	result.FeeSat6m = feeMsat6m / 1000
+	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
 	return &result
 }
