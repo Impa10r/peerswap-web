@@ -541,23 +541,31 @@ func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats
 	// requested timestamp in Ns
 	timestampNs := fromTimestamp * 1_000_000_000
 
-	var result ForwardingStats
+	var (
+		result       ForwardingStats
+		feeMsat      uint64
+		assistedMsat uint64
+	)
 
 	for _, e := range forwardingEvents {
 		if e.ChanIdOut == channelId {
 			if e.TimestampNs > timestampNs {
 				result.AmountOut += e.AmtOut
-				result.FeeSat += e.FeeMsat
+				feeMsat += e.FeeMsat
 			}
+			log.Println(e)
 		}
 		if e.ChanIdIn == channelId {
 			if e.TimestampNs > timestampNs {
 				result.AmountIn += e.AmtIn
-				result.AssistedFeeSat += e.FeeMsat
+				assistedMsat += e.FeeMsat
 			}
+			log.Println(e)
 		}
 	}
 
+	result.FeeSat = feeMsat / 1000
+	result.AssistedFeeSat = assistedMsat / 1000
 	result.ChannelId = channelId
 
 	return &result

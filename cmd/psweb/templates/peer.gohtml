@@ -118,8 +118,16 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4"> {{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></h4>        
+            <h4 class="title is-4">Peer Statistics</h4>        
             <table style="width:100%; table-layout:fixed;">
+              <tr><td style="width: 15ch; text-align: right">Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
+              <tr><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
+              <tr><td style="text-align: right">Assets:</td><td>
+                {{range .Peer.SupportedAssets}}
+                  {{.}}
+                {{end}}
+              </td></tr>
+            </table><table style="width:100%; table-layout:fixed;">
               <tr>
                 <th>Swapped</th>
                 <th>M Out</th>
@@ -149,7 +157,7 @@
                 <th>M Out</th>
                 <th>Profit</th>
                 <th>M In</th>
-                <th>Assists</th>
+                <th>Assisted</th>
               </tr>
               {{range .Stats}}
                 <tr style="border: 1px dotted">
