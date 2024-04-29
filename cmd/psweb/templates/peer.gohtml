@@ -118,57 +118,65 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4">Peer Details</h4>        
-            <table style="width:100%; table-layout:fixed;">
-              <tr style="border: 1px dotted"><td style="width: 15ch; text-align: right">Node Alias:</td><td style="overflow-wrap: break-word;">{{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></td></tr>
-              <tr style="border: 1px dotted"><td style="text-align: right">Swaps Allowed:</td><td>{{.Peer.SwapsAllowed}}</td></tr>
-              <tr style="border: 1px dotted"><td style="text-align: right">Assets:</td><td>
-                {{range .Peer.SupportedAssets}}
-                  {{.}}
-                {{end}}
-              </td></tr>
-            </table>
-            <p style="margin:0.5em;"></p>
+            <h4 class="title is-4">Peer Statistics</h4>        
+            Alias: {{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a>
+            <br>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th></th>
-                <th># Out</th>
-                <th># In</th>
+                <th>Swapped</th>
                 <th>M Out</th>
+                <th># Out</th>
                 <th>M In</th>
+                <th># In</th>   
               </tr>
               <tr style="border: 1px dotted">
                 <td>Sent
-                <td>{{.Peer.AsSender.SwapsOut}}</td>
-                <td>{{.Peer.AsSender.SwapsIn}}</td>
                 <td>{{m .Peer.AsSender.SatsOut}}</td>
+                <td>{{fmt .Peer.AsSender.SwapsOut}}</td>
                 <td>{{m .Peer.AsSender.SatsIn}}</td>
+                <td>{{fmt .Peer.AsSender.SwapsIn}}</td>
               </tr>
               <tr style="border: 1px dotted">
                 <td>Rcvd
-                <td>{{.Peer.AsReceiver.SwapsOut}}</td>
-                <td>{{.Peer.AsReceiver.SwapsIn}}</td>
                 <td>{{m .Peer.AsReceiver.SatsOut}}</td>
+                <td>{{fmt .Peer.AsReceiver.SwapsOut}}</td>
                 <td>{{m .Peer.AsReceiver.SatsIn}}</td>
+                <td>{{fmt .Peer.AsReceiver.SwapsIn}}</td>
               </tr>
             </table>  
-            <p style="margin:0.5em;"></p>
+            <br>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 32%;">Channel Id</th>
-                <th>Local</th>
-                <th>Remote</th>
-                <th>Active</th>
+                <th>Routed</th>
+                <th>M Out</th>
+                <th>Profit</th>
+                <th>M In</th>
+                <th>Assists</th>
               </tr>
-              {{range .Peer.Channels}}
+              {{range .Stats}}
                 <tr style="border: 1px dotted">
-                  <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
-                  <td>{{m .LocalBalance}}</td>
-                  <td>{{m .RemoteBalance}}</td>
-                  <td>{{.Active}}</td>
+                  <td>1 week
+                  <td>{{m .AmountOut}}</td>
+                  <td>{{fmt .FeeSat}}</td>
+                  <td>{{m .AmountIn}}</td>
+                  <td>{{fmt .AssistedFeeSat}}</td>
+                </tr>
+                <tr style="border: 1px dotted">
+                  <td>30 days
+                  <td>{{m .AmountOut30d}}</td>
+                  <td>{{fmt .FeeSat30d}}</td>
+                  <td>{{m .AmountIn30d}}</td>
+                  <td>{{fmt .AssistedFeeSat30d}}</td>
+                </tr>
+                <tr style="border: 1px dotted">
+                  <td>1 year
+                  <td>{{m .AmountOut1y}}</td>
+                  <td>{{fmt .FeeSat1y}}</td>
+                  <td>{{m .AmountIn1y}}</td>
+                  <td>{{fmt .AssistedFeeSat1y}}</td>
                 </tr>
               {{end}}
-            </table>
+            </table>  
             <br>
             <div class="columns">
               <div class="column">

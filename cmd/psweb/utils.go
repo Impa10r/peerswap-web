@@ -1,15 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
 	"strconv"
 	"time"
-
-	"peerswap-web/cmd/psweb/ln"
-	"peerswap-web/cmd/psweb/mempool"
 )
 
 // returns time passed as a srting
@@ -115,47 +109,6 @@ func visualiseSwapStatus(statusText string, rotate bool) string {
 	return "⌛"
 }
 
-func getLatestTag() string {
-
-	url := "http://api.github.com/repos/impa10r/peerswap-web/tags"
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		log.Println("Error creating request:", err)
-		return ""
-	}
-
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println("Error making request:", err)
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Println("Failed to fetch tags. Status code:", resp.StatusCode)
-		return ""
-	}
-
-	var tags []map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&tags)
-	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
-		return ""
-	}
-
-	if len(tags) > 0 {
-		latestTag := tags[0]["name"].(string)
-		return latestTag
-	} else {
-		log.Println("No tags found in the repository.")
-		return ""
-	}
-}
-
 func toSats(amount float64) uint64 {
 	return uint64(float64(100000000) * amount)
 }
@@ -166,34 +119,4 @@ func toUint(num int64) uint64 {
 
 func toMil(num uint64) string {
 	return fmt.Sprintf("%.1f", float32(num)/1000000)
-}
-
-func getNodeAlias(key string) string {
-	// search in cache
-	for _, n := range aliasCache {
-		if n.PublicKey == key {
-			return n.Alias
-		}
-	}
-
-	// try lightning
-	alias := ln.GetAlias(key)
-
-	if alias == "" {
-		// try mempool
-		alias = mempool.GetNodeAlias(key)
-	}
-
-	if alias == "" {
-		// return first 20 chars of key
-		return key[:20]
-	}
-
-	// save to cache if alias was found
-	aliasCache = append(aliasCache, AliasCache{
-		PublicKey: key,
-		Alias:     alias,
-	})
-
-	return alias
 }

@@ -8,9 +8,9 @@
 
 - Add Bitcoin UTXOs selection for Liquid Peg-ins
 - Allow deducting peg-in chain fee from the amount to avoid change output
-- CLN: Bump peg-in chain fees with RBF
-- LND 0.18+: Bump peg-in chain fees with RBF
-- LND below 0.18: Bump peg-in chain fees with CPFP
+- CLN: Can bump peg-in chain fees with RBF
+- LND 0.18+: Can bump peg-in chain fees with RBF
+- LND below 0.18: Can bump peg-in chain fees with CPFP
 
 ## 1.3.1
 

@@ -40,6 +40,21 @@ func loadDefaults(home, dataDir string) {
 
 // LND-specific load from Peerswap config
 func LoadPS() {
+
+	// find lnd path from peerswap.conf
+	certPath := GetPeerswapLNDSetting("lnd.tlscertpath")
+
+	if certPath != "" {
+		// Split the file path into its components
+		directoryPath, _ := filepath.Split(certPath)
+
+		// clean the final slash
+		Config.LightningDir = filepath.Clean(directoryPath)
+	}
+
+	// get peerswap rpc host from peerswap.conf
+	Config.RpcHost = GetPeerswapLNDSetting("host")
+
 	wallet := GetPeerswapLNDSetting("elementsd.rpcwallet")
 	if wallet != "" {
 		Config.ElementsWallet = wallet

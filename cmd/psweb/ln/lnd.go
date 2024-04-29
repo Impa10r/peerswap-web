@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
@@ -28,14 +29,16 @@ import (
 
 const Implementation = "LND"
 
-var LndVerson = float64(0) // 0.18+ for RBF ability
-
-var internalLockId = []byte{
-	0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
-	0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
-	0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
-	0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
-}
+var (
+	LndVerson        = float64(0) // must be 0.18+ for RBF ability
+	forwardingEvents []*lnrpc.ForwardingEvent
+	internalLockId   = []byte{
+		0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
+		0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
+		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
+		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
+	}
+)
 
 func lndConnection() (*grpc.ClientConn, error) {
 	tlsCertPath := config.GetPeerswapLNDSetting("lnd.tlscertpath")
@@ -486,4 +489,99 @@ func CanRBF() bool {
 	}
 
 	return LndVerson >= 0.18
+}
+
+// only go back 1 year
+func updateForwardingEvents() {
+	// get lnd server version
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	// Subtract 1 year from the current time
+	oneYearAgo := time.Now().AddDate(-1, 0, 0)
+
+	// Get the Unix timestamp for oneYearAgo
+	start := uint64(oneYearAgo.Unix())
+
+	if len(forwardingEvents) > 0 {
+		start = forwardingEvents[len(forwardingEvents)-1].TimestampNs + 1
+	}
+
+	offset := uint32(0)
+	for {
+		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
+			StartTime:       start,
+			IndexOffset:     offset,
+			PeerAliasLookup: false,
+			NumMaxEvents:    5,
+		})
+		if err != nil {
+			return
+		}
+
+		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
+		if len(res.ForwardingEvents) < 5 {
+			// all events retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastOffsetIndex + 1
+	}
+}
+
+// load htlc history from LND to internal cache
+func UpdateForwardingEvents() {
+	updateForwardingEvents()
+}
+
+// fetch routing statistics for a channel from a given timestamp
+func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats {
+	// refresh history
+	updateForwardingEvents()
+
+	// Subtract 30 days from the current time
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+
+	// Get the Unix timestamp in nanoseconds for thirtyDaysAgo
+	timestampThirtyDaysAgo := uint64(thirtyDaysAgo.UnixNano())
+
+	// requested timestamp in Ns
+	timestampNs := fromTimestamp * 1_000_000_000
+
+	var result ForwardingStats
+
+	for _, e := range forwardingEvents {
+		if e.ChanIdOut == channelId {
+			result.AmountOut1y += e.AmtOut
+			result.FeeSat1y += e.FeeMsat
+			if e.TimestampNs > timestampThirtyDaysAgo {
+				result.AmountOut30d += e.AmtOut
+				result.FeeSat30d += e.FeeMsat
+			}
+			if e.TimestampNs > timestampNs {
+				result.AmountOut += e.AmtOut
+				result.FeeSat += e.FeeMsat
+			}
+		}
+		if e.ChanIdIn == channelId {
+			result.AmountIn1y += e.AmtIn
+			result.AssistedFeeSat1y += e.FeeMsat
+			if e.TimestampNs > timestampThirtyDaysAgo {
+				result.AmountIn30d += e.AmtIn
+				result.AssistedFeeSat30d += e.FeeMsat
+			}
+			if e.TimestampNs > timestampNs {
+				result.AmountIn += e.AmtIn
+				result.AssistedFeeSat += e.FeeMsat
+			}
+		}
+	}
+
+	result.ChannelId = channelId
+
+	return &result
 }

@@ -13,6 +13,7 @@
             "program": "${workspaceFolder}/cmd/psweb/",
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",
+            "args": ["-datadir=/home/vlad/.peerswap"]
         }
     ]
 }

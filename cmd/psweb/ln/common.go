@@ -15,6 +15,22 @@ type SentResult struct {
 	TxId      string
 }
 
+type ForwardingStats struct {
+	ChannelId         uint64
+	AmountOut         uint64
+	AmountOut1y       uint64
+	AmountOut30d      uint64
+	AmountIn          uint64
+	AmountIn1y        uint64
+	AmountIn30d       uint64
+	FeeSat            uint64
+	FeeSat1y          uint64
+	FeeSat30d         uint64
+	AssistedFeeSat    uint64
+	AssistedFeeSat1y  uint64
+	AssistedFeeSat30d uint64
+}
+
 func toSats(amount float64) int64 {
 	return int64(float64(100000000) * amount)
 }
