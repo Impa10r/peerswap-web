@@ -516,14 +516,14 @@ func updateForwardingEvents() {
 			StartTime:       start,
 			IndexOffset:     offset,
 			PeerAliasLookup: false,
-			NumMaxEvents:    5,
+			NumMaxEvents:    50000,
 		})
 		if err != nil {
 			return
 		}
 
 		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
-		if len(res.ForwardingEvents) < 5 {
+		if len(res.ForwardingEvents) < 50000 {
 			// all events retrieved
 			break
 		}
