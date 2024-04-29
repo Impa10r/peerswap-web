@@ -162,10 +162,10 @@
               {{range .Stats}}
                 <tr style="border: 1px dotted">
                   <td>7d
-                  <td>{{m .AmountOut}}</td>
-                  <td>{{fmt .FeeSat}}</td>
-                  <td>{{m .AmountIn}}</td>
-                  <td>{{fmt .AssistedFeeSat}}</td>
+                  <td>{{m .AmountOut7d}}</td>
+                  <td>{{fmt .FeeSat7d}}</td>
+                  <td>{{m .AmountIn7d}}</td>
+                  <td>{{fmt .AssistedFeeSat7d}}</td>
                 </tr>
                 <tr style="border: 1px dotted">
                   <td>30d
@@ -173,6 +173,13 @@
                   <td>{{fmt .FeeSat30d}}</td>
                   <td>{{m .AmountIn30d}}</td>
                   <td>{{fmt .AssistedFeeSat30d}}</td>
+                </tr>
+                <tr style="border: 1px dotted">
+                  <td>6m
+                  <td>{{m .AmountOut6m}}</td>
+                  <td>{{fmt .FeeSat6m}}</td>
+                  <td>{{m .AmountIn6m}}</td>
+                  <td>{{fmt .AssistedFeeSat6m}}</td>
                 </tr>
               {{end}}
             </table>  

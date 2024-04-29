@@ -284,13 +284,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var sumLocal uint64
 	var sumRemote uint64
 	var stats []*ln.ForwardingStats
-	weekAgo := uint64(time.Now().AddDate(0, 0, -7).Unix())
 
-	for i, ch := range peer.Channels {
+	for _, ch := range peer.Channels {
 		sumLocal += ch.LocalBalance
 		sumRemote += ch.RemoteBalance
-		stat := ln.GetForwardingStats(ch.ChannelId, weekAgo)
-		stat.ChannelId = uint64(i + 1) // replace with simple numeration
+		stat := ln.GetForwardingStats(ch.ChannelId)
 		stats = append(stats, stat)
 	}
 

@@ -498,8 +498,8 @@ func updateForwardingEvents() {
 	}
 	defer cleanup()
 
-	// only go back 30 days
-	start := uint64(time.Now().AddDate(0, 0, -30).Unix())
+	// only go back 6 months
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	if len(forwardingEvents) > 0 {
 		// continue from the last timestamp in seconds
@@ -535,38 +535,45 @@ func UpdateForwardingEvents() {
 }
 
 // fetch routing statistics for a channel from a given timestamp
-func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats {
+func GetForwardingStats(channelId uint64) *ForwardingStats {
 	// refresh history
 	updateForwardingEvents()
 
-	// requested timestamp in Ns
-	timestampNs := fromTimestamp * 1_000_000_000
+	// historic timestamps in Ns
+	timestamp7dNs := uint64(time.Now().AddDate(0, 0, -7).Unix()) * 1_000_000_000
 	timestamp30dNs := uint64(time.Now().AddDate(0, 0, -30).Unix()) * 1_000_000_000
+	timestamp6mNs := uint64(time.Now().AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	var (
 		result          ForwardingStats
-		feeMsat         uint64
-		assistedMsat    uint64
+		feeMsat7d       uint64
+		assistedMsat7d  uint64
 		feeMsat30d      uint64
 		assistedMsat30d uint64
+		feeMsat6m       uint64
+		assistedMsat6m  uint64
 	)
 
 	for _, e := range forwardingEvents {
 		if e.ChanIdOut == channelId {
-			if e.TimestampNs > timestampNs {
-				result.AmountOut += e.AmtOut
-				feeMsat += e.FeeMsat
+			if e.TimestampNs > timestamp7dNs {
+				result.AmountOut7d += e.AmtOut
+				feeMsat7d += e.FeeMsat
 				log.Println(e)
 			}
 			if e.TimestampNs > timestamp30dNs {
 				result.AmountOut30d += e.AmtOut
 				feeMsat30d += e.FeeMsat
 			}
+			if e.TimestampNs > timestamp6mNs {
+				result.AmountOut6m += e.AmtOut
+				feeMsat6m += e.FeeMsat
+			}
 		}
 		if e.ChanIdIn == channelId {
-			if e.TimestampNs > timestampNs {
-				result.AmountIn += e.AmtIn
-				assistedMsat += e.FeeMsat
+			if e.TimestampNs > timestamp7dNs {
+				result.AmountIn7d += e.AmtIn
+				assistedMsat7d += e.FeeMsat
 				//log.Println(e)
 			}
 			if e.TimestampNs > timestamp30dNs {
@@ -574,14 +581,20 @@ func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats
 				assistedMsat30d += e.FeeMsat
 				//log.Println(e)
 			}
+			if e.TimestampNs > timestamp6mNs {
+				result.AmountIn6m += e.AmtIn
+				assistedMsat6m += e.FeeMsat
+				//log.Println(e)
+			}
 		}
 	}
 
-	result.FeeSat = feeMsat / 1000
-	result.AssistedFeeSat = assistedMsat / 1000
+	result.FeeSat7d = feeMsat7d / 1000
+	result.AssistedFeeSat7d = assistedMsat7d / 1000
 	result.FeeSat30d = feeMsat30d / 1000
 	result.AssistedFeeSat30d = assistedMsat30d / 1000
-	result.ChannelId = channelId
+	result.FeeSat30d = feeMsat6m / 1000
+	result.AssistedFeeSat6m = assistedMsat30d / 1000
 
 	return &result
 }
