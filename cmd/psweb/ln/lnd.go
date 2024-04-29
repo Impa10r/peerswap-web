@@ -502,7 +502,8 @@ func updateForwardingEvents() {
 	start := uint64(time.Now().AddDate(0, 0, -7).Unix())
 
 	if len(forwardingEvents) > 0 {
-		start = forwardingEvents[len(forwardingEvents)-1].TimestampNs + 1
+		// continue from the last timestamp in seconds
+		start = forwardingEvents[len(forwardingEvents)-1].TimestampNs/1_000_000_000 + 1
 	}
 
 	offset := uint32(0)
@@ -552,15 +553,15 @@ func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats
 			if e.TimestampNs > timestampNs {
 				result.AmountOut += e.AmtOut
 				feeMsat += e.FeeMsat
+				log.Println(e)
 			}
-			log.Println(e)
 		}
 		if e.ChanIdIn == channelId {
 			if e.TimestampNs > timestampNs {
 				result.AmountIn += e.AmtIn
 				assistedMsat += e.FeeMsat
+				log.Println(e)
 			}
-			log.Println(e)
 		}
 	}
 
