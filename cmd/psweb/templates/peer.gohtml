@@ -118,9 +118,7 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4">Peer Statistics</h4>        
-            Alias: {{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a>
-            <br>
+            <h4 class="title is-4"> {{.PeerAlias}}&nbsp<a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">🔗</a></h4>        
             <table style="width:100%; table-layout:fixed;">
               <tr>
                 <th>Swapped</th>
@@ -144,10 +142,10 @@
                 <td>{{fmt .Peer.AsReceiver.SwapsIn}}</td>
               </tr>
             </table>  
-            <br>
+            <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th>Routed</th>
+                <th>Routed 7d</th>
                 <th>M Out</th>
                 <th>Profit</th>
                 <th>M In</th>
@@ -155,28 +153,31 @@
               </tr>
               {{range .Stats}}
                 <tr style="border: 1px dotted">
-                  <td>1 week
+                  <td>channel {{.ChannelId}}
                   <td>{{m .AmountOut}}</td>
                   <td>{{fmt .FeeSat}}</td>
                   <td>{{m .AmountIn}}</td>
                   <td>{{fmt .AssistedFeeSat}}</td>
                 </tr>
-                <tr style="border: 1px dotted">
-                  <td>30 days
-                  <td>{{m .AmountOut30d}}</td>
-                  <td>{{fmt .FeeSat30d}}</td>
-                  <td>{{m .AmountIn30d}}</td>
-                  <td>{{fmt .AssistedFeeSat30d}}</td>
-                </tr>
-                <tr style="border: 1px dotted">
-                  <td>1 year
-                  <td>{{m .AmountOut1y}}</td>
-                  <td>{{fmt .FeeSat1y}}</td>
-                  <td>{{m .AmountIn1y}}</td>
-                  <td>{{fmt .AssistedFeeSat1y}}</td>
-                </tr>
               {{end}}
             </table>  
+            <p style="margin:0.5em;"></p>
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <th style="width: 32%;">Channel Id</th>
+                <th>Local</th>
+                <th>Remote</th>
+                <th>Active</th>
+              </tr>
+              {{range .Peer.Channels}}
+                <tr style="border: 1px dotted">
+                  <td style="overflow-wrap: break-word;">{{.ChannelId}}</td>
+                  <td>{{m .LocalBalance}}</td>
+                  <td>{{m .RemoteBalance}}</td>
+                  <td>{{.Active}}</td>
+                </tr>
+              {{end}}
+            </table>
             <br>
             <div class="columns">
               <div class="column">

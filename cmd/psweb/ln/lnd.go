@@ -491,20 +491,15 @@ func CanRBF() bool {
 	return LndVerson >= 0.18
 }
 
-// only go back 1 year
 func updateForwardingEvents() {
-	// get lnd server version
 	client, cleanup, err := GetClient()
 	if err != nil {
 		return
 	}
 	defer cleanup()
 
-	// Subtract 1 year from the current time
-	oneYearAgo := time.Now().AddDate(-1, 0, 0)
-
-	// Get the Unix timestamp for oneYearAgo
-	start := uint64(oneYearAgo.Unix())
+	// only go back 7 days
+	start := uint64(time.Now().AddDate(0, 0, -7).Unix())
 
 	if len(forwardingEvents) > 0 {
 		start = forwardingEvents[len(forwardingEvents)-1].TimestampNs + 1
@@ -543,12 +538,6 @@ func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats
 	// refresh history
 	updateForwardingEvents()
 
-	// Subtract 30 days from the current time
-	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
-
-	// Get the Unix timestamp in nanoseconds for thirtyDaysAgo
-	timestampThirtyDaysAgo := uint64(thirtyDaysAgo.UnixNano())
-
 	// requested timestamp in Ns
 	timestampNs := fromTimestamp * 1_000_000_000
 
@@ -556,24 +545,12 @@ func GetForwardingStats(channelId uint64, fromTimestamp uint64) *ForwardingStats
 
 	for _, e := range forwardingEvents {
 		if e.ChanIdOut == channelId {
-			result.AmountOut1y += e.AmtOut
-			result.FeeSat1y += e.FeeMsat
-			if e.TimestampNs > timestampThirtyDaysAgo {
-				result.AmountOut30d += e.AmtOut
-				result.FeeSat30d += e.FeeMsat
-			}
 			if e.TimestampNs > timestampNs {
 				result.AmountOut += e.AmtOut
 				result.FeeSat += e.FeeMsat
 			}
 		}
 		if e.ChanIdIn == channelId {
-			result.AmountIn1y += e.AmtIn
-			result.AssistedFeeSat1y += e.FeeMsat
-			if e.TimestampNs > timestampThirtyDaysAgo {
-				result.AmountIn30d += e.AmtIn
-				result.AssistedFeeSat30d += e.FeeMsat
-			}
 			if e.TimestampNs > timestampNs {
 				result.AmountIn += e.AmtIn
 				result.AssistedFeeSat += e.FeeMsat
