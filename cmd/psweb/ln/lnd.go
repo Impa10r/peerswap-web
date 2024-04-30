@@ -47,25 +47,25 @@ func lndConnection() (*grpc.ClientConn, error) {
 
 	tlsCreds, err := credentials.NewClientTLSFromFile(tlsCertPath, "")
 	if err != nil {
-		log.Println("lndConnection", err)
+		log.Println("Error reading tlsCert:", err)
 		return nil, err
 	}
 
 	macaroonBytes, err := os.ReadFile(macaroonPath)
 	if err != nil {
-		log.Println("lndConnection", err)
+		log.Println("Error reading macaroon:", err)
 		return nil, err
 	}
 
 	mac := &macaroon.Macaroon{}
 	if err = mac.UnmarshalBinary(macaroonBytes); err != nil {
-		log.Println("lndConnection", err)
+		log.Println("lndConnection UnmarshalBinary:", err)
 		return nil, err
 	}
 
 	macCred, err := macaroons.NewMacaroonCredential(mac)
 	if err != nil {
-		log.Println("lndConnection", err)
+		log.Println("lndConnection NewMacaroonCredential:", err)
 		return nil, err
 	}
 
@@ -77,7 +77,7 @@ func lndConnection() (*grpc.ClientConn, error) {
 
 	conn, err := grpc.Dial(host, opts...)
 	if err != nil {
-		fmt.Println("lndConnection", err)
+		fmt.Println("lndConnection dial:", err)
 		return nil, err
 	}
 
