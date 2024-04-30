@@ -1119,10 +1119,14 @@ func showVersionInfo() {
 }
 
 func startTimer() {
+	// first run immediately
+	onTimer()
+
+	// then every minute
 	for range time.Tick(60 * time.Second) {
 		onTimer()
 	}
-	onTimer()
+
 }
 
 // tasks that run every minute
