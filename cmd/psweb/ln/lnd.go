@@ -491,22 +491,12 @@ func CanRBF() bool {
 	return LndVerson >= 0.18
 }
 
-// fetch routing statistics for a channel from a given timestamp
-func GetForwardingStats(channelId uint64) *ForwardingStats {
-	var (
-		result          ForwardingStats
-		feeMsat7d       uint64
-		assistedMsat7d  uint64
-		feeMsat30d      uint64
-		assistedMsat30d uint64
-		feeMsat6m       uint64
-		assistedMsat6m  uint64
-	)
-
+// fetch all routing statistics from lnd
+func FetchForwardingStats() {
 	// refresh history
 	client, cleanup, err := GetClient()
 	if err != nil {
-		return &result
+		return
 	}
 	defer cleanup()
 
@@ -527,7 +517,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
-			return &result
+			return
 		}
 
 		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
@@ -539,6 +529,19 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 		// next pull start from the next index
 		offset = res.LastOffsetIndex + 1
 	}
+}
+
+// get routing statistics for a channel
+func GetForwardingStats(channelId uint64) *ForwardingStats {
+	var (
+		result          ForwardingStats
+		feeMsat7d       uint64
+		assistedMsat7d  uint64
+		feeMsat30d      uint64
+		assistedMsat30d uint64
+		feeMsat6m       uint64
+		assistedMsat6m  uint64
+	)
 
 	// historic timestamps in ns
 	now := time.Now()

@@ -1118,6 +1118,7 @@ func showVersionInfo() {
 	fmt.Println("Version:", version, "for", ln.Implementation)
 }
 
+// tasks that run every minute
 func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		// Start Telegram bot if not already running
@@ -1128,6 +1129,9 @@ func startTimer() {
 
 		// Check if pegin can be claimed
 		checkPegin()
+
+		// pre-cache routing statistics
+		go ln.FetchForwardingStats()
 
 		// check for updates
 		t := internet.GetLatestTag()

@@ -343,7 +343,23 @@ func CanRBF() bool {
 	return true
 }
 
-// fetch routing statistics for a channel from a given timestamp
+var forwards struct {
+	Forwards []glightning.Forwarding `json:"forwards"`
+}
+
+// fetch all routing statistics from cln
+func FetchForwardingStats() {
+	// refresh history
+	client, clean, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer clean()
+
+	client.Request(&glightning.ListForwardsRequest{}, &forwards)
+}
+
+// get routing statistics for a channel
 func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	var (
 		result          ForwardingStats
@@ -360,24 +376,6 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 		feeMsat6m       uint64
 		assistedMsat6m  uint64
 	)
-
-	// refresh history
-	client, clean, err := GetClient()
-	if err != nil {
-		log.Println("GetClient:", err)
-		return &result
-	}
-	defer clean()
-
-	var forwards struct {
-		Forwards []glightning.Forwarding `json:"forwards"`
-	}
-
-	err = client.Request(&glightning.ListForwardsRequest{}, &forwards)
-	if err != nil {
-		log.Println(err)
-		return &result
-	}
 
 	// historic timestamps in sec
 	now := time.Now()
