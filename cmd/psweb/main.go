@@ -1122,6 +1122,7 @@ func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		onTimer()
 	}
+	onTimer()
 }
 
 // tasks that run every minute
