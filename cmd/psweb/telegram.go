@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/internet"
 	"peerswap-web/cmd/psweb/ln"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -104,7 +103,7 @@ func telegramStart() {
 				telegramSendMessage(t)
 			case "/version":
 				t := "Current version: " + version + "\n"
-				t += "Latest version: " + internet.GetLatestTag()
+				t += "Latest version: " + latestVersion
 				telegramSendMessage(t)
 			default:
 				telegramSendMessage("I don't understand that command")

@@ -31,6 +31,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const version = "v1.3.4"
+
 type AliasCache struct {
 	PublicKey string
 	Alias     string
@@ -42,11 +44,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder embed.FS
-	logFile   *os.File
+	tplFolder     embed.FS
+	logFile       *os.File
+	latestVersion = version
 )
-
-const version = "v1.3.3"
 
 func main() {
 
@@ -577,7 +578,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme:    config.Config.ColorScheme,
 		Config:         config.Config,
 		Version:        version,
-		Latest:         internet.GetLatestTag(),
+		Latest:         latestVersion,
 		Implementation: ln.Implementation,
 	}
 
@@ -1127,6 +1128,12 @@ func startTimer() {
 
 		// Check if pegin can be claimed
 		checkPegin()
+
+		// check for updates
+		t := internet.GetLatestTag()
+		if t != "" {
+			latestVersion = t
+		}
 	}
 }
 

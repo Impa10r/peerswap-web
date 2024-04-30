@@ -104,7 +104,7 @@ func Load(dataDir string) {
 		if err != nil {
 			log.Println("Error creating config file.", err)
 		} else {
-			log.Println("Config file created using defaults.")
+			log.Println("Config file created in", Config.DataDir)
 		}
 		return
 	}
