@@ -1118,26 +1118,30 @@ func showVersionInfo() {
 	fmt.Println("Version:", version, "for", ln.Implementation)
 }
 
-// tasks that run every minute
 func startTimer() {
 	for range time.Tick(60 * time.Second) {
-		// Start Telegram bot if not already running
-		go telegramStart()
+		onTimer()
+	}
+}
 
-		// Back up to Telegram if Liquid balance changed
-		liquidBackup(false)
+// tasks that run every minute
+func onTimer() {
+	// Start Telegram bot if not already running
+	go telegramStart()
 
-		// Check if pegin can be claimed
-		checkPegin()
+	// Back up to Telegram if Liquid balance changed
+	go liquidBackup(false)
 
-		// pre-cache routing statistics
-		go ln.FetchForwardingStats()
+	// Check if pegin can be claimed
+	go checkPegin()
 
-		// check for updates
-		t := internet.GetLatestTag()
-		if t != "" {
-			latestVersion = t
-		}
+	// pre-cache routing statistics
+	go ln.FetchForwardingStats()
+
+	// check for updates
+	t := internet.GetLatestTag()
+	if t != "" {
+		latestVersion = t
 	}
 }
 
