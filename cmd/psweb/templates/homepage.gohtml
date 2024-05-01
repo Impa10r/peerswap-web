@@ -33,7 +33,16 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4">Swaps History</h4>            
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Swaps History</h4>  
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                {{if .Filter}}
+                  <h4><a href="/">🔍</a></h4>
+                {{end}}
+              </div>
+            </div>
             {{.ListSwaps}}
           </div>
         </div>

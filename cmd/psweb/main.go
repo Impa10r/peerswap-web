@@ -250,6 +250,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ListPeers         string
 		ListSwaps         string
 		BitcoinBalance    uint64
+		Filter            bool
 	}
 
 	data := Page{
@@ -261,6 +262,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
+		Filter:            nodeId != "" || state != "" || role != "",
 	}
 
 	// executing template named "homepage"
