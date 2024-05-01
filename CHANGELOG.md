@@ -4,6 +4,7 @@
 
 - Speed up screen loading for Peer and Configuration
 - Optimize CLN forwards history polling
+- Show current fees on channel
 
 ## 1.3.3
 

@@ -305,17 +305,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sumLocal uint64
-	var sumRemote uint64
-	var stats []*ln.ForwardingStats
-
-	for _, ch := range peer.Channels {
-		sumLocal += ch.LocalBalance
-		sumRemote += ch.RemoteBalance
-		stat := ln.GetForwardingStats(ch.ChannelId)
-		stats = append(stats, stat)
-	}
-
 	res2, err := ps.ReloadPolicyFile(client)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
@@ -351,6 +340,25 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 
+	var sumLocal uint64
+	var sumRemote uint64
+	var stats []*ln.ForwardingStats
+	var channelInfo []*ln.ChanneInfo
+
+	for _, ch := range peer.Channels {
+		stat := ln.GetForwardingStats(ch.ChannelId)
+		stats = append(stats, stat)
+
+		info := ln.GetChannelInfo(cl, ch.ChannelId)
+		info.LocalBalance = ch.GetLocalBalance()
+		info.RemoteBalance = ch.GetRemoteBalance()
+		info.Active = ch.GetActive()
+		channelInfo = append(channelInfo, info)
+
+		sumLocal += ch.GetLocalBalance()
+		sumRemote += ch.GetRemoteBalance()
+	}
+
 	//check for error message to display
 	message := ""
 	keys, ok = r.URL.Query()["err"]
@@ -375,6 +383,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ActiveSwaps    string
 		DirectionIn    bool
 		Stats          []*ln.ForwardingStats
+		ChannelInfo    []*ln.ChanneInfo
 	}
 
 	data := Page{
@@ -392,6 +401,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps, "", "", ""),
 		DirectionIn:    sumLocal < sumRemote,
 		Stats:          stats,
+		ChannelInfo:    channelInfo,
 	}
 
 	// executing template named "peer"

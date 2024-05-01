@@ -31,6 +31,7 @@ const Implementation = "LND"
 
 var (
 	LndVerson        = float64(0) // must be 0.18+ for RBF ability
+	nodePub          = ""
 	forwardingEvents []*lnrpc.ForwardingEvent
 	internalLockId   = []byte{
 		0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
@@ -588,4 +589,37 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
 	return &result
+}
+
+// get fees on the channel
+func GetChannelInfo(client lnrpc.LightningClient, channelId uint64) *ChanneInfo {
+	info := new(ChanneInfo)
+
+	if nodePub == "" {
+		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		if err != nil {
+			log.Println("GetInfo:", err)
+			return info
+		}
+		nodePub = res.GetIdentityPubkey()
+	}
+
+	res2, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		log.Println("GetChanInfo:", err)
+		return info
+	}
+
+	policy := res2.Node1Policy
+	if res2.Node2Pub == nodePub {
+		policy = res2.Node2Policy
+	}
+
+	info.ChannelId = strconv.FormatUint(channelId, 10)
+	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
+	info.FeeBase = uint64(policy.GetFeeBaseMsat())
+
+	return info
 }

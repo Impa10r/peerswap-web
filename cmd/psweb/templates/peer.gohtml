@@ -184,15 +184,22 @@
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 21ch; text-align: center">Channel Id</th>
                 <th style="text-align: center">Local</th>
                 <th style="text-align: center">Remote</th>
+                <th style="text-align: center">FeeRate</th>
+                <th style="text-align: center">FeeBase</th>
               </tr>
-              {{range .Peer.Channels}}
+              {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td style="text-align: center">{{.ChannelId}}</td>
                   <td style="text-align: center">{{m .LocalBalance}}</td>
                   <td style="text-align: center">{{m .RemoteBalance}}</td>
+                  {{if .Active}}
+                    <td style="text-align: center">{{fmt .FeeRate}}</td>
+                    <td style="text-align: center">{{fmt .FeeBase}}</td>
+                  {{else}}
+                    <td style="text-align: right">CHANNEL</td>
+                    <td style="text-align: left">INACTIVE</td>
+                  {{end}}
                 </tr>
               {{end}}
             </table>
