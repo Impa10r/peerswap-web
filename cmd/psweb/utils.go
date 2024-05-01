@@ -79,18 +79,15 @@ func formatWithThousandSeparators(n uint64) string {
 
 var hourGlassRotate = 0
 
-func visualiseSwapStatus(statusText string, rotate bool) string {
-	switch statusText {
-	case "State_ClaimedCoop":
-		return "<a href=\"/\">❌</a>"
-	case "State_ClaimedCsv":
-		return "<a href=\"/\">❌</a>"
-	case "State_SwapCanceled":
-		return "<a href=\"/\">❌</a>"
-	case "State_SendCancel":
-		return "<a href=\"/\">❌</a>"
+func visualiseSwapState(state string, rotate bool) string {
+	switch state {
+	case "State_ClaimedCoop",
+		"State_ClaimedCsv",
+		"State_SwapCanceled",
+		"State_SendCancel":
+		return "❌"
 	case "State_ClaimedPreimage":
-		return "<a href=\"/\">💰</a>"
+		return "💰"
 	}
 
 	if rotate {
@@ -111,6 +108,20 @@ func visualiseSwapStatus(statusText string, rotate bool) string {
 	}
 
 	return "⌛"
+}
+
+func simplifySwapState(state string) string {
+	switch state {
+	case "State_ClaimedCoop",
+		"State_ClaimedCsv",
+		"State_SwapCanceled",
+		"State_SendCancel":
+		return "failed"
+	case "State_ClaimedPreimage":
+		return "success"
+	}
+
+	return "pending"
 }
 
 func toSats(amount float64) uint64 {

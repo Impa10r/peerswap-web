@@ -220,6 +220,27 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		message = keys[0]
 	}
 
+	//check for node Id to filter swaps
+	nodeId := ""
+	keys, ok = r.URL.Query()["id"]
+	if ok && len(keys[0]) > 0 {
+		nodeId = keys[0]
+	}
+
+	//check for swaps state to filter
+	state := ""
+	keys, ok = r.URL.Query()["state"]
+	if ok && len(keys[0]) > 0 {
+		state = keys[0]
+	}
+
+	//check for swaps role to filter
+	role := ""
+	keys, ok = r.URL.Query()["role"]
+	if ok && len(keys[0]) > 0 {
+		role = keys[0]
+	}
+
 	type Page struct {
 		AllowSwapRequests bool
 		BitcoinSwaps      bool
@@ -238,7 +259,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
-		ListSwaps:         convertSwapsToHTMLTable(swaps),
+		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
 	}
 
@@ -366,7 +387,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		LBTC:           stringIsInSlice("lbtc", peer.SupportedAssets),
 		LiquidBalance:  satAmount,
 		BitcoinBalance: uint64(btcBalance),
-		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps),
+		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps, "", "", ""),
 		DirectionIn:    sumLocal < sumRemote,
 		Stats:          stats,
 	}
@@ -406,15 +427,11 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	isPending := true
 
 	switch swap.State {
-	case "State_ClaimedCoop":
-		isPending = false
-	case "State_ClaimedCsv":
-		isPending = false
-	case "State_SwapCanceled":
-		isPending = false
-	case "State_SendCancel":
-		isPending = false
-	case "State_ClaimedPreimage":
+	case "State_ClaimedCoop",
+		"State_ClaimedCsv",
+		"State_SwapCanceled",
+		"State_SendCancel",
+		"State_ClaimedPreimage":
 		isPending = false
 	}
 
@@ -481,9 +498,9 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 				<h4 class="title is-4">Swap Details</h4>
 			  </td>
 			  </td><td style="float: right; text-align: right; width:20%;">
-				<h4 class="title is-4">`
-	swapData += visualiseSwapStatus(swap.State, true)
-	swapData += `</h4>
+				<h4 class="title is-4"><a href="/">`
+	swapData += visualiseSwapState(swap.State, true)
+	swapData += `</a></h4>
 			  </td>
 			</tr>
 		  <table>
@@ -1635,7 +1652,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 }
 
 // converts a list of swaps into an HTML table
-func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
+// if nodeId != "" then only show swaps for that node Id
+func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string, swapState string, swapRole string) string {
 
 	if len(swaps) == 0 {
 		return ""
@@ -1648,6 +1666,21 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 	var unsortedTable []Table
 
 	for _, swap := range swaps {
+		// filter by node Id
+		if nodeId != "" && nodeId != swap.PeerNodeId {
+			continue
+		}
+
+		// filter by simple swap state
+		if swapState != "" && swapState != simplifySwapState(swap.State) {
+			continue
+		}
+
+		// filter by simple swap state
+		if swapRole != "" && swapRole != swap.Role {
+			continue
+		}
+
 		table := "<tr>"
 		table += "<td style=\"width: 30%; text-align: left\">"
 
@@ -1656,7 +1689,10 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 		// clicking on timestamp will open swap details page
 		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
 		table += "</td><td style=\"text-align: left\">"
-		table += visualiseSwapStatus(swap.State, false) + "&nbsp"
+
+		// clicking on swap status will filter swaps with equal status
+		table += "<a href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
+		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
 		table += formatWithThousandSeparators(swap.Amount)
 
 		asset := "🌊"
@@ -1677,16 +1713,22 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
 
+		role := ""
 		switch swap.Role {
 		case "receiver":
-			table += " ⇦&nbsp"
+			role = "⇦"
 		case "sender":
-			table += " ⇨&nbsp"
-		default:
-			table += " ?&nbsp"
+			role = "⇨"
 		}
 
+		// clicking on role will filter this direction only
+		table += "<a href=\"/?id=" + nodeId + "&state=" + swapState + "&role=" + swap.Role + "\">"
+		table += " " + role + "&nbsp<a>"
+
+		// clicking on node alias will filter its swaps only
+		table += "<a href=\"/?id=" + swap.PeerNodeId + "&state=" + swapState + "&role=" + swapRole + "\">"
 		table += getNodeAlias(swap.PeerNodeId)
+		table += "</a>"
 		table += "</td></tr>"
 
 		unsortedTable = append(unsortedTable, Table{
