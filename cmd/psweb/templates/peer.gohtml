@@ -23,6 +23,12 @@
                 {{if ne .ActiveSwaps ""}}
                   <h4 class="title is-4">Active Swaps</h4>
                   {{.ActiveSwaps}}
+                  <script>
+                    // Reload the page every minute (60000 milliseconds)
+                    setInterval(function(){
+                        location.reload();
+                    }, 60000);
+                  </script>
                 {{else }}
                   <h4 class="title is-4">New Swap</h4> 
                   <form action="/submit" method="post">

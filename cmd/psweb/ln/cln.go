@@ -343,11 +343,30 @@ func CanRBF() bool {
 	return true
 }
 
-var forwards struct {
-	Forwards []glightning.Forwarding `json:"forwards"`
+type ListForwardsRequest struct {
+	Status string `json:"status"`
+	Index  string `json:"index"`
+	Start  uint64 `json:"start"`
 }
 
-// fetch all routing statistics from cln
+func (r *ListForwardsRequest) Name() string {
+	return "listforwards"
+}
+
+type Forwarding struct {
+	CreatedIndex uint64  `json:"created_index"`
+	InChannel    string  `json:"in_channel"`
+	OutChannel   string  `json:"out_channel"`
+	OutMsat      uint64  `json:"out_msat"`
+	FeeMsat      uint64  `json:"fee_msat"`
+	ResolvedTime float64 `json:"resolved_time"`
+}
+
+var forwards struct {
+	Forwards []Forwarding `json:"forwards"`
+}
+
+// fetch routing statistics from cln
 func FetchForwardingStats() {
 	// refresh history
 	client, clean, err := GetClient()
@@ -356,7 +375,32 @@ func FetchForwardingStats() {
 	}
 	defer clean()
 
-	client.Request(&glightning.ListForwardsRequest{}, &forwards)
+	if len(forwards.Forwards) > 0 {
+		// continue from the last index + 1
+		start := forwards.Forwards[len(forwards.Forwards)-1].CreatedIndex + 1
+
+		var newForwards struct {
+			Forwards []Forwarding `json:"forwards"`
+		}
+
+		// get incremental history
+		client.Request(&ListForwardsRequest{
+			Status: "settled",
+			Index:  "created",
+			Start:  start,
+		}, &newForwards)
+
+		// append to all
+		forwards.Forwards = append(forwards.Forwards, newForwards.Forwards...)
+	} else {
+		// get all history
+		client.Request(&ListForwardsRequest{
+			Status: "settled",
+			Index:  "created",
+			Start:  0,
+		}, &forwards)
+	}
+
 }
 
 // get routing statistics for a channel
@@ -386,33 +430,31 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	channelId := ConvertLndToClnChannelId(lndChannelId)
 
 	for _, e := range forwards.Forwards {
-		if e.Status == "settled" {
-			if e.OutChannel == channelId {
-				if e.ReceivedTime > timestamp6m {
-					amountOut6m += e.MilliSatoshiOut
-					feeMsat6m += e.Fee
-					if e.ReceivedTime > timestamp30d {
-						amountOut30d += e.MilliSatoshiOut
-						feeMsat30d += e.Fee
-						if e.ReceivedTime > timestamp7d {
-							amountOut7d += e.MilliSatoshiOut
-							feeMsat7d += e.Fee
-							log.Println(e)
-						}
+		if e.OutChannel == channelId {
+			if e.ResolvedTime > timestamp6m {
+				amountOut6m += e.OutMsat
+				feeMsat6m += e.FeeMsat
+				if e.ResolvedTime > timestamp30d {
+					amountOut30d += e.OutMsat
+					feeMsat30d += e.FeeMsat
+					if e.ResolvedTime > timestamp7d {
+						amountOut7d += e.OutMsat
+						feeMsat7d += e.FeeMsat
+						log.Println(e)
 					}
 				}
 			}
-			if e.InChannel == channelId {
-				if e.ReceivedTime > timestamp6m {
-					amountIn6m += e.MilliSatoshiOut
-					assistedMsat6m += e.Fee
-					if e.ReceivedTime > timestamp30d {
-						amountIn30d += e.MilliSatoshiOut
-						assistedMsat30d += e.Fee
-						if e.ReceivedTime > timestamp7d {
-							amountIn7d += e.MilliSatoshiOut
-							assistedMsat7d += e.Fee
-						}
+		}
+		if e.InChannel == channelId {
+			if e.ResolvedTime > timestamp6m {
+				amountIn6m += e.OutMsat
+				assistedMsat6m += e.FeeMsat
+				if e.ResolvedTime > timestamp30d {
+					amountIn30d += e.OutMsat
+					assistedMsat30d += e.FeeMsat
+					if e.ResolvedTime > timestamp7d {
+						amountIn7d += e.OutMsat
+						assistedMsat7d += e.FeeMsat
 					}
 				}
 			}
@@ -426,12 +468,12 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	result.AmountIn30d = amountIn30d / 1000
 	result.AmountIn6m = amountIn6m / 1000
 
-	result.FeeSat7d = feeMsat7d
-	result.AssistedFeeSat7d = assistedMsat7d
-	result.FeeSat30d = feeMsat30d
-	result.AssistedFeeSat30d = assistedMsat30d
-	result.FeeSat6m = feeMsat6m
-	result.AssistedFeeSat6m = assistedMsat6m
+	result.FeeSat7d = feeMsat7d / 1000
+	result.AssistedFeeSat7d = assistedMsat7d / 1000
+	result.FeeSat30d = feeMsat30d / 1000
+	result.AssistedFeeSat30d = assistedMsat30d / 1000
+	result.FeeSat6m = feeMsat6m / 1000
+	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
 	return &result
 }

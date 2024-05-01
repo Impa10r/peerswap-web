@@ -1561,20 +1561,18 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += getNodeAlias(peer.NodeId)
 		table += "</a>"
 		table += "</td><td style=\"float: right; text-align: right; width:30%;\">"
-		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			table += "🌊&nbsp"
 		}
 		if stringIsInSlice("btc", peer.SupportedAssets) {
-			table += "₿&nbsp"
+			table += "<span style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
 		}
 		if peer.SwapsAllowed {
 			table += "✅"
 		} else {
 			table += "⛔"
 		}
-		table += "</a>"
 		table += "</td></tr></table>"
 
 		table += "<table style=\"table-layout:fixed;\">"

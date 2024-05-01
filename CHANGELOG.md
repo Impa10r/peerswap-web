@@ -3,6 +3,7 @@
 ## 1.3.4
 
 - Speed up screen loading for Peer and Configuration
+- Optimize CLN forwards history polling
 
 ## 1.3.3
 
