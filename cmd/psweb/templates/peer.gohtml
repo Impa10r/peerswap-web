@@ -128,24 +128,24 @@
             <table style="width:100%; table-layout:fixed;">
               <tr>
                 <th style="text-align: center">Swaps</th>
-                <th style="text-align: center">⚡ ⇨</th>
-                <th style="text-align: center">#</th>
                 <th style="text-align: center">⇨ ⚡</th>
                 <th style="text-align: center">#</th>   
+                <th style="text-align: center">⚡ ⇨</th>
+                <th style="text-align: center">#</th>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Sent
-                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
                 <td style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsSender.SwapsIn}}</td>
+                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Rcvd
-                <td style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
-                <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsIn}}</td>
                 <td style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsOut}}</td>
+                <td style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsReceiver.SwapsIn}}</td>
               </tr>
             </table>  
             <p style="margin:0.5em;"></p>
