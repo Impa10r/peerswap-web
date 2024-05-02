@@ -510,7 +510,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 				<h4 class="title is-4">Swap Details</h4>
 			  </td>
 			  </td><td style="float: right; text-align: right; width:20%;">
-				<h4 class="title is-4"><a href="/">`
+				<h4 class="title is-4"><a title="Return to initial page" href="/">`
 	swapData += visualiseSwapState(swap.State, true)
 	swapData += `</a></h4>
 			  </td>
@@ -1750,7 +1750,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		table += "</td><td style=\"text-align: left\">"
 
 		// clicking on swap status will filter swaps with equal status
-		table += "<a title=\"Filter " + simplifySwapState(swap.State) + " state\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
+		table += "<a title=\"Filter by state: " + simplifySwapState(swap.State) + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
 		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
 		table += formatWithThousandSeparators(swap.Amount)
 
@@ -1781,11 +1781,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		}
 
 		// clicking on role will filter this direction only
-		table += "<a href=\"/?&id=" + nodeId + "&state=" + swapState + "&role=" + swap.Role + "\">"
+		table += "<a title=\"Filter by role: " + swap.Role + "\" href=\"/?&id=" + nodeId + "&state=" + swapState + "&role=" + swap.Role + "\">"
 		table += " " + role + "&nbsp<a>"
 
 		// clicking on node alias will filter its swaps only
-		table += "<a href=\"/?id=" + swap.PeerNodeId + "&state=" + swapState + "&role=" + swapRole + "\">"
+		table += "<a title=\"Filter swaps by this peer\" href=\"/?id=" + swap.PeerNodeId + "&state=" + swapState + "&role=" + swapRole + "\">"
 		table += getNodeAlias(swap.PeerNodeId)
 		table += "</a>"
 		table += "</td></tr>"
