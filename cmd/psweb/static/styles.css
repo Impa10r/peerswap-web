@@ -28,9 +28,9 @@ header {
     color:white;
     font-size:1em;
     background-image:
-        linear-gradient(blue,blue),
-        linear-gradient(red,red),
-        linear-gradient(green,green),
+        linear-gradient(blue,darkblue),
+        linear-gradient(red,darkred),
+        linear-gradient(green,darkgreen),
         linear-gradient(grey,grey);
     background-repeat:no-repeat;
     transition:1s;
