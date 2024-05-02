@@ -4,7 +4,7 @@
 
 - Display channel flow after the last swap
 - Allow filtering swaps history 
-- Speed up loadiong of pages
+- Speed up loading of pages
 - CLN: implement incremental forwards history polling
 - Display current fee rates for channels
 - Add help tooltips
