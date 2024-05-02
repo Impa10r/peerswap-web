@@ -18,7 +18,13 @@ import (
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/psbt"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
@@ -32,8 +38,16 @@ const Implementation = "LND"
 var (
 	LndVerson        = float64(0) // must be 0.18+ for RBF ability
 	forwardingEvents []*lnrpc.ForwardingEvent
-	internalLockId   = []byte{
+	// default lock id used by LND
+	internalLockId = []byte{
 		0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
+		0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
+		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
+		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
+	}
+	// custom lock id needed when funding manually constructed PSBT
+	myLockId = []byte{
+		0x00, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
 		0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
 		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
 		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
@@ -213,6 +227,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		outputs[addr] = uint64(amount)
 	}
 
+	lockId := internalLockId
 	psbtBytes, err := fundPsbt(cl, utxos, outputs, feeRate)
 	if err != nil {
 		log.Println("FundPsbt:", err)
@@ -227,8 +242,8 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 			return nil, err
 		}
 		// reduce output amount by fee and small haircut to go around the LND bug
-		for haircut := int64(0); haircut <= 100; haircut += 5 {
-			err = releaseOutputs(cl, utxos)
+		for haircut := int64(0); haircut <= 2000; haircut += 5 {
+			err = releaseOutputs(cl, utxos, &lockId)
 			if err != nil {
 				return nil, err
 			}
@@ -237,15 +252,21 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 			if finalAmount < 0 {
 				finalAmount = 0
 			}
-			outputs[addr] = uint64(finalAmount)
-			psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+			if CanRBF() {
+				// for LND 0.18+, change lockID and construct manual psbt
+				lockId = myLockId
+				psbtBytes, err = fundPsbt018(cl, utxos, addr, finalAmount, feeRate)
+			} else {
+				outputs[addr] = uint64(finalAmount)
+				psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+			}
 			if err == nil {
 				break
 			}
 		}
 		if err != nil {
 			log.Println("FundPsbt:", err)
-			releaseOutputs(cl, utxos)
+			releaseOutputs(cl, utxos, &lockId)
 			return nil, err
 		}
 	}
@@ -257,7 +278,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	if err != nil {
 		log.Println("FinalizePsbt:", err)
-		releaseOutputs(cl, utxos)
+		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
 	}
 
@@ -279,7 +300,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	_, err = cl.PublishTransaction(ctx, req)
 	if err != nil {
 		log.Println("PublishTransaction:", err)
-		releaseOutputs(cl, utxos)
+		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
 	}
 
@@ -292,7 +313,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	return &result, nil
 }
 
-func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string) error {
+func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string, lockId *[]byte) error {
 	ctx := context.Background()
 	for _, i := range *utxos {
 		parts := strings.Split(i, ":")
@@ -304,7 +325,7 @@ func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string) error {
 		}
 
 		_, err = cl.ReleaseOutput(ctx, &walletrpc.ReleaseOutputRequest{
-			Id: internalLockId,
+			Id: *lockId,
 			Outpoint: &lnrpc.OutPoint{
 				TxidStr:     parts[0],
 				OutputIndex: uint32(index),
@@ -359,6 +380,109 @@ func fundPsbt(cl walletrpc.WalletKitClient, utxos *[]string, outputs map[string]
 	return res.GetFundedPsbt(), nil
 }
 
+// manual construction of PSBT in LND 0.18+ to spend exact UTXOs with no change
+func fundPsbt018(cl walletrpc.WalletKitClient, utxoStrings *[]string, address string, sendAmount int64, feeRate uint64) ([]byte, error) {
+	ctx := context.Background()
+
+	unspent, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{
+		MinConfs: 1,
+	})
+	if err != nil {
+		log.Println("ListUnspent:", err)
+		return nil, err
+	}
+
+	tx := wire.NewMsgTx(2)
+
+	for _, utxo := range unspent.Utxos {
+		for _, u := range *utxoStrings {
+			parts := strings.Split(u, ":")
+			index, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return nil, err
+			}
+
+			if utxo.Outpoint.TxidStr == parts[0] && utxo.Outpoint.OutputIndex == uint32(index) {
+				hash, err := chainhash.NewHash(utxo.Outpoint.TxidBytes)
+				if err != nil {
+					log.Println("NewHash:", err)
+					return nil, err
+				}
+				_, err = cl.LeaseOutput(ctx, &walletrpc.LeaseOutputRequest{
+					Id:                myLockId,
+					Outpoint:          utxo.Outpoint,
+					ExpirationSeconds: uint64(10),
+				})
+				if err != nil {
+					log.Println("LeaseOutput:", err)
+					return nil, err
+				}
+
+				tx.TxIn = append(tx.TxIn, &wire.TxIn{
+					PreviousOutPoint: wire.OutPoint{
+						Hash:  *hash,
+						Index: utxo.Outpoint.OutputIndex,
+					},
+				})
+			}
+		}
+	}
+
+	var harnessNetParams = &chaincfg.TestNet3Params
+	if config.Config.Chain == "mainnet" {
+		harnessNetParams = &chaincfg.MainNetParams
+	}
+
+	parsed, err := btcutil.DecodeAddress(address, harnessNetParams)
+	if err != nil {
+		log.Println("DecodeAddress:", err)
+		return nil, err
+	}
+
+	pkScript, err := txscript.PayToAddrScript(parsed)
+	if err != nil {
+		log.Println("PayToAddrScript:", err)
+		return nil, err
+	}
+
+	tx.TxOut = append(tx.TxOut, &wire.TxOut{
+		PkScript: pkScript,
+		Value:    sendAmount,
+	})
+
+	packet, err := psbt.NewFromUnsignedTx(tx)
+	if err != nil {
+		log.Println("NewFromUnsignedTx:", err)
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	_ = packet.Serialize(&buf)
+
+	cs := &walletrpc.PsbtCoinSelect{
+		Psbt: buf.Bytes(),
+		ChangeOutput: &walletrpc.PsbtCoinSelect_ExistingOutputIndex{
+			ExistingOutputIndex: 0,
+		},
+	}
+
+	fundResp, err := cl.FundPsbt(ctx, &walletrpc.FundPsbtRequest{
+		Template: &walletrpc.FundPsbtRequest_CoinSelect{
+			CoinSelect: cs,
+		},
+		Fees: &walletrpc.FundPsbtRequest_SatPerVbyte{
+			SatPerVbyte: feeRate,
+		},
+	})
+	if err != nil {
+		log.Println("FundPsbt:", err)
+		releaseOutputs(cl, utxoStrings, &myLockId)
+		return nil, err
+	}
+
+	return fundResp.FundedPsbt, nil
+}
+
 func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 
 	client, cleanup, err := GetClient()
@@ -411,11 +535,12 @@ func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 		utxos = append(utxos, input.Outpoint)
 	}
 
-	err = releaseOutputs(cl, &utxos)
-	if err != nil {
-		return nil, err
-	}
-
+	/*
+		err = releaseOutputs(cl, &utxos, &internalLockId)
+		if err != nil {
+			return nil, err
+		}
+	*/
 	return SendCoinsWithUtxos(
 		&utxos,
 		config.Config.PeginAddress,

@@ -8,6 +8,7 @@
 - Optimize CLN forwards history polling
 - Display current fee rates on channels
 - Add help tooltips
+- LND 0.18+: exact fee when sending change-less peg-in tx (there is a bug LND below 0.18)
 
 ## 1.3.3
 

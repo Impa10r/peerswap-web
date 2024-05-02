@@ -1588,16 +1588,16 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
-			table += "<span title=\"Peer enabled\">✅&nbsp</span>"
+			table += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
 		} else {
-			table += "<span title=\"Peer disabled\">⛔&nbsp</span>"
+			table += "<span title=\"Peer is blacklisted\">⛔&nbsp</span>"
 		}
 
 		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
 			table += "<span title=\"Peer is marked suspicious\">🕵&nbsp</span>"
 		}
 
-		table += "<span title=\"Node alias\">" + getNodeAlias(peer.NodeId)
+		table += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
 		table += "</span></a>"
 		table += "</td><td style=\"float: right; text-align: right; width:30%;\">"
 
@@ -1608,9 +1608,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			table += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
 		}
 		if peer.SwapsAllowed {
-			table += "<span title=\"Swaps allowed\">✅</span>"
+			table += "<span title=\"Peer whilelisted us\">✅</span>"
 		} else {
-			table += "<span title=\"Swaps disabled\">⛔</span>"
+			table += "<span title=\"Peer did not whitelist us\">⛔</span>"
 		}
 		table += "</td></tr></table>"
 
