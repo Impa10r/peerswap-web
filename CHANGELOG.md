@@ -6,9 +6,9 @@
 - Allow filtering swaps history 
 - Speed up screen loading for Peer and Configuration
 - Optimize CLN forwards history polling
-- Display current fee rates on channels
+- Display current fee rates for channels
 - Add help tooltips
-- LND 0.18+: exact fee when sending change-less peg-in tx (there is a bug LND below 0.18)
+- LND 0.18+: exact fee when sending change-less peg-in tx (there is a bug in LND below 0.18)
 
 ## 1.3.3
 

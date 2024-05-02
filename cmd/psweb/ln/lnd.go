@@ -5,7 +5,6 @@ package ln
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -236,8 +235,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	if subtractFeeFromAmount {
 		// replace output with correct address and amount
-		psbtString := base64.StdEncoding.EncodeToString(psbtBytes)
-		fee, err := bitcoin.GetFeeFromPsbt(psbtString)
+		fee, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -252,6 +250,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 			if finalAmount < 0 {
 				finalAmount = 0
 			}
+
 			if CanRBF() {
 				// for LND 0.18+, change lockID and construct manual psbt
 				lockId = myLockId
@@ -261,6 +260,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 				psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
 			}
 			if err == nil {
+				// PFBT was funded successfully
 				break
 			}
 		}
@@ -302,6 +302,11 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		log.Println("PublishTransaction:", err)
 		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
+	}
+
+	// confirm the final amount sent
+	if subtractFeeFromAmount {
+		finalAmount = msgTx.TxOut[0].Value
 	}
 
 	result := SentResult{
@@ -535,12 +540,10 @@ func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 		utxos = append(utxos, input.Outpoint)
 	}
 
-	/*
-		err = releaseOutputs(cl, &utxos, &internalLockId)
-		if err != nil {
-			return nil, err
-		}
-	*/
+	// sometimes remove transaction is not enough
+	releaseOutputs(cl, &utxos, &internalLockId)
+	releaseOutputs(cl, &utxos, &myLockId)
+
 	return SendCoinsWithUtxos(
 		&utxos,
 		config.Config.PeginAddress,
