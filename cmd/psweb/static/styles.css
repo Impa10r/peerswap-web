@@ -24,6 +24,9 @@ header {
     position: center;
     height: 0.6em;
     width: 100%;
+    text-align:center;
+    color:white;
+    font-size:1em;
     background-image:
         linear-gradient(blue,blue),
         linear-gradient(red,red),

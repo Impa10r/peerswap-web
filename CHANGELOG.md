@@ -2,9 +2,11 @@
 
 ## 1.3.4
 
+- Display balance change from the last swap
+- Add filtering swaps history 
 - Speed up screen loading for Peer and Configuration
 - Optimize CLN forwards history polling
-- Show current fees on channel
+- Display current fee rates on peer channels
 
 ## 1.3.3
 

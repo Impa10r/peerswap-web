@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// returns time passed as a srting
+// returns time passed as a string
 func timePassedAgo(t time.Time) string {
 	duration := time.Since(t)
 
@@ -17,7 +17,9 @@ func timePassedAgo(t time.Time) string {
 
 	var result string
 
-	if days > 0 {
+	if days == 1 {
+		result = fmt.Sprintf("%d day ago", days)
+	} else if days > 1 {
 		result = fmt.Sprintf("%d days ago", days)
 	} else if hours > 0 {
 		result = fmt.Sprintf("%d hours ago", hours)

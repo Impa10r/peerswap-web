@@ -124,7 +124,14 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>        
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <h4><a href="/?id={{.Peer.NodeId}}&state=success">🔍</a></h4>
+              </div>
+            </div>
             <table style="width:100%; table-layout:fixed;">
               <tr>
                 <th style="text-align: center">Swaps</th>
@@ -208,7 +215,7 @@
               <div class="column">
                 <center>            
                   {{if .Suspicious}}
-                    <p>🔍 This peer is suspicious</p>
+                    <p>🕵 This peer is suspicious</p>
                     <form action="/submit" method="post">
                       <input type="hidden" name="action" value="unsuspectPeer">
                       <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">

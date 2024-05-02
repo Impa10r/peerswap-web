@@ -1588,29 +1588,29 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
-			table += "✅&nbsp"
+			table += "<span title=\"Peer enabled\">✅&nbsp</span>"
 		} else {
-			table += "⛔&nbsp"
+			table += "<span title=\"Peer disabled\">⛔&nbsp</span>"
 		}
 
 		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
-			table += "🔍&nbsp"
+			table += "<span title=\"Peer is marked suspicious\">🕵&nbsp</span>"
 		}
 
-		table += getNodeAlias(peer.NodeId)
-		table += "</a>"
+		table += "<span title=\"Node alias\">" + getNodeAlias(peer.NodeId)
+		table += "</span></a>"
 		table += "</td><td style=\"float: right; text-align: right; width:30%;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
-			table += "🌊&nbsp"
+			table += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
 		}
 		if stringIsInSlice("btc", peer.SupportedAssets) {
-			table += "<span style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
+			table += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
 		}
 		if peer.SwapsAllowed {
-			table += "✅"
+			table += "<span title=\"Swaps allowed\">✅</span>"
 		} else {
-			table += "⛔"
+			table += "<span title=\"Swaps disabled\">⛔</span>"
 		}
 		table += "</td></tr></table>"
 
@@ -1633,7 +1633,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			}
 
 			table += "<tr style=\"background-color: " + bc + "\"; >"
-			table += "<td id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			table += "<td title=\"Local balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
 			table += toMil(channel.LocalBalance)
 			table += "</td><td style=\"text-align: center; vertical-align: middle;\">"
 			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -1642,11 +1642,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
+			tooltip := "in the last 6 months"
 
 			// timestamp frow the last swap or 6m horizon
 			lastSwapTimestamp := time.Now().AddDate(0, 0, -30).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+				tooltip = "since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
 			netFlow := float64(ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp)))
@@ -1660,20 +1662,26 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousPct = greenPct
+				tooltip = "-" + toMil(uint64(netFlow)) + tooltip
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousPct = redPct
+				tooltip = "-" + toMil(uint64(netFlow)) + tooltip
+			}
+
+			if netFlow == 0 {
+				tooltip = "No flow " + tooltip
 			}
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousPct, redPct, greenPct)
 
-			table += "<div class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
+			table += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			table += "</a></td>"
-			table += "<td id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			table += "<td title=\"Remote balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
 			table += toMil(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
