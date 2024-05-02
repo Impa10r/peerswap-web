@@ -349,7 +349,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		stat := ln.GetForwardingStats(ch.ChannelId)
 		stats = append(stats, stat)
 
-		info := ln.GetChannelInfo(cl, ch.ChannelId)
+		info := ln.GetChannelInfo(cl, ch.ChannelId, peer.NodeId)
 		info.LocalBalance = ch.GetLocalBalance()
 		info.RemoteBalance = ch.GetRemoteBalance()
 		info.Active = ch.GetActive()
@@ -1658,22 +1658,22 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			redPct := int(0)
 			previousPct := bluePct
 
-			if netFlow > 0 {
-				greenPct = int(local * 100 / capacity)
-				bluePct = int((local - netFlow) * 100 / capacity)
-				previousPct = greenPct
-				tooltip = "-" + toMil(uint64(netFlow)) + tooltip
-			}
-
-			if netFlow < 0 {
-				bluePct = int(local * 100 / capacity)
-				redPct = int((local - netFlow) * 100 / capacity)
-				previousPct = redPct
-				tooltip = "-" + toMil(uint64(netFlow)) + tooltip
-			}
-
 			if netFlow == 0 {
 				tooltip = "No flow " + tooltip
+			} else {
+				if netFlow > 0 {
+					greenPct = int(local * 100 / capacity)
+					bluePct = int((local - netFlow) * 100 / capacity)
+					previousPct = greenPct
+					tooltip = "Net inflow " + toMil(uint64(netFlow)) + tooltip
+				}
+
+				if netFlow < 0 {
+					bluePct = int(local * 100 / capacity)
+					redPct = int((local - netFlow) * 100 / capacity)
+					previousPct = redPct
+					tooltip = "Net outflow " + toMil(uint64(-netFlow)) + tooltip
+				}
 			}
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
@@ -1746,11 +1746,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
 		// clicking on timestamp will open swap details page
-		table += "<a href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
+		table += "<a title=\"Open swap details page\" href=\"/swap?id=" + swap.Id + "\">" + tm + "</a> "
 		table += "</td><td style=\"text-align: left\">"
 
 		// clicking on swap status will filter swaps with equal status
-		table += "<a href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
+		table += "<a title=\"Filter " + simplifySwapState(swap.State) + " state\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
 		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
 		table += formatWithThousandSeparators(swap.Amount)
 

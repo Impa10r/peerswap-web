@@ -37,7 +37,6 @@ type ForwardingStats struct {
 }
 
 type ChanneInfo struct {
-	ChannelId     string
 	LocalBalance  uint64
 	RemoteBalance uint64
 	FeeRate       uint64

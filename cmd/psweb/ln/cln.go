@@ -379,29 +379,21 @@ func FetchForwardingStats() {
 		Forwards []Forwarding `json:"forwards"`
 	}
 
+	start := uint64(0)
 	if len(forwards.Forwards) > 0 {
 		// continue from the last index + 1
-		// remember we store forwards in reverse order
-		start := forwards.Forwards[0].CreatedIndex + 1
-
-		// get incremental history
-		client.Request(&ListForwardsRequest{
-			Status: "settled",
-			Index:  "created",
-			Start:  start,
-		}, &newForwards)
-
-	} else {
-		// get all history
-		client.Request(&ListForwardsRequest{
-			Status: "settled",
-			Index:  "created",
-			Start:  0,
-		}, &newForwards)
+		start = forwards.Forwards[len(forwards.Forwards)-1].CreatedIndex + 1
 	}
 
-	// append to all in reverse order for easier retrieval
-	forwards.Forwards = append(newForwards.Forwards.slice().reverse(), forwards.Forwards...)
+	// get incremental history
+	client.Request(&ListForwardsRequest{
+		Status: "settled",
+		Index:  "created",
+		Start:  start,
+	}, &newForwards)
+
+	// append to all history
+	forwards.Forwards = append(forwards.Forwards, newForwards.Forwards...)
 }
 
 // get routing statistics for a channel
@@ -460,10 +452,6 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 				}
 			}
 		}
-		if e.CreatedAt < timestamp6m {
-			// don't search beyond 6m
-			break
-		}
 	}
 
 	result.AmountOut7d = amountOut7d / 1000
@@ -488,22 +476,56 @@ func GetNetFlow(lndChannelId uint64, timeStamp uint64) int64 {
 
 	netFlow := int64(0)
 	channelId := ConvertLndToClnChannelId(lndChannelId)
+	timeStampF := float64(timeStamp)
 
 	for _, e := range forwards.Forwards {
 		if e.InChannel == channelId {
-			if e.ResolvedTime > timeStamp {
-				netFlow -= int64(e.AmtOut)
+			if e.ResolvedTime > timeStampF {
+				netFlow -= int64(e.OutMsat)
 			}
 		}
 		if e.OutChannel == channelId {
-			if e.ResolvedTime > timeStamp {
-				netFlow += int64(e.AmtOut)
+			if e.ResolvedTime > timeStampF {
+				netFlow += int64(e.OutMsat)
 			}
 		}
-		if e.CreatedAt < timeStamp {
-			// don't search beyond
+	}
+	return netFlow / 1000
+}
+
+type ListPeerChannelsRequest struct {
+	PeerId string `json:"id,omitempty"`
+}
+
+func (r ListPeerChannelsRequest) Name() string {
+	return "listpeerchannels"
+}
+
+// get fees on the channel
+func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId string) *ChanneInfo {
+	info := new(ChanneInfo)
+	channelId := ConvertLndToClnChannelId(lndChannelId)
+
+	var response map[string]interface{}
+
+	err := client.Request(&ListPeerChannelsRequest{
+		PeerId: nodeId,
+	}, &response)
+	if err != nil {
+		log.Println(err)
+		return info
+	}
+
+	// Iterate over channels to find ours
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+		if channelMap["short_channel_id"].(string) == channelId {
+			info.FeeBase = uint64(channelMap["fee_base_msat"].(float64))
+			info.FeeRate = uint64(channelMap["fee_proportional_millionths"].(float64))
 			break
 		}
 	}
-	return netFlow
+
+	return info
 }
