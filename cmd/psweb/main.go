@@ -1642,13 +1642,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
-			tooltip := "in the last 6 months"
+			tooltip := " in the last 6 months"
 
 			// timestamp frow the last swap or 6m horizon
 			lastSwapTimestamp := time.Now().AddDate(0, 0, -30).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
-				tooltip = "since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
+				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
 			netFlow := float64(ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp)))
@@ -1656,28 +1656,29 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
 			redPct := int(0)
-			previousPct := bluePct
+			previousBlue := bluePct
+			previousRed := redPct
 
 			if netFlow == 0 {
-				tooltip = "No flow " + tooltip
+				tooltip = "No flow" + tooltip
 			} else {
 				if netFlow > 0 {
 					greenPct = int(local * 100 / capacity)
 					bluePct = int((local - netFlow) * 100 / capacity)
-					previousPct = greenPct
+					previousBlue = greenPct
 					tooltip = "Net inflow " + toMil(uint64(netFlow)) + tooltip
 				}
 
 				if netFlow < 0 {
 					bluePct = int(local * 100 / capacity)
 					redPct = int((local - netFlow) * 100 / capacity)
-					previousPct = redPct
+					previousRed = bluePct
 					tooltip = "Net outflow " + toMil(uint64(-netFlow)) + tooltip
 				}
 			}
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
-			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousPct, redPct, greenPct)
+			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
 
 			table += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			table += "</a></td>"
