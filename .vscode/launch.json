@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "buildFlags": "-tags lnd",
+            "buildFlags": "-tags cln",
             "program": "${workspaceFolder}/cmd/psweb/",
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",

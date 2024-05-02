@@ -146,6 +146,9 @@ func main() {
 	// Start timer to run every minute
 	go startTimer()
 
+	// to speed up first load of home page
+	go cacheAliases()
+
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -1905,4 +1908,23 @@ func getNodeAlias(key string) string {
 	})
 
 	return alias
+}
+
+// preemptively load Aliases in cache
+func cacheAliases() {
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
+	if err != nil {
+		return
+	}
+
+	peers := res.GetPeers()
+	for _, peer := range peers {
+		getNodeAlias(peer.NodeId)
+	}
 }

@@ -4,8 +4,8 @@
 
 - Display channel flow after the last swap
 - Allow filtering swaps history 
-- Speed up screen loading for Peer and Configuration
-- Optimize CLN forwards history polling
+- Speed up loadiong of pages
+- CLN: implement incremental forwards history polling
 - Display current fee rates for channels
 - Add help tooltips
 - LND 0.18+: exact fee when sending change-less peg-in tx (there is a bug in LND below 0.18)
