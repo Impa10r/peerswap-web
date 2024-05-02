@@ -623,3 +623,25 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64) *ChanneInfo 
 
 	return info
 }
+
+// net balance change for a channel
+func GetNetFlow(channelId uint64, timeStamp uint64) int64 {
+
+	netFlow := int64(0)
+	timestampNs := timeStamp * 1_000_000_000
+
+	for _, e := range forwardingEvents {
+		if e.ChanIdOut == channelId {
+			if e.TimestampNs > timestampNs {
+				netFlow -= int64(e.AmtOut)
+			}
+		}
+		if e.ChanIdIn == channelId {
+			if e.TimestampNs > timestampNs {
+				netFlow += int64(e.AmtIn)
+			}
+		}
+	}
+
+	return netFlow
+}

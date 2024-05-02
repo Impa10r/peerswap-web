@@ -375,13 +375,14 @@ func FetchForwardingStats() {
 	}
 	defer clean()
 
+	var newForwards struct {
+		Forwards []Forwarding `json:"forwards"`
+	}
+
 	if len(forwards.Forwards) > 0 {
 		// continue from the last index + 1
-		start := forwards.Forwards[len(forwards.Forwards)-1].CreatedIndex + 1
-
-		var newForwards struct {
-			Forwards []Forwarding `json:"forwards"`
-		}
+		// remember we store forwards in reverse order
+		start := forwards.Forwards[0].CreatedIndex + 1
 
 		// get incremental history
 		client.Request(&ListForwardsRequest{
@@ -390,17 +391,17 @@ func FetchForwardingStats() {
 			Start:  start,
 		}, &newForwards)
 
-		// append to all
-		forwards.Forwards = append(forwards.Forwards, newForwards.Forwards...)
 	} else {
 		// get all history
 		client.Request(&ListForwardsRequest{
 			Status: "settled",
 			Index:  "created",
 			Start:  0,
-		}, &forwards)
+		}, &newForwards)
 	}
 
+	// append to all in reverse order for easier retrieval
+	forwards.Forwards = append(newForwards.Forwards.slice().reverse(), forwards.Forwards...)
 }
 
 // get routing statistics for a channel
@@ -459,6 +460,10 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 				}
 			}
 		}
+		if e.CreatedAt < timestamp6m {
+			// don't search beyond 6m
+			break
+		}
 	}
 
 	result.AmountOut7d = amountOut7d / 1000
@@ -476,4 +481,29 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
 	return &result
+}
+
+// net balance change for a channel
+func GetNetFlow(lndChannelId uint64, timeStamp uint64) int64 {
+
+	netFlow := int64(0)
+	channelId := ConvertLndToClnChannelId(lndChannelId)
+
+	for _, e := range forwards.Forwards {
+		if e.InChannel == channelId {
+			if e.ResolvedTime > timeStamp {
+				netFlow -= int64(e.AmtOut)
+			}
+		}
+		if e.OutChannel == channelId {
+			if e.ResolvedTime > timeStamp {
+				netFlow += int64(e.AmtOut)
+			}
+		}
+		if e.CreatedAt < timeStamp {
+			// don't search beyond
+			break
+		}
+	}
+	return netFlow
 }

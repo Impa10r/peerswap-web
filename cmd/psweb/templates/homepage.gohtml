@@ -31,7 +31,7 @@
             {{.ListPeers}}
           </div>
         </div>
-        <div class="column">
+        <div id="swaps" class="column">
           <div class="box">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
@@ -75,7 +75,7 @@
 
       function scrambleText(text) {
         // Scramble starting from the second symbol with Greek alphabet
-        var scrambledText = text[0]; // Keep the first symbol as is
+        var scrambledText = ""; 
         
         for (var i = 0; i < text.length; i++) {
           // Replace with random Greek alphabet characters

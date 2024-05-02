@@ -57,7 +57,7 @@ func Load(dataDir string) {
 	// load defaults first
 	Config.AllowSwapRequests = true
 	Config.ColorScheme = "dark" // dark or light
-	Config.MaxHistory = 10
+	Config.MaxHistory = 20
 	Config.ElementsPass = ""
 	Config.BitcoinSwaps = true
 	Config.LocalMempool = ""

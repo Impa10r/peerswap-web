@@ -259,7 +259,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Message:           message,
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
-		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers),
+		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
 		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
@@ -1557,18 +1557,28 @@ func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswapr
 }
 
 // converts a list of peers into an HTML table to display
-func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string) string {
+func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string, swaps []*peerswaprpc.PrettyPrintSwap) string {
 
 	type Table struct {
-		AvgLocal uint64
+		AvgLocal int
 		HtmlBlob string
+	}
+
+	// find last swap timestamps per channel
+	swapTimestamps := make(map[uint64]int64)
+
+	for _, swap := range swaps {
+		if swapTimestamps[swap.LndChanId] < swap.CreatedAt {
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+		}
 	}
 
 	var unsortedTable []Table
 
 	for _, peer := range peers {
-		var totalLocal uint64
-		var totalCapacity uint64
+
+		var totalLocal float64
+		var totalCapacity float64
 
 		table := "<table style=\"table-layout:fixed; width: 100%\">"
 		table += "<tr style=\"border: 1px dotted\">"
@@ -1604,11 +1614,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		}
 		table += "</td></tr></table>"
 
-		table += "<table style=\"table-layout:fixed;\">"
+		table += "<table style=\"table-layout: fixed; width: 100%\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
-
 			// red background for inactive channels
 			bc := "#590202"
 			if config.Config.ColorScheme == "light" {
@@ -1624,25 +1633,55 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			}
 
 			table += "<tr style=\"background-color: " + bc + "\"; >"
-			table += "<td id=\"scramble\" style=\"width: 20ch; text-align: center\">"
-			table += formatWithThousandSeparators(channel.LocalBalance)
-			table += "</td><td style=\"width: 50%; text-align: center\">"
-			local := channel.LocalBalance
-			capacity := channel.LocalBalance + channel.RemoteBalance
+			table += "<td id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			table += toMil(channel.LocalBalance)
+			table += "</td><td style=\"text-align: center; vertical-align: middle;\">"
+			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+
+			local := float64(channel.LocalBalance)
+			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
-			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
-			table += "<progress style=\"width: 100%;\" value=" + strconv.FormatUint(local, 10) + " max=" + strconv.FormatUint(capacity, 10) + ">1</progress>"
+
+			// timestamp frow the last swap or 6m horizon
+			lastSwapTimestamp := time.Now().AddDate(0, 0, -30).Unix()
+			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
+				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+			}
+
+			netFlow := float64(ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp)))
+
+			bluePct := int(local * 100 / capacity)
+			greenPct := int(0)
+			redPct := int(0)
+			previousPct := bluePct
+
+			if netFlow > 0 {
+				greenPct = int(local * 100 / capacity)
+				bluePct = int((local - netFlow) * 100 / capacity)
+				previousPct = greenPct
+			}
+
+			if netFlow < 0 {
+				bluePct = int(local * 100 / capacity)
+				redPct = int((local - netFlow) * 100 / capacity)
+				previousPct = redPct
+			}
+
+			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
+			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousPct, redPct, greenPct)
+
+			table += "<div class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			table += "</a></td>"
-			table += "<td id=\"scramble\" style=\"width: 20ch; text-align: center\">"
-			table += formatWithThousandSeparators(channel.RemoteBalance)
+			table += "<td id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			table += toMil(channel.RemoteBalance)
 			table += "</td></tr>"
 		}
 		table += "</table>"
 		table += "<p style=\"margin:0.5em;\"></p>"
 
 		// count total outbound to sort peers later
-		pct := uint64(1000000 * float64(totalLocal) / float64(totalCapacity))
+		pct := int(1000000 * totalLocal / totalCapacity)
 
 		unsortedTable = append(unsortedTable, Table{
 			AvgLocal: pct,
@@ -1734,7 +1773,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		}
 
 		// clicking on role will filter this direction only
-		table += "<a href=\"/?id=" + nodeId + "&state=" + swapState + "&role=" + swap.Role + "\">"
+		table += "<a href=\"/?&id=" + nodeId + "&state=" + swapState + "&role=" + swap.Role + "\">"
 		table += " " + role + "&nbsp<a>"
 
 		// clicking on node alias will filter its swaps only
