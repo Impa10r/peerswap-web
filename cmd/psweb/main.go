@@ -47,6 +47,7 @@ var (
 	tplFolder     embed.FS
 	logFile       *os.File
 	latestVersion = version
+	chainFeeRate  = uint32(0)
 )
 
 func main() {
@@ -1180,6 +1181,12 @@ func onTimer() {
 	if t != "" {
 		latestVersion = t
 	}
+
+	// refresh fee rate
+	r := internet.GetFeeRate()
+	if r > 0 {
+		chainFeeRate = r
+	}
 }
 
 func liquidBackup(force bool) {
@@ -1274,7 +1281,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := internet.GetFee()
+	fee := chainFeeRate
 	confs := int32(0)
 	minConfs := int32(1)
 	canBump := false

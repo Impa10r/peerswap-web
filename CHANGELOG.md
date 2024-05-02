@@ -2,13 +2,13 @@
 
 ## 1.3.4
 
-- Display channel flow after the last swap
+- Display channel flows since their last swaps
 - Allow filtering swaps history 
 - Speed up loading of pages
 - CLN: implement incremental forwards history polling
 - Display current fee rates for channels
 - Add help tooltips
-- LND 0.18+: exact fee when sending change-less peg-in tx (there is a bug in LND below 0.18)
+- LND 0.18+: exact fee when sending change-less peg-in tx (there was a bug in LND below 0.18)
 
 ## 1.3.3
 

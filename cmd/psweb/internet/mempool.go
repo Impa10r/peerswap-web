@@ -60,7 +60,7 @@ func GetNodeAlias(id string) string {
 }
 
 // fetch high priority fee rate from mempool.space
-func GetFee() uint32 {
+func GetFeeRate() uint32 {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/v1/fees/recommended"
 		req, err := http.NewRequest("GET", api, nil)
