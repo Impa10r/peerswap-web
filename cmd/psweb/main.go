@@ -141,9 +141,6 @@ func main() {
 
 	log.Println("Listening on http://localhost:" + config.Config.ListenPort)
 
-	// Start Telegram bot
-	go telegramStart()
-
 	// Start timer to run every minute
 	go startTimer()
 
