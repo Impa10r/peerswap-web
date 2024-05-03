@@ -18,13 +18,13 @@
                 <div style="display: flex; justify-content: flex-end;">
                     {{if .CanRBF}}
                       <div style="text-align: center; max-width: 6ch;">
-                        <p style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        <p title="Replace By Fee bumping method is supported" style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
                           RBF
                         </p>
                       </div>
                     {{else}}
                       <div style="text-align: center; max-width: 7ch;">
-                        <p style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        <p title="Child Pays For Parent fee bumping method is available. Cannot be used together with Subtract Fee From Amount option. LND v0.18+ is required for RBF." style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
                           CPFP
                         </p>
                       </div>

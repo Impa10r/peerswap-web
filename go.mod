@@ -13,6 +13,9 @@ replace google.golang.org/protobuf => github.com/lightninglabs/protobuf-go-hex-d
 require (
 	github.com/alexmullins/zip v0.0.0-20180717182244-4affb64b04d0
 	github.com/btcsuite/btcd v0.24.2-beta.rc1.0.20240403021926-ae5533602c46
+	github.com/btcsuite/btcd/btcutil v1.1.5
+	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/elementsproject/glightning v0.0.0-20240224063423-55240d61b52a
 	github.com/elementsproject/peerswap v0.2.98-0.20240408181051-0f0d34c6c506
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
@@ -31,9 +34,6 @@ require (
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.3 // indirect
-	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
-	github.com/btcsuite/btcd/btcutil/psbt v1.1.8 // indirect
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcwallet v0.16.10-0.20240404104514-b2f31f9045fb // indirect
 	github.com/btcsuite/btcwallet/wallet/txauthor v1.3.4 // indirect

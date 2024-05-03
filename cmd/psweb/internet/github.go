@@ -22,20 +22,17 @@ func GetLatestTag() string {
 	client := GetHttpClient(true)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("Error making request:", err)
 		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Println("Failed to fetch tags. Status code:", resp.StatusCode)
 		return ""
 	}
 
 	var tags []map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&tags)
 	if err != nil {
-		log.Println("Error decoding JSON:", err)
 		return ""
 	}
 
@@ -43,7 +40,6 @@ func GetLatestTag() string {
 		latestTag := tags[0]["name"].(string)
 		return latestTag
 	} else {
-		log.Println("No tags found in the repository.")
 		return ""
 	}
 }

@@ -36,6 +36,14 @@ type ForwardingStats struct {
 	AssistedFeeSat6m  uint64
 }
 
+type ChanneInfo struct {
+	LocalBalance  uint64
+	RemoteBalance uint64
+	FeeRate       uint64
+	FeeBase       uint64
+	Active        bool
+}
+
 func toSats(amount float64) int64 {
 	return int64(float64(100000000) * amount)
 }

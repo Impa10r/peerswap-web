@@ -5,7 +5,6 @@ package ln
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,7 +17,13 @@ import (
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/btcutil/psbt"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
@@ -32,8 +37,16 @@ const Implementation = "LND"
 var (
 	LndVerson        = float64(0) // must be 0.18+ for RBF ability
 	forwardingEvents []*lnrpc.ForwardingEvent
-	internalLockId   = []byte{
+	// default lock id used by LND
+	internalLockId = []byte{
 		0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
+		0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
+		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
+		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
+	}
+	// custom lock id needed when funding manually constructed PSBT
+	myLockId = []byte{
+		0x00, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
 		0x05, 0xf8, 0xa1, 0xcc, 0xcc, 0x1d, 0x4f, 0x61,
 		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
 		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
@@ -47,25 +60,25 @@ func lndConnection() (*grpc.ClientConn, error) {
 
 	tlsCreds, err := credentials.NewClientTLSFromFile(tlsCertPath, "")
 	if err != nil {
-		log.Println("lndConnection", err)
+		log.Println("Error reading tlsCert:", err)
 		return nil, err
 	}
 
 	macaroonBytes, err := os.ReadFile(macaroonPath)
 	if err != nil {
-		log.Println("lndConnection", err)
+		log.Println("Error reading macaroon:", err)
 		return nil, err
 	}
 
 	mac := &macaroon.Macaroon{}
 	if err = mac.UnmarshalBinary(macaroonBytes); err != nil {
-		log.Println("lndConnection", err)
+		log.Println("lndConnection UnmarshalBinary:", err)
 		return nil, err
 	}
 
 	macCred, err := macaroons.NewMacaroonCredential(mac)
 	if err != nil {
-		log.Println("lndConnection", err)
+		log.Println("lndConnection NewMacaroonCredential:", err)
 		return nil, err
 	}
 
@@ -77,7 +90,7 @@ func lndConnection() (*grpc.ClientConn, error) {
 
 	conn, err := grpc.Dial(host, opts...)
 	if err != nil {
-		fmt.Println("lndConnection", err)
+		fmt.Println("lndConnection dial:", err)
 		return nil, err
 	}
 
@@ -213,6 +226,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		outputs[addr] = uint64(amount)
 	}
 
+	lockId := internalLockId
 	psbtBytes, err := fundPsbt(cl, utxos, outputs, feeRate)
 	if err != nil {
 		log.Println("FundPsbt:", err)
@@ -221,14 +235,13 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	if subtractFeeFromAmount {
 		// replace output with correct address and amount
-		psbtString := base64.StdEncoding.EncodeToString(psbtBytes)
-		fee, err := bitcoin.GetFeeFromPsbt(psbtString)
+		fee, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
 		if err != nil {
 			return nil, err
 		}
 		// reduce output amount by fee and small haircut to go around the LND bug
-		for haircut := int64(0); haircut <= 100; haircut += 5 {
-			err = releaseOutputs(cl, utxos)
+		for haircut := int64(0); haircut <= 2000; haircut += 5 {
+			err = releaseOutputs(cl, utxos, &lockId)
 			if err != nil {
 				return nil, err
 			}
@@ -237,15 +250,23 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 			if finalAmount < 0 {
 				finalAmount = 0
 			}
-			outputs[addr] = uint64(finalAmount)
-			psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+
+			if CanRBF() {
+				// for LND 0.18+, change lockID and construct manual psbt
+				lockId = myLockId
+				psbtBytes, err = fundPsbt018(cl, utxos, addr, finalAmount, feeRate)
+			} else {
+				outputs[addr] = uint64(finalAmount)
+				psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+			}
 			if err == nil {
+				// PFBT was funded successfully
 				break
 			}
 		}
 		if err != nil {
 			log.Println("FundPsbt:", err)
-			releaseOutputs(cl, utxos)
+			releaseOutputs(cl, utxos, &lockId)
 			return nil, err
 		}
 	}
@@ -257,7 +278,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	if err != nil {
 		log.Println("FinalizePsbt:", err)
-		releaseOutputs(cl, utxos)
+		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
 	}
 
@@ -279,8 +300,13 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	_, err = cl.PublishTransaction(ctx, req)
 	if err != nil {
 		log.Println("PublishTransaction:", err)
-		releaseOutputs(cl, utxos)
+		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
+	}
+
+	// confirm the final amount sent
+	if subtractFeeFromAmount {
+		finalAmount = msgTx.TxOut[0].Value
 	}
 
 	result := SentResult{
@@ -292,7 +318,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	return &result, nil
 }
 
-func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string) error {
+func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string, lockId *[]byte) error {
 	ctx := context.Background()
 	for _, i := range *utxos {
 		parts := strings.Split(i, ":")
@@ -304,7 +330,7 @@ func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string) error {
 		}
 
 		_, err = cl.ReleaseOutput(ctx, &walletrpc.ReleaseOutputRequest{
-			Id: internalLockId,
+			Id: *lockId,
 			Outpoint: &lnrpc.OutPoint{
 				TxidStr:     parts[0],
 				OutputIndex: uint32(index),
@@ -359,6 +385,109 @@ func fundPsbt(cl walletrpc.WalletKitClient, utxos *[]string, outputs map[string]
 	return res.GetFundedPsbt(), nil
 }
 
+// manual construction of PSBT in LND 0.18+ to spend exact UTXOs with no change
+func fundPsbt018(cl walletrpc.WalletKitClient, utxoStrings *[]string, address string, sendAmount int64, feeRate uint64) ([]byte, error) {
+	ctx := context.Background()
+
+	unspent, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{
+		MinConfs: 1,
+	})
+	if err != nil {
+		log.Println("ListUnspent:", err)
+		return nil, err
+	}
+
+	tx := wire.NewMsgTx(2)
+
+	for _, utxo := range unspent.Utxos {
+		for _, u := range *utxoStrings {
+			parts := strings.Split(u, ":")
+			index, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return nil, err
+			}
+
+			if utxo.Outpoint.TxidStr == parts[0] && utxo.Outpoint.OutputIndex == uint32(index) {
+				hash, err := chainhash.NewHash(utxo.Outpoint.TxidBytes)
+				if err != nil {
+					log.Println("NewHash:", err)
+					return nil, err
+				}
+				_, err = cl.LeaseOutput(ctx, &walletrpc.LeaseOutputRequest{
+					Id:                myLockId,
+					Outpoint:          utxo.Outpoint,
+					ExpirationSeconds: uint64(10),
+				})
+				if err != nil {
+					log.Println("LeaseOutput:", err)
+					return nil, err
+				}
+
+				tx.TxIn = append(tx.TxIn, &wire.TxIn{
+					PreviousOutPoint: wire.OutPoint{
+						Hash:  *hash,
+						Index: utxo.Outpoint.OutputIndex,
+					},
+				})
+			}
+		}
+	}
+
+	var harnessNetParams = &chaincfg.TestNet3Params
+	if config.Config.Chain == "mainnet" {
+		harnessNetParams = &chaincfg.MainNetParams
+	}
+
+	parsed, err := btcutil.DecodeAddress(address, harnessNetParams)
+	if err != nil {
+		log.Println("DecodeAddress:", err)
+		return nil, err
+	}
+
+	pkScript, err := txscript.PayToAddrScript(parsed)
+	if err != nil {
+		log.Println("PayToAddrScript:", err)
+		return nil, err
+	}
+
+	tx.TxOut = append(tx.TxOut, &wire.TxOut{
+		PkScript: pkScript,
+		Value:    sendAmount,
+	})
+
+	packet, err := psbt.NewFromUnsignedTx(tx)
+	if err != nil {
+		log.Println("NewFromUnsignedTx:", err)
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	_ = packet.Serialize(&buf)
+
+	cs := &walletrpc.PsbtCoinSelect{
+		Psbt: buf.Bytes(),
+		ChangeOutput: &walletrpc.PsbtCoinSelect_ExistingOutputIndex{
+			ExistingOutputIndex: 0,
+		},
+	}
+
+	fundResp, err := cl.FundPsbt(ctx, &walletrpc.FundPsbtRequest{
+		Template: &walletrpc.FundPsbtRequest_CoinSelect{
+			CoinSelect: cs,
+		},
+		Fees: &walletrpc.FundPsbtRequest_SatPerVbyte{
+			SatPerVbyte: feeRate,
+		},
+	})
+	if err != nil {
+		log.Println("FundPsbt:", err)
+		releaseOutputs(cl, utxoStrings, &myLockId)
+		return nil, err
+	}
+
+	return fundResp.FundedPsbt, nil
+}
+
 func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 
 	client, cleanup, err := GetClient()
@@ -411,10 +540,9 @@ func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 		utxos = append(utxos, input.Outpoint)
 	}
 
-	err = releaseOutputs(cl, &utxos)
-	if err != nil {
-		return nil, err
-	}
+	// sometimes remove transaction is not enough
+	releaseOutputs(cl, &utxos, &internalLockId)
+	releaseOutputs(cl, &utxos, &myLockId)
 
 	return SendCoinsWithUtxos(
 		&utxos,
@@ -491,22 +619,12 @@ func CanRBF() bool {
 	return LndVerson >= 0.18
 }
 
-// fetch routing statistics for a channel from a given timestamp
-func GetForwardingStats(channelId uint64) *ForwardingStats {
-	var (
-		result          ForwardingStats
-		feeMsat7d       uint64
-		assistedMsat7d  uint64
-		feeMsat30d      uint64
-		assistedMsat30d uint64
-		feeMsat6m       uint64
-		assistedMsat6m  uint64
-	)
-
+// fetch all routing statistics from lnd
+func FetchForwardingStats() {
 	// refresh history
 	client, cleanup, err := GetClient()
 	if err != nil {
-		return &result
+		return
 	}
 	defer cleanup()
 
@@ -527,7 +645,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
-			return &result
+			return
 		}
 
 		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
@@ -539,6 +657,19 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 		// next pull start from the next index
 		offset = res.LastOffsetIndex + 1
 	}
+}
+
+// get routing statistics for a channel
+func GetForwardingStats(channelId uint64) *ForwardingStats {
+	var (
+		result          ForwardingStats
+		feeMsat7d       uint64
+		assistedMsat7d  uint64
+		feeMsat30d      uint64
+		assistedMsat30d uint64
+		feeMsat6m       uint64
+		assistedMsat6m  uint64
+	)
 
 	// historic timestamps in ns
 	now := time.Now()
@@ -585,4 +716,50 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
 	return &result
+}
+
+// get fees on the channel
+func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId string) *ChanneInfo {
+	info := new(ChanneInfo)
+
+	res2, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		log.Println("GetChanInfo:", err)
+		return info
+	}
+
+	policy := res2.Node1Policy
+	if res2.Node1Pub == nodeId {
+		// the first policy is not ours, use the second
+		policy = res2.Node2Policy
+	}
+
+	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
+	info.FeeBase = uint64(policy.GetFeeBaseMsat())
+
+	return info
+}
+
+// net balance change for a channel
+func GetNetFlow(channelId uint64, timeStamp uint64) int64 {
+
+	netFlow := int64(0)
+	timestampNs := timeStamp * 1_000_000_000
+
+	for _, e := range forwardingEvents {
+		if e.ChanIdOut == channelId {
+			if e.TimestampNs > timestampNs {
+				netFlow -= int64(e.AmtOut)
+			}
+		}
+		if e.ChanIdIn == channelId {
+			if e.TimestampNs > timestampNs {
+				netFlow += int64(e.AmtIn)
+			}
+		}
+	}
+
+	return netFlow
 }

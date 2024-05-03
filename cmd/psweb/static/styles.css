@@ -22,10 +22,18 @@ header {
 
 .progress {
     position: center;
-    margin-top: 20px;
-    height: 20px;
+    height: 0.6em;
     width: 100%;
-    background-color: #001072;
+    text-align:center;
+    color:white;
+    font-size:1em;
+    background-image:
+        linear-gradient(blue,darkblue),
+        linear-gradient(red,darkred),
+        linear-gradient(green,darkgreen),
+        linear-gradient(grey,grey);
+    background-repeat:no-repeat;
+    transition:1s;
 }
   
 .current-progress {

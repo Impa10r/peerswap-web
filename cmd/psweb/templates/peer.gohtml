@@ -23,6 +23,12 @@
                 {{if ne .ActiveSwaps ""}}
                   <h4 class="title is-4">Active Swaps</h4>
                   {{.ActiveSwaps}}
+                  <script>
+                    // Reload the page every minute (60000 milliseconds)
+                    setInterval(function(){
+                        location.reload();
+                    }, 60000);
+                  </script>
                 {{else }}
                   <h4 class="title is-4">New Swap</h4> 
                   <form action="/submit" method="post">
@@ -53,7 +59,7 @@
                           <div class="control">
                             <div class="select is-medium is-fullwidth">
                               <select name="direction">
-                                <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⚡ ⇦ </option>
+                                <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
                                 <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
                               </select>
                             </div>
@@ -118,21 +124,28 @@
         </div>
         <div class="column">
           <div class="box">
-            <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>        
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <h4><a title="Display successful swaps with this peer" href="/?id={{.Peer.NodeId}}&state=success">🔍</a></h4>
+              </div>
+            </div>
             <table style="width:100%; table-layout:fixed;">
               <tr>
                 <th style="text-align: center">Swaps</th>
-                <th style="text-align: center">Out</th>
-                <th style="text-align: center"># Out</th>
-                <th style="text-align: center">In</th>
-                <th style="text-align: center"># In</th>   
+                <th style="text-align: center">⇨ ⚡</th>
+                <th style="text-align: center">#</th>   
+                <th style="text-align: center">⚡ ⇨</th>
+                <th style="text-align: center">#</th>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Sent
-                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
                 <td style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsSender.SwapsIn}}</td>
+                <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
+                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Rcvd
@@ -178,15 +191,22 @@
             <p style="margin:0.5em;"></p>
             <table style="width:100%; table-layout:fixed;">
               <tr>
-                <th style="width: 21ch; text-align: center">Channel Id</th>
                 <th style="text-align: center">Local</th>
                 <th style="text-align: center">Remote</th>
+                <th style="text-align: center">FeeRate</th>
+                <th style="text-align: center">FeeBase</th>
               </tr>
-              {{range .Peer.Channels}}
+              {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td style="text-align: center">{{.ChannelId}}</td>
                   <td style="text-align: center">{{m .LocalBalance}}</td>
                   <td style="text-align: center">{{m .RemoteBalance}}</td>
+                  {{if .Active}}
+                    <td style="text-align: center">{{fmt .FeeRate}}</td>
+                    <td style="text-align: center">{{fmt .FeeBase}}</td>
+                  {{else}}
+                    <td style="text-align: right">CHANNEL</td>
+                    <td style="text-align: left">INACTIVE</td>
+                  {{end}}
                 </tr>
               {{end}}
             </table>
@@ -195,7 +215,7 @@
               <div class="column">
                 <center>            
                   {{if .Suspicious}}
-                    <p>🔍 This peer is suspicious</p>
+                    <p>🕵 This peer is suspicious</p>
                     <form action="/submit" method="post">
                       <input type="hidden" name="action" value="unsuspectPeer">
                       <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">

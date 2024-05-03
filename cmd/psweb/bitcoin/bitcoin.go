@@ -2,6 +2,7 @@ package bitcoin
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -315,7 +316,9 @@ func SendRawTransaction(hexstring string) (string, error) {
 }
 
 // extracts Fee from PSBT
-func GetFeeFromPsbt(base64string string) (float64, error) {
+func GetFeeFromPsbt(psbtBytes *[]byte) (float64, error) {
+	base64string := base64.StdEncoding.EncodeToString(*psbtBytes)
+
 	client := BitcoinClient()
 	service := &Bitcoin{client}
 
