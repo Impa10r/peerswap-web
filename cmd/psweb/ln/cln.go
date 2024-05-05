@@ -468,6 +468,25 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	result.FeeSat6m = feeMsat6m / 1000
 	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
+	if result.AmountOut7d > 0 {
+		result.FeePPM7d = result.FeeSat7d * 1_000_000 / result.AmountOut7d
+	}
+	if result.AmountIn7d > 0 {
+		result.AssistedPPM7d = result.AssistedFeeSat7d * 1_000_000 / result.AmountIn7d
+	}
+	if result.AmountOut30d > 0 {
+		result.FeePPM30d = result.FeeSat30d * 1_000_000 / result.AmountOut30d
+	}
+	if result.AmountIn30d > 0 {
+		result.AssistedPPM30d = result.AssistedFeeSat30d * 1_000_000 / result.AmountIn30d
+	}
+	if result.AmountOut6m > 0 {
+		result.FeePPM6m = result.FeeSat6m * 1_000_000 / result.AmountOut6m
+	}
+	if result.AmountIn6m > 0 {
+		result.AssistedPPM6m = result.AssistedFeeSat6m * 1_000_000 / result.AmountIn6m
+	}
+
 	return &result
 }
 

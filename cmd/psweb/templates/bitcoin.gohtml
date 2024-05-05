@@ -493,13 +493,21 @@
 
             document.getElementById("totalFee").value = Number(fee);
 
-            let text = "Transaction size: " + vbyteSize + " vBytes\n Estimated fee: " + formatWithThousandSeparators(fee) + " sats";
+            let netAmount = peginAmount;
+            const deductFee = document.getElementById("subtractfee").checked;
+            if (deductFee) {
+              netAmount -= fee;
+            }
             
-            if (document.getElementById("subtractfee").checked && {{.BitcoinBalance}} - peginAmount < 25000) {
+            let text = "Transaction size: " + vbyteSize + " vBytes\n";
+            text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
+            text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
+            
+            if (deductFee && {{.BitcoinBalance}} - peginAmount < 25000) {
               {{if .IsCLN}}
                 text += "\nReserve required for anchor fee bumping will be returned as change."
               {{else}}
-                text += "\nNo reserve is left for anchor fee bumping!"
+                text += "\nWARNING: No reserve is left for anchor fee bumping!"
               {{end}}
             }
             
