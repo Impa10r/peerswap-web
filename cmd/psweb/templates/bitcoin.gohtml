@@ -34,12 +34,12 @@
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
+                  <label class="label">Amount</label>
                 </div>
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="number" onchange="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
+                      <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
                     </p>
                   </div>
                 </div>
@@ -51,26 +51,34 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="number" name="feeRate" min="1" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sats/vByte">
+                      <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sats/vByte">
                     </p>
                   </div>
                 </div>
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label"> </label>
+                  <label class="label">Total Fee</label>
+                </div>
+                <div class="field-body">
+                  <label id="result" class="label"></label>
+                  <input type="number" id="totalFee" style="display: none;" value=0>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
                 </div>
                 <div class="field-body">
                   <div class="field">
                     <div class="control">
                       <label class="checkbox is-large">
-                        <input type="checkbox" id="subtractfee" name="subtractfee">
+                        <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
                         <strong>&nbsp&nbspSubtract Fee From Amount</strong>
                       </label>
                     </div>
                   </div>
                 </div>
-              </div>
+              </div>     
               <div style="text-align: center;">
                 <input class="button is-large" type="submit" value="Start Peg-In">
               </div>
@@ -182,26 +190,39 @@
         </div> 
         <div class="column"> 
           <div class="box">
-            <h4 class="title is-4">Unspent Outputs</h4>
-            <table id="myTable" style="width:100%; table-layout:fixed;">
-              <tr>
-                <th>Address</th>
-                <th style="width: 9ch; text-align: right;">Confs</th>
-                <th style="width: 10ch; text-align: right;">Amount</th>
-                {{if eq .PeginTxId ""}}
-                  <th style="width: 3ch;">Use</th>
-                {{end}}
-              </tr>
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                  <h4 class="title is-4">Unspent Outputs</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <div style="text-align: right;">
+                  <a href="javascript:void(0);" style="visibility: hidden;" title="Unselect all" id="unselectAll" onclick="unselectOutputs()"></a>
+                </div>
+              </div>
+            </div>
+            <table id="utxoTable" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th style="width: 9ch; text-align: right;">Confs</th>
+                  <th style="width: 10ch; text-align: right;">Amount</th>
+                  {{if eq .PeginTxId ""}}
+                    <th style="width: 3ch;">Use</th>
+                  {{end}}
+                </tr>
+              </thead>
+              <tbody>
               {{range .Outputs}}
                 <tr>
-                  <td class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
+                  <td id="utxoAddress" class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
                   <td style="text-align: right;">{{fmt (u .Confirmations)}}</td>
-                  <td style="text-align: right;">{{fmt (u .AmountSat)}}</td>
+                  <td id="utxoAmount" style="text-align: right;">{{fmt (u .AmountSat)}}</td>
                   {{if eq $.PeginTxId ""}}
                     <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}})" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
                   {{end}}
                 </tr>
               {{end}}
+              </tbody>
             </table>
           </div>
         </div>
@@ -211,7 +232,9 @@
         <script>
           function uncheckSubtractFee() {
             document.getElementById("subtractfee").checked = false;
+            delayedCalculateTransactionFee();
           }
+
           function onSelect(checked, amountStr) {
             var amountInt = Number(amountStr);
             if (checked) {
@@ -219,20 +242,47 @@
               document.getElementById("subtractfee").checked = true;
             } else {
               document.getElementById("peginAmount").value = Number(document.getElementById("peginAmount").value) - amountInt;
-              if (Number(document.getElementById("peginAmount").value)<0) {
-                document.getElementById("peginAmount").value = 0
+              if (Number(document.getElementById("peginAmount").value)<=0) {
+                document.getElementById("peginAmount").value = "";
               }
             }
+            calculateTransactionFee();
           }
-          function setMax() {
-            document.getElementById("peginAmount").value = {{.BitcoinBalance}};
-            document.getElementById("subtractfee").checked = true;
+          
+          function unselectOutputs() {
             var fields = document.querySelectorAll('#select');
             fields.forEach(function(element) {
-              element.checked = true
+              element.checked = false
             });
+            document.getElementById("unselectAll").style.visibility = "hidden";
+            document.getElementById("peginAmount").value = "";
+            calculateTransactionFee();
           }
+
+          // warning message if fee bump is not possible
           function confirmSubmit() {
+            const fee = Number(document.getElementById("totalFee").value);
+            const amount = Number(document.getElementById("peginAmount").value);
+            const payall = document.getElementById("subtractfee").checked;
+
+            console.log(fee, amount);
+            
+            if (payall && fee >= amount / 4) {
+              alert("Total fee exceeding 25% of the amount is not allowed");
+              return false;
+            }
+
+            {{if not .IsCLN}}
+              if ({{.BitcoinBalance}} - amount < 25000) {
+                // Display confirmation dialog
+                var confirmed = confirm("No reserve is left for anchor fee bumping. Are you sure to proceed?");
+                if (!confirmed) {
+                  // user cancels, prevent form submission
+                  return false;
+                }
+              }
+            {{end}}
+
             {{if not .CanRBF}}
               if (document.getElementById("subtractfee").checked) {
                 // Display confirmation dialog
@@ -244,6 +294,210 @@
               }
             {{end}}  
           }
+
+          // Function to format number with thousand separators
+          function formatWithThousandSeparators(number) {
+              return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+          }
+
+          let timerId;
+
+          // Function to execute after a delay
+          function delayedCalculateTransactionFee() {
+              // Clear previous timer if it exists
+              clearTimeout(timerId);
+
+              // Set a new timer to execute after 300 milliseconds
+              timerId = setTimeout(calculateTransactionFee, 300);
+          }
+
+          function calculateTransactionFee() {
+            const peginAmount = Number(document.getElementById("peginAmount").value);
+            let change = 1;
+            // outputs are based on lightning implementation
+            // and whether there is a change address
+            if (document.getElementById("subtractfee").checked) {
+              change = 0;
+              // CLN returns 25000 when send all
+              {{if .IsCLN}}
+                if ({{.BitcoinBalance}} - peginAmount < 25000) {
+                  change = 1
+                }
+              {{end}}
+            }
+
+            {{if .CanRBF}} 
+              // change is P2TR
+              const outputsP2TR = change; // Number of P2TR outputs
+              const outputsP2WPKH = 0; // Number of P2WPKH outputs
+            {{else}} 
+              // change is P2WPKH
+              const outputsP2TR = 0; // Number of P2TR outputs
+              const outputsP2WPKH = change; // Number of P2WPKH outputs
+            {{end}}
+
+            // there is always one P2SH output for peg-in address
+            const outputsP2SH = 1;
+            
+            // Initialize total UTXO amount and UTXO counters
+            let totalUtxoAmount = 0;
+            let selectedUtxoCount = 0;
+            let inputsP2TR = 0; // Number of P2TR inputs
+            let inputsP2WPKH = 0; // Number of P2WPKH inputs
+            
+            // Get all table rows and convert NodeList to an array
+            let tableArray = Array.from(document.querySelectorAll("#utxoTable tbody tr"));  
+
+            // Iterate through table rows
+            tableArray.forEach(function(row) {
+                // Check if the row has a checkbox and it's checked
+                let checkbox = row.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                  // Increment selected UTXO count
+                  selectedUtxoCount++;
+                  
+                  // identify P2TR vs P2WPKH address
+                  const address = row.querySelector("#utxoAddress").textContent
+                  if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+                    // Increment P2TR UTXO count
+                    inputsP2TR++;
+                  } else {
+                    // Increment P2WPKH UTXO count
+                    inputsP2WPKH++;
+                  }
+                }
+            });
+
+            // if no UTXOs were selected, select automatically
+            if (selectedUtxoCount === 0) {
+              // remove unselect all
+              document.getElementById("unselectAll").textContent = "";
+              document.getElementById("unselectAll").style.visibility = "hidden";
+
+              // Sort the array of table rows based on UTXO amount from high to low
+              tableArray.sort((a, b) => {
+                  let amountA = parseFloat(a.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
+                  let amountB = parseFloat(b.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
+                  return amountB - amountA;
+              });
+
+              // total amount to allocate among UTXOs 
+              let amountToAllocate = peginAmount;
+
+              if (amountToAllocate < 1) {
+                document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
+                return;
+              }
+
+              // Iterate through table rows
+              tableArray.forEach(function(row) {
+                // Check if allocation is not finished
+                if (amountToAllocate > 0) {
+                    // Reduce unallocated amount by UTXO size
+                    amountToAllocate -= parseFloat(row.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
+
+                    // identify P2TR vs P2WPKH address
+                    const address = row.querySelector("#utxoAddress").textContent
+                    if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+                      // Increment P2TR UTXO count
+                      inputsP2TR++;
+                    } else {
+                      // Increment P2WPKH UTXO count
+                      inputsP2WPKH++;
+                    }
+                }
+              });
+            } else {
+              // allow unselect all with one click
+              document.getElementById("unselectAll").textContent = selectedUtxoCount;
+              document.getElementById("unselectAll").style.visibility = "visible";
+            }
+
+            // Base size and total size initialization
+            let baseSize = 0;
+            let totalSize = 0;
+
+            // Transaction version
+            baseSize += 4;
+            totalSize += 4;
+
+            // Segwit marker
+            totalSize += 1;
+
+            // Segwit flag
+            totalSize += 1;
+
+            // Input count
+            baseSize += 1;
+            totalSize += 1;
+
+            // Previous txid
+            baseSize += 32 * (inputsP2TR + inputsP2WPKH);
+            totalSize += 32 * (inputsP2TR + inputsP2WPKH);
+
+            // Output index
+            baseSize += 4 * (inputsP2TR + inputsP2WPKH);
+            totalSize += 4 * (inputsP2TR + inputsP2WPKH);
+
+            // Length of scriptSig
+            baseSize += (inputsP2TR + inputsP2WPKH);
+            totalSize += (inputsP2TR + inputsP2WPKH);
+
+            // Sequence number
+            baseSize += 4 * (inputsP2TR + inputsP2WPKH);
+            totalSize += 4 * (inputsP2TR + inputsP2WPKH);
+
+            // Output count
+            baseSize += 1;
+            totalSize += 1;
+
+            // Output amount
+            baseSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2SH);
+            totalSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2SH);
+
+            // ScriptPubKey length
+            baseSize += (outputsP2TR + outputsP2WPKH + outputsP2SH);
+            totalSize += (outputsP2TR + outputsP2WPKH + outputsP2SH);
+
+            // ScriptPubKey
+            baseSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 23 * outputsP2SH);
+            totalSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 23 * outputsP2SH);
+
+            // Witness stack item count
+            totalSize += 1;
+
+            // Witness stack item length
+            totalSize += 1;
+
+            // Witness stack items
+            totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH
+
+            // Locktime
+            baseSize += 4;
+            totalSize += 4;
+
+            // vbyte and fee calculation
+            vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4)
+            fee = document.getElementById("feeRate").value * vbyteSize
+
+            document.getElementById("totalFee").value = Number(fee);
+
+            let text = "Transaction size: " + vbyteSize + " vBytes\n Estimated fee: " + formatWithThousandSeparators(fee) + " sats";
+            
+            if (document.getElementById("subtractfee").checked && {{.BitcoinBalance}} - peginAmount < 25000) {
+              {{if .IsCLN}}
+                text += "\nReserve required for anchor fee bumping will be returned as change."
+              {{else}}
+                text += "\nNo reserve is left for anchor fee bumping!"
+              {{end}}
+            }
+            
+            
+            document.getElementById('result').innerText = text;
+          }
+
+          // initial display
+          calculateTransactionFee();
         </script>
       {{end}}
     </div>

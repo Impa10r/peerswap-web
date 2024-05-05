@@ -1,5 +1,9 @@
 # Versions
 
+## 1.3.5
+
+- Estimate peg-in transaction size and total fee
+
 ## 1.3.4
 
 - Display channel flows since their last swaps

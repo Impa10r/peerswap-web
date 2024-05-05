@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/ln"
 
 	"github.com/alexmullins/zip"
 )
@@ -313,6 +314,19 @@ type PeginAddress struct {
 }
 
 func GetPeginAddress(address *PeginAddress) error {
+
+	if config.Config.Chain == "testnet" {
+		// to not waste testnet sats where pegin is not implemented
+		// return new P2TR address in our own bitcoin wallet
+		addr, err := ln.NewAddress()
+		if err != nil {
+			return err
+		}
+		address.ClaimScript = ""
+		address.MainChainAddress = addr
+		return nil
+	}
+
 	client := ElementsClient()
 	service := &Elements{client}
 	wallet := config.Config.ElementsWallet

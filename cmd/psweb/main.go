@@ -31,7 +31,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "v1.3.4"
+const version = "v1.3.5"
 
 type AliasCache struct {
 	PublicKey string
@@ -1275,6 +1275,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MinBumpFeeRate   uint32
 		CanBump          bool
 		CanRBF           bool
+		IsCLN            bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -1322,6 +1323,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          canBump,
 		CanRBF:           ln.CanRBF(),
+		IsCLN:            ln.Implementation == "CLN",
 	}
 
 	// executing template named "bitcoin"
@@ -1386,10 +1388,6 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if subtractFeeFromAmount {
-			if uint64(amount) < fee*uint64(len(selectedOutputs))*250 {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount does not cover the total fee"))
-				return
-			}
 			if amount != totalAmount {
 				redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
 				return

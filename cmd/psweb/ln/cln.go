@@ -529,3 +529,28 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 
 	return info
 }
+
+func NewAddress() (string, error) {
+	client, clean, err := GetClient()
+	if err != nil {
+		log.Println("GetClient:", err)
+		return "", err
+	}
+	defer clean()
+
+	var res struct {
+		Bech32     string `json:"bech32"`
+		P2SHSegwit string `json:"p2sh-segwit"`
+		Taproot    string `json:"p2tr"`
+	}
+
+	err = client.Request(&glightning.NewAddrRequest{
+		AddressType: "bech32",
+	}, &res)
+	if err != nil {
+		log.Println("NewAddrRequest:", err)
+		return "", err
+	}
+
+	return res.Bech32, nil
+}
