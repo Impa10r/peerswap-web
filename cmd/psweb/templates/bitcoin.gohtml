@@ -207,7 +207,7 @@
                   <th style="width: 9ch; text-align: right;">Confs</th>
                   <th style="width: 10ch; text-align: right;">Amount</th>
                   {{if eq .PeginTxId ""}}
-                    <th style="width: 3ch;">Use</th>
+                    <th style="width: 1ch;"><a title="Select all" href="javascript:void(0);" onclick="setMax()">☑</a></th>
                   {{end}}
                 </tr>
               </thead>
@@ -230,6 +230,16 @@
       {{if eq .PeginTxId ""}}
         </form>
         <script>
+          function setMax() {
+            document.getElementById("peginAmount").value = {{.BitcoinBalance}};
+            document.getElementById("subtractfee").checked = true;
+            var fields = document.querySelectorAll('#select');
+            fields.forEach(function(element) {
+              element.checked = true
+            });
+            calculateTransactionFee();
+          }
+          
           function uncheckSubtractFee() {
             document.getElementById("subtractfee").checked = false;
             delayedCalculateTransactionFee();
@@ -386,6 +396,7 @@
 
               if (amountToAllocate < 1) {
                 document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
+                document.getElementById("subtractfee").checked = false;
                 return;
               }
 
