@@ -200,6 +200,7 @@ func ListUnspent(outputs *[]UTXO) error {
 type SendParams struct {
 	Address               string  `json:"address"`
 	Amount                float64 `json:"amount"`
+	Comment               string  `json:"comment"`
 	SubtractFeeFromAmount bool    `json:"subtractfeefromamount,omitempty"`
 	Replaceable           bool    `json:"replaceable,omitempty"`
 	IgnoreBlindFail       bool    `json:"ignoreblindfail,omitempty"`
@@ -207,6 +208,7 @@ type SendParams struct {
 
 func SendToAddress(address string,
 	amountSats uint64,
+	comment string,
 	subtractFeeFromAmount bool,
 	replaceable bool,
 	ignoreBlindFail bool,
@@ -218,6 +220,7 @@ func SendToAddress(address string,
 	params := &SendParams{
 		Address:               address,
 		Amount:                toBitcoin(amountSats),
+		Comment:               comment,
 		SubtractFeeFromAmount: subtractFeeFromAmount,
 		Replaceable:           replaceable,
 		IgnoreBlindFail:       ignoreBlindFail,

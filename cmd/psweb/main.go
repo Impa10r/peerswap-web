@@ -738,6 +738,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			txid, err := liquid.SendToAddress(
 				r.FormValue("sendAddress"),
 				amt,
+				r.FormValue("comment"),
 				r.FormValue("subtractfee") == "on",
 				true,
 				r.FormValue("ignoreblindfail") == "on")
