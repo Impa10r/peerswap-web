@@ -58,10 +58,10 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label class="label">Fee Calc</label>
+                  <label title="Includes liquid peg-in fee estimate of 50 sats" class="label">Fee Calc</label>
                 </div>
                 <div class="field-body">
-                  <label id="result" class="label"></label>
+                  <label title="Includes liquid peg-in fee estimate of 50 sats" id="result" class="label"></label>
                   <input type="number" id="totalFee" style="display: none;" value=0>
                 </div>
               </div>
@@ -323,10 +323,12 @@
 
           function calculateTransactionFee() {
             const peginAmount = Number(document.getElementById("peginAmount").value);
+            const subtractFee = document.getElementById("subtractfee").checked;
+           
             let change = 1;
             // outputs are based on lightning implementation
             // and whether there is a change address
-            if (document.getElementById("subtractfee").checked) {
+            if (subtractFee) {
               change = 0;
               // CLN returns 25000 when send all
               {{if .IsCLN}}
@@ -490,12 +492,13 @@
             // vbyte and fee calculation
             vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4)
             fee = document.getElementById("feeRate").value * vbyteSize
+            fee += 50; //liquid peg-in fee estimate
 
             document.getElementById("totalFee").value = Number(fee);
 
             let netAmount = peginAmount;
-            const deductFee = document.getElementById("subtractfee").checked;
-            if (deductFee) {
+
+            if (subtractFee) {
               netAmount -= fee;
             }
             
@@ -503,7 +506,7 @@
             text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
             text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
             
-            if (deductFee && {{.BitcoinBalance}} - peginAmount < 25000) {
+            if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {
               {{if .IsCLN}}
                 text += "\nReserve for anchor fee bumping will be returned as change."
               {{else}}

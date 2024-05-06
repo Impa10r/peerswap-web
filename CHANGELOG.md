@@ -2,7 +2,8 @@
 
 ## 1.3.5
 
-- Estimate peg-in transaction size and total fee
+- Estimate peg-in transaction size, total fee and PPM
+- Fix bug with flow bars being for 1m and not 6m period
 
 ## 1.3.4
 
