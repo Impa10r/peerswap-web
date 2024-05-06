@@ -738,7 +738,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			txid, err := liquid.SendToAddress(
 				r.FormValue("sendAddress"),
 				amt,
-				r.FormValue("subtractfee") == "on")
+				r.FormValue("subtractfee") == "on",
+				true,
+				r.FormValue("ignoreblindfail") == "on")
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
 				return

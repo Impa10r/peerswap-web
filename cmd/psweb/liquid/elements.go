@@ -200,12 +200,16 @@ func ListUnspent(outputs *[]UTXO) error {
 type SendParams struct {
 	Address               string  `json:"address"`
 	Amount                float64 `json:"amount"`
-	SubtractFeeFromAmount bool    `json:"subtractfeefromamount"`
+	SubtractFeeFromAmount bool    `json:"subtractfeefromamount,omitempty"`
+	Replaceable           bool    `json:"replaceable,omitempty"`
+	IgnoreBlindFail       bool    `json:"ignoreblindfail,omitempty"`
 }
 
 func SendToAddress(address string,
 	amountSats uint64,
 	subtractFeeFromAmount bool,
+	replaceable bool,
+	ignoreBlindFail bool,
 ) (string, error) {
 	client := ElementsClient()
 	service := &Elements{client}
@@ -215,6 +219,8 @@ func SendToAddress(address string,
 		Address:               address,
 		Amount:                toBitcoin(amountSats),
 		SubtractFeeFromAmount: subtractFeeFromAmount,
+		Replaceable:           replaceable,
+		IgnoreBlindFail:       ignoreBlindFail,
 	}
 
 	r, err := service.client.call("sendtoaddress", params, "/wallet/"+wallet)

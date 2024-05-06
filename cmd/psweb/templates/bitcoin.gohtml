@@ -58,10 +58,10 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label title="Includes liquid peg-in fee estimate of 50 sats" class="label">Fee Calc</label>
+                  <label title="Includes liquid peg-in fee estimate of 45 sats" class="label">Fee Calc</label>
                 </div>
                 <div class="field-body">
-                  <label title="Includes liquid peg-in fee estimate of 50 sats" id="result" class="label"></label>
+                  <label title="Includes liquid peg-in fee estimate of 45 sats" id="result" class="label"></label>
                   <input type="number" id="totalFee" style="display: none;" value=0>
                 </div>
               </div>
@@ -492,7 +492,7 @@
             // vbyte and fee calculation
             vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4)
             fee = document.getElementById("feeRate").value * vbyteSize
-            fee += 50; //liquid peg-in fee estimate
+            fee += 45; //liquid peg-in fee estimate
 
             document.getElementById("totalFee").value = Number(fee);
 
