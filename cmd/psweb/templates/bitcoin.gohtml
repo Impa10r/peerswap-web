@@ -24,7 +24,7 @@
                       </div>
                     {{else}}
                       <div style="text-align: center; max-width: 7ch;">
-                        <p title="Child Pays For Parent fee bumping method is available. Cannot be used together with Subtract Fee From Amount option. LND v0.18+ is required for RBF." style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        <p id="cpfp" title="Child Pays For Parent fee bumping method is available. Cannot be used together with Subtract Fee From Amount option. LND v0.18+ is required for RBF." style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
                           CPFP
                         </p>
                       </div>
@@ -510,11 +510,16 @@
               {{if .IsCLN}}
                 text += "\nReserve for anchor fee bumping will be returned as change."
               {{else}}
-                text += "\nWARNING: No reserve is left for anchor fee bumping!"
+                {{if not .CanRBF}}
+                  text += "\nWARNING: No reserve is left for anchor fee bumping!"
+                  document.getElementById('cpfp').innerText = "<s>CPFP</s>";
+                {{end}}
+              {{end}}
+            } else {
+              {{if not .CanRBF}}
+                document.getElementById('cpfp').innerText = "CPFP";
               {{end}}
             }
-            
-            
             document.getElementById('result').innerText = text;
           }
 
