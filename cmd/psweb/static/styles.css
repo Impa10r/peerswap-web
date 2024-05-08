@@ -102,3 +102,7 @@ pre {
     width: auto;
     margin-right: 5px; /* Adjust spacing between logos */
 }
+
+.strikethrough {
+    text-decoration: line-through;
+}

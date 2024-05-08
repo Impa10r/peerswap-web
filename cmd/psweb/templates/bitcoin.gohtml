@@ -500,6 +500,13 @@
 
             if (subtractFee) {
               netAmount -= fee;
+              {{if not .CanRBF}}
+                document.getElementById('cpfp').classList.add("strikethrough");
+              {{end}}
+            } else {
+              {{if not .CanRBF}}
+                document.getElementById('cpfp').classList.remove("strikethrough");
+              {{end}}
             }
             
             let text = "Transaction size: " + vbyteSize + " vBytes\n";
@@ -510,16 +517,9 @@
               {{if .IsCLN}}
                 text += "\nReserve for anchor fee bumping will be returned as change."
               {{else}}
-                {{if not .CanRBF}}
-                  text += "\nWARNING: No reserve is left for anchor fee bumping!"
-                  document.getElementById('cpfp').innerText = "<s>CPFP</s>";
-                {{end}}
+                text += "\nWARNING: No reserve is left for anchor fee bumping!"
               {{end}}
-            } else {
-              {{if not .CanRBF}}
-                document.getElementById('cpfp').innerText = "CPFP";
-              {{end}}
-            }
+            } 
             document.getElementById('result').innerText = text;
           }
 
