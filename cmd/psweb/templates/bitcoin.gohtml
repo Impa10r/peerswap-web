@@ -335,6 +335,13 @@
                 if ({{.BitcoinBalance}} - peginAmount < 25000) {
                   change = 1
                 }
+              {{end}}     
+              {{if not .CanRBF}}
+                document.getElementById('cpfp').classList.add("strikethrough");
+              {{end}}
+            } else {
+              {{if not .CanRBF}}
+                document.getElementById('cpfp').classList.remove("strikethrough");
               {{end}}
             }
 
@@ -500,13 +507,6 @@
 
             if (subtractFee) {
               netAmount -= fee;
-              {{if not .CanRBF}}
-                document.getElementById('cpfp').classList.add("strikethrough");
-              {{end}}
-            } else {
-              {{if not .CanRBF}}
-                document.getElementById('cpfp').classList.remove("strikethrough");
-              {{end}}
             }
             
             let text = "Transaction size: " + vbyteSize + " vBytes\n";
