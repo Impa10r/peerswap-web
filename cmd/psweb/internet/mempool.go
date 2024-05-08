@@ -60,7 +60,7 @@ func GetNodeAlias(id string) string {
 }
 
 // fetch high priority fee rate from mempool.space
-func GetFeeRate() uint32 {
+func GetFeeRate() float64 {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/v1/fees/recommended"
 		req, err := http.NewRequest("GET", api, nil)
@@ -81,11 +81,11 @@ func GetFeeRate() uint32 {
 
 				// Define a struct to match the JSON structure
 				type Fees struct {
-					FastestFee  uint32 `json:"fastestFee"`
-					HalfHourFee uint32 `json:"halfHourFee"`
-					HourFee     uint32 `json:"hourFee"`
-					EconomyFee  uint32 `json:"economyFee"`
-					MinimumFee  uint32 `json:"minimumFee"`
+					FastestFee  float64 `json:"fastestFee"`
+					HalfHourFee float64 `json:"halfHourFee"`
+					HourFee     float64 `json:"hourFee"`
+					EconomyFee  float64 `json:"economyFee"`
+					MinimumFee  float64 `json:"minimumFee"`
 				}
 
 				// Create an instance of the struct to store the parsed data

@@ -44,10 +44,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder     embed.FS
-	logFile       *os.File
-	latestVersion = version
-	chainFeeRate  = uint32(0)
+	tplFolder      embed.FS
+	logFile        *os.File
+	latestVersion  = version
+	mempoolFeeRate = float64(0)
 )
 
 func main() {
@@ -252,12 +252,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ListSwaps         string
 		BitcoinBalance    uint64
 		Filter            bool
+		MempoolFeeRate    float64
 	}
 
 	data := Page{
 		AllowSwapRequests: config.Config.AllowSwapRequests,
 		BitcoinSwaps:      config.Config.BitcoinSwaps,
 		Message:           message,
+		MempoolFeeRate:    mempoolFeeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
@@ -371,6 +373,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	type Page struct {
 		Message        string
+		MempoolFeeRate float64
+		BtcFeeRate     float64
 		ColorScheme    string
 		Peer           *peerswaprpc.PeerSwapPeer
 		PeerAlias      string
@@ -389,6 +393,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:        message,
+		BtcFeeRate:     mempoolFeeRate,
+		MempoolFeeRate: liquid.GetMempoolMinFee(),
 		ColorScheme:    config.Config.ColorScheme,
 		Peer:           peer,
 		PeerAlias:      getNodeAlias(peer.NodeId),
@@ -449,17 +455,19 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		ColorScheme string
-		Id          string
-		Message     string
-		IsPending   bool
+		ColorScheme    string
+		Id             string
+		Message        string
+		MempoolFeeRate float64
+		IsPending      bool
 	}
 
 	data := Page{
-		ColorScheme: config.Config.ColorScheme,
-		Id:          id,
-		Message:     "",
-		IsPending:   isPending,
+		ColorScheme:    config.Config.ColorScheme,
+		Id:             id,
+		Message:        "",
+		MempoolFeeRate: mempoolFeeRate,
+		IsPending:      isPending,
 	}
 
 	// executing template named "swap"
@@ -596,6 +604,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 	type Page struct {
 		Message        string
+		MempoolFeeRate float64
 		ColorScheme    string
 		Config         config.Configuration
 		Version        string
@@ -605,6 +614,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:        message,
+		MempoolFeeRate: mempoolFeeRate,
 		ColorScheme:    config.Config.ColorScheme,
 		Config:         config.Config,
 		Version:        version,
@@ -668,25 +678,27 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	type Page struct {
-		Message       string
-		ColorScheme   string
-		LiquidAddress string
-		LiquidBalance uint64
-		TxId          string
-		LiquidUrl     string
-		Outputs       *[]liquid.UTXO
-		LiquidApi     string
+		Message        string
+		MempoolFeeRate float64
+		ColorScheme    string
+		LiquidAddress  string
+		LiquidBalance  uint64
+		TxId           string
+		LiquidUrl      string
+		Outputs        *[]liquid.UTXO
+		LiquidApi      string
 	}
 
 	data := Page{
-		Message:       message,
-		ColorScheme:   config.Config.ColorScheme,
-		LiquidAddress: addr,
-		LiquidBalance: res2.GetSatAmount(),
-		TxId:          txid,
-		LiquidUrl:     config.Config.LiquidApi + "/tx/" + txid,
-		Outputs:       &outputs,
-		LiquidApi:     config.Config.LiquidApi,
+		Message:        message,
+		MempoolFeeRate: liquid.GetMempoolMinFee(),
+		ColorScheme:    config.Config.ColorScheme,
+		LiquidAddress:  addr,
+		LiquidBalance:  res2.GetSatAmount(),
+		TxId:           txid,
+		LiquidUrl:      config.Config.LiquidApi + "/tx/" + txid,
+		Outputs:        &outputs,
+		LiquidApi:      config.Config.LiquidApi,
 	}
 
 	// executing template named "liquid"
@@ -944,11 +956,12 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
-		ColorScheme string
-		Message     string
-		LogPosition int
-		LogFile     string
-		SearchText  string
+		ColorScheme    string
+		Message        string
+		MempoolFeeRate float64
+		LogPosition    int
+		LogFile        string
+		SearchText     string
 	}
 
 	logFile := "log" // peerswapd log
@@ -959,11 +972,12 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.Config.ColorScheme,
-		Message:     "",
-		LogPosition: 0, // new content and wait for connection
-		LogFile:     logFile,
-		SearchText:  searchText,
+		ColorScheme:    config.Config.ColorScheme,
+		Message:        "",
+		MempoolFeeRate: mempoolFeeRate,
+		LogPosition:    0, // new content and wait for connection
+		LogFile:        logFile,
+		SearchText:     searchText,
 	}
 
 	// executing template named "loading"
@@ -997,6 +1011,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme    string
 		Message        string
+		MempoolFeeRate float64
 		LogPosition    int
 		LogFile        string
 		Implementation string
@@ -1012,6 +1027,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		ColorScheme:    config.Config.ColorScheme,
 		Message:        "",
+		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    1, // from first line
 		LogFile:        logFile,
 		Implementation: ln.Implementation,
@@ -1185,7 +1201,7 @@ func onTimer() {
 	// refresh fee rate
 	r := internet.GetFeeRate()
 	if r > 0 {
-		chainFeeRate = r
+		mempoolFeeRate = r
 	}
 }
 
@@ -1274,6 +1290,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Progress         int32
 		Duration         string
 		FeeRate          uint32
+		MempoolFeeRate   float64
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
 		CanBump          bool
@@ -1282,7 +1299,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := chainFeeRate
+	fee := uint32(mempoolFeeRate)
 	confs := int32(0)
 	minConfs := int32(1)
 	canBump := false
@@ -1322,6 +1339,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Progress:         int32(confs * 100 / 102),
 		Duration:         formattedDuration,
 		FeeRate:          config.Config.PeginFeeRate,
+		MempoolFeeRate:   mempoolFeeRate,
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          canBump,

@@ -75,7 +75,7 @@
                         <div class="field">
                           <div class="control">
                             <div class="select is-medium is-fullwidth">
-                              <select name="asset">
+                              <select id="asset" name="asset" onchange="calculateTransactionFee()">
                                 <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
                                 <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
                               </select>
@@ -117,6 +117,16 @@
                       <input class="button is-large" type="submit" value="Execute Swap">
                     </center>
                   </form>
+                  <script>
+                    function calculateTransactionFee() {
+                      var asset = document.getElementById("asset").value;
+                      if (asset == "btc") {
+                        document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
+                      } else {
+                        document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
+                      }
+                    }
+                  </script>
                 {{end}}
               {{end}}
             {{end}}

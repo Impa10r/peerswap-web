@@ -12,6 +12,7 @@ header {
     top:0;
     background: #001072;
     z-index: 10;
+    margin-bottom: -25px;
 }
     
 .rotate-span {
@@ -78,4 +79,26 @@ pre {
     background-color: green;
     padding: 10px;
     border-radius: 5px;
+}
+
+.logo-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px;
+}
+
+.left-logo {
+    order: 1; /* This will ensure it's placed far left */
+}
+
+.right-logos {
+    display: flex;
+    order: 2; /* This will ensure it's placed far right */
+}
+
+.logo {
+    height: 50px; /* Adjust the size as per your requirement */
+    width: auto;
+    margin-right: 5px; /* Adjust spacing between logos */
 }

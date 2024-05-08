@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -379,4 +380,39 @@ func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 
 func toBitcoin(amountSats uint64) float64 {
 	return float64(amountSats) / float64(100000000)
+}
+
+type MemPoolInfo struct {
+	Loaded           bool    `json:"loaded"`
+	Size             int     `json:"size"`
+	Bytes            int     `json:"bytes"`
+	Usage            int     `json:"usage"`
+	TotalFee         float64 `json:"total_fee"`
+	MaxMemPool       int     `json:"maxmempool"`
+	MemPoolMinFee    float64 `json:"mempoolminfee"`
+	MinRelayTxFee    float64 `json:"minrelaytxfee"`
+	UnbroadcastCount int     `json:"unbroadcastcount"`
+}
+
+// return min fee in sats/vB
+func GetMempoolMinFee() float64 {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]string{}
+
+	r, err := service.client.call("getmempoolinfo", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("getmempoolinfo: %v", err)
+		return 0
+	}
+
+	var result MemPoolInfo
+
+	err = json.Unmarshal([]byte(r.Result), &result)
+	if err != nil {
+		log.Printf("getmempoolinfo unmarshall: %v", err)
+		return 0
+	}
+
+	return math.Round(result.MemPoolMinFee*100_000_000) / 1000
 }
