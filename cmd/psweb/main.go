@@ -1670,7 +1670,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalCapacity += capacity
 			tooltip := " in the last 6 months"
 
-			// timestamp frow the last swap or 6m horizon
+			// timestamp of the last swap or 6m horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
