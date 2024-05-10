@@ -1652,7 +1652,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalOutflows += stats.AmountOut
 			totalInflows += stats.AmountIn
 
-			netFlow := float64(int64(stats.AmountOut) - int64(stats.AmountIn))
+			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -1716,13 +1716,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		ppm := uint64(0)
 		if totalOutflows > 0 {
-			ppm = totalFees * 100_000_000 / totalOutflows
+			ppm = totalFees * 1_000_000 / totalOutflows
 		}
 		peerTable += "<span title=\"Total outbound fees since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 
 		ppm = 0
 		if totalInflows > 0 {
-			ppm = totalAssistedFees * 100_000_000 / totalInflows
+			ppm = totalAssistedFees * 1_000_000 / totalInflows
 		}
 		peerTable += "<span title=\"Total assisted fees since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
 
