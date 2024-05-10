@@ -81,11 +81,20 @@
           var char = text[i];
           // Check if the character is a letter or a number
           if (i > 0 || /^[a-zA-Z0-9., ]$/.test(char)) {
-              // If it's a letter or number, replace it with a random Greek alphabet character
-              scrambledText += getRandomGreekLetter();
+            // If it's a letter or number, replace it with a random Greek alphabet character
+            scrambledText += getRandomGreekLetter();
           } else {
+            if (char == "-") {
+              // replace 0 amount with five greek letters
+              scrambledText += getRandomGreekLetter();
+              scrambledText += getRandomGreekLetter();
+              scrambledText += getRandomGreekLetter();
+              scrambledText += getRandomGreekLetter();
+              scrambledText += getRandomGreekLetter();
+            } else {
               // If it's not a letter or number, keep it as it is
               scrambledText += char;
+            }
           }        
         }
         
