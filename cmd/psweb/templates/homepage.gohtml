@@ -78,8 +78,15 @@
         var scrambledText = ""; 
         
         for (var i = 0; i < text.length; i++) {
-          // Replace with random Greek alphabet characters
-          scrambledText += getRandomGreekLetter();        
+          var char = text[i];
+          // Check if the character is a letter or a number
+          if (i > 0 || /^[a-zA-Z0-9., ]$/.test(char)) {
+              // If it's a letter or number, replace it with a random Greek alphabet character
+              scrambledText += getRandomGreekLetter();
+          } else {
+              // If it's not a letter or number, keep it as it is
+              scrambledText += char;
+          }        
         }
         
         return scrambledText;
