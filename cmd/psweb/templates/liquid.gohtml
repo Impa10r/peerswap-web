@@ -89,13 +89,13 @@
                   <input class="button is-large" type="submit" value="Send Liquid">
                 </center>
               </form>
-            </div>
-            <script>
-              function setMax() {
-                document.getElementById("sendAmount").value = {{.LiquidBalance}};
-                document.getElementById("subtractfee").checked = true;
-              }
-            </script>
+              <script>
+                function setMax() {
+                  document.getElementById("sendAmount").value = {{.LiquidBalance}};
+                  document.getElementById("subtractfee").checked = true;
+                }
+              </script>
+            </div>     
           {{else}}
             <div class="box">
               <h4 class="title is-4">Payment Sent</h4> 
