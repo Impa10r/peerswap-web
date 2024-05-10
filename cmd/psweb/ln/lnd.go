@@ -772,7 +772,7 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 }
 
 // forwarding stats for a channel since timestamp
-func GetNetFlow(channelId uint64, timeStamp uint64) *ShortForwardingStats {
+func GetForwardingStatsSinceTS(channelId uint64, timeStamp uint64) *ShortForwardingStats {
 
 	var (
 		result       ShortForwardingStats

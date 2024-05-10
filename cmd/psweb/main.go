@@ -1646,7 +1646,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
-			stats := ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp))
+			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
 			totalAssistedFees += stats.AssistedFeeSat
 			totalOutflows += stats.AmountOut
@@ -1694,7 +1694,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
 		peerTable += "<tr style=\"border: 1px dotted\">"
-		peerTable += "<td  class=\"truncate\" id=\"scramble\" style=\"float: left; text-align: left; width: 70%;\">"
+		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page
 		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -1712,21 +1712,21 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td style=\"float: center; text-align: center; width:15ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
 
 		ppm := uint64(0)
 		if totalOutflows > 0 {
 			ppm = totalFees * 1_000_000 / totalOutflows
 		}
-		peerTable += "<span title=\"Total outbound fees since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Total revenue since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 
 		ppm = 0
 		if totalInflows > 0 {
 			ppm = totalAssistedFees * 1_000_000 / totalInflows
 		}
-		peerTable += "<span title=\"Total assisted fees since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+		peerTable += "<span title=\"Total assisted revenue since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
 
-		peerTable += "</td><td style=\"float: right; text-align: right; width:8ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; float: right; text-align: right; width:8ch;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			peerTable += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
