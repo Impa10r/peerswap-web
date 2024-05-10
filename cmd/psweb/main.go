@@ -1602,45 +1602,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 	var unsortedTable []Table
 
 	for _, peer := range peers {
-
 		var totalLocal float64
 		var totalCapacity float64
+		var totalOutflows uint64
+		var totalInflows uint64
+		var totalFees uint64
+		var totalAssistedFees uint64
 
-		table := "<table style=\"table-layout:fixed; width: 100%\">"
-		table += "<tr style=\"border: 1px dotted\">"
-		table += "<td id=\"scramble\" style=\"float: left; text-align: left; width: 70%;\">"
-
-		// alias is a link to open peer details page
-		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
-
-		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
-			table += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
-		} else {
-			table += "<span title=\"Peer is blacklisted\">⛔&nbsp</span>"
-		}
-
-		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
-			table += "<span title=\"Peer is marked suspicious\">🕵&nbsp</span>"
-		}
-
-		table += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
-		table += "</span></a>"
-		table += "</td><td style=\"float: right; text-align: right; width:30%;\">"
-
-		if stringIsInSlice("lbtc", peer.SupportedAssets) {
-			table += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
-		}
-		if stringIsInSlice("btc", peer.SupportedAssets) {
-			table += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
-		}
-		if peer.SwapsAllowed {
-			table += "<span title=\"Peer whilelisted us\">✅</span>"
-		} else {
-			table += "<span title=\"Peer did not whitelist us\">⛔</span>"
-		}
-		table += "</td></tr></table>"
-
-		table += "<table style=\"table-layout: fixed; width: 100%\">"
+		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -1658,11 +1627,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				}
 			}
 
-			table += "<tr style=\"background-color: " + bc + "\"; >"
-			table += "<td title=\"Local balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
-			table += toMil(channel.LocalBalance)
-			table += "</td><td style=\"text-align: center; vertical-align: middle;\">"
-			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
+			channelsTable += "<td title=\"Local balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += toMil(channel.LocalBalance)
+			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
+			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 			local := float64(channel.LocalBalance)
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
@@ -1677,7 +1646,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
-			netFlow := float64(ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp)))
+			stats := ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp))
+			totalFees += stats.FeeSat
+			totalAssistedFees += stats.AssistedFeeSat
+			totalOutflows += stats.AmountOut
+			totalInflows += stats.AmountIn
+
+			netFlow := float64(stats.AmountOut - stats.AmountIn)
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -1706,21 +1681,69 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
 
-			table += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
-			table += "</a></td>"
-			table += "<td title=\"Remote balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
-			table += toMil(channel.RemoteBalance)
-			table += "</td></tr>"
+			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
+			channelsTable += "</a></td>"
+			channelsTable += "<td title=\"Remote balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += toMil(channel.RemoteBalance)
+			channelsTable += "</td></tr>"
 		}
-		table += "</table>"
-		table += "<p style=\"margin:0.5em;\"></p>"
+		channelsTable += "</table>"
 
 		// count total outbound to sort peers later
 		pct := int(1000000 * totalLocal / totalCapacity)
 
+		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
+		peerTable += "<tr style=\"border: 1px dotted\">"
+		peerTable += "<td  class=\"truncate\" id=\"scramble\" style=\"float: left; text-align: left; width: 70%;\">"
+
+		// alias is a link to open peer details page
+		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+
+		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
+			peerTable += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
+		} else {
+			peerTable += "<span title=\"Peer is blacklisted\">⛔&nbsp</span>"
+		}
+
+		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
+			peerTable += "<span title=\"Peer is marked suspicious\">🕵&nbsp</span>"
+		}
+
+		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
+		peerTable += "</span></a>"
+
+		peerTable += "</td><td style=\"float: center; text-align: center; width:15ch;\">"
+
+		ppm := uint64(0)
+		if totalOutflows > 0 {
+			ppm = totalFees * 100_000_000 / totalOutflows
+		}
+		peerTable += "<span title=\"Total outbound fees since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+
+		ppm = 0
+		if totalInflows > 0 {
+			ppm = totalAssistedFees * 100_000_000 / totalInflows
+		}
+		peerTable += "<span title=\"Total assisted fees since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+
+		peerTable += "</td><td style=\"float: right; text-align: right; width:8ch;\">"
+
+		if stringIsInSlice("lbtc", peer.SupportedAssets) {
+			peerTable += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
+		}
+		if stringIsInSlice("btc", peer.SupportedAssets) {
+			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
+		}
+		if peer.SwapsAllowed {
+			peerTable += "<span title=\"Peer whilelisted us\">✅</span>"
+		} else {
+			peerTable += "<span title=\"Peer did not whitelist us\">⛔</span>"
+		}
+		peerTable += "</td></tr></table>"
+
 		unsortedTable = append(unsortedTable, Table{
 			AvgLocal: pct,
-			HtmlBlob: table,
+			HtmlBlob: peerTable + channelsTable,
 		})
 	}
 

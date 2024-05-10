@@ -42,6 +42,13 @@ type ForwardingStats struct {
 	AssistedPPM6m     uint64
 }
 
+type ShortForwardingStats struct {
+	AmountOut      uint64
+	AmountIn       uint64
+	FeeSat         uint64
+	AssistedFeeSat uint64
+}
+
 type ChanneInfo struct {
 	LocalBalance  uint64
 	RemoteBalance uint64

@@ -771,26 +771,36 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 	return info
 }
 
-// net balance change for a channel
-func GetNetFlow(channelId uint64, timeStamp uint64) int64 {
+// forwarding stats for a channel since timestamp
+func GetNetFlow(channelId uint64, timeStamp uint64) *ShortForwardingStats {
 
-	netFlow := int64(0)
+	var (
+		result       ShortForwardingStats
+		feeMsat      uint64
+		assistedMsat uint64
+	)
+
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardingEvents {
 		if e.ChanIdOut == channelId {
 			if e.TimestampNs > timestampNs {
-				netFlow -= int64(e.AmtOut)
+				result.AmountOut += e.AmtOut
+				feeMsat += e.FeeMsat
 			}
 		}
 		if e.ChanIdIn == channelId {
 			if e.TimestampNs > timestampNs {
-				netFlow += int64(e.AmtIn)
+				result.AmountIn += e.AmtIn
+				assistedMsat += e.FeeMsat
 			}
 		}
 	}
 
-	return netFlow
+	result.FeeSat = feeMsat / 1000
+	result.AssistedFeeSat = assistedMsat / 1000
+
+	return &result
 }
 
 // generate new onchain address
