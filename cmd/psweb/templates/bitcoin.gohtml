@@ -58,10 +58,10 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label title="Includes liquid peg-in fee estimate of 45 sats" class="label">Fee Calc</label>
+                  <label class="label">Fee Calc</label>
                 </div>
                 <div class="field-body">
-                  <label title="Includes liquid peg-in fee estimate of 45 sats" id="result" class="label"></label>
+                  <label id="result" class="label"></label>
                   <input type="number" id="totalFee" style="display: none;" value=0>
                 </div>
               </div>
@@ -323,6 +323,18 @@
 
           function calculateTransactionFee() {
             const peginAmount = Number(document.getElementById("peginAmount").value);
+            if (peginAmount < 1) {
+              document.getElementById("subtractfee").checked = false;
+              document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
+              return;
+            }
+
+            const feeRate = Number(document.getElementById("feeRate").value)
+            if (feeRate < 1) {
+              document.getElementById('result').innerText = "Please enter Fee Rate in sat/vB";
+              return;
+            }
+
             const subtractFee = document.getElementById("subtractfee").checked;
            
             let change = 1;
@@ -402,12 +414,6 @@
 
               // total amount to allocate among UTXOs 
               let amountToAllocate = peginAmount;
-
-              if (amountToAllocate < 1) {
-                document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
-                document.getElementById("subtractfee").checked = false;
-                return;
-              }
 
               // Iterate through table rows
               tableArray.forEach(function(row) {
@@ -498,9 +504,11 @@
 
             // vbyte and fee calculation
             vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4)
-            fee = document.getElementById("feeRate").value * vbyteSize
-            fee += 45; //liquid peg-in fee estimate
-
+            let fee = feeRate * vbyteSize
+            
+            //liquid peg-in fee estimate
+            liquidFee = Math.ceil({{.LiquidFeeRate}} * 450)
+            fee += liquidFee; 
             document.getElementById("totalFee").value = Number(fee);
 
             let netAmount = peginAmount;
@@ -510,7 +518,8 @@
             }
             
             let text = "Transaction size: " + vbyteSize + " vBytes\n";
-            text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
+            text += "Liquid chain fee: " + formatWithThousandSeparators(liquidFee) + " sats\n";
+            text += "Estimated total fee: " + formatWithThousandSeparators(fee) + " sats\n";
             text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
             
             if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {

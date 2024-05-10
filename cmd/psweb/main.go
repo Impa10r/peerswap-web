@@ -1290,6 +1290,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Progress         int32
 		Duration         string
 		FeeRate          uint32
+		LiquidFeeRate    float64
 		MempoolFeeRate   float64
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
@@ -1340,6 +1341,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration:         formattedDuration,
 		FeeRate:          config.Config.PeginFeeRate,
 		MempoolFeeRate:   mempoolFeeRate,
+		LiquidFeeRate:    liquid.GetMempoolMinFee(),
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          canBump,
