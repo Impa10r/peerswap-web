@@ -1652,7 +1652,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalOutflows += stats.AmountOut
 			totalInflows += stats.AmountIn
 
-			netFlow := float64(stats.AmountOut - stats.AmountIn)
+			netFlow := float64(int64(stats.AmountOut) - int64(stats.AmountIn))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
