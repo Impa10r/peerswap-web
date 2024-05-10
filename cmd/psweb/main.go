@@ -1714,7 +1714,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
 
 		ppm := uint64(0)
 		if totalOutflows > 0 {

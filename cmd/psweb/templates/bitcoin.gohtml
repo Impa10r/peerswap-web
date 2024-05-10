@@ -325,14 +325,6 @@
             const peginAmount = Number(document.getElementById("peginAmount").value);
             if (peginAmount < 1) {
               document.getElementById("subtractfee").checked = false;
-              document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
-              return;
-            }
-
-            const feeRate = Number(document.getElementById("feeRate").value)
-            if (feeRate < 1) {
-              document.getElementById('result').innerText = "Please enter Fee Rate in sat/vB";
-              return;
             }
 
             const subtractFee = document.getElementById("subtractfee").checked;
@@ -355,6 +347,19 @@
               {{if not .CanRBF}}
                 document.getElementById('cpfp').classList.remove("strikethrough");
               {{end}}
+            }
+
+            // amount cannot be blank
+            if (peginAmount < 1) {
+              document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
+              return;
+            }
+
+            // fee rate cannot be blank
+            const feeRate = Number(document.getElementById("feeRate").value)
+            if (feeRate < 1) {
+              document.getElementById('result').innerText = "Please enter Fee Rate in sat/vB";
+              return;
             }
 
             {{if .CanRBF}} 
