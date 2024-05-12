@@ -53,14 +53,17 @@ func LoadPS() {
 	}
 
 	// get peerswap rpc host from peerswap.conf
-	Config.RpcHost = GetPeerswapLNDSetting("host")
+	host := GetPeerswapLNDSetting("host")
+	if host != "" {
+		Config.RpcHost = host
+	}
 
 	wallet := GetPeerswapLNDSetting("elementsd.rpcwallet")
 	if wallet != "" {
 		Config.ElementsWallet = wallet
 	}
 
-	host := GetPeerswapLNDSetting("elementsd.rpchost")
+	host = GetPeerswapLNDSetting("elementsd.rpchost")
 	if host != "" {
 		Config.ElementsHost = host
 	}
@@ -176,6 +179,7 @@ func getConfSetting(searchVariable, filePath string) string {
 	// Read the entire content of the file
 	content, err := os.ReadFile(filePath)
 	if err != nil {
+		log.Println("Error reading file", filePath, err)
 		return ""
 	}
 	// Convert the content to a string
@@ -185,7 +189,7 @@ func getConfSetting(searchVariable, filePath string) string {
 		startIndex := index + len(searchVariable) + 1
 		value := ""
 		for _, char := range fileContent[startIndex:] {
-			if char == '\n' || char == '\r' {
+			if char == '\n' || char == '\r' || char == ' ' {
 				break
 			}
 			value += string(char)

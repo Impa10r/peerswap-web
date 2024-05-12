@@ -31,7 +31,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "v1.3.4"
+const version = "v1.3.5"
 
 type AliasCache struct {
 	PublicKey string
@@ -44,10 +44,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder     embed.FS
-	logFile       *os.File
-	latestVersion = version
-	chainFeeRate  = uint32(0)
+	tplFolder      embed.FS
+	logFile        *os.File
+	latestVersion  = version
+	mempoolFeeRate = float64(0)
 )
 
 func main() {
@@ -252,12 +252,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ListSwaps         string
 		BitcoinBalance    uint64
 		Filter            bool
+		MempoolFeeRate    float64
 	}
 
 	data := Page{
 		AllowSwapRequests: config.Config.AllowSwapRequests,
 		BitcoinSwaps:      config.Config.BitcoinSwaps,
 		Message:           message,
+		MempoolFeeRate:    mempoolFeeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
@@ -371,6 +373,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	type Page struct {
 		Message        string
+		MempoolFeeRate float64
+		BtcFeeRate     float64
 		ColorScheme    string
 		Peer           *peerswaprpc.PeerSwapPeer
 		PeerAlias      string
@@ -389,6 +393,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:        message,
+		BtcFeeRate:     mempoolFeeRate,
+		MempoolFeeRate: liquid.GetMempoolMinFee(),
 		ColorScheme:    config.Config.ColorScheme,
 		Peer:           peer,
 		PeerAlias:      getNodeAlias(peer.NodeId),
@@ -449,17 +455,19 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		ColorScheme string
-		Id          string
-		Message     string
-		IsPending   bool
+		ColorScheme    string
+		Id             string
+		Message        string
+		MempoolFeeRate float64
+		IsPending      bool
 	}
 
 	data := Page{
-		ColorScheme: config.Config.ColorScheme,
-		Id:          id,
-		Message:     "",
-		IsPending:   isPending,
+		ColorScheme:    config.Config.ColorScheme,
+		Id:             id,
+		Message:        "",
+		MempoolFeeRate: mempoolFeeRate,
+		IsPending:      isPending,
 	}
 
 	// executing template named "swap"
@@ -596,6 +604,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 	type Page struct {
 		Message        string
+		MempoolFeeRate float64
 		ColorScheme    string
 		Config         config.Configuration
 		Version        string
@@ -605,6 +614,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		Message:        message,
+		MempoolFeeRate: mempoolFeeRate,
 		ColorScheme:    config.Config.ColorScheme,
 		Config:         config.Config,
 		Version:        version,
@@ -668,25 +678,27 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	type Page struct {
-		Message       string
-		ColorScheme   string
-		LiquidAddress string
-		LiquidBalance uint64
-		TxId          string
-		LiquidUrl     string
-		Outputs       *[]liquid.UTXO
-		LiquidApi     string
+		Message        string
+		MempoolFeeRate float64
+		ColorScheme    string
+		LiquidAddress  string
+		LiquidBalance  uint64
+		TxId           string
+		LiquidUrl      string
+		Outputs        *[]liquid.UTXO
+		LiquidApi      string
 	}
 
 	data := Page{
-		Message:       message,
-		ColorScheme:   config.Config.ColorScheme,
-		LiquidAddress: addr,
-		LiquidBalance: res2.GetSatAmount(),
-		TxId:          txid,
-		LiquidUrl:     config.Config.LiquidApi + "/tx/" + txid,
-		Outputs:       &outputs,
-		LiquidApi:     config.Config.LiquidApi,
+		Message:        message,
+		MempoolFeeRate: liquid.GetMempoolMinFee(),
+		ColorScheme:    config.Config.ColorScheme,
+		LiquidAddress:  addr,
+		LiquidBalance:  res2.GetSatAmount(),
+		TxId:           txid,
+		LiquidUrl:      config.Config.LiquidApi + "/tx/" + txid,
+		Outputs:        &outputs,
+		LiquidApi:      config.Config.LiquidApi,
 	}
 
 	// executing template named "liquid"
@@ -738,7 +750,10 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			txid, err := liquid.SendToAddress(
 				r.FormValue("sendAddress"),
 				amt,
-				r.FormValue("subtractfee") == "on")
+				r.FormValue("comment"),
+				r.FormValue("subtractfee") == "on",
+				true,
+				r.FormValue("ignoreblindfail") == "on")
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
 				return
@@ -941,11 +956,12 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
-		ColorScheme string
-		Message     string
-		LogPosition int
-		LogFile     string
-		SearchText  string
+		ColorScheme    string
+		Message        string
+		MempoolFeeRate float64
+		LogPosition    int
+		LogFile        string
+		SearchText     string
 	}
 
 	logFile := "log" // peerswapd log
@@ -956,11 +972,12 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ColorScheme: config.Config.ColorScheme,
-		Message:     "",
-		LogPosition: 0, // new content and wait for connection
-		LogFile:     logFile,
-		SearchText:  searchText,
+		ColorScheme:    config.Config.ColorScheme,
+		Message:        "",
+		MempoolFeeRate: mempoolFeeRate,
+		LogPosition:    0, // new content and wait for connection
+		LogFile:        logFile,
+		SearchText:     searchText,
 	}
 
 	// executing template named "loading"
@@ -994,6 +1011,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme    string
 		Message        string
+		MempoolFeeRate float64
 		LogPosition    int
 		LogFile        string
 		Implementation string
@@ -1009,6 +1027,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		ColorScheme:    config.Config.ColorScheme,
 		Message:        "",
+		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    1, // from first line
 		LogFile:        logFile,
 		Implementation: ln.Implementation,
@@ -1182,7 +1201,7 @@ func onTimer() {
 	// refresh fee rate
 	r := internet.GetFeeRate()
 	if r > 0 {
-		chainFeeRate = r
+		mempoolFeeRate = r
 	}
 }
 
@@ -1271,14 +1290,17 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Progress         int32
 		Duration         string
 		FeeRate          uint32
+		LiquidFeeRate    float64
+		MempoolFeeRate   float64
 		SuggestedFeeRate uint32
 		MinBumpFeeRate   uint32
 		CanBump          bool
 		CanRBF           bool
+		IsCLN            bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := chainFeeRate
+	fee := uint32(mempoolFeeRate)
 	confs := int32(0)
 	minConfs := int32(1)
 	canBump := false
@@ -1318,10 +1340,13 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Progress:         int32(confs * 100 / 102),
 		Duration:         formattedDuration,
 		FeeRate:          config.Config.PeginFeeRate,
+		MempoolFeeRate:   mempoolFeeRate,
+		LiquidFeeRate:    liquid.GetMempoolMinFee(),
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          canBump,
 		CanRBF:           ln.CanRBF(),
+		IsCLN:            ln.Implementation == "CLN",
 	}
 
 	// executing template named "bitcoin"
@@ -1386,10 +1411,6 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if subtractFeeFromAmount {
-			if uint64(amount) < fee*uint64(len(selectedOutputs))*250 {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount does not cover the total fee"))
-				return
-			}
 			if amount != totalAmount {
 				redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
 				return
@@ -1583,45 +1604,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 	var unsortedTable []Table
 
 	for _, peer := range peers {
-
 		var totalLocal float64
 		var totalCapacity float64
+		var totalOutflows uint64
+		var totalInflows uint64
+		var totalFees uint64
+		var totalAssistedFees uint64
 
-		table := "<table style=\"table-layout:fixed; width: 100%\">"
-		table += "<tr style=\"border: 1px dotted\">"
-		table += "<td id=\"scramble\" style=\"float: left; text-align: left; width: 70%;\">"
-
-		// alias is a link to open peer details page
-		table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
-
-		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
-			table += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
-		} else {
-			table += "<span title=\"Peer is blacklisted\">⛔&nbsp</span>"
-		}
-
-		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
-			table += "<span title=\"Peer is marked suspicious\">🕵&nbsp</span>"
-		}
-
-		table += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
-		table += "</span></a>"
-		table += "</td><td style=\"float: right; text-align: right; width:30%;\">"
-
-		if stringIsInSlice("lbtc", peer.SupportedAssets) {
-			table += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
-		}
-		if stringIsInSlice("btc", peer.SupportedAssets) {
-			table += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
-		}
-		if peer.SwapsAllowed {
-			table += "<span title=\"Peer whilelisted us\">✅</span>"
-		} else {
-			table += "<span title=\"Peer did not whitelist us\">⛔</span>"
-		}
-		table += "</td></tr></table>"
-
-		table += "<table style=\"table-layout: fixed; width: 100%\">"
+		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -1639,11 +1629,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				}
 			}
 
-			table += "<tr style=\"background-color: " + bc + "\"; >"
-			table += "<td title=\"Local balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
-			table += toMil(channel.LocalBalance)
-			table += "</td><td style=\"text-align: center; vertical-align: middle;\">"
-			table += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
+			channelsTable += "<td title=\"Local balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += toMil(channel.LocalBalance)
+			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
+			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 			local := float64(channel.LocalBalance)
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
@@ -1651,14 +1641,20 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalCapacity += capacity
 			tooltip := " in the last 6 months"
 
-			// timestamp frow the last swap or 6m horizon
+			// timestamp of the last swap or 6m horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
-			netFlow := float64(ln.GetNetFlow(channel.ChannelId, uint64(lastSwapTimestamp)))
+			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+			totalFees += stats.FeeSat
+			totalAssistedFees += stats.AssistedFeeSat
+			totalOutflows += stats.AmountOut
+			totalInflows += stats.AmountIn
+
+			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -1687,21 +1683,69 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
 
-			table += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
-			table += "</a></td>"
-			table += "<td title=\"Remote balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
-			table += toMil(channel.RemoteBalance)
-			table += "</td></tr>"
+			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
+			channelsTable += "</a></td>"
+			channelsTable += "<td title=\"Remote balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += toMil(channel.RemoteBalance)
+			channelsTable += "</td></tr>"
 		}
-		table += "</table>"
-		table += "<p style=\"margin:0.5em;\"></p>"
+		channelsTable += "</table>"
 
 		// count total outbound to sort peers later
 		pct := int(1000000 * totalLocal / totalCapacity)
 
+		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
+		peerTable += "<tr style=\"border: 1px dotted\">"
+		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; float: left; text-align: left; width: 70%;\">"
+
+		// alias is a link to open peer details page
+		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+
+		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
+			peerTable += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
+		} else {
+			peerTable += "<span title=\"Peer is blacklisted\">⛔&nbsp</span>"
+		}
+
+		if stringIsInSlice(peer.NodeId, suspiciousPeers) {
+			peerTable += "<span title=\"Peer is marked suspicious\">🕵&nbsp</span>"
+		}
+
+		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
+		peerTable += "</span></a>"
+
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+
+		ppm := uint64(0)
+		if totalOutflows > 0 {
+			ppm = totalFees * 1_000_000 / totalOutflows
+		}
+		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+
+		ppm = 0
+		if totalInflows > 0 {
+			ppm = totalAssistedFees * 1_000_000 / totalInflows
+		}
+		peerTable += "<span title=\"Total assisted revenue since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+
+		peerTable += "</td><td style=\"padding: 0px; float: right; text-align: right; width:8ch;\">"
+
+		if stringIsInSlice("lbtc", peer.SupportedAssets) {
+			peerTable += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
+		}
+		if stringIsInSlice("btc", peer.SupportedAssets) {
+			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
+		}
+		if peer.SwapsAllowed {
+			peerTable += "<span title=\"Peer whilelisted us\">✅</span>"
+		} else {
+			peerTable += "<span title=\"Peer did not whitelist us\">⛔</span>"
+		}
+		peerTable += "</td></tr></table>"
+
 		unsortedTable = append(unsortedTable, Table{
 			AvgLocal: pct,
-			HtmlBlob: table,
+			HtmlBlob: peerTable + channelsTable,
 		})
 	}
 
@@ -1719,7 +1763,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 }
 
 // converts a list of swaps into an HTML table
-// if nodeId != "" then only show swaps for that node Id
+// if nodeId, swapState, swapRole != "" then only show swaps for that filter
 func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string, swapState string, swapRole string) string {
 
 	if len(swaps) == 0 {

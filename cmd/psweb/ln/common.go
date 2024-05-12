@@ -26,14 +26,27 @@ type ForwardingStats struct {
 	AmountIn7d        uint64
 	FeeSat7d          uint64
 	AssistedFeeSat7d  uint64
+	FeePPM7d          uint64
+	AssistedPPM7d     uint64
 	AmountOut30d      uint64
 	AmountIn30d       uint64
 	FeeSat30d         uint64
 	AssistedFeeSat30d uint64
+	FeePPM30d         uint64
+	AssistedPPM30d    uint64
 	AmountOut6m       uint64
 	AmountIn6m        uint64
 	FeeSat6m          uint64
 	AssistedFeeSat6m  uint64
+	FeePPM6m          uint64
+	AssistedPPM6m     uint64
+}
+
+type ShortForwardingStats struct {
+	AmountOut      uint64
+	AmountIn       uint64
+	FeeSat         uint64
+	AssistedFeeSat uint64
 }
 
 type ChanneInfo struct {

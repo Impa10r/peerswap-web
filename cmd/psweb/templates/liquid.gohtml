@@ -39,14 +39,25 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="1000" required="required" placeholder="🌊 Liquid Amount (sats)">
+                        <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required="required" placeholder="🌊 Liquid Amount (sats)">
                       </p>
                     </div>
                   </div>
                 </div>
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label"> </label>
+                    <label class="label">Comment</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <p>
+                        <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
                   </div>
                   <div class="field-body">
                     <div class="field">
@@ -59,18 +70,32 @@
                     </div>
                   </div>
                 </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                  </div>
+                  <div class="field-body">
+                    <div class="field">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
+                          <strong>&nbsp&nbspIgnore Blind Fail</strong>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <center>
                   <input type="hidden" name="action" value="sendLiquid">
                   <input class="button is-large" type="submit" value="Send Liquid">
                 </center>
               </form>
-            </div>
-            <script>
-              function setMax() {
-                document.getElementById("sendAmount").value = {{.LiquidBalance}};
-                document.getElementById("subtractfee").checked = true;
-              }
-            </script>
+              <script>
+                function setMax() {
+                  document.getElementById("sendAmount").value = {{.LiquidBalance}};
+                  document.getElementById("subtractfee").checked = true;
+                }
+              </script>
+            </div>     
           {{else}}
             <div class="box">
               <h4 class="title is-4">Payment Sent</h4> 

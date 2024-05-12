@@ -93,7 +93,9 @@
                       <div class="select is-medium is-fullwidth">
                         <select name="liquidApi">
                           <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
-                          <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>          
+                          <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>
+                          <option value="https://blockstream.info/liquidtestnet" {{if eq .Config.LiquidApi "https://blockstream.info/liquidtestnet"}}selected{{end}}>https://blockstream.info/liquidtestnet</option>
+                          <option value="https://blockstream.info" {{if eq .Config.LiquidApi "https://blockstream.info"}}selected{{end}}>https://blockstream.info</option>            
                         </select>
                       </div>
                     </div>

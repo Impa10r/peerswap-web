@@ -433,7 +433,6 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 					if e.ResolvedTime > timestamp7d {
 						amountOut7d += e.OutMsat
 						feeMsat7d += e.FeeMsat
-						log.Println(e)
 					}
 				}
 			}
@@ -468,29 +467,63 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	result.FeeSat6m = feeMsat6m / 1000
 	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
+	if result.AmountOut7d > 0 {
+		result.FeePPM7d = result.FeeSat7d * 1_000_000 / result.AmountOut7d
+	}
+	if result.AmountIn7d > 0 {
+		result.AssistedPPM7d = result.AssistedFeeSat7d * 1_000_000 / result.AmountIn7d
+	}
+	if result.AmountOut30d > 0 {
+		result.FeePPM30d = result.FeeSat30d * 1_000_000 / result.AmountOut30d
+	}
+	if result.AmountIn30d > 0 {
+		result.AssistedPPM30d = result.AssistedFeeSat30d * 1_000_000 / result.AmountIn30d
+	}
+	if result.AmountOut6m > 0 {
+		result.FeePPM6m = result.FeeSat6m * 1_000_000 / result.AmountOut6m
+	}
+	if result.AmountIn6m > 0 {
+		result.AssistedPPM6m = result.AssistedFeeSat6m * 1_000_000 / result.AmountIn6m
+	}
+
 	return &result
 }
 
-// net balance change for a channel
-func GetNetFlow(lndChannelId uint64, timeStamp uint64) int64 {
+// forwarding stats for a channel since timestamp
+func GetForwardingStatsSinceTS(lndChannelId uint64, timeStamp uint64) *ShortForwardingStats {
 
-	netFlow := int64(0)
+	var (
+		result       ShortForwardingStats
+		amountOut    uint64
+		amountIn     uint64
+		feeMsat      uint64
+		assistedMsat uint64
+	)
+
 	channelId := ConvertLndToClnChannelId(lndChannelId)
 	timeStampF := float64(timeStamp)
 
 	for _, e := range forwards.Forwards {
 		if e.InChannel == channelId {
 			if e.ResolvedTime > timeStampF {
-				netFlow -= int64(e.OutMsat)
+				amountOut += e.OutMsat
+				feeMsat += e.FeeMsat
 			}
 		}
 		if e.OutChannel == channelId {
 			if e.ResolvedTime > timeStampF {
-				netFlow += int64(e.OutMsat)
+				amountIn += e.OutMsat
+				assistedMsat += e.FeeMsat
 			}
 		}
 	}
-	return netFlow / 1000
+
+	result.AmountOut = amountOut / 1000
+	result.AmountIn = amountIn / 1000
+	result.FeeSat = feeMsat / 1000
+	result.AssistedFeeSat = assistedMsat / 1000
+
+	return &result
 }
 
 type ListPeerChannelsRequest struct {
@@ -528,4 +561,29 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 	}
 
 	return info
+}
+
+func NewAddress() (string, error) {
+	client, clean, err := GetClient()
+	if err != nil {
+		log.Println("GetClient:", err)
+		return "", err
+	}
+	defer clean()
+
+	var res struct {
+		Bech32     string `json:"bech32"`
+		P2SHSegwit string `json:"p2sh-segwit"`
+		Taproot    string `json:"p2tr"`
+	}
+
+	err = client.Request(&glightning.NewAddrRequest{
+		AddressType: "bech32",
+	}, &res)
+	if err != nil {
+		log.Println("NewAddrRequest:", err)
+		return "", err
+	}
+
+	return res.Bech32, nil
 }

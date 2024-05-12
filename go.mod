@@ -20,7 +20,7 @@ require (
 	github.com/elementsproject/peerswap v0.2.98-0.20240408181051-0f0d34c6c506
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
-	github.com/lightningnetwork/lnd v0.18.0-beta.rc1
+	github.com/lightningnetwork/lnd v0.18.0-beta.rc2
 	golang.org/x/net v0.24.0
 	google.golang.org/grpc v1.63.2
 	gopkg.in/macaroon.v2 v2.1.0

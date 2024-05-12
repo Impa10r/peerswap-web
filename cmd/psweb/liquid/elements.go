@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/ln"
 
 	"github.com/alexmullins/zip"
 )
@@ -199,12 +201,18 @@ func ListUnspent(outputs *[]UTXO) error {
 type SendParams struct {
 	Address               string  `json:"address"`
 	Amount                float64 `json:"amount"`
-	SubtractFeeFromAmount bool    `json:"subtractfeefromamount"`
+	Comment               string  `json:"comment"`
+	SubtractFeeFromAmount bool    `json:"subtractfeefromamount,omitempty"`
+	Replaceable           bool    `json:"replaceable,omitempty"`
+	IgnoreBlindFail       bool    `json:"ignoreblindfail,omitempty"`
 }
 
 func SendToAddress(address string,
 	amountSats uint64,
+	comment string,
 	subtractFeeFromAmount bool,
+	replaceable bool,
+	ignoreBlindFail bool,
 ) (string, error) {
 	client := ElementsClient()
 	service := &Elements{client}
@@ -213,7 +221,10 @@ func SendToAddress(address string,
 	params := &SendParams{
 		Address:               address,
 		Amount:                toBitcoin(amountSats),
+		Comment:               comment,
 		SubtractFeeFromAmount: subtractFeeFromAmount,
+		Replaceable:           replaceable,
+		IgnoreBlindFail:       ignoreBlindFail,
 	}
 
 	r, err := service.client.call("sendtoaddress", params, "/wallet/"+wallet)
@@ -313,6 +324,19 @@ type PeginAddress struct {
 }
 
 func GetPeginAddress(address *PeginAddress) error {
+
+	if config.Config.Chain == "testnet" {
+		// to not waste testnet sats where pegin is not implemented
+		// return new P2TR address in our own bitcoin wallet
+		addr, err := ln.NewAddress()
+		if err != nil {
+			return err
+		}
+		address.ClaimScript = ""
+		address.MainChainAddress = addr
+		return nil
+	}
+
 	client := ElementsClient()
 	service := &Elements{client}
 	wallet := config.Config.ElementsWallet
@@ -356,4 +380,39 @@ func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 
 func toBitcoin(amountSats uint64) float64 {
 	return float64(amountSats) / float64(100000000)
+}
+
+type MemPoolInfo struct {
+	Loaded           bool    `json:"loaded"`
+	Size             int     `json:"size"`
+	Bytes            int     `json:"bytes"`
+	Usage            int     `json:"usage"`
+	TotalFee         float64 `json:"total_fee"`
+	MaxMemPool       int     `json:"maxmempool"`
+	MemPoolMinFee    float64 `json:"mempoolminfee"`
+	MinRelayTxFee    float64 `json:"minrelaytxfee"`
+	UnbroadcastCount int     `json:"unbroadcastcount"`
+}
+
+// return min fee in sat/vB
+func GetMempoolMinFee() float64 {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]string{}
+
+	r, err := service.client.call("getmempoolinfo", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("getmempoolinfo: %v", err)
+		return 0
+	}
+
+	var result MemPoolInfo
+
+	err = json.Unmarshal([]byte(r.Result), &result)
+	if err != nil {
+		log.Printf("getmempoolinfo unmarshall: %v", err)
+		return 0
+	}
+
+	return math.Round(result.MemPoolMinFee*100_000_000) / 1000
 }

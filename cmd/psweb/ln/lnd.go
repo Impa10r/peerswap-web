@@ -5,6 +5,7 @@ package ln
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -220,54 +221,63 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		if len(*utxos) == 0 {
 			return nil, errors.New("at least one unspent output must be selected to send funds without change")
 		}
-		// give no output address,
-		// let fundpsbt change back to the wallet to find the fee amount
+		// trick for LND before 0.18:
+		// give empty outputs,
+		// let fundpsbt return change back to the wallet so we can find the fee amount
 	} else {
 		outputs[addr] = uint64(amount)
 	}
 
 	lockId := internalLockId
-	psbtBytes, err := fundPsbt(cl, utxos, outputs, feeRate)
-	if err != nil {
-		log.Println("FundPsbt:", err)
-		return nil, err
-	}
+	var psbtBytes []byte
 
-	if subtractFeeFromAmount {
-		// replace output with correct address and amount
-		fee, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
+	if subtractFeeFromAmount && CanRBF() {
+		// new template since for LND 0.18+
+		// change lockID to custom and construct manual psbt
+		lockId = myLockId
+		psbtBytes, err = fundPsbtSpendAll(cl, utxos, addr, feeRate)
 		if err != nil {
 			return nil, err
 		}
-		// reduce output amount by fee and small haircut to go around the LND bug
-		for haircut := int64(0); haircut <= 2000; haircut += 5 {
-			err = releaseOutputs(cl, utxos, &lockId)
+	} else {
+		psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+		if err != nil {
+			log.Println("FundPsbt:", err)
+			return nil, err
+		}
+
+		if subtractFeeFromAmount {
+			// trick for LND before 0.18
+			// replace output with correct address and amount
+			fee, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
 			if err != nil {
 				return nil, err
 			}
+			// reduce output amount by fee and small haircut to go around the LND bug
+			for haircut := int64(0); haircut <= 2000; haircut += 5 {
+				err = releaseOutputs(cl, utxos, &lockId)
+				if err != nil {
+					return nil, err
+				}
 
-			finalAmount = int64(amount) - toSats(fee) - haircut
-			if finalAmount < 0 {
-				finalAmount = 0
-			}
+				finalAmount = int64(amount) - toSats(fee) - haircut
+				if finalAmount < 0 {
+					finalAmount = 0
+				}
 
-			if CanRBF() {
-				// for LND 0.18+, change lockID and construct manual psbt
-				lockId = myLockId
-				psbtBytes, err = fundPsbt018(cl, utxos, addr, finalAmount, feeRate)
-			} else {
 				outputs[addr] = uint64(finalAmount)
 				psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+
+				if err == nil {
+					// PFBT was funded successfully
+					break
+				}
 			}
-			if err == nil {
-				// PFBT was funded successfully
-				break
+			if err != nil {
+				log.Println("FundPsbt:", err)
+				releaseOutputs(cl, utxos, &lockId)
+				return nil, err
 			}
-		}
-		if err != nil {
-			log.Println("FundPsbt:", err)
-			releaseOutputs(cl, utxos, &lockId)
-			return nil, err
 		}
 	}
 
@@ -275,7 +285,6 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	res2, err := cl.FinalizePsbt(ctx, &walletrpc.FinalizePsbtRequest{
 		FundedPsbt: psbtBytes,
 	})
-
 	if err != nil {
 		log.Println("FinalizePsbt:", err)
 		releaseOutputs(cl, utxos, &lockId)
@@ -386,7 +395,7 @@ func fundPsbt(cl walletrpc.WalletKitClient, utxos *[]string, outputs map[string]
 }
 
 // manual construction of PSBT in LND 0.18+ to spend exact UTXOs with no change
-func fundPsbt018(cl walletrpc.WalletKitClient, utxoStrings *[]string, address string, sendAmount int64, feeRate uint64) ([]byte, error) {
+func fundPsbtSpendAll(cl walletrpc.WalletKitClient, utxoStrings *[]string, address string, feeRate uint64) ([]byte, error) {
 	ctx := context.Background()
 
 	unspent, err := cl.ListUnspent(ctx, &walletrpc.ListUnspentRequest{
@@ -452,7 +461,7 @@ func fundPsbt018(cl walletrpc.WalletKitClient, utxoStrings *[]string, address st
 
 	tx.TxOut = append(tx.TxOut, &wire.TxOut{
 		PkScript: pkScript,
-		Value:    sendAmount,
+		Value:    int64(1), // this will be identified as change output to spend all
 	})
 
 	packet, err := psbt.NewFromUnsignedTx(tx)
@@ -480,7 +489,8 @@ func fundPsbt018(cl walletrpc.WalletKitClient, utxoStrings *[]string, address st
 		},
 	})
 	if err != nil {
-		log.Println("FundPsbt:", err)
+		log.Println("fundPsbtSpendAll:", err)
+		log.Println("PSBT:", base64.StdEncoding.EncodeToString(cs.Psbt))
 		releaseOutputs(cl, utxoStrings, &myLockId)
 		return nil, err
 	}
@@ -715,6 +725,25 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	result.FeeSat6m = feeMsat6m / 1000
 	result.AssistedFeeSat6m = assistedMsat6m / 1000
 
+	if result.AmountOut7d > 0 {
+		result.FeePPM7d = result.FeeSat7d * 1_000_000 / result.AmountOut7d
+	}
+	if result.AmountIn7d > 0 {
+		result.AssistedPPM7d = result.AssistedFeeSat7d * 1_000_000 / result.AmountIn7d
+	}
+	if result.AmountOut30d > 0 {
+		result.FeePPM30d = result.FeeSat30d * 1_000_000 / result.AmountOut30d
+	}
+	if result.AmountIn30d > 0 {
+		result.AssistedPPM30d = result.AssistedFeeSat30d * 1_000_000 / result.AmountIn30d
+	}
+	if result.AmountOut6m > 0 {
+		result.FeePPM6m = result.FeeSat6m * 1_000_000 / result.AmountOut6m
+	}
+	if result.AmountIn6m > 0 {
+		result.AssistedPPM6m = result.AssistedFeeSat6m * 1_000_000 / result.AmountIn6m
+	}
+
 	return &result
 }
 
@@ -742,24 +771,54 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 	return info
 }
 
-// net balance change for a channel
-func GetNetFlow(channelId uint64, timeStamp uint64) int64 {
+// forwarding stats for a channel since timestamp
+func GetForwardingStatsSinceTS(channelId uint64, timeStamp uint64) *ShortForwardingStats {
 
-	netFlow := int64(0)
+	var (
+		result       ShortForwardingStats
+		feeMsat      uint64
+		assistedMsat uint64
+	)
+
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardingEvents {
 		if e.ChanIdOut == channelId {
 			if e.TimestampNs > timestampNs {
-				netFlow -= int64(e.AmtOut)
+				result.AmountOut += e.AmtOut
+				feeMsat += e.FeeMsat
 			}
 		}
 		if e.ChanIdIn == channelId {
 			if e.TimestampNs > timestampNs {
-				netFlow += int64(e.AmtIn)
+				result.AmountIn += e.AmtIn
+				assistedMsat += e.FeeMsat
 			}
 		}
 	}
 
-	return netFlow
+	result.FeeSat = feeMsat / 1000
+	result.AssistedFeeSat = assistedMsat / 1000
+
+	return &result
+}
+
+// generate new onchain address
+func NewAddress() (string, error) {
+	ctx := context.Background()
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+
+	res, err := client.NewAddress(ctx, &lnrpc.NewAddressRequest{
+		Type: lnrpc.AddressType_WITNESS_PUBKEY_HASH,
+	})
+	if err != nil {
+		log.Println("NewAddress:", err)
+		return "", err
+	}
+
+	return res.Address, nil
 }
