@@ -3,7 +3,7 @@
 ## 1.3.5
 
 - Estimate peg-in transaction size, total fee and PPM
-- Add fee revenue stats to the main page
+- Add peer fee revenue stats to the main page
 
 ## 1.3.4
 

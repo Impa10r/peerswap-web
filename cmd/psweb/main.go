@@ -1720,7 +1720,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		if totalOutflows > 0 {
 			ppm = totalFees * 1_000_000 / totalOutflows
 		}
-		peerTable += "<span title=\"Total revenue since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 
 		ppm = 0
 		if totalInflows > 0 {
@@ -1763,7 +1763,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 }
 
 // converts a list of swaps into an HTML table
-// if nodeId != "" then only show swaps for that node Id
+// if nodeId, swapState, swapRole != "" then only show swaps for that filter
 func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string, swapState string, swapRole string) string {
 
 	if len(swaps) == 0 {
