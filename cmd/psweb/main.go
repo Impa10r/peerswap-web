@@ -1600,7 +1600,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 	swapTimestamps := make(map[uint64]int64)
 
 	for _, swap := range swaps {
-		if swapTimestamps[swap.LndChanId] < swap.CreatedAt {
+		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
 			swapTimestamps[swap.LndChanId] = swap.CreatedAt
 		}
 	}
