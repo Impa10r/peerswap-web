@@ -89,6 +89,14 @@ func Load(dataDir string) {
 		Config.ElementsDirMapped = os.Getenv("ELEMENTS_FOLDER_MAPPED")
 	}
 
+	if os.Getenv("ELEMENTS_PORT") != "" {
+		Config.ElementsPort = os.Getenv("ELEMENTS_PORT")
+	}
+
+	if os.Getenv("ELEMENTS_HOST") != "" {
+		Config.ElementsHost = os.Getenv("ELEMENTS_HOST")
+	}
+
 	// different defaults for LND and CLN
 	loadDefaults(currentUser.HomeDir, dataDir)
 

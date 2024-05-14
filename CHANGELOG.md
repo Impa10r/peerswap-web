@@ -1,5 +1,9 @@
 # Versions
 
+## 1.3.6
+
+- Fix Elements host and port values passed via Env
+
 ## 1.3.5
 
 - Estimate peg-in transaction size, total fee and PPM
