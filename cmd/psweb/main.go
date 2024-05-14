@@ -31,7 +31,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "v1.3.5"
+const version = "v1.3.6"
 
 type AliasCache struct {
 	PublicKey string
