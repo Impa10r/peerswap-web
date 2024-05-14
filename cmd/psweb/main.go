@@ -545,15 +545,17 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += swap.State
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
-	swapData += getNodeAlias(swap.InitiatorNodeId)
 	swapData += `&nbsp<a href="`
 	swapData += config.Config.NodeApi + "/" + swap.InitiatorNodeId
-	swapData += `" target="_blank">🔗</a></td></tr>
+	swapData += `" target="_blank">`
+	swapData += getNodeAlias(swap.InitiatorNodeId)
+	swapData += `</a></td></tr>
 			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
-	swapData += getNodeAlias(swap.PeerNodeId)
 	swapData += `&nbsp<a href="`
 	swapData += config.Config.NodeApi + "/" + swap.PeerNodeId
-	swapData += `" target="_blank">🔗</a></td></tr>
+	swapData += `" target="_blank">`
+	swapData += getNodeAlias(swap.PeerNodeId)
+	swapData += `</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
 	swapData += formatWithThousandSeparators(swap.Amount)
 	swapData += `</td></tr>
@@ -562,18 +564,20 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += `</td></tr>`
 	if swap.OpeningTxId != "" {
 		swapData += `<tr><td style="text-align: right">OpeningTxId:</td><td style="overflow-wrap: break-word;">`
-		swapData += swap.OpeningTxId
 		swapData += `&nbsp<a href="`
 		swapData += url + swap.OpeningTxId
-		swapData += `" target="_blank">🔗</a>`
+		swapData += `" target="_blank">`
+		swapData += swap.OpeningTxId
+		swapData += `</a>`
 	}
 	if swap.ClaimTxId != "" {
 		swapData += `</td></tr>
 			<tr><td style="text-align: right">ClaimTxId:</td><td style="overflow-wrap: break-word;">`
-		swapData += swap.ClaimTxId
 		swapData += `&nbsp<a href="`
 		swapData += url + swap.ClaimTxId
-		swapData += `" target="_blank">🔗</a></td></tr>`
+		swapData += `" target="_blank">`
+		swapData += swap.ClaimTxId
+		swapData += `</a></td></tr>`
 	}
 	if swap.CancelMessage != "" {
 		swapData += `<tr><td style="text-align: right">CancelMsg:</td><td>`
