@@ -1,5 +1,9 @@
 # Versions
 
+## 1.3.7
+
+- Fix rotating hourglass
+
 ## 1.3.6
 
 - Fix Elements host and port values passed via Env

@@ -31,7 +31,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "v1.3.6"
+const version = "v1.3.7"
 
 type AliasCache struct {
 	PublicKey string
@@ -519,9 +519,9 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 				<h4 class="title is-4">Swap Details</h4>
 			  </td>
 			  </td><td style="float: right; text-align: right; width:20%;">
-				<h4 class="title is-4"><a title="Return to initial page" href="/">`
+				<h4 class="title is-4">`
 	swapData += visualiseSwapState(swap.State, true)
-	swapData += `</a></h4>
+	swapData += `</h4>
 			  </td>
 			</tr>
 		  <table>
