@@ -1,8 +1,12 @@
-![image](https://github.com/Impa10r/peerswap-web/assets/101550606/7ca46925-d892-491e-8e0b-326dd882b836)
+![image](https://github.com/Impa10r/peerswap-web/assets/101550606/80f8f9a0-7771-47ad-8484-27c79a8ff37f)
 
 # PeerSwap Web UI
 
 A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+
+### Disclaimer
+
+This source code is free speech. The contributors do not solicit its use for any purpose, do not control, are not responsible for and gain no financial benefits from such use.
 
 # Setup
 
@@ -133,7 +137,7 @@ sudo systemctl restart psweb
 
 Take care to backup PeerSwap wallet after each Liquid transaction. In case of a catastrophic failure of your SSD all L-BTC funds may be lost. Always run your node with a UPS. 
 
-Back up is done from the Liquid page. The file name ```<hexkey>.bak``` is your master blinding key hex. The contents is the backup of wallet.dat. For safety, this .bak will be zipped with the same password as the Elements RPC. For Umbrel, this is the password displayed in the Elements Core App. For the rest, this is the .elements/elements.conf rpcpassword parameter.
+Backup is done from the Liquid page. The file name ```<hexkey>.bak``` is your master blinding key hex. The contents is the backup of wallet.dat. For safety, this .bak will be zipped with the same password as the Elements RPC. For Umbrel, this is the password displayed in the Elements Core App. For the rest, this is the .elements/elements.conf rpcpassword parameter.
 
 **Make sure you keep this password safe in a separate location!** 
 

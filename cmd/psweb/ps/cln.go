@@ -83,6 +83,11 @@ func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, er
 		peer.NodeId = data["nodeid"].(string)
 		peer.SwapsAllowed = data["swaps_allowed"].(bool)
 
+		// Check if the "total_fee_paid" field exists
+		if totalFeePaid, ok := data["total_fee_paid"]; ok {
+			peer.PaidFee = uint64(totalFeePaid.(float64))
+		}
+
 		assets := data["supported_assets"].([]interface{})
 		for _, asset := range assets {
 			peer.SupportedAssets = append(peer.SupportedAssets, asset.(string))
@@ -114,8 +119,6 @@ func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, er
 			SatsOut:  uint64(asReceiver["total_sats_swapped_out"].(float64)),
 			SatsIn:   uint64(asReceiver["total_sats_swapped_in"].(float64)),
 		}
-
-		peer.PaidFee = 0
 
 		peers = append(peers, &peer)
 	}

@@ -87,9 +87,9 @@ func visualiseSwapState(state string, rotate bool) string {
 		"State_ClaimedCsv",
 		"State_SwapCanceled",
 		"State_SendCancel":
-		return "❌"
+		return "<a title=\"Return to initial page\" href=\"/\">❌</a>"
 	case "State_ClaimedPreimage":
-		return "💰"
+		return "<a title=\"Return to initial page\" href=\"/\">💰</a>"
 	}
 
 	if rotate {
@@ -101,11 +101,11 @@ func visualiseSwapState(state string, rotate bool) string {
 
 		switch hourGlassRotate {
 		case 0:
-			return "<a href=\"/\">⏳</a>"
+			return "<a title=\"Return to initial page\" href=\"/\">⏳</a>"
 		case 1:
-			return "<a href=\"/\">⌛</a>"
+			return "<a title=\"Return to initial page\" href=\"/\">⌛</a>"
 		case 2:
-			return "<span class=\"rotate-span\"><a href=\"/\">⏳</a></span>" // rotate 90
+			return "<span class=\"rotate-span\"><a title=\"Return to initial page\" href=\"/\">⏳</a></span>" // rotate 90
 		}
 	}
 

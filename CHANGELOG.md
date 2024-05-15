@@ -1,5 +1,12 @@
 # Versions
 
+## 1.3.7
+
+- Enable automatic Liquid swap-ins
+- Report fees paid via LN for initiated swap-outs
+- Fix rotating hourglass
+- Fix failed swaps shortening flow timeframe 
+
 ## 1.3.6
 
 - Fix Elements host and port values passed via Env

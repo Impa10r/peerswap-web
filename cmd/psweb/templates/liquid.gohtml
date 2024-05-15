@@ -14,7 +14,83 @@
                 </div>
               </div> 
             </div> 
+          </div>         
+          <div class="box">
+             <h4 class="title is-4">Automatic Swap-Ins</h4> 
+             <form autocomplete="off" action="/submit" method="post">
+              <input autocomplete="false" name="hidden" type="text" style="display:none;">
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Wait for the accumulated Liquid balance to reach this amount" class="label">Threshold Amount</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="number" name="thresholdAmount" min="100000" value={{.AutoSwapThresholdAmount}} required placeholder="🌊 Liquid Amount (sats)">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Minimum required channel's historic revenue PPM" class="label">Threshold PPM</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="number" name="thresholdPPM" min="0" value={{.AutoSwapThresholdPPM}} required placeholder="Historic PPM Revenue (sats)">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Target local balance as % of capacity" class="label">Target Balance Pct</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p>
+                      <input class="input is-medium" type="number" name="targetPct" min="1" max="99" step="1" value={{.AutoSwapTargetPct}} required placeholder="50 percent">
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Current Best Candidate</label>
+                </div>
+                <div class="field-body">
+                  <label class="label">
+                    {{if gt .AutoSwapCandidate.Amount 0}}
+                      <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">Peer: {{.AutoSwapCandidate.PeerAlias}}</p>
+                      <p title="The highest swap amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
+                      <p title="Channel's realized PPM from the previous swap or the last 6 months">Historic PPM: {{fmt .AutoSwapCandidate.PPM}} sats</p>
+                    {{end}}
+                  </label>
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" name="autoSwapEnabled" {{if .AutoSwapEnabled}}checked{{end}}>
+                        <strong>&nbsp&nbspEnable Automatic Swap-Ins 🤖</strong>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <center>
+                <input type="hidden" name="action" value="setAutoSwap">
+                <input class="button is-large" type="submit" value="Confirm">
+              </center>
+            </form>
           </div>
+        </div>
+        <div class="column">
           {{if eq .TxId ""}}
             <div class="box">
               <h4 class="title is-4">Send Liquid</h4> 
@@ -27,7 +103,7 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required="required">
+                        <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
                       </p>
                     </div>
                   </div>
@@ -39,14 +115,14 @@
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required="required" placeholder="🌊 Liquid Amount (sats)">
+                        <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
                       </p>
                     </div>
                   </div>
                 </div>
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Comment</label>
+                    <label title="Internal comment" class="label">Comment</label>
                   </div>
                   <div class="field-body">
                     <div class="field">
@@ -102,31 +178,12 @@
               <table style="table-layout:fixed; width: 100%;">
                 <tr><td style="overflow-wrap: break-word;">
                   <center>
-                    TxId: {{.TxId}}&nbsp<a href="{{.LiquidUrl}}" target="_blank">🔗</a>
+                    TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a>
                   </center>
                 </td></tr>
               </table>
             </div>
           {{end}}
-        </div>
-        <div class="column"> 
-          <div class="box">
-            <h4 class="title is-4">Unspent Outputs</h4>
-            <table id="myTable" style="width:100%; table-layout:fixed;">
-              <tr>
-                <th>Address</th>
-                <th style="width: 9ch; text-align: right;">Confs</th>
-                <th style="width: 10ch; text-align: right;">Amount</th>
-              </tr>
-              {{range .Outputs}}
-                <tr>
-                  <td class="truncate"><a href="{{$.LiquidApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
-                  <td style="text-align: right;">{{fmt .Confirmations}}</td>
-                  <td style="text-align: right;">{{fmt (sats .Amount)}}</td>
-                </tr>
-              {{end}}
-            </table>
-          </div>
           <div class="box">
             <h4 class="title is-4">Receiving Address</h4> 
             {{if eq .LiquidAddress ""}}
@@ -155,7 +212,7 @@
                 }
               </script>
             {{end}}
-          </div>        
+          </div>
         </div>
       </div>
     </div>

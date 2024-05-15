@@ -91,7 +91,7 @@
                       <div class="field-body">
                         <div class="field">
                           <p>
-                            <input class="input is-medium" type="number" name="swapAmount" required="required" min="100000" placeholder="⚡ Swap Amount (sats)">
+                            <input class="input is-medium" type="number" name="swapAmount" required min="100000" placeholder="⚡ Swap Amount (sats)">
                           </p>
                         </div>
                       </div>
@@ -155,7 +155,14 @@
                 <td style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
                 <td style="text-align: center">{{fmt .Peer.AsSender.SwapsIn}}</td>
                 <td style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                <td style="text-align: center">{{fmt .Peer.AsSender.SwapsOut}}</td>
+                <td style="text-align: center">
+                  {{fmt .Peer.AsSender.SwapsOut}}
+                  {{if gt .Peer.PaidFee 0}}
+                    <span title = "Fees prepaid via Lightning">
+                      ({{.Peer.PaidFee}})
+                    </span>
+                  {{end}}
+                </td>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Rcvd
