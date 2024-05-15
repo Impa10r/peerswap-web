@@ -1,8 +1,12 @@
-![image](https://github.com/Impa10r/peerswap-web/assets/101550606/7ca46925-d892-491e-8e0b-326dd882b836)
+![image](https://github.com/Impa10r/peerswap-web/assets/101550606/80f8f9a0-7771-47ad-8484-27c79a8ff37f)
 
 # PeerSwap Web UI
 
 A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+
+# Disclaimer
+
+This source code is free speech. The author does not solicit its use for any purpose, does not control, is not responsible and gains no financial benefit from such use.
 
 # Setup
 
