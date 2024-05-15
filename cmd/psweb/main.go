@@ -1720,7 +1720,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			}
 
 			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
-			channelsTable += "<td title=\"Local balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
 			channelsTable += toMil(channel.LocalBalance)
 			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
 			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -1772,7 +1772,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			channelsTable += "</a></td>"
-			channelsTable += "<td title=\"Remote balance\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
 			channelsTable += toMil(channel.RemoteBalance)
 			channelsTable += "</td></tr>"
 		}
@@ -2139,7 +2139,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					candidate.ChannelId = channel.ChannelId
 					candidate.PeerAlias = getNodeAlias(peer.NodeId)
 					// set maximum possible amount
-					candidate.Amount = channel.RemoteBalance
+					candidate.Amount = swapAmount
 					candidate.PPM = ppm
 				}
 			}
@@ -2205,8 +2205,8 @@ func executeAutoSwap() {
 	}
 
 	// Log swap id
-	log.Println("AutoSwap initiated, id: "+id+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
+	log.Println("Initiated Auto Swap-In, id: "+id+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
 
 	// Send telegram
-	telegramSendMessage("🤖 Executed Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
+	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
 }

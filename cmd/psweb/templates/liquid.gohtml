@@ -61,9 +61,11 @@
                 </div>
                 <div class="field-body">
                   <label class="label">
-                    <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">Peer: {{.AutoSwapCandidate.PeerAlias}}</p>
-                    <p title="The highest swap amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
-                    <p title="Channel's realized PPM from the previous swap or the last 6 months">Historic PPM: {{fmt .AutoSwapCandidate.PPM}} sats</p>
+                    {{if gt .AutoSwapCandidate.Amount 0}}
+                      <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">Peer: {{.AutoSwapCandidate.PeerAlias}}</p>
+                      <p title="The highest swap amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
+                      <p title="Channel's realized PPM from the previous swap or the last 6 months">Historic PPM: {{fmt .AutoSwapCandidate.PPM}} sats</p>
+                    {{end}}
                   </label>
                 </div>
               </div>
