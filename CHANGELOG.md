@@ -3,6 +3,7 @@
 ## 1.3.7
 
 - Fix rotating hourglass
+- Fix unsuccessful swaps shortening flow timeframe 
 
 ## 1.3.6
 
