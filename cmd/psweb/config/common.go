@@ -9,39 +9,43 @@ import (
 )
 
 type Configuration struct {
-	AllowSwapRequests    bool
-	RpcHost              string
-	ListenPort           string
-	ColorScheme          string
-	BitcoinApi           string // for bitcoin tx links
-	LiquidApi            string // for liquid tx links
-	NodeApi              string // for node links
-	MaxHistory           uint
-	DataDir              string
-	ElementsUser         string
-	ElementsPass         string
-	BitcoinSwaps         bool
-	Chain                string
-	LocalMempool         string
-	ElementsDir          string // what Elements see inside its docker container
-	ElementsDirMapped    string // what will be mapped to PeerSwap docker
-	ElementsBackupAmount uint64
-	ElementsHost         string
-	ElementsPort         string
-	ElementsWallet       string
-	TelegramToken        string
-	TelegramChatId       int64
-	PeginClaimScript     string
-	PeginTxId            string
-	PeginReplacedTxId    string
-	PeginAddress         string
-	PeginAmount          int64
-	PeginFeeRate         uint32
-	LightningDir         string
-	BitcoinHost          string
-	BitcoinUser          string
-	BitcoinPass          string
-	ProxyURL             string
+	AllowSwapRequests       bool
+	RpcHost                 string
+	ListenPort              string
+	ColorScheme             string
+	BitcoinApi              string // for bitcoin tx links
+	LiquidApi               string // for liquid tx links
+	NodeApi                 string // for node links
+	MaxHistory              uint
+	DataDir                 string
+	ElementsUser            string
+	ElementsPass            string
+	BitcoinSwaps            bool
+	Chain                   string
+	LocalMempool            string
+	ElementsDir             string // what Elements see inside its docker container
+	ElementsDirMapped       string // what will be mapped to PeerSwap docker
+	ElementsBackupAmount    uint64
+	ElementsHost            string
+	ElementsPort            string
+	ElementsWallet          string
+	TelegramToken           string
+	TelegramChatId          int64
+	PeginClaimScript        string
+	PeginTxId               string
+	PeginReplacedTxId       string
+	PeginAddress            string
+	PeginAmount             int64
+	PeginFeeRate            uint32
+	LightningDir            string
+	BitcoinHost             string
+	BitcoinUser             string
+	BitcoinPass             string
+	ProxyURL                string
+	AutoSwapEnabled         bool
+	AutoSwapThresholdAmount uint64
+	AutoSwapThresholdPPM    uint64
+	AutoSwapTargetPct       uint64
 }
 
 var Config Configuration
@@ -72,6 +76,9 @@ func Load(dataDir string) {
 	Config.NodeApi = "https://amboss.space/node"
 	Config.BitcoinApi = "https://mempool.space"
 	Config.LiquidApi = "https://liquid.network"
+	Config.AutoSwapThresholdAmount = 5000000
+	Config.AutoSwapThresholdPPM = 500
+	Config.AutoSwapTargetPct = 50
 
 	if os.Getenv("NETWORK") == "testnet" {
 		Config.Chain = "testnet"

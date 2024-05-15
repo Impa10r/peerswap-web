@@ -101,6 +101,25 @@ func telegramStart() {
 					}
 				}
 				telegramSendMessage(t)
+			case "/auto":
+				t := "Auto swap-ins are "
+				if config.Config.AutoSwapEnabled {
+					t += "Enabled"
+					t += "\nThreshold Amount: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdAmount)
+					t += "\nMinimum PPM: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdPPM)
+					t += "\nTarget Pct: " + formatWithThousandSeparators(config.Config.AutoSwapTargetPct)
+
+					var candidate SwapParams
+
+					if err := findSwapInCandidate(&candidate); err == nil {
+						if candidate.Amount > 0 {
+							t += "\nBest Candidate: " + candidate.PeerAlias
+						}
+					}
+				} else {
+					t += "Disabled"
+				}
+				telegramSendMessage(t)
 			case "/version":
 				t := "Current version: " + version + "\n"
 				t += "Latest version: " + latestVersion
@@ -129,13 +148,19 @@ func telegramConnect() {
 				Description: "Get status of peg-in",
 			},
 			tgbotapi.BotCommand{
+				Command:     "auto",
+				Description: "Get status of auto swap-ins",
+			},
+			tgbotapi.BotCommand{
 				Command:     "version",
 				Description: "Check version",
 			},
 		)
 		bot.Send(cmdCfg)
 		config.Config.TelegramChatId = chatId
-		config.Save()
+		if err := config.Save(); err != nil {
+			log.Println("Error saving config file:", err)
+		}
 	} else {
 		chatId = 0
 		bot = nil

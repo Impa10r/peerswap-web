@@ -43,10 +43,7 @@ func getClientConn(address string) (*grpc.ClientConn, error) {
 }
 
 func Stop() {
-	host := config.Config.RpcHost
-	ctx := context.Background()
-
-	client, cleanup, err := GetClient(host)
+	client, cleanup, err := GetClient(config.Config.RpcHost)
 	if err != nil {
 		return
 	}
@@ -54,13 +51,12 @@ func Stop() {
 
 	log.Println("Stopping peerswapd...")
 
-	_, err = client.Stop(ctx, &peerswaprpc.Empty{})
+	_, err = client.Stop(context.Background(), &peerswaprpc.Empty{})
 	if err != nil {
 		log.Println("Unable to stop peerswapd:", err)
 	} else {
 		log.Println("Stopped peerswapd.")
 	}
-
 }
 
 func ReloadPolicyFile(client peerswaprpc.PeerSwapClient) (*peerswaprpc.Policy, error) {

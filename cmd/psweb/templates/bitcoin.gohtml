@@ -39,7 +39,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required="required" placeholder="₿ BTC Amount (sats)">
+                      <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
                     </p>
                   </div>
                 </div>
@@ -51,7 +51,7 @@
                 <div class="field-body">
                   <div class="field">
                     <p>
-                      <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                      <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                     </p>
                   </div>
                 </div>
@@ -164,7 +164,7 @@
                     <div class="field-body">
                       <div class="field">
                         <p>
-                          <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" required="required" value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                          <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                         </p>
                       </div>
                     </div>

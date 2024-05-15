@@ -2,6 +2,8 @@
 
 ## 1.3.7
 
+- Enable automatic Liquid swap-ins
+- Report fees paid via LN for initiated swap-outs
 - Fix rotating hourglass
 - Fix unsuccessful swaps shortening flow timeframe 
 

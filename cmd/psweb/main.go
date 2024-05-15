@@ -31,11 +31,21 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const version = "v1.3.7"
+const (
+	version          = "v1.3.7"
+	swapInFeeReserve = uint64(1000)
+)
 
 type AliasCache struct {
 	PublicKey string
 	Alias     string
+}
+
+type SwapParams struct {
+	PeerAlias string
+	ChannelId uint64
+	Amount    uint64
+	PPM       uint64
 }
 
 var (
@@ -253,6 +263,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance    uint64
 		Filter            bool
 		MempoolFeeRate    float64
+		AutoSwapEnabled   bool
 	}
 
 	data := Page{
@@ -266,6 +277,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
+		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 	}
 
 	// executing template named "homepage"
@@ -668,41 +680,46 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var outputs []liquid.UTXO
+	satAmount := res2.GetSatAmount()
 
-	if err := liquid.ListUnspent(&outputs); err != nil {
-		log.Printf("unable get listUnspent: %v", err)
+	var candidate SwapParams
+
+	if err := findSwapInCandidate(&candidate); err != nil {
+		log.Printf("unable findSwapInCandidate: %v", err)
 		redirectWithError(w, r, "/liquid?", err)
 		return
 	}
 
-	// sort outputs on Confirmations field
-	sort.Slice(outputs, func(i, j int) bool {
-		return outputs[i].Confirmations < outputs[j].Confirmations
-	})
-
 	type Page struct {
-		Message        string
-		MempoolFeeRate float64
-		ColorScheme    string
-		LiquidAddress  string
-		LiquidBalance  uint64
-		TxId           string
-		LiquidUrl      string
-		Outputs        *[]liquid.UTXO
-		LiquidApi      string
+		Message                 string
+		MempoolFeeRate          float64
+		ColorScheme             string
+		LiquidAddress           string
+		LiquidBalance           uint64
+		TxId                    string
+		LiquidUrl               string
+		LiquidApi               string
+		AutoSwapEnabled         bool
+		AutoSwapThresholdAmount uint64
+		AutoSwapThresholdPPM    uint64
+		AutoSwapCandidate       *SwapParams
+		AutoSwapTargetPct       uint64
 	}
 
 	data := Page{
-		Message:        message,
-		MempoolFeeRate: liquid.GetMempoolMinFee(),
-		ColorScheme:    config.Config.ColorScheme,
-		LiquidAddress:  addr,
-		LiquidBalance:  res2.GetSatAmount(),
-		TxId:           txid,
-		LiquidUrl:      config.Config.LiquidApi + "/tx/" + txid,
-		Outputs:        &outputs,
-		LiquidApi:      config.Config.LiquidApi,
+		Message:                 message,
+		MempoolFeeRate:          liquid.GetMempoolMinFee(),
+		ColorScheme:             config.Config.ColorScheme,
+		LiquidAddress:           addr,
+		LiquidBalance:           satAmount,
+		TxId:                    txid,
+		LiquidUrl:               config.Config.LiquidApi + "/tx/" + txid,
+		LiquidApi:               config.Config.LiquidApi,
+		AutoSwapEnabled:         config.Config.AutoSwapEnabled,
+		AutoSwapThresholdAmount: config.Config.AutoSwapThresholdAmount,
+		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
+		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
+		AutoSwapCandidate:       &candidate,
 	}
 
 	// executing template named "liquid"
@@ -722,7 +739,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		action := r.FormValue("action")
-		nodeId := r.FormValue("nodeId")
 
 		client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 		if err != nil {
@@ -732,6 +748,51 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "setAutoSwap":
+			config.Config.AutoSwapThresholdAmount, err = strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			config.Config.AutoSwapThresholdPPM, err = strconv.ParseUint(r.FormValue("thresholdPPM"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			config.Config.AutoSwapTargetPct, err = strconv.ParseUint(r.FormValue("targetPct"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			config.Config.AutoSwapEnabled = r.FormValue("autoSwapEnabled") == "on"
+
+			// Save config
+			if err := config.Save(); err != nil {
+				log.Println("Error saving config file:", err)
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			t := "Automatic swap-ins "
+			if config.Config.AutoSwapEnabled {
+				t += "Enabled"
+				t += ". Threshold Amount: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdAmount)
+				t += ". Minimum PPM: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdPPM)
+				t += ". Target Pct: " + formatWithThousandSeparators(config.Config.AutoSwapTargetPct)
+			} else {
+				t += "Disabled"
+			}
+
+			// Log the change
+			log.Println(t)
+
+			// Redirect to liquid page
+			http.Redirect(w, r, "/liquid", http.StatusSeeOther)
+			return
+
 		case "newAddress":
 			res, err := ps.LiquidGetAddress(client)
 			if err != nil {
@@ -767,55 +828,55 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/liquid?msg=\"\"&txid="+txid, http.StatusSeeOther)
 			return
 		case "addPeer":
-			_, err := ps.AddPeer(client, nodeId)
+			_, err := ps.AddPeer(client, r.FormValue("nodeId"))
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
 			return
 
 		case "removePeer":
-			_, err := ps.RemovePeer(client, nodeId)
+			_, err := ps.RemovePeer(client, r.FormValue("nodeId"))
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
 			return
 
 		case "suspectPeer":
-			_, err := ps.AddSusPeer(client, nodeId)
+			_, err := ps.AddSusPeer(client, r.FormValue("nodeId"))
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
 			return
 
 		case "unsuspectPeer":
-			_, err := ps.RemoveSusPeer(client, nodeId)
+			_, err := ps.RemoveSusPeer(client, r.FormValue("nodeId"))
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
 			return
 
 		case "doSwap":
 			swapAmount, err := strconv.ParseUint(r.FormValue("swapAmount"), 10, 64)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 				return
 			}
 
 			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 				return
 			}
 
@@ -823,7 +884,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			case "swapIn":
 				id, err := ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
 				if err != nil {
-					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+					redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 					return
 				}
 				// Redirect to swap page to follow the swap
@@ -832,7 +893,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			case "swapOut":
 				id, err := ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
 				if err != nil {
-					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+					redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
 					return
 				}
 				// Redirect to swap page to follow the swap
@@ -926,8 +987,9 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		if err2 := config.Save(); err2 != nil {
-			redirectWithError(w, r, "/config?", err2)
+		if err := config.Save(); err != nil {
+			log.Println("Error saving config file:", err)
+			redirectWithError(w, r, "/config?", err)
 			return
 		}
 
@@ -1150,7 +1212,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Cannot connect to peerswapd. It either failed to start, awaits LND or has wrong configuration. Check logs."
+		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
@@ -1206,6 +1268,11 @@ func onTimer() {
 	r := internet.GetFeeRate()
 	if r > 0 {
 		mempoolFeeRate = r
+	}
+
+	// execute Automatic Swap In
+	if config.Config.AutoSwapEnabled {
+		go executeAutoSwap()
 	}
 }
 
@@ -1263,7 +1330,12 @@ func liquidBackup(force bool) {
 
 	// save the wallet amount
 	config.Config.ElementsBackupAmount = satAmount
-	config.Save()
+
+	// Save config
+	if err := config.Save(); err != nil {
+		log.Println("Error saving config file:", err)
+		return
+	}
 }
 
 func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
@@ -1445,7 +1517,11 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				// use getblock.io endpoint going forward
 				log.Println("Switching to getblock.io bitcoin host endpoint")
-				config.Save()
+				if err := config.Save(); err != nil {
+					log.Println("Error saving config file:", err)
+					redirectWithError(w, r, "/bitcoin?", err)
+					return
+				}
 			}
 		}
 
@@ -1470,15 +1546,20 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		duration := time.Duration(1020) * time.Minute
 		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration)
-
 		config.Config.PeginClaimScript = addr.ClaimScript
 		config.Config.PeginAddress = addr.MainChainAddress
 		config.Config.PeginAmount = res.AmountSat
 		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
 		config.Config.PeginFeeRate = uint32(fee)
-		config.Save()
+
+		if err := config.Save(); err != nil {
+			log.Println("Error saving config file:", err)
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
+
+		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration)
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -1540,7 +1621,12 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 
 		// save the new rate, so the next bump cannot be lower
 		config.Config.PeginFeeRate = uint32(fee)
-		config.Save()
+
+		if err := config.Save(); err != nil {
+			log.Println("Error saving config file:", err)
+			redirectWithError(w, r, "/bitcoin?", err)
+			return
+		}
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -1666,22 +1752,19 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			previousBlue := bluePct
 			previousRed := redPct
 
-			if netFlow == 0 {
-				tooltip = "No flow" + tooltip
-			} else {
-				if netFlow > 0 {
-					greenPct = int(local * 100 / capacity)
-					bluePct = int((local - netFlow) * 100 / capacity)
-					previousBlue = greenPct
-					tooltip = "Net inflow " + toMil(uint64(netFlow)) + tooltip
-				}
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(stats.AmountIn) + ", outflows: " + toMil(stats.AmountOut) + tooltip
 
-				if netFlow < 0 {
-					bluePct = int(local * 100 / capacity)
-					redPct = int((local - netFlow) * 100 / capacity)
-					previousRed = bluePct
-					tooltip = "Net outflow " + toMil(uint64(-netFlow)) + tooltip
-				}
+			if netFlow > 0 {
+				greenPct = int(local * 100 / capacity)
+				bluePct = int((local - netFlow) * 100 / capacity)
+				previousBlue = greenPct
+
+			}
+
+			if netFlow < 0 {
+				bluePct = int(local * 100 / capacity)
+				redPct = int((local - netFlow) * 100 / capacity)
+				previousRed = bluePct
 			}
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
@@ -1928,7 +2011,10 @@ func checkPegin() {
 
 		// stop trying after one attempt
 		config.Config.PeginTxId = ""
-		config.Save()
+
+		if err := config.Save(); err != nil {
+			log.Println("Error saving config file:", err)
+		}
 	}
 }
 
@@ -1979,4 +2065,148 @@ func cacheAliases() {
 	for _, peer := range peers {
 		getNodeAlias(peer.NodeId)
 	}
+}
+
+// Finds a candidate for an automatic swap-in
+// The goal is to spend maximum available liquid
+// To rebalance a channel with high enough historic fee PPM
+func findSwapInCandidate(candidate *SwapParams) error {
+	minAmount := config.Config.AutoSwapThresholdAmount - swapInFeeReserve
+	minPPM := config.Config.AutoSwapThresholdPPM
+
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
+	if err != nil {
+		return err
+	}
+	peers := res.GetPeers()
+
+	res2, err := ps.ListSwaps(client)
+	if err != nil {
+		return err
+	}
+	swaps := res2.GetSwaps()
+
+	// find last swap timestamps per channel
+	swapTimestamps := make(map[uint64]int64)
+
+	for _, swap := range swaps {
+		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+		}
+	}
+
+	for _, peer := range peers {
+		// ignore peer if Lighting swaps disabled
+		if !peer.SwapsAllowed || !stringIsInSlice("lbtc", peer.SupportedAssets) {
+			continue
+		}
+		for _, channel := range peer.Channels {
+			// the potential swap amount to bring balance to target
+			swapAmount := (channel.LocalBalance + channel.RemoteBalance) * config.Config.AutoSwapTargetPct / 100
+			if swapAmount > channel.LocalBalance {
+				swapAmount -= channel.LocalBalance
+			} else {
+				swapAmount = 0
+			}
+
+			// only consider active channels with enough remote balance
+			if channel.Active && swapAmount >= minAmount {
+				// use timestamp of the last swap or 6m horizon
+				lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
+				if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
+					lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+				}
+
+				stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+
+				ppm := uint64(0)
+				if stats.AmountOut > 0 {
+					ppm = stats.FeeSat * 1_000_000 / stats.AmountOut
+				}
+
+				// aim to maximize accumulated PPM
+				// if ppm ties, choose the candidate with larger RemoteBalance
+				if ppm > minPPM || ppm == minPPM && swapAmount > candidate.Amount {
+					// set the candidate's PPM as the new target to beat
+					minPPM = ppm
+					// save the candidate
+					candidate.ChannelId = channel.ChannelId
+					candidate.PeerAlias = getNodeAlias(peer.NodeId)
+					// set maximum possible amount
+					candidate.Amount = channel.RemoteBalance
+					candidate.PPM = ppm
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func executeAutoSwap() {
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.LiquidGetBalance(client)
+	if err != nil {
+		return
+	}
+
+	satAmount := res.GetSatAmount()
+
+	if satAmount < config.Config.AutoSwapThresholdAmount {
+		return
+	}
+
+	res2, err := ps.ListActiveSwaps(client)
+	if err != nil {
+		return
+	}
+
+	activeSwaps := res2.GetSwaps()
+
+	// cannot have active swaps pending
+	if len(activeSwaps) > 0 {
+		return
+	}
+
+	var candidate SwapParams
+
+	if err := findSwapInCandidate(&candidate); err != nil {
+		// some error prevented candidate finding
+		return
+	}
+
+	amount := candidate.Amount
+
+	// no suitable candidates were found
+	if amount == 0 {
+		return
+	}
+
+	// swap in cannot be larger than this
+	if amount > satAmount-swapInFeeReserve {
+		amount = satAmount - swapInFeeReserve
+	}
+
+	// execute swap
+	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
+	if err != nil {
+		log.Println("AutoSwap error:", err)
+		return
+	}
+
+	// Log swap id
+	log.Println("AutoSwap initiated, id: "+id+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
+
+	// Send telegram
+	telegramSendMessage("🤖 Executed Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
 }
