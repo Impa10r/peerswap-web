@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	version          = "v1.3.7"
+	version          = "v1.3.8"
 	swapInFeeReserve = uint64(1000)
 )
 
