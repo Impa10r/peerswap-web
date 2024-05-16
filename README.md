@@ -131,6 +131,14 @@ make -j$(nproc) install-cln && \
 sudo systemctl restart psweb
 ```
 
+## Automatic Liquid Swap-Ins
+
+Liquid BTC is more custodial than Bitcoin and Lightning. We do not advise accumulating large balances for long-term holding. Once you gained Liquid in a peer swap-in or a peg-in process, it is better to initiate own swap in to rebalance a channel of your choice. 
+
+Currently, it is not possible to prevent swap outs by other peers while allowing receipt of swap ins. You don't want your Liquid balance taken, because such a rebalancing may not be optimal for you (but optimal for your peer).
+
+You may enable automatic deployment of L-BTC deposits, as soon as they arrive, to rebalance your most profitable channels. This option is available from Liquid page.
+
 ## Liquid wallet backup and restore
 
 **Elements Core wallet has no seed phrase recovery**
