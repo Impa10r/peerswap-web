@@ -32,8 +32,12 @@ import (
 )
 
 const (
-	version          = "v1.3.8"
-	swapInFeeReserve = uint64(1000)
+	// App version tag
+	version = "v1.3.8"
+
+	// Liquid balance to reserve in auto swaps
+	// Min is 1000, but the swap will spend it all on fee
+	swapInFeeReserve = uint64(2000)
 )
 
 type AliasCache struct {
@@ -70,18 +74,20 @@ func main() {
 
 	flag.Parse()
 
-	// loading from config file or creating default one
-	config.Load(*dataDir)
-
 	if *showHelp {
-		showHelpMessage()
-		return
+		fmt.Println("A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to rebalance lightning channels.")
+		fmt.Println("Usage:")
+		flag.PrintDefaults()
+		os.Exit(0)
 	}
 
 	if *showVersion {
-		showVersionInfo()
-		return
+		fmt.Println("Version:", version, "for", ln.Implementation)
+		os.Exit(0)
 	}
+
+	// loading from config file or creating default one
+	config.Load(*dataDir)
 
 	// set logging params
 	cleanup, err := setLogging()
@@ -259,6 +265,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme       string
 		LiquidBalance     uint64
 		ListPeers         string
+		OtherPeers        string
 		ListSwaps         string
 		BitcoinBalance    uint64
 		Filter            bool
@@ -274,6 +281,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
+		OtherPeers:        convertOtherPeersToHTMLTable(peers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
@@ -749,25 +757,48 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "setAutoSwap":
-			config.Config.AutoSwapThresholdAmount, err = strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
+			newAmount, err := strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
 
-			config.Config.AutoSwapThresholdPPM, err = strconv.ParseUint(r.FormValue("thresholdPPM"), 10, 64)
+			newPPM, err := strconv.ParseUint(r.FormValue("thresholdPPM"), 10, 64)
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
 
-			config.Config.AutoSwapTargetPct, err = strconv.ParseUint(r.FormValue("targetPct"), 10, 64)
+			newPct, err := strconv.ParseUint(r.FormValue("targetPct"), 10, 64)
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
 
-			config.Config.AutoSwapEnabled = r.FormValue("autoSwapEnabled") == "on"
+			nowEnabled := r.FormValue("autoSwapEnabled") == "on"
+			t := "Automatic swap-ins "
+
+			// Log only if something changed
+			if nowEnabled && (!config.Config.AutoSwapEnabled ||
+				config.Config.AutoSwapThresholdAmount != newAmount ||
+				config.Config.AutoSwapThresholdPPM != newPPM ||
+				config.Config.AutoSwapTargetPct != newPct) {
+				t += "Enabled"
+				t += ". Threshold Amount: " + formatWithThousandSeparators(newAmount)
+				t += ". Minimum PPM: " + formatWithThousandSeparators(newPPM)
+				t += ". Target Pct: " + formatWithThousandSeparators(newPct)
+				log.Println(t)
+			}
+
+			if config.Config.AutoSwapEnabled && !nowEnabled {
+				t += "Disabled"
+				log.Println(t)
+			}
+
+			config.Config.AutoSwapThresholdPPM = newPPM
+			config.Config.AutoSwapThresholdAmount = newAmount
+			config.Config.AutoSwapTargetPct = newPct
+			config.Config.AutoSwapEnabled = nowEnabled
 
 			// Save config
 			if err := config.Save(); err != nil {
@@ -776,20 +807,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			t := "Automatic swap-ins "
-			if config.Config.AutoSwapEnabled {
-				t += "Enabled"
-				t += ". Threshold Amount: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdAmount)
-				t += ". Minimum PPM: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdPPM)
-				t += ". Target Pct: " + formatWithThousandSeparators(config.Config.AutoSwapTargetPct)
-			} else {
-				t += "Disabled"
-			}
-
-			// Log the change
-			log.Println(t)
-
-			// Redirect to liquid page
+			// Reload liquid page
 			http.Redirect(w, r, "/liquid", http.StatusSeeOther)
 			return
 
@@ -1221,16 +1239,6 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// display the error to the web page header
 	msg := url.QueryEscape(t)
 	http.Redirect(w, r, redirectUrl+"err="+msg, http.StatusSeeOther)
-}
-
-func showHelpMessage() {
-	fmt.Println("A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to rebalance lightning channels.")
-	fmt.Println("Usage:")
-	flag.PrintDefaults()
-}
-
-func showVersionInfo() {
-	fmt.Println("Version:", version, "for", ln.Implementation)
 }
 
 func startTimer() {
@@ -1731,7 +1739,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalCapacity += capacity
 			tooltip := " in the last 6 months"
 
-			// timestamp of the last swap or 6m horizon
+			// timestamp of the last swap or 6 months horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
@@ -1783,7 +1791,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
 		peerTable += "<tr style=\"border: 1px dotted\">"
-		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; float: left; text-align: left; width: 70%;\">"
+		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page
 		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -1813,9 +1821,9 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		if totalInflows > 0 {
 			ppm = totalAssistedFees * 1_000_000 / totalInflows
 		}
-		peerTable += "<span title=\"Total assisted revenue since the last swap or 6m. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+		peerTable += "<span title=\"Total assisted revenue since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
 
-		peerTable += "</td><td style=\"padding: 0px; float: right; text-align: right; width:8ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			peerTable += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
@@ -1828,6 +1836,147 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		} else {
 			peerTable += "<span title=\"Peer did not whitelist us\">⛔</span>"
 		}
+		peerTable += "</td></tr></table>"
+
+		unsortedTable = append(unsortedTable, Table{
+			AvgLocal: pct,
+			HtmlBlob: peerTable + channelsTable,
+		})
+	}
+
+	// sort the table on AvgLocal field
+	sort.Slice(unsortedTable, func(i, j int) bool {
+		return unsortedTable[i].AvgLocal < unsortedTable[j].AvgLocal
+	})
+
+	table := ""
+	for _, t := range unsortedTable {
+		table += t.HtmlBlob
+	}
+
+	return table
+}
+
+// converts a list of non-PS peers into an HTML table to display
+func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
+
+	type Table struct {
+		AvgLocal int
+		HtmlBlob string
+	}
+
+	var unsortedTable []Table
+
+	// timestamp of 6 months horizon
+	lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
+
+	for _, peer := range peers {
+		var totalLocal float64
+		var totalCapacity float64
+		var totalOutflows uint64
+		var totalInflows uint64
+		var totalFees uint64
+		var totalAssistedFees uint64
+
+		channelsTable := "<table id=\"otherPeers\" style=\"display: none; table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
+
+		// Construct channels data
+		for _, channel := range peer.Channels {
+			// red background for inactive channels
+			bc := "#590202"
+			if config.Config.ColorScheme == "light" {
+				bc = "#fcb6b6"
+			}
+
+			if channel.Active {
+				// green background for active channels
+				bc = "#224725"
+				if config.Config.ColorScheme == "light" {
+					bc = "#e6ffe8"
+				}
+			}
+
+			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
+			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += toMil(channel.LocalBalance)
+			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
+			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+
+			local := float64(channel.LocalBalance)
+			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
+			totalLocal += local
+			totalCapacity += capacity
+			tooltip := " in the last 6 months"
+
+			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+			totalFees += stats.FeeSat
+			totalAssistedFees += stats.AssistedFeeSat
+			totalOutflows += stats.AmountOut
+			totalInflows += stats.AmountIn
+
+			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
+
+			bluePct := int(local * 100 / capacity)
+			greenPct := int(0)
+			redPct := int(0)
+			previousBlue := bluePct
+			previousRed := redPct
+
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(stats.AmountIn) + ", outflows: " + toMil(stats.AmountOut) + tooltip
+
+			if netFlow > 0 {
+				greenPct = int(local * 100 / capacity)
+				bluePct = int((local - netFlow) * 100 / capacity)
+				previousBlue = greenPct
+
+			}
+
+			if netFlow < 0 {
+				bluePct = int(local * 100 / capacity)
+				redPct = int((local - netFlow) * 100 / capacity)
+				previousRed = bluePct
+			}
+
+			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
+			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
+
+			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
+			channelsTable += "</a></td>"
+			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += toMil(channel.RemoteBalance)
+			channelsTable += "</td></tr>"
+		}
+		channelsTable += "</table>"
+
+		// count total outbound to sort peers later
+		pct := int(1000000 * totalLocal / totalCapacity)
+
+		peerTable := "<table  id=\"otherPeers\" style=\"display: none; table-layout:fixed; width: 100%\">"
+		peerTable += "<tr style=\"border: 1px dotted\">"
+		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
+
+		// alias is a link to open peer details page
+		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+
+		peerTable += "<span title=\"Not using PeerSwap\">🙁&nbsp</span>"
+		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
+		peerTable += "</span></a>"
+
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+
+		ppm := uint64(0)
+		if totalOutflows > 0 {
+			ppm = totalFees * 1_000_000 / totalOutflows
+		}
+		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+
+		ppm = 0
+		if totalInflows > 0 {
+			ppm = totalAssistedFees * 1_000_000 / totalInflows
+		}
+		peerTable += "<span title=\"Total assisted revenue since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
+		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
 		peerTable += "</td></tr></table>"
 
 		unsortedTable = append(unsortedTable, Table{
@@ -2117,7 +2266,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
-				// use timestamp of the last swap or 6m horizon
+				// use timestamp of the last swap or 6 months horizon
 				lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 				if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 					lastSwapTimestamp = swapTimestamps[channel.ChannelId]
@@ -2196,6 +2345,8 @@ func executeAutoSwap() {
 	if amount > satAmount-swapInFeeReserve {
 		amount = satAmount - swapInFeeReserve
 	}
+
+	log.Println("New Liquid balance:", formatWithThousandSeparators(satAmount))
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

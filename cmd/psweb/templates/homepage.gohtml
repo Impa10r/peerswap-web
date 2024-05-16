@@ -32,6 +32,12 @@
               </div>
             </div>
             {{.ListPeers}}
+            <center>
+              <small>
+                <a id="showOtherLink" href="javascript:void(0);" onclick="showOtherPeers()">Show Non-PeerSwap Channels</a>
+              </small>
+            </center>
+            {{.OtherPeers}}     
           </div>
         </div>
         <div id="swaps" class="column">
@@ -61,7 +67,6 @@
         var fields = findElementsById('scramble');
 
         fields.forEach(function(element) {
-          //var element = document.getElementById(field);
           if (element) {
             if (element.dataset.originalContent) {
               // If original content is saved, show it
@@ -108,6 +113,18 @@
         var greekAlphabet = 'αβγδεζηθικλμνξοπρστυφχψω';
         var randomIndex = Math.floor(Math.random() * greekAlphabet.length);
         return greekAlphabet.charAt(randomIndex);
+      }
+
+      function showOtherPeers() {
+        var fields = findElementsById('otherPeers');
+
+        fields.forEach(function(element) {
+          if (element) {
+            element.style.display = 'table'; // Show the table
+          }
+        });
+
+        document.getElementById('showOtherLink').style.display = 'none'; // Hide the link
       }
     </script>
   {{template "footer" .}}

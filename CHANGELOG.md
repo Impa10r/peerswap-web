@@ -2,7 +2,7 @@
 
 ## 1.3.8
 
--
+- Fix 'psweb --version' not working in some cases
 
 ## 1.3.7
 
