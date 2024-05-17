@@ -1,5 +1,9 @@
 # Versions
 
+## 1.3.9
+
+- Show non-PS peers on the right pannel
+
 ## 1.3.8
 
 - Enable viewing non-PeerSwap channels

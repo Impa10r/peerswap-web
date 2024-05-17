@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.3.8"
+	version = "v1.3.9"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -283,11 +283,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
-	//check whether to display non-PS channels
+	//check whether to display non-PS channels or swaps
 	otherPeersTable := ""
+	listSwaps := ""
 	_, ok = r.URL.Query()["showall"]
 	if ok {
 		otherPeersTable = convertOtherPeersToHTMLTable(otherPeers)
+	} else {
+		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
 	}
 
 	type Page struct {
@@ -316,7 +319,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
 		OtherPeers:        otherPeersTable,
-		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
+		ListSwaps:         listSwaps,
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
