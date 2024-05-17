@@ -1388,8 +1388,10 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// pre-cache routing statistics
-	go ln.FetchForwardingStats()
+	// cache flow history
+	go ln.CacheForwards()
+	go ln.CachePayments()
+	go ln.CacheInvoices()
 
 	// check for updates
 	t := internet.GetLatestTag()
@@ -1749,16 +1751,17 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// to speed things up, also broadcast it to mempool.space
-		internet.SendRawTransaction(res.RawHex)
-
 		if ln.CanRBF() {
+			// to speed things up, also broadcast it to mempool.space
+			internet.SendRawTransaction(res.RawHex)
+
 			log.Println("RBF TxId:", res.TxId)
 			config.Config.PeginReplacedTxId = config.Config.PeginTxId
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
 		} else {
-			log.Println("CPFP successful")
+			// txid not available, let's hope LND broadcasted it fine
+			log.Println("CPFP initiated")
 		}
 
 		// save the new rate, so the next bump cannot be lower

@@ -369,8 +369,8 @@ var forwards struct {
 	Forwards []Forwarding `json:"forwards"`
 }
 
-// fetch routing statistics from cln
-func FetchForwardingStats() {
+// cache routing history per channel from cln
+func CacheForwards() {
 	// refresh history
 	client, clean, err := GetClient()
 	if err != nil {
