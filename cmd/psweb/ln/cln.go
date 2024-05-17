@@ -617,6 +617,11 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 			continue
 		}
 
+		// skip peers with no channels
+		if len(clnPeer.Channels) == 0 {
+			continue
+		}
+
 		peer := peerswaprpc.PeerSwapPeer{}
 		peer.NodeId = clnPeer.Id
 

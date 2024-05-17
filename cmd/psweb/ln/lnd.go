@@ -929,10 +929,7 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 			continue
 		}
 
-		peer := peerswaprpc.PeerSwapPeer{}
-		peer.NodeId = lndPeer.PubKey
-
-		bytePeer, err := hex.DecodeString(peer.NodeId)
+		bytePeer, err := hex.DecodeString(lndPeer.PubKey)
 		if err != nil {
 			return nil, err
 		}
@@ -944,6 +941,14 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 		if err != nil {
 			return nil, err
 		}
+
+		// skip peers with no channels
+		if len(res.Channels) == 0 {
+			continue
+		}
+
+		peer := peerswaprpc.PeerSwapPeer{}
+		peer.NodeId = lndPeer.PubKey
 
 		for _, channel := range res.Channels {
 			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
