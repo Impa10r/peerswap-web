@@ -1,6 +1,6 @@
 # Versions
 
-## 1.3.8
+## 1.4.0
 
 - Enable viewing non-PeerSwap channels
 - Enable keysend invitations to PeerSwap 
