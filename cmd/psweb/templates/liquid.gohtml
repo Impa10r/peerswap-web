@@ -61,11 +61,9 @@
                 </div>
                 <div class="field-body">
                   <label class="label">
-                    {{if gt .AutoSwapCandidate.Amount 0}}
-                      <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">Peer: {{.AutoSwapCandidate.PeerAlias}}</p>
-                      <p title="The highest swap amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
-                      <p title="Channel's realized PPM from the previous swap or the last 6 months">Historic PPM: {{fmt .AutoSwapCandidate.PPM}} sats</p>
-                    {{end}}
+                    <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">Peer: {{.AutoSwapCandidate.PeerAlias}}</p>
+                    <p title="Swap-in amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
+                    <p title="Channel's realized PPM from the previous swap or the last 6 months">Recent PPM: {{fmt .AutoSwapCandidate.PPM}}</p>
                   </label>
                 </div>
               </div>
@@ -185,7 +183,7 @@
             </div>
           {{end}}
           <div class="box">
-            <h4 class="title is-4">Receiving Address</h4> 
+            <h4 class="title is-4">Receive Liquid</h4> 
             {{if eq .LiquidAddress ""}}
               <form action="/submit" method="post">
                 <center>
@@ -208,7 +206,7 @@
                   document.execCommand("copy");
 
                   // Alert the user that the text has been copied
-                  displayTemporaryMessage("Copied the address to clipboard", "temp-message");
+                  displayTemporaryMessage("Copied the address to clipboard");
                 }
               </script>
             {{end}}

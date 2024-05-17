@@ -1,5 +1,11 @@
 # Versions
 
+## 1.3.8
+
+- Enable viewing non-PeerSwap channels
+- Enable keysend invitations to PeerSwap 
+- Fix the bug when PS RPC host was replaced with Elements'
+
 ## 1.3.7
 
 - Enable automatic Liquid swap-ins

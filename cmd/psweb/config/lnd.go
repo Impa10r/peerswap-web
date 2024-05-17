@@ -20,38 +20,10 @@ func loadDefaults(home, dataDir string) {
 	} else {
 		Config.DataDir = dataDir
 	}
-
-	host := getLndConfSetting("bitcoind.rpchost")
-
-	if host == "" {
-		Config.BitcoinHost = GetBlockIoHost()
-		Config.BitcoinUser = ""
-		Config.BitcoinPass = ""
-	} else {
-		port := "8332"
-		if Config.Chain == "testnet" {
-			port = "18332"
-		}
-		Config.BitcoinHost = "http://" + host + ":" + port
-		Config.BitcoinUser = getLndConfSetting("bitcoind.rpcuser")
-		Config.BitcoinPass = getLndConfSetting("bitcoind.rpcpass")
-	}
 }
 
-// LND-specific load from Peerswap config
+// LND-specific load from Peerswap and LND configs
 func LoadPS() {
-
-	// find lnd path from peerswap.conf
-	certPath := GetPeerswapLNDSetting("lnd.tlscertpath")
-
-	if certPath != "" {
-		// Split the file path into its components
-		directoryPath, _ := filepath.Split(certPath)
-
-		// clean the final slash
-		Config.LightningDir = filepath.Clean(directoryPath)
-	}
-
 	// get peerswap rpc host from peerswap.conf
 	host := GetPeerswapLNDSetting("host")
 	if host != "" {
@@ -89,6 +61,34 @@ func LoadPS() {
 
 		// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
 		SavePS()
+	}
+
+	// find LND path from peerswap.conf
+	certPath := GetPeerswapLNDSetting("lnd.tlscertpath")
+
+	if certPath != "" {
+		// Split the file path into its components
+		directoryPath, _ := filepath.Split(certPath)
+
+		// clean the final slash
+		Config.LightningDir = filepath.Clean(directoryPath)
+	}
+
+	// get bitcoin RPC from LND config
+	host = getLndConfSetting("bitcoind.rpchost")
+
+	if host == "" {
+		Config.BitcoinHost = GetBlockIoHost()
+		Config.BitcoinUser = ""
+		Config.BitcoinPass = ""
+	} else {
+		port := "8332"
+		if Config.Chain == "testnet" {
+			port = "18332"
+		}
+		Config.BitcoinHost = "http://" + host + ":" + port
+		Config.BitcoinUser = getLndConfSetting("bitcoind.rpcuser")
+		Config.BitcoinPass = getLndConfSetting("bitcoind.rpcpass")
 	}
 }
 
@@ -185,7 +185,15 @@ func getConfSetting(searchVariable, filePath string) string {
 	// Convert the content to a string
 	fileContent := string(content)
 
-	if index := strings.Index(fileContent, searchVariable); index > 0 {
+	index := 0
+
+	// try the start of the file
+	if fileContent[:len(searchVariable)+1] != searchVariable+"=" {
+		// variables should start from new line '\n'
+		index = strings.Index(fileContent, "\n"+searchVariable+"=") + 1
+	}
+
+	if index > -1 {
 		startIndex := index + len(searchVariable) + 1
 		value := ""
 		for _, char := range fileContent[startIndex:] {

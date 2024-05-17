@@ -16,7 +16,7 @@
                   🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span>
                   <small><small><small><span title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span></small></small></small>
                   {{if .AutoSwapEnabled}}
-                    <span title="Automatic Swap-Ins Enabled">🤖</span>
+                    <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
                   {{end}}
                 </h4> 
               </div> 
@@ -32,6 +32,15 @@
               </div>
             </div>
             {{.ListPeers}}
+            {{if ne .OtherPeers ""}}
+              {{.OtherPeers}}
+            {{else}}
+              <center>
+                <small>
+                  <a id="showOtherLink" href="/?showall">Show Non-PeerSwap Channels</a>
+                </small>
+              </center>
+            {{end}}
           </div>
         </div>
         <div id="swaps" class="column">
@@ -61,7 +70,6 @@
         var fields = findElementsById('scramble');
 
         fields.forEach(function(element) {
-          //var element = document.getElementById(field);
           if (element) {
             if (element.dataset.originalContent) {
               // If original content is saved, show it
@@ -109,6 +117,7 @@
         var randomIndex = Math.floor(Math.random() * greekAlphabet.length);
         return greekAlphabet.charAt(randomIndex);
       }
+
     </script>
   {{template "footer" .}}
 {{end}}
