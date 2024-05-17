@@ -32,7 +32,7 @@ func timePassedAgo(t time.Time) string {
 	return result
 }
 
-// returns true is the string is present in the array of strings
+// returns true if the string is present in the array of strings
 func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 	for _, s := range whereToSearch {
 		if s == whatToFind {
@@ -87,9 +87,9 @@ func visualiseSwapState(state string, rotate bool) string {
 		"State_ClaimedCsv",
 		"State_SwapCanceled",
 		"State_SendCancel":
-		return "<a title=\"Return to initial page\" href=\"/\">❌</a>"
+		return "❌"
 	case "State_ClaimedPreimage":
-		return "<a title=\"Return to initial page\" href=\"/\">💰</a>"
+		return "💰"
 	}
 
 	if rotate {
@@ -101,11 +101,11 @@ func visualiseSwapState(state string, rotate bool) string {
 
 		switch hourGlassRotate {
 		case 0:
-			return "<a title=\"Return to initial page\" href=\"/\">⏳</a>"
+			return "⏳"
 		case 1:
-			return "<a title=\"Return to initial page\" href=\"/\">⌛</a>"
+			return "⌛"
 		case 2:
-			return "<span class=\"rotate-span\"><a title=\"Return to initial page\" href=\"/\">⏳</a></span>" // rotate 90
+			return "<span class=\"rotate-span\">⏳</span>" // rotate 90
 		}
 	}
 

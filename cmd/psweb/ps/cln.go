@@ -269,7 +269,6 @@ func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset st
 	}, &res)
 
 	if err != nil {
-		log.Println("SwapIn:", err)
 		return "", err
 	}
 
@@ -287,7 +286,6 @@ func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset s
 	}, &res)
 
 	if err != nil {
-		log.Println("SwapOut:", err)
 		return "", err
 	}
 

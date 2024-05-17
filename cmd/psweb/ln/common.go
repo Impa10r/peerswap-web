@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+var myNodeAlias string
+
 type UTXO struct {
 	Address       string
 	AmountSat     int64
@@ -92,4 +94,14 @@ func ConvertLndToClnChannelId(s uint64) string {
 	tx := strconv.FormatUint((s>>16)&0xFFFFFF, 10)
 	output := strconv.FormatUint(s&0xFFFF, 10)
 	return block + "x" + tx + "x" + output
+}
+
+// returns true if the string is present in the array of strings
+func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
+	for _, s := range whereToSearch {
+		if s == whatToFind {
+			return true
+		}
+	}
+	return false
 }

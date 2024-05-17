@@ -67,7 +67,7 @@ var (
 func main() {
 
 	var (
-		dataDir     = flag.String("datadir", "", "Path to config folder")
+		dataDir     = flag.String("datadir", "", "Path to config folder (default: ~/.peerswap)")
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
 	)
@@ -182,6 +182,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// PeerSwap RPC client
 	// this method will fail if peerswap is not running or misconfigured
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
@@ -221,6 +222,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res4.GetSatAmount()
 
+	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		redirectWithError(w, r, "/config?", er)
@@ -230,11 +232,32 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 
+	var psIds []string
+
+	for _, peer := range peers {
+		psIds = append(psIds, peer.NodeId)
+	}
+
+	// Get the remaining Lightning peers
+	res5, err := ln.ListPeers(cl, "", &psIds)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	otherPeers := res5.GetPeers()
+
 	//check for error message to display
-	message := ""
+	errorMessage := ""
 	keys, ok := r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
-		message = keys[0]
+		errorMessage = keys[0]
+	}
+
+	//check for pop-up message to display
+	popupMessage := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		popupMessage = keys[0]
 	}
 
 	//check for node Id to filter swaps
@@ -261,7 +284,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		AllowSwapRequests bool
 		BitcoinSwaps      bool
-		Message           string
+		ErrorMessage      string
+		PopUpMessage      string
 		ColorScheme       string
 		LiquidBalance     uint64
 		ListPeers         string
@@ -276,12 +300,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		AllowSwapRequests: config.Config.AllowSwapRequests,
 		BitcoinSwaps:      config.Config.BitcoinSwaps,
-		Message:           message,
+		ErrorMessage:      errorMessage,
+		PopUpMessage:      popupMessage,
 		MempoolFeeRate:    mempoolFeeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
-		OtherPeers:        convertOtherPeersToHTMLTable(peers),
+		OtherPeers:        convertOtherPeersToHTMLTable(otherPeers),
 		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
@@ -322,12 +347,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	peers := res.GetPeers()
 	peer := findPeerById(peers, id)
 
-	if peer == nil {
-		log.Printf("unable to find peer by id: %v", id)
-		redirectWithError(w, r, "/config?", errors.New("unable to find peer by id"))
-		return
-	}
-
 	res2, err := ps.ReloadPolicyFile(client)
 	if err != nil {
 		log.Printf("unable to connect to RPC server: %v", err)
@@ -354,6 +373,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	activeSwaps := res4.GetSwaps()
 
+	// Get Lightning client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		redirectWithError(w, r, "/config?", er)
@@ -362,6 +382,19 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
+
+	psPeer := true
+	if peer == nil {
+		// Search amoung all Lighting peers
+		res, err := ln.ListPeers(cl, id, nil)
+		if err != nil {
+			log.Printf("unable to find peer by id: %v", id)
+			redirectWithError(w, r, "/?", errors.New("unable to find peer by id"))
+			return
+		}
+		peer = res.GetPeers()[0]
+		psPeer = false
+	}
 
 	var sumLocal uint64
 	var sumRemote uint64
@@ -392,7 +425,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// get routing stats
 
 	type Page struct {
-		Message        string
+		ErrorMessage   string
+		PopUpMessage   string
 		MempoolFeeRate float64
 		BtcFeeRate     float64
 		ColorScheme    string
@@ -409,12 +443,20 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		DirectionIn    bool
 		Stats          []*ln.ForwardingStats
 		ChannelInfo    []*ln.ChanneInfo
+		PeerSwapPeer   bool
+		MyAlias        string
+	}
+
+	feeRate := liquid.GetMempoolMinFee()
+	if !psPeer {
+		feeRate = mempoolFeeRate
 	}
 
 	data := Page{
-		Message:        message,
+		ErrorMessage:   message,
+		PopUpMessage:   "",
 		BtcFeeRate:     mempoolFeeRate,
-		MempoolFeeRate: liquid.GetMempoolMinFee(),
+		MempoolFeeRate: feeRate,
 		ColorScheme:    config.Config.ColorScheme,
 		Peer:           peer,
 		PeerAlias:      getNodeAlias(peer.NodeId),
@@ -429,6 +471,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		DirectionIn:    sumLocal < sumRemote,
 		Stats:          stats,
 		ChannelInfo:    channelInfo,
+		PeerSwapPeer:   psPeer,
+		MyAlias:        ln.GetMyAlias(),
 	}
 
 	// executing template named "peer"
@@ -477,7 +521,8 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme    string
 		Id             string
-		Message        string
+		ErrorMessage   string
+		PopUpMessage   string
 		MempoolFeeRate float64
 		IsPending      bool
 	}
@@ -485,7 +530,8 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		ColorScheme:    config.Config.ColorScheme,
 		Id:             id,
-		Message:        "",
+		ErrorMessage:   "",
+		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
 		IsPending:      isPending,
 	}
@@ -620,14 +666,15 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 func configHandler(w http.ResponseWriter, r *http.Request) {
 	//check for error message to display
-	message := ""
+	errorMessage := ""
 	keys, ok := r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
-		message = keys[0]
+		errorMessage = keys[0]
 	}
 
 	type Page struct {
-		Message        string
+		ErrorMessage   string
+		PopUpMessage   string
 		MempoolFeeRate float64
 		ColorScheme    string
 		Config         config.Configuration
@@ -637,7 +684,8 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		Message:        message,
+		ErrorMessage:   errorMessage,
+		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
 		ColorScheme:    config.Config.ColorScheme,
 		Config:         config.Config,
@@ -656,10 +704,17 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	//check for error message to display
-	message := ""
+	errorMessage := ""
 	keys, ok := r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
-		message = keys[0]
+		errorMessage = keys[0]
+	}
+
+	//check for pop-up message to display
+	popupMessage := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		popupMessage = keys[0]
 	}
 
 	txid := ""
@@ -699,7 +754,8 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Message                 string
+		ErrorMessage            string
+		PopUpMessage            string
 		MempoolFeeRate          float64
 		ColorScheme             string
 		LiquidAddress           string
@@ -715,7 +771,8 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		Message:                 message,
+		ErrorMessage:            errorMessage,
+		PopUpMessage:            popupMessage,
 		MempoolFeeRate:          liquid.GetMempoolMinFee(),
 		ColorScheme:             config.Config.ColorScheme,
 		LiquidAddress:           addr,
@@ -756,6 +813,29 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "keySend":
+			amount, err := strconv.ParseInt(r.FormValue("keysendAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			dest := r.FormValue("nodeId")
+			message := r.FormValue("keysendMessage")
+
+			err = ln.SendKeysendMessage(dest, amount, message)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
+			msg := "Keysend invitation sent to " + getNodeAlias(dest)
+
+			log.Println(msg)
+
+			// Load main page with pop-up message
+			http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
+			return
 		case "setAutoSwap":
 			newAmount, err := strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
 			if err != nil {
@@ -777,6 +857,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			nowEnabled := r.FormValue("autoSwapEnabled") == "on"
 			t := "Automatic swap-ins "
+			msg := ""
 
 			// Log only if something changed
 			if nowEnabled && (!config.Config.AutoSwapEnabled ||
@@ -784,14 +865,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.AutoSwapThresholdPPM != newPPM ||
 				config.Config.AutoSwapTargetPct != newPct) {
 				t += "Enabled"
-				t += ". Threshold Amount: " + formatWithThousandSeparators(newAmount)
-				t += ". Minimum PPM: " + formatWithThousandSeparators(newPPM)
-				t += ". Target Pct: " + formatWithThousandSeparators(newPct)
+				msg = t
 				log.Println(t)
 			}
 
 			if config.Config.AutoSwapEnabled && !nowEnabled {
 				t += "Disabled"
+				msg = t
 				log.Println(t)
 			}
 
@@ -807,8 +887,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Reload liquid page
-			http.Redirect(w, r, "/liquid", http.StatusSeeOther)
+			if msg == "" {
+				// Reload liquid page
+				http.Redirect(w, r, "/liquid", http.StatusSeeOther)
+			} else {
+				// Go to home page with pop-up
+				http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
+			}
 			return
 
 		case "newAddress":
@@ -820,7 +905,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Redirect to liquid page with new address
-			http.Redirect(w, r, "/liquid?msg=\"\"&addr="+res.Address, http.StatusSeeOther)
+			http.Redirect(w, r, "/liquid?addr="+res.Address, http.StatusSeeOther)
 			return
 
 		case "sendLiquid":
@@ -843,80 +928,101 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Redirect to liquid page with TxId
-			http.Redirect(w, r, "/liquid?msg=\"\"&txid="+txid, http.StatusSeeOther)
+			http.Redirect(w, r, "/liquid?txid="+txid, http.StatusSeeOther)
 			return
 		case "addPeer":
-			_, err := ps.AddPeer(client, r.FormValue("nodeId"))
+			nodeId := r.FormValue("nodeId")
+			_, err := ps.AddPeer(client, nodeId)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
 			return
 
 		case "removePeer":
-			_, err := ps.RemovePeer(client, r.FormValue("nodeId"))
+			nodeId := r.FormValue("nodeId")
+			_, err := ps.RemovePeer(client, nodeId)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
 			return
 
 		case "suspectPeer":
-			_, err := ps.AddSusPeer(client, r.FormValue("nodeId"))
+			nodeId := r.FormValue("nodeId")
+			_, err := ps.AddSusPeer(client, nodeId)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
 			return
 
 		case "unsuspectPeer":
-			_, err := ps.RemoveSusPeer(client, r.FormValue("nodeId"))
+			nodeId := r.FormValue("nodeId")
+			_, err := ps.RemoveSusPeer(client, nodeId)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+r.FormValue("nodeId"), http.StatusSeeOther)
+			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
 			return
 
 		case "doSwap":
+			nodeId := r.FormValue("nodeId")
 			swapAmount, err := strconv.ParseUint(r.FormValue("swapAmount"), 10, 64)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 
 			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
 			if err != nil {
-				redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 				return
 			}
 
+			var id string
 			switch r.FormValue("direction") {
 			case "swapIn":
-				id, err := ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
-				if err != nil {
-					redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
-					return
-				}
-				// Redirect to swap page to follow the swap
-				http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
-
+				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
 			case "swapOut":
-				id, err := ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
-				if err != nil {
-					redirectWithError(w, r, "/peer?id="+r.FormValue("nodeId")+"&", err)
+				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+			}
+
+			if err != nil {
+				if err.Error() == "Request timed out" {
+					// sometimes the swap is pending anyway
+					res, er := ps.ListActiveSwaps(client)
+					if er != nil {
+						log.Println("ListActiveSwaps:", er)
+						redirectWithError(w, r, "/peer?id="+nodeId+"&", er)
+						return
+					}
+					activeSwaps := res.GetSwaps()
+					if len(activeSwaps) == 1 {
+						// follow this id
+						id = activeSwaps[0].Id
+					} else {
+						// display the original error
+						log.Println("doSwap:", err)
+						redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
+						return
+					}
+				} else {
+					log.Println("doSwap:", err)
+					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
 					return
 				}
-				// Redirect to swap page to follow the swap
-				http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
 			}
+			// Redirect to swap page to follow the swap
+			http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
 
 		default:
 			// Redirect to index page on any other input
@@ -987,10 +1093,10 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		config.Config.MaxHistory = uint(mh)
 
-		host := r.FormValue("rpcHost")
+		rpcHost := r.FormValue("rpcHost")
 		clientIsDown := false
 
-		client, cleanup, err := ps.GetClient(host)
+		client, cleanup, err := ps.GetClient(rpcHost)
 		if err != nil {
 			clientIsDown = true
 		} else {
@@ -1000,7 +1106,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 				// RPC Host entered is bad
 				clientIsDown = true
 			} else { // values are good, save them
-				config.Config.RpcHost = host
+				config.Config.RpcHost = rpcHost
 				config.Config.AllowSwapRequests = allowSwapRequests
 			}
 		}
@@ -1041,7 +1147,8 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme    string
-		Message        string
+		ErrorMessage   string
+		PopUpMessage   string
 		MempoolFeeRate float64
 		LogPosition    int
 		LogFile        string
@@ -1057,7 +1164,8 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		ColorScheme:    config.Config.ColorScheme,
-		Message:        "",
+		ErrorMessage:   "",
+		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    0, // new content and wait for connection
 		LogFile:        logFile,
@@ -1094,7 +1202,8 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
 		ColorScheme    string
-		Message        string
+		ErrorMessage   string
+		PopUpMessage   string
 		MempoolFeeRate float64
 		LogPosition    int
 		LogFile        string
@@ -1110,7 +1219,8 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		ColorScheme:    config.Config.ColorScheme,
-		Message:        "",
+		ErrorMessage:   "",
+		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    1, // from first line
 		LogFile:        logFile,
@@ -1348,10 +1458,17 @@ func liquidBackup(force bool) {
 
 func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	//check for error message to display
-	message := ""
+	errorMessage := ""
 	keys, ok := r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
-		message = keys[0]
+		errorMessage = keys[0]
+	}
+
+	//check for pop-up message to display
+	popupMessage := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		popupMessage = keys[0]
 	}
 
 	var utxos []ln.UTXO
@@ -1363,7 +1480,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	type Page struct {
-		Message          string
+		ErrorMessage     string
+		PopUpMessage     string
 		ColorScheme      string
 		BitcoinBalance   uint64
 		Outputs          *[]ln.UTXO
@@ -1413,7 +1531,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	ln.ListUnspent(cl, &utxos, minConfs)
 
 	data := Page{
-		Message:          message,
+		ErrorMessage:     errorMessage,
+		PopUpMessage:     popupMessage,
 		ColorScheme:      config.Config.ColorScheme,
 		BitcoinBalance:   uint64(btcBalance),
 		Outputs:          &utxos,
@@ -1637,7 +1756,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Redirect to bitcoin page to follow the pegin progress
-		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+		http.Redirect(w, r, "/bitcoin?msg=New transaction broadcasted", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -1968,13 +2087,13 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		if totalOutflows > 0 {
 			ppm = totalFees * 1_000_000 / totalOutflows
 		}
-		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Total revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 
 		ppm = 0
 		if totalInflows > 0 {
 			ppm = totalAssistedFees * 1_000_000 / totalInflows
 		}
-		peerTable += "<span title=\"Total assisted revenue since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+		peerTable += "<span title=\"Total assisted revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
 		peerTable += "</td></tr></table>"
@@ -2197,15 +2316,16 @@ func getNodeAlias(key string) string {
 	return alias
 }
 
-// preemptively load Aliases in cache
+// preemptively load all Aliases in cache
 func cacheAliases() {
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
+	// Lightning RPC client
+	cl, clean, er := ln.GetClient()
+	if er != nil {
 		return
 	}
-	defer cleanup()
+	defer clean()
 
-	res, err := ps.ListPeers(client)
+	res, err := ln.ListPeers(cl, "", nil)
 	if err != nil {
 		return
 	}
@@ -2345,8 +2465,6 @@ func executeAutoSwap() {
 	if amount > satAmount-swapInFeeReserve {
 		amount = satAmount - swapInFeeReserve
 	}
-
-	log.Println("New Liquid balance:", formatWithThousandSeparators(satAmount))
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

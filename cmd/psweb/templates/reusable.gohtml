@@ -29,26 +29,29 @@
                 <div id="temp-message" class="hidden"></div>
             </div>
             <script>
-                function displayTemporaryMessage(msg, id) {
+                function displayTemporaryMessage(msg) {
                     var messageContainer = document.getElementById("message-container");
-                    var tempMessage = document.getElementById(id);
+                    var tempMessage = document.getElementById("temp-message");
                     
                     tempMessage.innerHTML = msg;
                     tempMessage.classList.remove("hidden");
 
                     setTimeout(function() {
                         tempMessage.classList.add("hidden");
-                    }, 3000); // 3000 milliseconds = 3 seconds
+                    }, 5000); // 5 seconds
                 }
+                {{if ne .PopUpMessage ""}}
+                    displayTemporaryMessage("{{.PopUpMessage}}");
+                {{end}}
             </script>  
         </header>
         <section class="section">
-            {{if ne .Message ""}}
+            {{if ne .ErrorMessage ""}}
                 <div class="container">
                     <div class="columns">
                         <div class="column">
                             <div class="box">
-                                {{if eq .Message "welcome"}} 
+                                {{if eq .ErrorMessage "welcome"}} 
                                     <h4 class="title is-4">Welcome to PeerSwap!</h4>
                                     <center>
                                     <br>
@@ -57,7 +60,7 @@
                                     <img src="/static/elements.png" alt="Elements Core">
                                     </center>
                                 {{else}}
-                                    <p style="overflow-wrap: break-word;">❗ {{.Message}}</>
+                                    <p style="overflow-wrap: break-word;">❗ {{.ErrorMessage}}</>
                                 {{end}}
                             </div>
                         </div>

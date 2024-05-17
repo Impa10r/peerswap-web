@@ -3,7 +3,9 @@
 package ln
 
 import (
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"sort"
 	"strconv"
@@ -15,6 +17,7 @@ import (
 	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/elementsproject/glightning/glightning"
+	"github.com/elementsproject/peerswap/peerswaprpc"
 )
 
 const (
@@ -300,8 +303,8 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	minConf := uint16(1)
 	multiplier := uint64(1000)
-	if !subtractFeeFromAmount {
-		multiplier = 935 // better sets fee rate for tx with change
+	if !subtractFeeFromAmount && config.Config.Chain == "mainnet" {
+		multiplier = 935 // better sets fee rate for peg-in tx with change
 	}
 
 	res, err := client.WithdrawWithUtxos(
@@ -321,7 +324,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		return nil, err
 	}
 
-	amountSent := config.Config.PeginAmount
+	amountSent := amount
 	if subtractFeeFromAmount {
 		decodedTx, err := bitcoin.DecodeRawTransaction(res.Tx)
 		if err == nil && len(decodedTx.Vout) == 1 {
@@ -586,4 +589,132 @@ func NewAddress() (string, error) {
 	}
 
 	return res.Bech32, nil
+}
+
+// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes
+func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
+	var clnPeers []*glightning.Peer
+	var err error
+
+	if peerId == "" {
+		clnPeers, err = client.ListPeers()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		peer, err := client.GetPeer(peerId)
+		if err != nil {
+			return nil, err
+		}
+		clnPeers = append(clnPeers, peer)
+	}
+
+	var peers []*peerswaprpc.PeerSwapPeer
+
+	for _, clnPeer := range clnPeers {
+		// skip excluded
+		if excludeIds != nil && stringIsInSlice(clnPeer.Id, *excludeIds) {
+			continue
+		}
+
+		peer := peerswaprpc.PeerSwapPeer{}
+		peer.NodeId = clnPeer.Id
+
+		for _, channel := range clnPeer.Channels {
+			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+				ChannelId:     ConvertClnToLndChannelId(channel.ChannelId),
+				LocalBalance:  channel.SpendableMilliSatoshi / 1000,
+				RemoteBalance: channel.ReceivableMilliSatoshi / 1000,
+				Active:        clnPeer.Connected && channel.State == "CHANNELD_NORMAL",
+			})
+		}
+
+		peer.AsSender = &peerswaprpc.SwapStats{}
+		peer.AsReceiver = &peerswaprpc.SwapStats{}
+		peers = append(peers, &peer)
+	}
+
+	list := peerswaprpc.ListPeersResponse{
+		Peers: peers,
+	}
+
+	return &list, nil
+}
+
+type KeySendRequest struct {
+	Destination string            `json:"destination"`
+	AmountMsat  int64             `json:"amount_msat"`
+	Tlvs        map[string]string `json:"extratlvs"`
+}
+
+func (r KeySendRequest) Name() string {
+	return "keysend"
+}
+
+type KeySendResponse struct {
+	Message string `json:"message"`
+	Status  string `json:"status"`
+}
+
+func SendKeysendMessage(destPubkey string, amountSats int64, message string) error {
+	client, clean, err := GetClient()
+	if err != nil {
+		log.Println("GetClient:", err)
+		return err
+	}
+	defer clean()
+
+	var res KeySendResponse
+
+	// Send the keysend payment
+	err = client.Request(&KeySendRequest{
+		Destination: destPubkey,
+		AmountMsat:  amountSats * 1000,
+		Tlvs: map[string]string{
+			"34349334": hex.EncodeToString([]byte(message)),
+		},
+	}, &res)
+
+	if err != nil {
+		return err
+	}
+
+	if res.Status != "complete" {
+		return fmt.Errorf("error sending kensend: %v", res.Message)
+	}
+
+	return nil
+}
+
+type GetInfoRequest struct {
+}
+
+func (r GetInfoRequest) Name() string {
+	return "getinfo"
+}
+
+type GetInfoResponse struct {
+	Alias string `json:"alias"`
+}
+
+func GetMyAlias() string {
+	if myNodeAlias == "" {
+		client, clean, err := GetClient()
+		if err != nil {
+			log.Println("GetClient:", err)
+			return ""
+		}
+		defer clean()
+
+		var res GetInfoResponse
+
+		// Send the keysend payment
+		err = client.Request(&GetInfoRequest{}, &res)
+		if err != nil {
+			return ""
+		}
+
+		myNodeAlias = res.Alias
+	}
+	return myNodeAlias
 }

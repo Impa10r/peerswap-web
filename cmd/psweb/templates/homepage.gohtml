@@ -32,12 +32,14 @@
               </div>
             </div>
             {{.ListPeers}}
-            <center>
-              <small>
-                <a id="showOtherLink" href="javascript:void(0);" onclick="showOtherPeers()">Show Non-PeerSwap Channels</a>
-              </small>
-            </center>
-            {{.OtherPeers}}     
+            {{if ne .OtherPeers ""}}
+              <center>
+                <small>
+                  <a id="showOtherLink" href="javascript:void(0);" onclick="showOtherPeers()">Show Non-PeerSwap Channels</a>
+                </small>
+              </center>
+              {{.OtherPeers}}
+            {{end}}
           </div>
         </div>
         <div id="swaps" class="column">

@@ -5,6 +5,8 @@ package ln
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -18,6 +20,8 @@ import (
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 
+	"github.com/elementsproject/peerswap/peerswaprpc"
+
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -26,6 +30,7 @@ import (
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
 	"google.golang.org/grpc"
@@ -629,6 +634,23 @@ func CanRBF() bool {
 	return LndVerson >= 0.18
 }
 
+func GetMyAlias() string {
+	if myNodeAlias == "" {
+		client, cleanup, err := GetClient()
+		if err != nil {
+			return ""
+		}
+		defer cleanup()
+
+		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		if err != nil {
+			return ""
+		}
+		myNodeAlias = res.GetAlias()
+	}
+	return myNodeAlias
+}
+
 // fetch all routing statistics from lnd
 func FetchForwardingStats() {
 	// refresh history
@@ -821,4 +843,130 @@ func NewAddress() (string, error) {
 	}
 
 	return res.Address, nil
+}
+
+func SendKeysendMessage(destPubkey string, amountSats int64, message string) error {
+	ctx := context.Background()
+	conn, err := lndConnection()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	client := routerrpc.NewRouterClient(conn)
+
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return err
+	}
+
+	hash := sha256.Sum256(randomBytes)
+	paymentHash := hex.EncodeToString(hash[:])
+	paymentHashFinal, err := hex.DecodeString(paymentHash)
+	if err != nil {
+		return err
+	}
+
+	preImage := hex.EncodeToString(randomBytes)
+	preImageFinal, err := hex.DecodeString(preImage)
+	if err != nil {
+		return err
+	}
+
+	pk, err := hex.DecodeString(destPubkey)
+	if err != nil {
+		return err
+	}
+
+	request := &routerrpc.SendPaymentRequest{
+		Dest:        pk,
+		Amt:         amountSats,
+		PaymentHash: paymentHashFinal,
+		DestCustomRecords: map[uint64][]byte{
+			5482373484: preImageFinal,
+			34349334:   []byte(message),
+		},
+		TimeoutSeconds: 60,
+		FeeLimitSat:    10,
+	}
+
+	stream, err := client.SendPaymentV2(ctx, request)
+	if err != nil {
+		return fmt.Errorf("error sending kensend: %v", err)
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			return fmt.Errorf("error receiving response: %v", err)
+		}
+		if resp.Status == lnrpc.Payment_SUCCEEDED {
+			break
+		}
+	}
+	return nil
+}
+
+// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes
+func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
+	ctx := context.Background()
+
+	res, err := client.ListPeers(ctx, &lnrpc.ListPeersRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var peers []*peerswaprpc.PeerSwapPeer
+
+	for _, lndPeer := range res.Peers {
+		// skip excluded
+		if excludeIds != nil && stringIsInSlice(lndPeer.PubKey, *excludeIds) {
+			continue
+		}
+
+		// skip if not the signle one requested
+		if peerId != "" && lndPeer.PubKey != peerId {
+			continue
+		}
+
+		peer := peerswaprpc.PeerSwapPeer{}
+		peer.NodeId = lndPeer.PubKey
+
+		bytePeer, err := hex.DecodeString(peer.NodeId)
+		if err != nil {
+			return nil, err
+		}
+
+		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+			PublicOnly: true,
+			Peer:       bytePeer,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, channel := range res.Channels {
+			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+				ChannelId:     channel.ChanId,
+				LocalBalance:  uint64(channel.LocalBalance),
+				RemoteBalance: uint64(channel.RemoteBalance),
+				Active:        channel.Active,
+			})
+		}
+
+		peer.AsSender = &peerswaprpc.SwapStats{}
+		peer.AsReceiver = &peerswaprpc.SwapStats{}
+		peers = append(peers, &peer)
+
+		if peer.NodeId == peerId {
+			// skip the rest
+			break
+		}
+	}
+
+	list := peerswaprpc.ListPeersResponse{
+		Peers: peers,
+	}
+
+	return &list, nil
 }

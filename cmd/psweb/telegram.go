@@ -102,7 +102,7 @@ func telegramStart() {
 				}
 				telegramSendMessage(t)
 			case "/auto":
-				t := "Auto swap-ins are "
+				t := "🤖 Auto swap-ins are "
 				if config.Config.AutoSwapEnabled {
 					t += "Enabled"
 					t += "\nThreshold Amount: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdAmount)
@@ -113,7 +113,11 @@ func telegramStart() {
 
 					if err := findSwapInCandidate(&candidate); err == nil {
 						if candidate.Amount > 0 {
-							t += "\nBest Candidate: " + candidate.PeerAlias
+							t += "\nCandidate: " + candidate.PeerAlias
+							t += "\nMax Amount: " + formatWithThousandSeparators(candidate.Amount)
+							t += "\nRecent PPM: " + formatWithThousandSeparators(candidate.PPM)
+						} else {
+							t += "No swap candidates"
 						}
 					}
 				} else {

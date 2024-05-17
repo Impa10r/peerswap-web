@@ -185,10 +185,10 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 	value := ""
 
 	// Search section
-	if sectionIndex := strings.Index(fileContent, "["+section+"]"); sectionIndex > 0 {
-		// Search variable
-		if index := strings.Index(fileContent[sectionIndex:], searchVariable); index > 0 {
-			startIndex := sectionIndex + index + len(searchVariable) + 1
+	if sectionIndex := strings.Index(fileContent, "["+section+"]"); sectionIndex > -1 {
+		// Search variable should start from new line '\n' and be followed with '='
+		if index := strings.Index(fileContent[sectionIndex:], "\n"+searchVariable+"="); index > 0 {
+			startIndex := sectionIndex + index + len(searchVariable) + 2
 			for _, char := range fileContent[startIndex:] {
 				if char == '\n' || char == '\r' {
 					break
