@@ -1832,7 +1832,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+			extraSeconds := int64(300) // 5 mins to ignore lighting payments related to swap
+			if swap.Asset == "btc" {
+				extraSeconds = 1200 // 20 mins for BTC swaps
+			}
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt + extraSeconds
 		}
 	}
 
@@ -1874,13 +1878,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
-			tooltip := " in the last 6 months"
+			tooltip := "In the last 6 months"
 
 			// timestamp of the last swap or 6 months horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
-				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
+				tooltip = "Since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
@@ -1899,19 +1903,32 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			previousBlue := bluePct
 			previousRed := redPct
 
-			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(inflows) + ", outflows: " + toMil(outflows) + tooltip
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local balance\n" + tooltip + ":"
+			if stats.RoutedIn > 0 {
+				tooltip += "\nRouted in:   +" + formatWithThousandSeparators(stats.RoutedIn)
+			}
+			if stats.InvoicedIn > 0 {
+				tooltip += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+			}
+			if stats.RoutedOut > 0 {
+				tooltip += "\nRouted out:  -" + formatWithThousandSeparators(stats.RoutedOut)
+			}
+			if stats.PaidOut > 0 {
+				tooltip += "\nPaid out:    -" + formatWithThousandSeparators(stats.PaidOut)
+			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-
+				tooltip += "\nNet flow:    +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
+				tooltip += "\nNet flow:    -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
