@@ -925,32 +925,53 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 	return info
 }
 
-// forwarding stats for a channel since timestamp
-func GetForwardingStatsSinceTS(channelId uint64, timeStamp uint64) *ShortForwardingStats {
+// flow stats for a channel since timestamp
+func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	var (
-		result       ShortForwardingStats
-		feeMsat      uint64
-		assistedMsat uint64
+		result        ChannelStats
+		feeMsat       uint64
+		assistedMsat  uint64
+		paidOutMsat   int64
+		invoicedMsat  uint64
+		rebalCostMsat int64
 	)
 
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
 		if e.TimestampNs > timestampNs {
-			result.AmountOut += e.AmtOut
+			result.RoutedOut += e.AmtOut
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[channelId] {
 		if e.TimestampNs > timestampNs {
-			result.AmountIn += e.AmtIn
+			result.RoutedIn += e.AmtIn
 			assistedMsat += e.FeeMsat
+		}
+	}
+	for _, e := range invoiceHtlcs[channelId] {
+		if uint64(e.ResolveTime) > timestampNs {
+			invoicedMsat += e.AmtMsat
+		}
+	}
+	for _, e := range paymentHtlcs[channelId] {
+		if uint64(e.ResolveTimeNs) > timestampNs {
+			paidOutMsat += e.Route.TotalAmtMsat
+			// identify circular rebalancing
+			n := len(e.Route.Hops)
+			if n > 0 && e.Route.Hops[n-1].ChanId == channelId {
+				rebalCostMsat += e.Route.TotalFeesMsat
+			}
 		}
 	}
 
 	result.FeeSat = feeMsat / 1000
 	result.AssistedFeeSat = assistedMsat / 1000
+	result.InvoicedIn = invoicedMsat / 1000
+	result.PaidOut = uint64(paidOutMsat / 1000)
+	result.RebalanceCost = uint64(rebalCostMsat / 1000)
 
 	return &result
 }

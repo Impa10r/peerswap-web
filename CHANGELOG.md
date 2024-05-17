@@ -1,5 +1,10 @@
 # Versions
 
+## 1.4.1
+
+- Account to paid and received invoices
+- Show circular rebalancing costs
+
 ## 1.4.0
 
 - Enable viewing non-PeerSwap channels

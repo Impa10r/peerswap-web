@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.0"
+	version = "v1.4.1"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -1841,10 +1841,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 	for _, peer := range peers {
 		var totalLocal float64
 		var totalCapacity float64
-		var totalOutflows uint64
-		var totalInflows uint64
+		var totalForwardsOut uint64
+		var totalForwardsIn uint64
 		var totalFees uint64
-		var totalAssistedFees uint64
+		var totalRebalCost uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -1883,13 +1883,15 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
-			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
-			totalAssistedFees += stats.AssistedFeeSat
-			totalOutflows += stats.AmountOut
-			totalInflows += stats.AmountIn
+			outflows := stats.RoutedOut + stats.PaidOut
+			inflows := stats.RoutedIn + stats.InvoicedIn
+			totalForwardsOut += stats.RoutedOut
+			totalForwardsIn += stats.RoutedIn
+			totalRebalCost += stats.RebalanceCost
 
-			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
+			netFlow := float64(int64(inflows) - int64(outflows))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -1897,7 +1899,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			previousBlue := bluePct
 			previousRed := redPct
 
-			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(stats.AmountIn) + ", outflows: " + toMil(stats.AmountOut) + tooltip
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(inflows) + ", outflows: " + toMil(outflows) + tooltip
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
@@ -1946,20 +1948,17 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:13ch;\">"
 
-		ppm := uint64(0)
-		if totalOutflows > 0 {
-			ppm = totalFees * 1_000_000 / totalOutflows
+		ppmRevenue := uint64(0)
+		ppmCost := uint64(0)
+		if totalForwardsOut > 0 {
+			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
+			ppmCost = totalRebalCost * 1_000_000 / totalForwardsOut
 		}
-		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 
-		ppm = 0
-		if totalInflows > 0 {
-			ppm = totalAssistedFees * 1_000_000 / totalInflows
-		}
-		peerTable += "<span title=\"Total assisted revenue since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
-
+		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Circular rebalancing costs since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalRebalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
@@ -2010,10 +2009,10 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 	for _, peer := range peers {
 		var totalLocal float64
 		var totalCapacity float64
-		var totalOutflows uint64
-		var totalInflows uint64
+		var totalForwardsOut uint64
+		var totalForwardsIn uint64
 		var totalFees uint64
-		var totalAssistedFees uint64
+		var totalRebalCost uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -2045,13 +2044,15 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			totalCapacity += capacity
 			tooltip := " in the last 6 months"
 
-			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
-			totalAssistedFees += stats.AssistedFeeSat
-			totalOutflows += stats.AmountOut
-			totalInflows += stats.AmountIn
+			outflows := stats.RoutedOut + stats.PaidOut
+			inflows := stats.RoutedIn + stats.InvoicedIn
+			totalForwardsOut += stats.RoutedOut
+			totalForwardsIn += stats.RoutedIn
+			totalRebalCost += stats.RebalanceCost
 
-			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
+			netFlow := float64(int64(inflows) - int64(outflows))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -2059,7 +2060,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			previousBlue := bluePct
 			previousRed := redPct
 
-			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(stats.AmountIn) + ", outflows: " + toMil(stats.AmountOut) + tooltip
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(inflows) + ", outflows: " + toMil(outflows) + tooltip
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
@@ -2099,19 +2100,16 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		peerTable += "<span title=\"Invite peer to PeerSwap via a direct Keysend message\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:13ch;\">"
 
-		ppm := uint64(0)
-		if totalOutflows > 0 {
-			ppm = totalFees * 1_000_000 / totalOutflows
+		ppmRevenue := uint64(0)
+		ppmCost := uint64(0)
+		if totalForwardsOut > 0 {
+			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
+			ppmCost = totalRebalCost * 1_000_000 / totalForwardsOut
 		}
-		peerTable += "<span title=\"Total revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
-
-		ppm = 0
-		if totalInflows > 0 {
-			ppm = totalAssistedFees * 1_000_000 / totalInflows
-		}
-		peerTable += "<span title=\"Total assisted revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
+		peerTable += "<span title=\"Total revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Circular rebalancing costs for the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalRebalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
 		peerTable += "</td></tr></table>"
@@ -2410,11 +2408,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 				}
 
-				stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 
 				ppm := uint64(0)
-				if stats.AmountOut > 0 {
-					ppm = stats.FeeSat * 1_000_000 / stats.AmountOut
+				if stats.RoutedOut > 0 {
+					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
 				}
 
 				// aim to maximize accumulated PPM
