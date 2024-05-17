@@ -969,6 +969,11 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 		}
 	}
 
+	if peerId != "" && len(peers) == 0 {
+		// none found
+		return nil, errors.New("Peer " + peerId + " not found")
+	}
+
 	list := peerswaprpc.ListPeersResponse{
 		Peers: peers,
 	}

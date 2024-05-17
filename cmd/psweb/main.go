@@ -289,6 +289,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	_, ok = r.URL.Query()["showall"]
 	if ok {
 		otherPeersTable = convertOtherPeersToHTMLTable(otherPeers)
+		if otherPeersTable == "" && popupMessage == "" {
+			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
+			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
+		}
 	} else {
 		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
 	}
@@ -400,8 +404,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		// Search amoung all Lighting peers
 		res, err := ln.ListPeers(cl, id, nil)
 		if err != nil {
-			log.Printf("unable to find peer by id: %v", id)
-			redirectWithError(w, r, "/?", errors.New("unable to find peer by id"))
+			redirectWithError(w, r, "/?", err)
 			return
 		}
 		peer = res.GetPeers()[0]
@@ -427,11 +430,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		sumRemote += ch.GetRemoteBalance()
 	}
 
-	//check for error message to display
-	message := ""
+	//check for error errorMessage to display
+	errorMessage := ""
 	keys, ok = r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
-		message = keys[0]
+		errorMessage = keys[0]
 	}
 
 	// get routing stats
@@ -465,7 +468,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		ErrorMessage:   message,
+		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		BtcFeeRate:     mempoolFeeRate,
 		MempoolFeeRate: feeRate,
@@ -826,18 +829,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "keySend":
-			amount, err := strconv.ParseInt(r.FormValue("keysendAmount"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
 			dest := r.FormValue("nodeId")
 			message := r.FormValue("keysendMessage")
 
+			amount, err := strconv.ParseInt(r.FormValue("keysendAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/peer?id="+dest+"&", err)
+				return
+			}
+
 			err = ln.SendKeysendMessage(dest, amount, message)
 			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
+				redirectWithError(w, r, "/peer?id="+dest+"&", err)
 				return
 			}
 
@@ -2090,7 +2093,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		peerTable += "<span title=\"Not using PeerSwap\">🙁&nbsp</span>"
-		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
+		peerTable += "<span title=\"Invite peer to PeerSwap via a direct Keysend message\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
 		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
