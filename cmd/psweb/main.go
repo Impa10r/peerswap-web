@@ -62,8 +62,6 @@ var (
 	logFile        *os.File
 	latestVersion  = version
 	mempoolFeeRate = float64(0)
-	peersCache     string
-	nonPeersCache  string
 )
 
 func main() {
@@ -1847,6 +1845,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		var totalCapacity float64
 		var totalForwardsOut uint64
 		var totalForwardsIn uint64
+		var totalPayments uint64
 		var totalFees uint64
 		var totalCost uint64
 
@@ -1894,6 +1893,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
 			totalCost += stats.PaidCost
+			totalPayments += stats.PaidOut
 
 			netFlow := float64(int64(inflows) - int64(outflows))
 
@@ -1978,10 +1978,12 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		ppmCost := uint64(0)
 		if totalForwardsOut > 0 {
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
-			ppmCost = totalCost * 1_000_000 / totalForwardsOut
+		}
+		if totalPayments > 0 {
+			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 
-		peerTable += "<span title=\"Total revenue since the last swap or for previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Total revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 		peerTable += "<span title=\"Fees paid since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -2035,6 +2037,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		var totalCapacity float64
 		var totalForwardsOut uint64
 		var totalForwardsIn uint64
+		var totalPayments uint64
 		var totalFees uint64
 		var totalCost uint64
 
@@ -2074,6 +2077,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			inflows := stats.RoutedIn + stats.InvoicedIn
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
+			totalPayments += stats.PaidOut
 			totalCost += stats.PaidCost
 
 			netFlow := float64(int64(inflows) - int64(outflows))
@@ -2151,7 +2155,9 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		ppmCost := uint64(0)
 		if totalForwardsOut > 0 {
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
-			ppmCost = totalCost * 1_000_000 / totalForwardsOut
+		}
+		if totalPayments > 0 {
+			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 		peerTable += "<span title=\"Total revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
 		peerTable += "<span title=\"Fees paid in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
