@@ -1848,7 +1848,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		var totalForwardsOut uint64
 		var totalForwardsIn uint64
 		var totalFees uint64
-		var totalRebalCost uint64
+		var totalCost uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -1893,7 +1893,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			inflows := stats.RoutedIn + stats.InvoicedIn
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
-			totalRebalCost += stats.RebalanceCost
+			totalCost += stats.PaidCost
 
 			netFlow := float64(int64(inflows) - int64(outflows))
 
@@ -1904,32 +1904,39 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			previousRed := redPct
 
 			tooltip = fmt.Sprintf("%d", bluePct) + "% local balance\n" + tooltip + ":"
+			flowText := ""
 			if stats.RoutedIn > 0 {
-				tooltip += "\nRouted in:   +" + formatWithThousandSeparators(stats.RoutedIn)
+				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
 			}
 			if stats.InvoicedIn > 0 {
-				tooltip += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
 			}
 			if stats.RoutedOut > 0 {
-				tooltip += "\nRouted out:  -" + formatWithThousandSeparators(stats.RoutedOut)
+				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
 			}
 			if stats.PaidOut > 0 {
-				tooltip += "\nPaid out:    -" + formatWithThousandSeparators(stats.PaidOut)
+				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
 			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-				tooltip += "\nNet flow:    +" + formatWithThousandSeparators(uint64(netFlow))
+				flowText += "\nNet flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
-				tooltip += "\nNet flow:    -" + formatWithThousandSeparators(uint64(-netFlow))
+				flowText += "\nNet flow: -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
+
+			if flowText == "" {
+				flowText = "\nNo flows"
+			}
+
+			tooltip += flowText
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
@@ -1971,11 +1978,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		ppmCost := uint64(0)
 		if totalForwardsOut > 0 {
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
-			ppmCost = totalRebalCost * 1_000_000 / totalForwardsOut
+			ppmCost = totalCost * 1_000_000 / totalForwardsOut
 		}
 
-		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
-		peerTable += "<span title=\"Circular rebalancing costs since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalRebalCost) + "</span>"
+		peerTable += "<span title=\"Total revenue since the last swap or for previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Fees paid since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
@@ -2029,7 +2036,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		var totalForwardsOut uint64
 		var totalForwardsIn uint64
 		var totalFees uint64
-		var totalRebalCost uint64
+		var totalCost uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -2059,7 +2066,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
-			tooltip := " in the last 6 months"
+			tooltip := "In the last 6 months"
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
@@ -2067,7 +2074,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			inflows := stats.RoutedIn + stats.InvoicedIn
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
-			totalRebalCost += stats.RebalanceCost
+			totalCost += stats.PaidCost
 
 			netFlow := float64(int64(inflows) - int64(outflows))
 
@@ -2077,20 +2084,41 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			previousBlue := bluePct
 			previousRed := redPct
 
-			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(inflows) + ", outflows: " + toMil(outflows) + tooltip
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local balance\n" + tooltip + ":"
+			flowText := ""
+
+			if stats.RoutedIn > 0 {
+				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
+			}
+			if stats.InvoicedIn > 0 {
+				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+			}
+			if stats.RoutedOut > 0 {
+				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+			}
+			if stats.PaidOut > 0 {
+				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
+			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-
+				flowText += "\nNet flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
+				flowText += "\nNet flow: -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
+
+			if flowText == "" {
+				flowText = "\nNo flows"
+			}
+
+			tooltip += flowText
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
@@ -2123,10 +2151,10 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		ppmCost := uint64(0)
 		if totalForwardsOut > 0 {
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
-			ppmCost = totalRebalCost * 1_000_000 / totalForwardsOut
+			ppmCost = totalCost * 1_000_000 / totalForwardsOut
 		}
-		peerTable += "<span title=\"Total revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
-		peerTable += "<span title=\"Circular rebalancing costs for the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalRebalCost) + "</span>"
+		peerTable += "<span title=\"Total revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Fees paid in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
 		peerTable += "</td></tr></table>"

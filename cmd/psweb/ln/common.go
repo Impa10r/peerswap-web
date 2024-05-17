@@ -51,7 +51,7 @@ type ChannelStats struct {
 	AssistedFeeSat uint64
 	PaidOut        uint64
 	InvoicedIn     uint64
-	RebalanceCost  uint64
+	PaidCost       uint64
 }
 
 type ChanneInfo struct {

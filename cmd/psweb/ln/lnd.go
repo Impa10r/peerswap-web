@@ -929,12 +929,12 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	var (
-		result        ChannelStats
-		feeMsat       uint64
-		assistedMsat  uint64
-		paidOutMsat   int64
-		invoicedMsat  uint64
-		rebalCostMsat int64
+		result       ChannelStats
+		feeMsat      uint64
+		assistedMsat uint64
+		paidOutMsat  int64
+		invoicedMsat uint64
+		costMsat     int64
 	)
 
 	timestampNs := timeStamp * 1_000_000_000
@@ -959,11 +959,7 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	for _, e := range paymentHtlcs[channelId] {
 		if uint64(e.ResolveTimeNs) > timestampNs {
 			paidOutMsat += e.Route.TotalAmtMsat
-			// identify circular rebalancing
-			n := len(e.Route.Hops)
-			if n > 0 && e.Route.Hops[n-1].ChanId == channelId {
-				rebalCostMsat += e.Route.TotalFeesMsat
-			}
+			costMsat += e.Route.TotalFeesMsat
 		}
 	}
 
@@ -971,7 +967,7 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	result.AssistedFeeSat = assistedMsat / 1000
 	result.InvoicedIn = invoicedMsat / 1000
 	result.PaidOut = uint64(paidOutMsat / 1000)
-	result.RebalanceCost = uint64(rebalCostMsat / 1000)
+	result.PaidCost = uint64(costMsat / 1000)
 
 	return &result
 }
