@@ -33,12 +33,13 @@
             </div>
             {{.ListPeers}}
             {{if ne .OtherPeers ""}}
+              {{.OtherPeers}}
+            {{else}}
               <center>
                 <small>
-                  <a id="showOtherLink" href="javascript:void(0);" onclick="showOtherPeers()">Show Non-PeerSwap Channels</a>
+                  <a id="showOtherLink" href="/?showall">Show Non-PeerSwap Channels</a>
                 </small>
               </center>
-              {{.OtherPeers}}
             {{end}}
           </div>
         </div>
@@ -117,17 +118,6 @@
         return greekAlphabet.charAt(randomIndex);
       }
 
-      function showOtherPeers() {
-        var fields = findElementsById('otherPeers');
-
-        fields.forEach(function(element) {
-          if (element) {
-            element.style.display = 'table'; // Show the table
-          }
-        });
-
-        document.getElementById('showOtherLink').style.display = 'none'; // Hide the link
-      }
     </script>
   {{template "footer" .}}
 {{end}}

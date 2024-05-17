@@ -62,6 +62,8 @@ var (
 	logFile        *os.File
 	latestVersion  = version
 	mempoolFeeRate = float64(0)
+	peersCache     string
+	nonPeersCache  string
 )
 
 func main() {
@@ -281,6 +283,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
+	//check whether to display non-PS channels
+	otherPeersTable := ""
+	_, ok = r.URL.Query()["showall"]
+	if ok {
+		otherPeersTable = convertOtherPeersToHTMLTable(otherPeers)
+	}
+
 	type Page struct {
 		AllowSwapRequests bool
 		BitcoinSwaps      bool
@@ -306,7 +315,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
 		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
-		OtherPeers:        convertOtherPeersToHTMLTable(otherPeers),
+		OtherPeers:        otherPeersTable,
 		ListSwaps:         convertSwapsToHTMLTable(swaps, nodeId, state, role),
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
@@ -1997,7 +2006,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		var totalFees uint64
 		var totalAssistedFees uint64
 
-		channelsTable := "<table id=\"otherPeers\" style=\"display: none; table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
+		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -2070,7 +2079,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		// count total outbound to sort peers later
 		pct := int(1000000 * totalLocal / totalCapacity)
 
-		peerTable := "<table  id=\"otherPeers\" style=\"display: none; table-layout:fixed; width: 100%\">"
+		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
 		peerTable += "<tr style=\"border: 1px dotted\">"
 		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
 
