@@ -842,8 +842,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			log.Println(msg)
 
-			// Load main page with pop-up message
-			http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
+			// Load main page with all pees and a pop-up message
+			http.Redirect(w, r, "/?showall&msg="+msg, http.StatusSeeOther)
 			return
 		case "setAutoSwap":
 			newAmount, err := strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
