@@ -2,8 +2,9 @@
 
 ## 1.4.1
 
-- Account to paid and received invoices
-- Show circular rebalancing costs
+- LND: Account for paid and received invoices in flows
+- LND: Show LN costs of paid invoices (excluding peerswaps)
+- Performance optimizations
 
 ## 1.4.0
 

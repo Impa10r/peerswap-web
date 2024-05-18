@@ -2004,7 +2004,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 
-		peerTable += "<span title=\"Total revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
+		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
 		peerTable += "<span title=\"LN costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -2180,7 +2180,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		if totalPayments > 0 {
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
-		peerTable += "<span title=\"Total revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
+		peerTable += "<span title=\"Routing revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
 		peerTable += "<span title=\"LN costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
