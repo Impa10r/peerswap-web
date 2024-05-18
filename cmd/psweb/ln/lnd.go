@@ -752,7 +752,9 @@ func CachePayments() {
 					// Decode the payment request
 					invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
 					log.Println(*invoice.Description)
-					if err == nil && (*invoice.Description)[:8] == "peerswap" {
+					if err == nil &&
+						len(*invoice.Description) > 7 &&
+						(*invoice.Description)[:8] == "peerswap" {
 						// skip peerswap-related payments
 						continue
 					}
