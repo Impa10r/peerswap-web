@@ -2,9 +2,8 @@
 
 ## 1.4.1
 
-- LND: Account for paid and received invoices in flows
-- LND: Show LN costs of paid invoices (excluding peerswaps)
-- Performance optimizations
+- Account for paid and received invoices in channel flow statistics
+- Show LN costs of paid invoices (excluding peerswaps)
 
 ## 1.4.0
 

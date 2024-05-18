@@ -499,7 +499,74 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	return &result
 }
 
-// forwarding stats for a channel since timestamp
+// Payment represents the structure of the payment data
+type Payment struct {
+	Destination    string `json:"destination"`
+	PaymentHash    string `json:"payment_hash"`
+	Status         string `json:"status"`
+	CreatedAt      uint64 `json:"created_at"`
+	CompletedAt    uint64 `json:"completed_at"`
+	Preimage       string `json:"preimage"`
+	AmountMsat     uint64 `json:"amount_msat"`
+	AmountSentMsat uint64 `json:"amount_sent_msat"`
+}
+
+// HTLC represents the structure of a single HTLC entry
+type HTLC struct {
+	ShortChannelID string `json:"short_channel_id"`
+	ID             int    `json:"id"`
+	Expiry         int    `json:"expiry"`
+	Direction      string `json:"direction"`
+	AmountMsat     uint64 `json:"amount_msat"`
+	PaymentHash    string `json:"payment_hash"`
+	State          string `json:"state"`
+}
+
+type Invoice struct {
+	Label              string `json:"label"`
+	Status             string `json:"status"`
+	AmountReceivedMsat uint64 `json:"amount_received_msat,omitempty"`
+	PaidAt             uint64 `json:"paid_at,omitempty"`
+	PaymentPreimage    string `json:"payment_preimage,omitempty"`
+	CreatedIndex       uint64 `json:"created_index"`
+}
+
+type ListInvoicesRequest struct {
+	PaymentHash string `json:"payment_hash"`
+}
+
+func (r ListInvoicesRequest) Name() string {
+	return "listinvoices"
+}
+
+type ListInvoicesResponse struct {
+	Invoices []Invoice `json:"invoices"`
+}
+type ListPaysRequest struct {
+	PaymentHash string `json:"payment_hash"`
+}
+
+func (r ListPaysRequest) Name() string {
+	return "listpays"
+}
+
+type ListPaysResponse struct {
+	Payments []Payment `json:"pays"`
+}
+
+type ListHtlcsRequest struct {
+	ChannelId string `json:"id,omitempty"`
+}
+
+func (r ListHtlcsRequest) Name() string {
+	return "listhtlcs"
+}
+
+type ListHtlcsResponse struct {
+	HTLCs []HTLC `json:"htlcs"`
+}
+
+// flow stats for a channel since timestamp
 func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	var (
 		result       ChannelStats
@@ -507,7 +574,60 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 		amountIn     uint64
 		feeMsat      uint64
 		assistedMsat uint64
+		paidOutMsat  uint64
+		invoicedMsat uint64
+		costMsat     uint64
 	)
+
+	channelId := ConvertLndToClnChannelId(lndChannelId)
+
+	client, clean, err := GetClient()
+	if err != nil {
+		return &result
+	}
+	defer clean()
+
+	var res ListHtlcsResponse
+
+	err = client.Request(&ListHtlcsRequest{
+		ChannelId: channelId,
+	}, &res)
+	if err != nil {
+		log.Println("ListHtlcsRequest:", err)
+	}
+
+	for _, htlc := range res.HTLCs {
+		switch htlc.State {
+		case "SENT_REMOVE_ACK_REVOCATION":
+			// direction in, look for invoices
+			var inv ListInvoicesResponse
+			err := client.Request(&ListInvoicesRequest{
+				PaymentHash: htlc.PaymentHash,
+			}, &inv)
+			if err == nil &&
+				len(inv.Invoices) == 1 &&
+				inv.Invoices[0].Status == "paid" &&
+				inv.Invoices[0].PaidAt > timeStamp &&
+				inv.Invoices[0].Label[:8] != "peerswap" {
+				invoicedMsat += htlc.AmountMsat
+			}
+
+		case "RCVD_REMOVE_ACK_REVOCATION":
+			// direction out, look for payments
+			var pmt ListPaysResponse
+			err := client.Request(&ListPaysRequest{
+				PaymentHash: htlc.PaymentHash,
+			}, &pmt)
+			if err == nil &&
+				len(pmt.Payments) == 1 &&
+				pmt.Payments[0].Status == "complete" &&
+				pmt.Payments[0].CompletedAt > timeStamp {
+				paidOutMsat += htlc.AmountMsat
+				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
+				costMsat += fee
+			}
+		}
+	}
 
 	timeStampF := float64(timeStamp)
 
@@ -528,6 +648,9 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	result.RoutedIn = amountIn / 1000
 	result.FeeSat = feeMsat / 1000
 	result.AssistedFeeSat = assistedMsat / 1000
+	result.InvoicedIn = invoicedMsat / 1000
+	result.PaidOut = paidOutMsat / 1000
+	result.PaidCost = costMsat / 1000
 
 	return &result
 }

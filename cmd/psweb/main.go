@@ -482,11 +482,17 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo    []*ln.ChanneInfo
 		PeerSwapPeer   bool
 		MyAlias        string
+		FeePPM         uint64
 	}
 
 	feeRate := liquid.GetMempoolMinFee()
 	if !psPeer {
 		feeRate = mempoolFeeRate
+	}
+
+	lnFeePPM := uint64(0)
+	if peer.AsSender.SatsOut > 0 {
+		lnFeePPM = peer.PaidFee * 1_000_000 / peer.AsSender.SatsOut
 	}
 
 	data := Page{
@@ -510,6 +516,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo:    channelInfo,
 		PeerSwapPeer:   psPeer,
 		MyAlias:        ln.GetMyAlias(),
+		FeePPM:         lnFeePPM,
 	}
 
 	// executing template named "peer"
@@ -1376,7 +1383,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	t := fmt.Sprintln(err)
 	// translate common errors into plain English
 	switch {
-	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
+	case strings.HasPrefix(t, "rpc error"):
 		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
@@ -1862,8 +1869,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			// bump by 2 minutes to exclude peerswap-related payments
 			bump := int64(120)
 			if swap.Asset == "btc" {
-				// bump by 20 minutes for BTC
-				bump = int64(1200)
+				// bump by 60 minutes for BTC
+				bump = int64(3600)
 			}
 			swapTimestamps[swap.LndChanId] = swap.CreatedAt + bump
 		}
@@ -2016,7 +2023,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
 		if totalCost > 0 {
-			peerTable += "<span title=\"LN costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Lighting costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -2194,7 +2201,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 		if totalCost > 0 {
-			peerTable += "<span title=\"LN costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Lighting costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
