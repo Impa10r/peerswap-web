@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.1"
+	version = "v1.4.2"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -1872,6 +1872,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				// bump by 60 minutes for BTC
 				bump = int64(3600)
 			}
+			bump = 0
 			swapTimestamps[swap.LndChanId] = swap.CreatedAt + bump
 		}
 	}

@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.2
+
+-
+
 ## 1.4.1
 
 - Account for paid and received invoices in channel flow statistics

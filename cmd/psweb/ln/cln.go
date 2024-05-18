@@ -16,8 +16,11 @@ import (
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/internet"
 
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/peerswaprpc"
+
+	"github.com/lightningnetwork/lnd/zpay32"
 )
 
 const (
@@ -501,14 +504,11 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 
 // Payment represents the structure of the payment data
 type Payment struct {
-	Destination    string `json:"destination"`
-	PaymentHash    string `json:"payment_hash"`
 	Status         string `json:"status"`
-	CreatedAt      uint64 `json:"created_at"`
 	CompletedAt    uint64 `json:"completed_at"`
-	Preimage       string `json:"preimage"`
 	AmountMsat     uint64 `json:"amount_msat"`
 	AmountSentMsat uint64 `json:"amount_sent_msat"`
+	Bolt11         string `json:"bolt11"`
 }
 
 // HTLC represents the structure of a single HTLC entry
@@ -542,16 +542,16 @@ func (r ListInvoicesRequest) Name() string {
 type ListInvoicesResponse struct {
 	Invoices []Invoice `json:"invoices"`
 }
-type ListPaysRequest struct {
+type ListSendPaysRequest struct {
 	PaymentHash string `json:"payment_hash"`
 }
 
-func (r ListPaysRequest) Name() string {
-	return "listpays"
+func (r ListSendPaysRequest) Name() string {
+	return "listsendpays"
 }
 
-type ListPaysResponse struct {
-	Payments []Payment `json:"pays"`
+type ListSendPaysResponse struct {
+	Payments []Payment `json:"payments"`
 }
 
 type ListHtlcsRequest struct {
@@ -587,6 +587,11 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	}
 	defer clean()
 
+	var harnessNetParams = &chaincfg.TestNet3Params
+	if config.Config.Chain == "mainnet" {
+		harnessNetParams = &chaincfg.MainNetParams
+	}
+
 	var res ListHtlcsResponse
 
 	err = client.Request(&ListHtlcsRequest{
@@ -614,14 +619,24 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 
 		case "RCVD_REMOVE_ACK_REVOCATION":
 			// direction out, look for payments
-			var pmt ListPaysResponse
-			err := client.Request(&ListPaysRequest{
+			var pmt ListSendPaysResponse
+			err := client.Request(&ListSendPaysRequest{
 				PaymentHash: htlc.PaymentHash,
 			}, &pmt)
 			if err == nil &&
 				len(pmt.Payments) == 1 &&
 				pmt.Payments[0].Status == "complete" &&
 				pmt.Payments[0].CompletedAt > timeStamp {
+
+				if pmt.Payments[0].Bolt11 != "" {
+					// Decode the payment request
+					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
+					if err == nil && (*invoice.Description)[:8] == "peerswap" {
+						// skip peerswap-related payments
+						continue
+					}
+				}
+
 				paidOutMsat += htlc.AmountMsat
 				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
 				costMsat += fee

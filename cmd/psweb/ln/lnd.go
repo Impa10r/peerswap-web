@@ -33,6 +33,7 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
+	"github.com/lightningnetwork/lnd/zpay32"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gopkg.in/macaroon.v2"
@@ -174,7 +175,6 @@ func getTransaction(client lnrpc.LightningClient, txid string) (*lnrpc.Transacti
 	ctx := context.Background()
 	resp, err := client.GetTransactions(ctx, &lnrpc.GetTransactionsRequest{})
 	if err != nil {
-		log.Println("GetTransaction:", err)
 		return nil, err
 	}
 	for _, tx := range resp.Transactions {
@@ -713,12 +713,16 @@ func CacheForwards() {
 
 // cache all payments from lnd
 func CachePayments() {
-	// refresh history
 	client, cleanup, err := GetClient()
 	if err != nil {
 		return
 	}
 	defer cleanup()
+
+	var harnessNetParams = &chaincfg.TestNet3Params
+	if config.Config.Chain == "mainnet" {
+		harnessNetParams = &chaincfg.MainNetParams
+	}
 
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
@@ -744,6 +748,14 @@ func CachePayments() {
 		// only append settled ones
 		for _, payment := range res.Payments {
 			if payment.Status == lnrpc.Payment_SUCCEEDED {
+				if payment.PaymentRequest != "" {
+					// Decode the payment request
+					invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
+					if err == nil && (*invoice.Description)[:8] == "peerswap" {
+						// skip peerswap-related payments
+						continue
+					}
+				}
 				for _, htlc := range payment.Htlcs {
 					if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
 						// get channel from the first hop
