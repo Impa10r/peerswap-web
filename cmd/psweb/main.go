@@ -193,20 +193,20 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 
-	res3, err := ps.ListSwaps(client)
+	res, err := ps.ListSwaps(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
-	swaps := res3.GetSwaps()
+	swaps := res.GetSwaps()
 
-	res4, err := ps.LiquidGetBalance(client)
+	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
 
-	satAmount := res4.GetSatAmount()
+	satAmount := res2.GetSatAmount()
 
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
@@ -289,6 +289,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			// make a list of peerswap peers
 			var psIds []string
 
+			if len(peers) == 0 {
+				res, err := ps.ListPeers(client)
+				if err != nil {
+					redirectWithError(w, r, "/config?", err)
+					return
+				}
+				peers = res.GetPeers()
+			}
 			for _, peer := range peers {
 				psIds = append(psIds, peer.NodeId)
 			}
@@ -1851,11 +1859,8 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			extraSeconds := int64(300) // 5 mins to ignore lighting payments related to swap
-			if swap.Asset == "btc" {
-				extraSeconds = 1200 // 20 mins for BTC swaps
-			}
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt + extraSeconds
+			// bump by 2 minutes to exclude peerswap-related payments
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt + 120
 		}
 	}
 

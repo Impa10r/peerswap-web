@@ -801,9 +801,12 @@ func CacheInvoices() {
 		// only append settled htlcs
 		for _, invoice := range res.Invoices {
 			if invoice.State == lnrpc.Invoice_SETTLED {
-				for _, htlc := range invoice.Htlcs {
-					if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
-						invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+				// exclude peerswap-related
+				if len(invoice.Memo) < 8 || invoice.Memo[:8] != "peerswap" {
+					for _, htlc := range invoice.Htlcs {
+						if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
+							invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+						}
 					}
 				}
 			}
@@ -952,12 +955,12 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		}
 	}
 	for _, e := range invoiceHtlcs[channelId] {
-		if uint64(e.ResolveTime) > timeStamp {
+		if uint64(e.AcceptTime) > timeStamp {
 			invoicedMsat += e.AmtMsat
 		}
 	}
 	for _, e := range paymentHtlcs[channelId] {
-		if uint64(e.ResolveTimeNs) > timestampNs {
+		if uint64(e.AttemptTimeNs) > timestampNs {
 			paidOutMsat += e.Route.TotalAmtMsat
 			costMsat += e.Route.TotalFeesMsat
 		}
