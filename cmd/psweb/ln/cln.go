@@ -346,8 +346,10 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	amountSent := amount
 	if subtractFeeFromAmount {
 		decodedTx, err := bitcoin.DecodeRawTransaction(res.Tx)
-		if err == nil && len(decodedTx.Vout) == 1 {
-			amountSent = toSats(decodedTx.Vout[0].Value)
+		if err == nil {
+			if len(decodedTx.Vout) == 1 {
+				amountSent = toSats(decodedTx.Vout[0].Value)
+			}
 		}
 	}
 
@@ -609,12 +611,18 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 			err := client.Request(&ListInvoicesRequest{
 				PaymentHash: htlc.PaymentHash,
 			}, &inv)
-			if err == nil &&
-				len(inv.Invoices) == 1 &&
-				inv.Invoices[0].Status == "paid" &&
-				inv.Invoices[0].PaidAt > timeStamp &&
-				inv.Invoices[0].Label[:8] != "peerswap" {
-				invoicedMsat += htlc.AmountMsat
+			if err != nil {
+				continue
+			}
+			if inv.Invoices[0].Status == "paid" || len(inv.Invoices) == 1 {
+				continue
+			}
+			if inv.Invoices[0].PaidAt > timeStamp {
+				if len(inv.Invoices[0].Label) > 7 {
+					if inv.Invoices[0].Label[:8] != "peerswap" {
+						invoicedMsat += htlc.AmountMsat
+					}
+				}
 			}
 
 		case "RCVD_REMOVE_ACK_REVOCATION":
@@ -623,22 +631,25 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 			err := client.Request(&ListSendPaysRequest{
 				PaymentHash: htlc.PaymentHash,
 			}, &pmt)
-			if err == nil &&
-				len(pmt.Payments) == 1 &&
-				pmt.Payments[0].Status == "complete" &&
-				pmt.Payments[0].CompletedAt > timeStamp {
-
+			if err != nil {
+				continue
+			}
+			if pmt.Payments[0].Status != "complete" || len(pmt.Payments) != 1 {
+				continue
+			}
+			if pmt.Payments[0].CompletedAt > timeStamp {
 				if pmt.Payments[0].Bolt11 != "" {
 					// Decode the payment request
 					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
-					if err == nil &&
-						len(*invoice.Description) > 7 &&
-						(*invoice.Description)[:8] == "peerswap" {
-						// skip peerswap-related payments
-						continue
+					if err == nil {
+						if len(*invoice.Description) > 7 {
+							if (*invoice.Description)[:8] == "peerswap" {
+								// skip peerswap-related payments
+								continue
+							}
+						}
 					}
 				}
-
 				paidOutMsat += htlc.AmountMsat
 				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
 				costMsat += fee
@@ -755,8 +766,10 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 
 	for _, clnPeer := range clnPeers {
 		// skip excluded
-		if excludeIds != nil && stringIsInSlice(clnPeer.Id, *excludeIds) {
-			continue
+		if excludeIds != nil {
+			if stringIsInSlice(clnPeer.Id, *excludeIds) {
+				continue
+			}
 		}
 
 		// skip peers with no channels
