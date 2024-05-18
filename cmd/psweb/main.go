@@ -287,6 +287,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	peerTable := peerTableCache
 	if peerTable == "" {
 		peerTable = convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
+		peerTableCache = peerTable
 	}
 
 	//check whether to display non-PS channels or swaps
@@ -294,9 +295,11 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	listSwaps := ""
 	_, ok = r.URL.Query()["showall"]
 	if ok {
+		// use cache for page refreshes < 1 minute
 		nonPeerTable = nonPeerTableCache
 		if nonPeerTable == "" {
 			nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
+			nonPeerTableCache = nonPeerTable
 		}
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
