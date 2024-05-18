@@ -193,22 +193,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 
-	res, err := ps.ReloadPolicyFile(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	allowlistedPeers := res.GetAllowlistedPeers()
-	suspiciousPeers := res.GetSuspiciousPeerList()
-
-	res2, err := ps.ListPeers(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	peers := res2.GetPeers()
-
 	res3, err := ps.ListSwaps(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
@@ -233,20 +217,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-
-	var psIds []string
-
-	for _, peer := range peers {
-		psIds = append(psIds, peer.NodeId)
-	}
-
-	// Get the remaining Lightning peers
-	res5, err := ln.ListPeers(cl, "", &psIds)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	otherPeers := res5.GetPeers()
 
 	//check for error message to display
 	errorMessage := ""
@@ -283,9 +253,27 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
+	var peers []*peerswaprpc.PeerSwapPeer
+
 	// use cache for page refreshes < 1 minute
 	peerTable := peerTableCache
 	if peerTable == "" {
+		res, err := ps.ReloadPolicyFile(client)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+
+		allowlistedPeers := res.GetAllowlistedPeers()
+		suspiciousPeers := res.GetSuspiciousPeerList()
+
+		res2, err := ps.ListPeers(client)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+		peers = res2.GetPeers()
+
 		peerTable = convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
 		peerTableCache = peerTable
 	}
@@ -298,6 +286,20 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		// use cache for page refreshes < 1 minute
 		nonPeerTable = nonPeerTableCache
 		if nonPeerTable == "" {
+			// make a list of peerswap peers
+			var psIds []string
+
+			for _, peer := range peers {
+				psIds = append(psIds, peer.NodeId)
+			}
+
+			// Get the remaining Lightning peers
+			res5, err := ln.ListPeers(cl, "", &psIds)
+			if err != nil {
+				redirectWithError(w, r, "/config?", err)
+				return
+			}
+			otherPeers := res5.GetPeers()
 			nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
 			nonPeerTableCache = nonPeerTable
 		}
