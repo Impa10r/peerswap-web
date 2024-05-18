@@ -3,7 +3,7 @@
 ## 1.4.1
 
 - Account for paid and received invoices in channel flow statistics
-- Show LN costs of paid invoices (excluding peerswaps)
+- Show Lightning costs of paid invoices (excluding peerswap's)
 
 ## 1.4.0
 
