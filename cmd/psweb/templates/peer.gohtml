@@ -204,8 +204,8 @@ Sincerely,
                   <td style="text-align: center">
                     {{fmt .Peer.AsSender.SwapsOut}}
                     {{if gt .Peer.PaidFee 0}}
-                      <span title = "Fees prepaid via Lightning">
-                        ({{.Peer.PaidFee}})
+                      <span title = "Swap-out fees prepaid via LN">
+                        (<span style="color: red">{{.Peer.PaidFee}}</span>)
                       </span>
                     {{end}}
                   </td>

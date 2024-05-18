@@ -1860,7 +1860,12 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
 			// bump by 2 minutes to exclude peerswap-related payments
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt + 120
+			bump := int64(120)
+			if swap.Asset == "btc" {
+				// bump by 20 minutes for BTC
+				bump = int64(1200)
+			}
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt + bump
 		}
 	}
 
@@ -2009,8 +2014,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 
-		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
-		peerTable += "<span title=\"LN costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
+		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
+		if totalCost > 0 {
+			peerTable += "<span title=\"LN costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
@@ -2182,11 +2189,14 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		if totalForwardsOut > 0 {
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
 		}
+		peerTable += "<span title=\"Routing revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
 		if totalPayments > 0 {
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
-		peerTable += "<span title=\"Routing revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
-		peerTable += "<span title=\"LN costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
+		if totalCost > 0 {
+			peerTable += "<span title=\"LN costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+		}
+
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
 		peerTable += "</td></tr></table>"
