@@ -614,7 +614,10 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 			if err != nil {
 				continue
 			}
-			if inv.Invoices[0].Status == "paid" || len(inv.Invoices) == 1 {
+			if len(inv.Invoices) != 1 {
+				continue
+			}
+			if inv.Invoices[0].Status == "paid" {
 				continue
 			}
 			if inv.Invoices[0].PaidAt > timeStamp {
@@ -634,7 +637,10 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 			if err != nil {
 				continue
 			}
-			if pmt.Payments[0].Status != "complete" || len(pmt.Payments) != 1 {
+			if len(pmt.Payments) != 1 {
+				continue
+			}
+			if pmt.Payments[0].Status != "complete" {
 				continue
 			}
 			if pmt.Payments[0].CompletedAt > timeStamp {

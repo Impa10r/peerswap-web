@@ -50,9 +50,12 @@ var (
 	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
 	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
 
+	// for initial downloads
 	lastforwardCreationTs uint64
 	lastPaymentCreationTs int64
-	lastInvoiceCreationTs int64
+
+	// for subscriotions
+	lastInvoiceSettleIndex uint64
 
 	// default lock id used by LND
 	internalLockId = []byte{
@@ -796,52 +799,88 @@ func CacheInvoices() {
 	}
 	defer cleanup()
 
-	// only go back 6 months
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	if lastInvoiceSettleIndex == 0 {
+		// do initial download
 
-	if lastInvoiceCreationTs > 0 {
-		// continue from the last timestamp in seconds
-		start = uint64(lastInvoiceCreationTs + 1)
+		// only go back 6 months
+		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+		offset := uint64(0)
+		for {
+			res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
+				CreationDateStart: start,
+				Reversed:          false,
+				IndexOffset:       offset,
+				NumMaxInvoices:    50000,
+			})
+			if err != nil {
+				return
+			}
+
+			for _, invoice := range res.Invoices {
+				appendInvoice(invoice)
+			}
+
+			n := len(res.Invoices)
+			if n > 0 {
+				// global settle index for subscription
+				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+			}
+			if n < 50000 {
+				// all invoices retrieved
+				break
+			}
+
+			// next pull start from the next index
+			offset = res.LastIndexOffset
+		}
 	}
 
-	offset := uint64(0)
-	for {
-		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
-			CreationDateStart: start,
-			Reversed:          false,
-			IndexOffset:       offset,
-			NumMaxInvoices:    50000,
-		})
-		if err != nil {
-			return
-		}
+	ctx := context.Background()
 
-		// only append settled htlcs
-		for _, invoice := range res.Invoices {
-			if invoice.State == lnrpc.Invoice_SETTLED {
-				// exclude peerswap-related
-				if len(invoice.Memo) < 8 || invoice.Memo[:8] != "peerswap" {
-					for _, htlc := range invoice.Htlcs {
-						if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
-							invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
-						}
-					}
+	for {
+		if err := subscribeInvoices(ctx, client); err != nil {
+			log.Println("Invoices subscription error:", err)
+			time.Sleep(60 * time.Second)
+		}
+	}
+}
+
+func appendInvoice(invoice *lnrpc.Invoice) {
+	if invoice == nil {
+		// precaution
+		return
+	}
+	// only append settled htlcs
+	if invoice.State == lnrpc.Invoice_SETTLED {
+		// skip peerswap-related
+		if len(invoice.Memo) < 8 || invoice.Memo[:8] != "peerswap" {
+			for _, htlc := range invoice.Htlcs {
+				if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
+					invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
 				}
 			}
 		}
+	}
+}
 
-		n := len(res.Invoices)
-		if n > 0 {
-			// store the last timestamp
-			lastInvoiceCreationTs = res.Invoices[n-1].CreationDate
-		}
-		if n < 50000 {
-			// all invoices retrieved
-			break
-		}
+func subscribeInvoices(ctx context.Context, client lnrpc.LightningClient) error {
+	req := &lnrpc.InvoiceSubscription{
+		SettleIndex: lastInvoiceSettleIndex,
+	}
+	stream, err := client.SubscribeInvoices(ctx, req)
+	if err != nil {
+		return err
+	}
 
-		// next pull start from the next index
-		offset = res.LastIndexOffset
+	log.Println("Subscribed to invoices")
+
+	for {
+		invoice, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		appendInvoice(invoice)
+		lastInvoiceSettleIndex = invoice.SettleIndex
 	}
 }
 

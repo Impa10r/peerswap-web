@@ -165,6 +165,9 @@ func main() {
 	// to speed up first load of home page
 	go cacheAliases()
 
+	// download and subscribe to invoices
+	go ln.CacheInvoices()
+
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -1421,7 +1424,6 @@ func onTimer() {
 	go func() {
 		ln.CacheForwards()
 		ln.CachePayments()
-		ln.CacheInvoices()
 
 		peerTableCache = ""
 		nonPeerTableCache = ""
