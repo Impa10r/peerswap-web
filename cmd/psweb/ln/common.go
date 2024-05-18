@@ -44,11 +44,14 @@ type ForwardingStats struct {
 	AssistedPPM6m     uint64
 }
 
-type ShortForwardingStats struct {
-	AmountOut      uint64
-	AmountIn       uint64
+type ChannelStats struct {
+	RoutedOut      uint64
+	RoutedIn       uint64
 	FeeSat         uint64
 	AssistedFeeSat uint64
+	PaidOut        uint64
+	InvoicedIn     uint64
+	PaidCost       uint64
 }
 
 type ChanneInfo struct {

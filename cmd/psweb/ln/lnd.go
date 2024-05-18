@@ -41,8 +41,18 @@ import (
 const Implementation = "LND"
 
 var (
-	LndVerson        = float64(0) // must be 0.18+ for RBF ability
-	forwardingEvents []*lnrpc.ForwardingEvent
+	LndVerson = float64(0) // must be 0.18+ for RBF ability
+
+	// arrays mapped per channel
+	forwardsIn   = make(map[uint64][]*lnrpc.ForwardingEvent)
+	forwardsOut  = make(map[uint64][]*lnrpc.ForwardingEvent)
+	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
+	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
+
+	lastforwardCreationTs uint64
+	lastPaymentCreationTs int64
+	lastInvoiceCreationTs int64
+
 	// default lock id used by LND
 	internalLockId = []byte{
 		0xed, 0xe1, 0x9a, 0x92, 0xed, 0x32, 0x1a, 0x47,
@@ -651,8 +661,8 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-// fetch all routing statistics from lnd
-func FetchForwardingStats() {
+// cache routing history per channel from lnd
+func CacheForwards() {
 	// refresh history
 	client, cleanup, err := GetClient()
 	if err != nil {
@@ -663,9 +673,9 @@ func FetchForwardingStats() {
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
-	if len(forwardingEvents) > 0 {
+	if lastforwardCreationTs > 0 {
 		// continue from the last timestamp in seconds
-		start = forwardingEvents[len(forwardingEvents)-1].TimestampNs/1_000_000_000 + 1
+		start = lastforwardCreationTs + 1
 	}
 
 	offset := uint32(0)
@@ -680,14 +690,140 @@ func FetchForwardingStats() {
 			return
 		}
 
-		forwardingEvents = append(forwardingEvents, res.ForwardingEvents...)
-		if len(res.ForwardingEvents) < 50000 {
+		// sort by in and out channels
+		for _, event := range res.ForwardingEvents {
+			forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
+			forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
+		}
+
+		n := len(res.ForwardingEvents)
+		if n > 0 {
+			// store the last timestamp
+			lastforwardCreationTs = res.ForwardingEvents[n-1].TimestampNs / 1_000_000_000
+		}
+		if n < 50000 {
 			// all events retrieved
 			break
 		}
 
 		// next pull start from the next index
-		offset = res.LastOffsetIndex + 1
+		offset = res.LastOffsetIndex
+	}
+}
+
+// cache all payments from lnd
+func CachePayments() {
+	// refresh history
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	// only go back 6 months
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+
+	if lastPaymentCreationTs > 0 {
+		// continue from the last timestamp in seconds
+		start = uint64(lastPaymentCreationTs + 1)
+	}
+
+	offset := uint64(0)
+	for {
+		res, err := client.ListPayments(context.Background(), &lnrpc.ListPaymentsRequest{
+			CreationDateStart: start,
+			IncludeIncomplete: false,
+			Reversed:          false,
+			IndexOffset:       offset,
+			MaxPayments:       50000,
+		})
+		if err != nil {
+			return
+		}
+
+		// only append settled ones
+		for _, payment := range res.Payments {
+			if payment.Status == lnrpc.Payment_SUCCEEDED {
+				for _, htlc := range payment.Htlcs {
+					if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
+						// get channel from the first hop
+						chanId := htlc.Route.Hops[0].ChanId
+						paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+					}
+				}
+			}
+		}
+
+		n := len(res.Payments)
+		if n > 0 {
+			// store the last timestamp
+			lastPaymentCreationTs = res.Payments[n-1].CreationTimeNs / 1_000_000_000
+		}
+		if n < 50000 {
+			// all events retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastIndexOffset
+	}
+}
+
+// cache all invoices from lnd
+func CacheInvoices() {
+	// refresh history
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	// only go back 6 months
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+
+	if lastInvoiceCreationTs > 0 {
+		// continue from the last timestamp in seconds
+		start = uint64(lastInvoiceCreationTs + 1)
+	}
+
+	offset := uint64(0)
+	for {
+		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
+			CreationDateStart: start,
+			Reversed:          false,
+			IndexOffset:       offset,
+			NumMaxInvoices:    50000,
+		})
+		if err != nil {
+			return
+		}
+
+		// only append settled htlcs
+		for _, invoice := range res.Invoices {
+			if invoice.State == lnrpc.Invoice_SETTLED {
+				// exclude peerswap-related
+				if len(invoice.Memo) < 8 || invoice.Memo[:8] != "peerswap" {
+					for _, htlc := range invoice.Htlcs {
+						if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
+							invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+						}
+					}
+				}
+			}
+		}
+
+		n := len(res.Invoices)
+		if n > 0 {
+			// store the last timestamp
+			lastInvoiceCreationTs = res.Invoices[n-1].CreationDate
+		}
+		if n < 50000 {
+			// all invoices retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastIndexOffset
 	}
 }
 
@@ -709,32 +845,31 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp30d := uint64(now.AddDate(0, 0, -30).Unix()) * 1_000_000_000
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
-	for _, e := range forwardingEvents {
-		if e.ChanIdOut == channelId {
-			if e.TimestampNs > timestamp6m {
-				result.AmountOut6m += e.AmtOut
-				feeMsat6m += e.FeeMsat
-				if e.TimestampNs > timestamp30d {
-					result.AmountOut30d += e.AmtOut
-					feeMsat30d += e.FeeMsat
-					if e.TimestampNs > timestamp7d {
-						result.AmountOut7d += e.AmtOut
-						feeMsat7d += e.FeeMsat
-					}
+	for _, e := range forwardsOut[channelId] {
+		if e.TimestampNs > timestamp6m {
+			result.AmountOut6m += e.AmtOut
+			feeMsat6m += e.FeeMsat
+			if e.TimestampNs > timestamp30d {
+				result.AmountOut30d += e.AmtOut
+				feeMsat30d += e.FeeMsat
+				if e.TimestampNs > timestamp7d {
+					result.AmountOut7d += e.AmtOut
+					feeMsat7d += e.FeeMsat
 				}
 			}
 		}
-		if e.ChanIdIn == channelId {
-			if e.TimestampNs > timestamp6m {
-				result.AmountIn6m += e.AmtIn
-				assistedMsat6m += e.FeeMsat
-				if e.TimestampNs > timestamp30d {
-					result.AmountIn30d += e.AmtIn
-					assistedMsat30d += e.FeeMsat
-					if e.TimestampNs > timestamp7d {
-						result.AmountIn7d += e.AmtIn
-						assistedMsat7d += e.FeeMsat
-					}
+	}
+
+	for _, e := range forwardsIn[channelId] {
+		if e.TimestampNs > timestamp6m {
+			result.AmountIn6m += e.AmtIn
+			assistedMsat6m += e.FeeMsat
+			if e.TimestampNs > timestamp30d {
+				result.AmountIn30d += e.AmtIn
+				assistedMsat30d += e.FeeMsat
+				if e.TimestampNs > timestamp7d {
+					result.AmountIn7d += e.AmtIn
+					assistedMsat7d += e.FeeMsat
 				}
 			}
 		}
@@ -793,34 +928,49 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 	return info
 }
 
-// forwarding stats for a channel since timestamp
-func GetForwardingStatsSinceTS(channelId uint64, timeStamp uint64) *ShortForwardingStats {
+// flow stats for a channel since timestamp
+func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	var (
-		result       ShortForwardingStats
+		result       ChannelStats
 		feeMsat      uint64
 		assistedMsat uint64
+		paidOutMsat  int64
+		invoicedMsat uint64
+		costMsat     int64
 	)
 
 	timestampNs := timeStamp * 1_000_000_000
 
-	for _, e := range forwardingEvents {
-		if e.ChanIdOut == channelId {
-			if e.TimestampNs > timestampNs {
-				result.AmountOut += e.AmtOut
-				feeMsat += e.FeeMsat
-			}
+	for _, e := range forwardsOut[channelId] {
+		if e.TimestampNs > timestampNs {
+			result.RoutedOut += e.AmtOut
+			feeMsat += e.FeeMsat
 		}
-		if e.ChanIdIn == channelId {
-			if e.TimestampNs > timestampNs {
-				result.AmountIn += e.AmtIn
-				assistedMsat += e.FeeMsat
-			}
+	}
+	for _, e := range forwardsIn[channelId] {
+		if e.TimestampNs > timestampNs {
+			result.RoutedIn += e.AmtIn
+			assistedMsat += e.FeeMsat
+		}
+	}
+	for _, e := range invoiceHtlcs[channelId] {
+		if uint64(e.AcceptTime) > timeStamp {
+			invoicedMsat += e.AmtMsat
+		}
+	}
+	for _, e := range paymentHtlcs[channelId] {
+		if uint64(e.AttemptTimeNs) > timestampNs {
+			paidOutMsat += e.Route.TotalAmtMsat
+			costMsat += e.Route.TotalFeesMsat
 		}
 	}
 
 	result.FeeSat = feeMsat / 1000
 	result.AssistedFeeSat = assistedMsat / 1000
+	result.InvoicedIn = invoicedMsat / 1000
+	result.PaidOut = uint64(paidOutMsat / 1000)
+	result.PaidCost = uint64(costMsat / 1000)
 
 	return &result
 }
@@ -967,6 +1117,11 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 			// skip the rest
 			break
 		}
+	}
+
+	if peerId != "" && len(peers) == 0 {
+		// none found
+		return nil, errors.New("Peer " + peerId + " not found")
 	}
 
 	list := peerswaprpc.ListPeersResponse{

@@ -25,6 +25,22 @@ const (
 	fileRPC        = "lightning-rpc"
 )
 
+type Forwarding struct {
+	CreatedIndex uint64  `json:"created_index"`
+	InChannel    string  `json:"in_channel"`
+	OutChannel   string  `json:"out_channel"`
+	OutMsat      uint64  `json:"out_msat"`
+	FeeMsat      uint64  `json:"fee_msat"`
+	ResolvedTime float64 `json:"resolved_time"`
+}
+
+var (
+	// arrays mapped per channel
+	forwardsIn        = make(map[uint64][]Forwarding)
+	forwardsOut       = make(map[uint64][]Forwarding)
+	forwardsLastIndex uint64
+)
+
 func GetClient() (*glightning.Lightning, func(), error) {
 	lightning := glightning.NewLightning()
 	err := lightning.StartUp(fileRPC, config.Config.RpcHost)
@@ -60,7 +76,6 @@ func ConfirmedWalletBalance(client *glightning.Lightning) int64 {
 			totalAmount += int64(amountMsat / 1000)
 		}
 	}
-
 	return totalAmount
 }
 
@@ -188,6 +203,7 @@ type UnreserveInputsResponse struct {
 }
 
 func BumpPeginFee(newFeeRate uint64) (*SentResult, error) {
+
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)
@@ -356,21 +372,8 @@ func (r *ListForwardsRequest) Name() string {
 	return "listforwards"
 }
 
-type Forwarding struct {
-	CreatedIndex uint64  `json:"created_index"`
-	InChannel    string  `json:"in_channel"`
-	OutChannel   string  `json:"out_channel"`
-	OutMsat      uint64  `json:"out_msat"`
-	FeeMsat      uint64  `json:"fee_msat"`
-	ResolvedTime float64 `json:"resolved_time"`
-}
-
-var forwards struct {
-	Forwards []Forwarding `json:"forwards"`
-}
-
-// fetch routing statistics from cln
-func FetchForwardingStats() {
+// cache routing history per channel from cln
+func CacheForwards() {
 	// refresh history
 	client, clean, err := GetClient()
 	if err != nil {
@@ -383,9 +386,9 @@ func FetchForwardingStats() {
 	}
 
 	start := uint64(0)
-	if len(forwards.Forwards) > 0 {
+	if forwardsLastIndex > 0 {
 		// continue from the last index + 1
-		start = forwards.Forwards[len(forwards.Forwards)-1].CreatedIndex + 1
+		start = forwardsLastIndex + 1
 	}
 
 	// get incremental history
@@ -395,8 +398,16 @@ func FetchForwardingStats() {
 		Start:  start,
 	}, &newForwards)
 
-	// append to all history
-	forwards.Forwards = append(forwards.Forwards, newForwards.Forwards...)
+	n := len(newForwards.Forwards)
+	if n > 0 {
+		forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex
+		for _, f := range newForwards.Forwards {
+			chIn := ConvertClnToLndChannelId(f.InChannel)
+			chOut := ConvertClnToLndChannelId(f.OutChannel)
+			forwardsIn[chIn] = append(forwardsIn[chIn], f)
+			forwardsOut[chOut] = append(forwardsOut[chOut], f)
+		}
+	}
 }
 
 // get routing statistics for a channel
@@ -423,34 +434,30 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	timestamp30d := float64(now.AddDate(0, 0, -30).Unix())
 	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
 
-	channelId := ConvertLndToClnChannelId(lndChannelId)
-
-	for _, e := range forwards.Forwards {
-		if e.OutChannel == channelId {
-			if e.ResolvedTime > timestamp6m {
-				amountOut6m += e.OutMsat
-				feeMsat6m += e.FeeMsat
-				if e.ResolvedTime > timestamp30d {
-					amountOut30d += e.OutMsat
-					feeMsat30d += e.FeeMsat
-					if e.ResolvedTime > timestamp7d {
-						amountOut7d += e.OutMsat
-						feeMsat7d += e.FeeMsat
-					}
+	for _, e := range forwardsOut[lndChannelId] {
+		if e.ResolvedTime > timestamp6m {
+			amountOut6m += e.OutMsat
+			feeMsat6m += e.FeeMsat
+			if e.ResolvedTime > timestamp30d {
+				amountOut30d += e.OutMsat
+				feeMsat30d += e.FeeMsat
+				if e.ResolvedTime > timestamp7d {
+					amountOut7d += e.OutMsat
+					feeMsat7d += e.FeeMsat
 				}
 			}
 		}
-		if e.InChannel == channelId {
-			if e.ResolvedTime > timestamp6m {
-				amountIn6m += e.OutMsat
-				assistedMsat6m += e.FeeMsat
-				if e.ResolvedTime > timestamp30d {
-					amountIn30d += e.OutMsat
-					assistedMsat30d += e.FeeMsat
-					if e.ResolvedTime > timestamp7d {
-						amountIn7d += e.OutMsat
-						assistedMsat7d += e.FeeMsat
-					}
+	}
+	for _, e := range forwardsIn[lndChannelId] {
+		if e.ResolvedTime > timestamp6m {
+			amountIn6m += e.OutMsat
+			assistedMsat6m += e.FeeMsat
+			if e.ResolvedTime > timestamp30d {
+				amountIn30d += e.OutMsat
+				assistedMsat30d += e.FeeMsat
+				if e.ResolvedTime > timestamp7d {
+					amountIn7d += e.OutMsat
+					assistedMsat7d += e.FeeMsat
 				}
 			}
 		}
@@ -492,39 +499,158 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	return &result
 }
 
-// forwarding stats for a channel since timestamp
-func GetForwardingStatsSinceTS(lndChannelId uint64, timeStamp uint64) *ShortForwardingStats {
+// Payment represents the structure of the payment data
+type Payment struct {
+	Destination    string `json:"destination"`
+	PaymentHash    string `json:"payment_hash"`
+	Status         string `json:"status"`
+	CreatedAt      uint64 `json:"created_at"`
+	CompletedAt    uint64 `json:"completed_at"`
+	Preimage       string `json:"preimage"`
+	AmountMsat     uint64 `json:"amount_msat"`
+	AmountSentMsat uint64 `json:"amount_sent_msat"`
+}
 
+// HTLC represents the structure of a single HTLC entry
+type HTLC struct {
+	ShortChannelID string `json:"short_channel_id"`
+	ID             int    `json:"id"`
+	Expiry         int    `json:"expiry"`
+	Direction      string `json:"direction"`
+	AmountMsat     uint64 `json:"amount_msat"`
+	PaymentHash    string `json:"payment_hash"`
+	State          string `json:"state"`
+}
+
+type Invoice struct {
+	Label              string `json:"label"`
+	Status             string `json:"status"`
+	AmountReceivedMsat uint64 `json:"amount_received_msat,omitempty"`
+	PaidAt             uint64 `json:"paid_at,omitempty"`
+	PaymentPreimage    string `json:"payment_preimage,omitempty"`
+	CreatedIndex       uint64 `json:"created_index"`
+}
+
+type ListInvoicesRequest struct {
+	PaymentHash string `json:"payment_hash"`
+}
+
+func (r ListInvoicesRequest) Name() string {
+	return "listinvoices"
+}
+
+type ListInvoicesResponse struct {
+	Invoices []Invoice `json:"invoices"`
+}
+type ListPaysRequest struct {
+	PaymentHash string `json:"payment_hash"`
+}
+
+func (r ListPaysRequest) Name() string {
+	return "listpays"
+}
+
+type ListPaysResponse struct {
+	Payments []Payment `json:"pays"`
+}
+
+type ListHtlcsRequest struct {
+	ChannelId string `json:"id,omitempty"`
+}
+
+func (r ListHtlcsRequest) Name() string {
+	return "listhtlcs"
+}
+
+type ListHtlcsResponse struct {
+	HTLCs []HTLC `json:"htlcs"`
+}
+
+// flow stats for a channel since timestamp
+func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	var (
-		result       ShortForwardingStats
+		result       ChannelStats
 		amountOut    uint64
 		amountIn     uint64
 		feeMsat      uint64
 		assistedMsat uint64
+		paidOutMsat  uint64
+		invoicedMsat uint64
+		costMsat     uint64
 	)
 
 	channelId := ConvertLndToClnChannelId(lndChannelId)
-	timeStampF := float64(timeStamp)
 
-	for _, e := range forwards.Forwards {
-		if e.InChannel == channelId {
-			if e.ResolvedTime > timeStampF {
-				amountOut += e.OutMsat
-				feeMsat += e.FeeMsat
+	client, clean, err := GetClient()
+	if err != nil {
+		return &result
+	}
+	defer clean()
+
+	var res ListHtlcsResponse
+
+	err = client.Request(&ListHtlcsRequest{
+		ChannelId: channelId,
+	}, &res)
+	if err != nil {
+		log.Println("ListHtlcsRequest:", err)
+	}
+
+	for _, htlc := range res.HTLCs {
+		switch htlc.State {
+		case "SENT_REMOVE_ACK_REVOCATION":
+			// direction in, look for invoices
+			var inv ListInvoicesResponse
+			err := client.Request(&ListInvoicesRequest{
+				PaymentHash: htlc.PaymentHash,
+			}, &inv)
+			if err == nil &&
+				len(inv.Invoices) == 1 &&
+				inv.Invoices[0].Status == "paid" &&
+				inv.Invoices[0].PaidAt > timeStamp &&
+				inv.Invoices[0].Label[:8] != "peerswap" {
+				invoicedMsat += htlc.AmountMsat
 			}
-		}
-		if e.OutChannel == channelId {
-			if e.ResolvedTime > timeStampF {
-				amountIn += e.OutMsat
-				assistedMsat += e.FeeMsat
+
+		case "RCVD_REMOVE_ACK_REVOCATION":
+			// direction out, look for payments
+			var pmt ListPaysResponse
+			err := client.Request(&ListPaysRequest{
+				PaymentHash: htlc.PaymentHash,
+			}, &pmt)
+			if err == nil &&
+				len(pmt.Payments) == 1 &&
+				pmt.Payments[0].Status == "complete" &&
+				pmt.Payments[0].CompletedAt > timeStamp {
+				paidOutMsat += htlc.AmountMsat
+				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
+				costMsat += fee
 			}
 		}
 	}
 
-	result.AmountOut = amountOut / 1000
-	result.AmountIn = amountIn / 1000
+	timeStampF := float64(timeStamp)
+
+	for _, e := range forwardsOut[lndChannelId] {
+		if e.ResolvedTime > timeStampF {
+			amountOut += e.OutMsat
+			feeMsat += e.FeeMsat
+		}
+	}
+	for _, e := range forwardsIn[lndChannelId] {
+		if e.ResolvedTime > timeStampF {
+			amountIn += e.OutMsat
+			assistedMsat += e.FeeMsat
+		}
+	}
+
+	result.RoutedOut = amountOut / 1000
+	result.RoutedIn = amountIn / 1000
 	result.FeeSat = feeMsat / 1000
 	result.AssistedFeeSat = assistedMsat / 1000
+	result.InvoicedIn = invoicedMsat / 1000
+	result.PaidOut = paidOutMsat / 1000
+	result.PaidCost = costMsat / 1000
 
 	return &result
 }
@@ -562,7 +688,6 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 			break
 		}
 	}
-
 	return info
 }
 
@@ -722,4 +847,12 @@ func GetMyAlias() string {
 		myNodeAlias = res.Alias
 	}
 	return myNodeAlias
+}
+
+func CachePayments() {
+	//not implemented
+}
+
+func CacheInvoices() {
+	//not implemented
 }

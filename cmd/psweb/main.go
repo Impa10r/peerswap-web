@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.0"
+	version = "v1.4.1"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -58,12 +58,12 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder      embed.FS
-	logFile        *os.File
-	latestVersion  = version
-	mempoolFeeRate = float64(0)
-	peersCache     string
-	nonPeersCache  string
+	tplFolder         embed.FS
+	logFile           *os.File
+	latestVersion     = version
+	mempoolFeeRate    = float64(0)
+	peerTableCache    = ""
+	nonPeerTableCache = ""
 )
 
 func main() {
@@ -193,36 +193,20 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 
-	res, err := ps.ReloadPolicyFile(client)
+	res, err := ps.ListSwaps(client)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	swaps := res.GetSwaps()
+
+	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
 		return
 	}
 
-	allowlistedPeers := res.GetAllowlistedPeers()
-	suspiciousPeers := res.GetSuspiciousPeerList()
-
-	res2, err := ps.ListPeers(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	peers := res2.GetPeers()
-
-	res3, err := ps.ListSwaps(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	swaps := res3.GetSwaps()
-
-	res4, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	satAmount := res4.GetSatAmount()
+	satAmount := res2.GetSatAmount()
 
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
@@ -233,20 +217,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-
-	var psIds []string
-
-	for _, peer := range peers {
-		psIds = append(psIds, peer.NodeId)
-	}
-
-	// Get the remaining Lightning peers
-	res5, err := ln.ListPeers(cl, "", &psIds)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	otherPeers := res5.GetPeers()
 
 	//check for error message to display
 	errorMessage := ""
@@ -283,12 +253,68 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
+	var peers []*peerswaprpc.PeerSwapPeer
+
+	// use cache for page refreshes < 1 minute
+	peerTable := peerTableCache
+	if peerTable == "" {
+		res, err := ps.ReloadPolicyFile(client)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+
+		allowlistedPeers := res.GetAllowlistedPeers()
+		suspiciousPeers := res.GetSuspiciousPeerList()
+
+		res2, err := ps.ListPeers(client)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+		peers = res2.GetPeers()
+
+		peerTable = convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
+		peerTableCache = peerTable
+	}
+
 	//check whether to display non-PS channels or swaps
-	otherPeersTable := ""
+	nonPeerTable := ""
 	listSwaps := ""
 	_, ok = r.URL.Query()["showall"]
 	if ok {
-		otherPeersTable = convertOtherPeersToHTMLTable(otherPeers)
+		// use cache for page refreshes < 1 minute
+		nonPeerTable = nonPeerTableCache
+		if nonPeerTable == "" {
+			// make a list of peerswap peers
+			var psIds []string
+
+			if len(peers) == 0 {
+				res, err := ps.ListPeers(client)
+				if err != nil {
+					redirectWithError(w, r, "/config?", err)
+					return
+				}
+				peers = res.GetPeers()
+			}
+			for _, peer := range peers {
+				psIds = append(psIds, peer.NodeId)
+			}
+
+			// Get the remaining Lightning peers
+			res5, err := ln.ListPeers(cl, "", &psIds)
+			if err != nil {
+				redirectWithError(w, r, "/config?", err)
+				return
+			}
+			otherPeers := res5.GetPeers()
+			nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
+			nonPeerTableCache = nonPeerTable
+		}
+		if nonPeerTable == "" && popupMessage == "" {
+			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
+			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
+		}
 	} else {
 		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
 	}
@@ -317,8 +343,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate:    mempoolFeeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
-		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
-		OtherPeers:        otherPeersTable,
+		ListPeers:         peerTable,
+		OtherPeers:        nonPeerTable,
 		ListSwaps:         listSwaps,
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
@@ -400,8 +426,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		// Search amoung all Lighting peers
 		res, err := ln.ListPeers(cl, id, nil)
 		if err != nil {
-			log.Printf("unable to find peer by id: %v", id)
-			redirectWithError(w, r, "/?", errors.New("unable to find peer by id"))
+			redirectWithError(w, r, "/?", err)
 			return
 		}
 		peer = res.GetPeers()[0]
@@ -427,11 +452,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		sumRemote += ch.GetRemoteBalance()
 	}
 
-	//check for error message to display
-	message := ""
+	//check for error errorMessage to display
+	errorMessage := ""
 	keys, ok = r.URL.Query()["err"]
 	if ok && len(keys[0]) > 0 {
-		message = keys[0]
+		errorMessage = keys[0]
 	}
 
 	// get routing stats
@@ -457,6 +482,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo    []*ln.ChanneInfo
 		PeerSwapPeer   bool
 		MyAlias        string
+		FeePPM         uint64
 	}
 
 	feeRate := liquid.GetMempoolMinFee()
@@ -464,8 +490,13 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		feeRate = mempoolFeeRate
 	}
 
+	lnFeePPM := uint64(0)
+	if peer.AsSender.SatsOut > 0 {
+		lnFeePPM = peer.PaidFee * 1_000_000 / peer.AsSender.SatsOut
+	}
+
 	data := Page{
-		ErrorMessage:   message,
+		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		BtcFeeRate:     mempoolFeeRate,
 		MempoolFeeRate: feeRate,
@@ -485,6 +516,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo:    channelInfo,
 		PeerSwapPeer:   psPeer,
 		MyAlias:        ln.GetMyAlias(),
+		FeePPM:         lnFeePPM,
 	}
 
 	// executing template named "peer"
@@ -826,18 +858,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "keySend":
-			amount, err := strconv.ParseInt(r.FormValue("keysendAmount"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
 			dest := r.FormValue("nodeId")
 			message := r.FormValue("keysendMessage")
 
+			amount, err := strconv.ParseInt(r.FormValue("keysendAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/peer?id="+dest+"&", err)
+				return
+			}
+
 			err = ln.SendKeysendMessage(dest, amount, message)
 			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
+				redirectWithError(w, r, "/peer?id="+dest+"&", err)
 				return
 			}
 
@@ -1351,7 +1383,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	t := fmt.Sprintln(err)
 	// translate common errors into plain English
 	switch {
-	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
+	case strings.HasPrefix(t, "rpc error"):
 		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
@@ -1385,8 +1417,15 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// pre-cache routing statistics
-	go ln.FetchForwardingStats()
+	// cache flow history and wipe html tables
+	go func() {
+		ln.CacheForwards()
+		ln.CachePayments()
+		ln.CacheInvoices()
+
+		peerTableCache = ""
+		nonPeerTableCache = ""
+	}()
 
 	// check for updates
 	t := internet.GetLatestTag()
@@ -1746,16 +1785,17 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// to speed things up, also broadcast it to mempool.space
-		internet.SendRawTransaction(res.RawHex)
-
 		if ln.CanRBF() {
+			// to speed things up, also broadcast it to mempool.space
+			internet.SendRawTransaction(res.RawHex)
+
 			log.Println("RBF TxId:", res.TxId)
 			config.Config.PeginReplacedTxId = config.Config.PeginTxId
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
 		} else {
-			log.Println("CPFP successful")
+			// txid not available, let's hope LND broadcasted it fine
+			log.Println("CPFP initiated")
 		}
 
 		// save the new rate, so the next bump cannot be lower
@@ -1826,7 +1866,13 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+			// bump by 2 minutes to exclude peerswap-related payments
+			bump := int64(120)
+			if swap.Asset == "btc" {
+				// bump by 60 minutes for BTC
+				bump = int64(3600)
+			}
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt + bump
 		}
 	}
 
@@ -1835,10 +1881,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 	for _, peer := range peers {
 		var totalLocal float64
 		var totalCapacity float64
-		var totalOutflows uint64
-		var totalInflows uint64
+		var totalForwardsOut uint64
+		var totalForwardsIn uint64
+		var totalPayments uint64
 		var totalFees uint64
-		var totalAssistedFees uint64
+		var totalCost uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -1868,22 +1915,25 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
-			tooltip := " in the last 6 months"
+			tooltip := "In the last 6 months"
 
 			// timestamp of the last swap or 6 months horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
-				tooltip = " since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
+				tooltip = "Since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 			}
 
-			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
-			totalAssistedFees += stats.AssistedFeeSat
-			totalOutflows += stats.AmountOut
-			totalInflows += stats.AmountIn
+			outflows := stats.RoutedOut + stats.PaidOut
+			inflows := stats.RoutedIn + stats.InvoicedIn
+			totalForwardsOut += stats.RoutedOut
+			totalForwardsIn += stats.RoutedIn
+			totalCost += stats.PaidCost
+			totalPayments += stats.PaidOut
 
-			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
+			netFlow := float64(int64(inflows) - int64(outflows))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -1891,20 +1941,40 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			previousBlue := bluePct
 			previousRed := redPct
 
-			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(stats.AmountIn) + ", outflows: " + toMil(stats.AmountOut) + tooltip
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local balance\n" + tooltip + ":"
+			flowText := ""
+			if stats.RoutedIn > 0 {
+				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
+			}
+			if stats.RoutedOut > 0 {
+				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+			}
+			if stats.InvoicedIn > 0 {
+				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+			}
+			if stats.PaidOut > 0 {
+				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
+			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-
+				flowText += "\nNet flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
+				flowText += "\nNet flow: -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
+
+			if flowText == "" {
+				flowText = "\nNo flows"
+			}
+
+			tooltip += flowText
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
@@ -1940,20 +2010,21 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:10ch;\">"
 
-		ppm := uint64(0)
-		if totalOutflows > 0 {
-			ppm = totalFees * 1_000_000 / totalOutflows
+		ppmRevenue := uint64(0)
+		ppmCost := uint64(0)
+		if totalForwardsOut > 0 {
+			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
 		}
-		peerTable += "<span title=\"Total revenue since the last swap or for 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
-
-		ppm = 0
-		if totalInflows > 0 {
-			ppm = totalAssistedFees * 1_000_000 / totalInflows
+		if totalPayments > 0 {
+			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
-		peerTable += "<span title=\"Total assisted revenue since the last swap or 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
 
+		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
+		if totalCost > 0 {
+			peerTable += "<span title=\"Lighting costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
@@ -2004,10 +2075,11 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 	for _, peer := range peers {
 		var totalLocal float64
 		var totalCapacity float64
-		var totalOutflows uint64
-		var totalInflows uint64
+		var totalForwardsOut uint64
+		var totalForwardsIn uint64
+		var totalPayments uint64
 		var totalFees uint64
-		var totalAssistedFees uint64
+		var totalCost uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -2037,15 +2109,18 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			capacity := float64(channel.LocalBalance + channel.RemoteBalance)
 			totalLocal += local
 			totalCapacity += capacity
-			tooltip := " in the last 6 months"
+			tooltip := "In the last 6 months"
 
-			stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
-			totalAssistedFees += stats.AssistedFeeSat
-			totalOutflows += stats.AmountOut
-			totalInflows += stats.AmountIn
+			outflows := stats.RoutedOut + stats.PaidOut
+			inflows := stats.RoutedIn + stats.InvoicedIn
+			totalForwardsOut += stats.RoutedOut
+			totalForwardsIn += stats.RoutedIn
+			totalPayments += stats.PaidOut
+			totalCost += stats.PaidCost
 
-			netFlow := float64(int64(stats.AmountIn) - int64(stats.AmountOut))
+			netFlow := float64(int64(inflows) - int64(outflows))
 
 			bluePct := int(local * 100 / capacity)
 			greenPct := int(0)
@@ -2053,20 +2128,41 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			previousBlue := bluePct
 			previousRed := redPct
 
-			tooltip = fmt.Sprintf("%d", bluePct) + "% local, Inflows: " + toMil(stats.AmountIn) + ", outflows: " + toMil(stats.AmountOut) + tooltip
+			tooltip = fmt.Sprintf("%d", bluePct) + "% local balance\n" + tooltip + ":"
+			flowText := ""
+
+			if stats.RoutedIn > 0 {
+				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
+			}
+			if stats.RoutedOut > 0 {
+				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+			}
+			if stats.InvoicedIn > 0 {
+				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+			}
+			if stats.PaidOut > 0 {
+				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
+			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-
+				flowText += "\nNet flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
+				flowText += "\nNet flow: -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
+
+			if flowText == "" {
+				flowText = "\nNo flows"
+			}
+
+			tooltip += flowText
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
 			previousProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", previousBlue, previousRed, greenPct)
@@ -2090,22 +2186,24 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 		peerTable += "<span title=\"Not using PeerSwap\">🙁&nbsp</span>"
-		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
+		peerTable += "<span title=\"Invite peer to PeerSwap via a direct Keysend message\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:11ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:10ch;\">"
 
-		ppm := uint64(0)
-		if totalOutflows > 0 {
-			ppm = totalFees * 1_000_000 / totalOutflows
+		ppmRevenue := uint64(0)
+		ppmCost := uint64(0)
+		if totalForwardsOut > 0 {
+			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
 		}
-		peerTable += "<span title=\"Total revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Routing revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
+		if totalPayments > 0 {
+			ppmCost = totalCost * 1_000_000 / totalPayments
+		}
+		if totalCost > 0 {
+			peerTable += "<span title=\"Lighting costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+		}
 
-		ppm = 0
-		if totalInflows > 0 {
-			ppm = totalAssistedFees * 1_000_000 / totalInflows
-		}
-		peerTable += "<span title=\"Total assisted revenue for the last 6 months. PPM: " + formatWithThousandSeparators(ppm) + "\">" + formatWithThousandSeparators(totalAssistedFees) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
 		peerTable += "</td></tr></table>"
@@ -2404,11 +2502,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 				}
 
-				stats := ln.GetForwardingStatsSinceTS(channel.ChannelId, uint64(lastSwapTimestamp))
+				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 
 				ppm := uint64(0)
-				if stats.AmountOut > 0 {
-					ppm = stats.FeeSat * 1_000_000 / stats.AmountOut
+				if stats.RoutedOut > 0 {
+					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
 				}
 
 				// aim to maximize accumulated PPM

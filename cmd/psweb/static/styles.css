@@ -85,16 +85,20 @@ pre {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 5px;
+    padding: 0px;
 }
 
 .left-logo {
     order: 1; /* This will ensure it's placed far left */
+    padding-left: 5px;
+    padding-top: 3px;
 }
 
 .right-logos {
     display: flex;
     order: 2; /* This will ensure it's placed far right */
+    padding-right: 5px;
+    padding-top: 4px;
 }
 
 .logo {

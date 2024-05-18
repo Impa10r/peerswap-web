@@ -1,5 +1,10 @@
 # Versions
 
+## 1.4.1
+
+- Account for paid and received invoices in channel flow statistics
+- Show Lightning costs of paid invoices (excluding peerswap's)
+
 ## 1.4.0
 
 - Enable viewing non-PeerSwap channels
