@@ -952,7 +952,7 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		}
 	}
 	for _, e := range invoiceHtlcs[channelId] {
-		if uint64(e.ResolveTime) > timestampNs {
+		if uint64(e.ResolveTime) > timeStamp {
 			invoicedMsat += e.AmtMsat
 		}
 	}
