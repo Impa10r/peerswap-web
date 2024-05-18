@@ -1866,14 +1866,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			// bump by 2 minutes to exclude peerswap-related payments
-			bump := int64(120)
-			if swap.Asset == "btc" {
-				// bump by 60 minutes for BTC
-				bump = int64(3600)
-			}
-			bump = 0
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt + bump
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt
 		}
 	}
 
