@@ -643,9 +643,8 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
 					if err == nil {
 						if invoice.Description != nil {
-							description := *invoice.Description
-							if len(description) > 7 {
-								if description[:8] == "peerswap" {
+							if len(*invoice.Description) > 7 {
+								if (*invoice.Description)[:8] == "peerswap" {
 									// skip peerswap-related payments
 									continue
 								}
