@@ -58,10 +58,12 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder      embed.FS
-	logFile        *os.File
-	latestVersion  = version
-	mempoolFeeRate = float64(0)
+	tplFolder         embed.FS
+	logFile           *os.File
+	latestVersion     = version
+	mempoolFeeRate    = float64(0)
+	peerTableCache    = ""
+	nonPeerTableCache = ""
 )
 
 func main() {
@@ -281,13 +283,22 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
+	// use cache for page refreshes < 1 minute
+	peerTable := peerTableCache
+	if peerTable == "" {
+		peerTable = convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
+	}
+
 	//check whether to display non-PS channels or swaps
-	otherPeersTable := ""
+	nonPeerTable := ""
 	listSwaps := ""
 	_, ok = r.URL.Query()["showall"]
 	if ok {
-		otherPeersTable = convertOtherPeersToHTMLTable(otherPeers)
-		if otherPeersTable == "" && popupMessage == "" {
+		nonPeerTable = nonPeerTableCache
+		if nonPeerTable == "" {
+			nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
+		}
+		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
 			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
 		}
@@ -319,8 +330,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate:    mempoolFeeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		LiquidBalance:     satAmount,
-		ListPeers:         convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps),
-		OtherPeers:        otherPeersTable,
+		ListPeers:         peerTable,
+		OtherPeers:        nonPeerTable,
 		ListSwaps:         listSwaps,
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
@@ -1386,10 +1397,15 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// cache flow history
-	go ln.CacheForwards()
-	go ln.CachePayments()
-	go ln.CacheInvoices()
+	// cache flow history and wipe html tables
+	go func() {
+		ln.CacheForwards()
+		ln.CachePayments()
+		ln.CacheInvoices()
+
+		peerTableCache = ""
+		nonPeerTableCache = ""
+	}()
 
 	// check for updates
 	t := internet.GetLatestTag()
@@ -1908,11 +1924,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			if stats.RoutedIn > 0 {
 				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
 			}
-			if stats.InvoicedIn > 0 {
-				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
-			}
 			if stats.RoutedOut > 0 {
 				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+			}
+			if stats.InvoicedIn > 0 {
+				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
 			}
 			if stats.PaidOut > 0 {
 				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
@@ -1972,7 +1988,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		peerTable += "<span title=\"Click for peer details\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:13ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:10ch;\">"
 
 		ppmRevenue := uint64(0)
 		ppmCost := uint64(0)
@@ -1983,7 +1999,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 
-		peerTable += "<span title=\"Total revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Total revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
 		peerTable += "<span title=\"LN costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -2094,11 +2110,11 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			if stats.RoutedIn > 0 {
 				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
 			}
-			if stats.InvoicedIn > 0 {
-				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
-			}
 			if stats.RoutedOut > 0 {
 				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+			}
+			if stats.InvoicedIn > 0 {
+				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
 			}
 			if stats.PaidOut > 0 {
 				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
@@ -2149,7 +2165,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		peerTable += "<span title=\"Invite peer to PeerSwap via a direct Keysend message\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 
-		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:13ch;\">"
+		peerTable += "</td><td id=\"scramble\" style=\"padding: 0px; float: center; text-align: center; width:10ch;\">"
 
 		ppmRevenue := uint64(0)
 		ppmCost := uint64(0)
@@ -2159,7 +2175,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		if totalPayments > 0 {
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
-		peerTable += "<span title=\"Total revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> / "
+		peerTable += "<span title=\"Total revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
 		peerTable += "<span title=\"LN costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\">" + formatWithThousandSeparators(totalCost) + "</span>"
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 		peerTable += "<a title=\"Invite peer to PeerSwap via a direct Keysend message\" href=\"/peer?id=" + peer.NodeId + "\">Invite&nbsp</a>"
