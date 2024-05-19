@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.4
+
+- Fix panic in v1.4.3
+
 ## 1.4.3
 
 - Add http retry middleware
