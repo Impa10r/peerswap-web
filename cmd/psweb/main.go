@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.3"
+	version = "v1.4.4"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -432,19 +432,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	receiverOutFeePPM := int64(0)
 	senderOutFeePPM := int64(0)
 
-	if peer.AsSender.SatsOut > 0 {
-		senderOutFeePPM = int64(peer.PaidFee) * 1_000_000 / int64(peer.AsSender.SatsOut)
-	}
-	if peer.AsSender.SatsIn > 0 {
-		senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
-	}
-	if peer.AsReceiver.SatsOut > 0 {
-		receiverOutFeePPM = receiverOutFee * 1_000_000 / int64(peer.AsReceiver.SatsOut)
-	}
-	if peer.AsReceiver.SatsIn > 0 {
-		receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
-	}
-
 	// Get Lightning client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -465,6 +452,19 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		peer = res.GetPeers()[0]
 		psPeer = false
+	} else {
+		if peer.AsSender.SatsOut > 0 {
+			senderOutFeePPM = int64(peer.PaidFee) * 1_000_000 / int64(peer.AsSender.SatsOut)
+		}
+		if peer.AsSender.SatsIn > 0 {
+			senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
+		}
+		if peer.AsReceiver.SatsOut > 0 {
+			receiverOutFeePPM = receiverOutFee * 1_000_000 / int64(peer.AsReceiver.SatsOut)
+		}
+		if peer.AsReceiver.SatsIn > 0 {
+			receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
+		}
 	}
 
 	var sumLocal uint64
