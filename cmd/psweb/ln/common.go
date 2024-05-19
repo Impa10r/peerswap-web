@@ -63,7 +63,7 @@ type ChanneInfo struct {
 }
 
 // lighting payments from swap out initiator to receiver
-var SwapRebatesMsat = make(map[string]uint64)
+var SwapRebates = make(map[string]int64)
 
 func toSats(amount float64) int64 {
 	return int64(float64(100000000) * amount)

@@ -834,7 +834,7 @@ func appendPayment(payment *lnrpc.Payment) {
 							parts := strings.Split(*invoice.Description, " ")
 							if parts[2] == "fee" && len(parts[4]) > 0 {
 								// save rebate payment
-								SwapRebatesMsat[parts[4]] = uint64(payment.ValueMsat)
+								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
 							}
 							// skip peerswap-related payments
 							return
@@ -1032,7 +1032,7 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 			parts := strings.Split(invoice.Memo, " ")
 			if parts[2] == "fee" && len(parts[4]) > 0 {
 				// save rebate payment
-				SwapRebatesMsat[parts[4]] = uint64(invoice.AmtPaidMsat)
+				SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
 			}
 		} else {
 			// skip peerswap-related

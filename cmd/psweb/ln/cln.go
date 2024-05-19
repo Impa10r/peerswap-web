@@ -627,7 +627,7 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 						parts := strings.Split(inv.Invoices[0].Label, " ")
 						if parts[2] == "fee" && len(parts[4]) > 0 {
 							// save rebate payment
-							SwapRebatesMsat[parts[4]] = uint64(htlc.AmountMsat)
+							SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
 						}
 					} else {
 						invoicedMsat += htlc.AmountMsat
@@ -662,7 +662,7 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 									parts := strings.Split(*invoice.Description, " ")
 									if parts[2] == "fee" && len(parts[4]) > 0 {
 										// save rebate payment
-										SwapRebatesMsat[parts[4]] = uint64(htlc.AmountMsat)
+										SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
 									}
 									// skip peerswap-related payments
 									continue

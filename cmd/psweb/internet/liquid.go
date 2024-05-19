@@ -8,7 +8,7 @@ import (
 )
 
 // fetch transaction fee from liquid.network
-func GetLiquidTxFee(txid string) uint64 {
+func GetLiquidTxFee(txid string) int64 {
 	testnet := ""
 	if config.Config.Chain == "testnet" {
 		testnet = "/liquidtestnet"
@@ -31,7 +31,7 @@ func GetLiquidTxFee(txid string) uint64 {
 				return 0
 			}
 			fee := tx["fee"].(float64)
-			return uint64(fee)
+			return int64(fee)
 		}
 	}
 	return 0

@@ -3,6 +3,7 @@
 ## 1.4.3
 
 - Add http retry middleware
+- Add swap costs display
 
 ## 1.4.2
 

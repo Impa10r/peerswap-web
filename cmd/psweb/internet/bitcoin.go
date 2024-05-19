@@ -178,7 +178,7 @@ func SendRawTransaction(rawTx string) string {
 }
 
 // fetch transaction fee from api
-func GetBitcoinTxFee(txid string) uint64 {
+func GetBitcoinTxFee(txid string) int64 {
 	if config.Config.BitcoinApi != "" {
 		api := config.Config.BitcoinApi + "/api/tx/" + txid
 		req, err := http.NewRequest("GET", api, nil)
@@ -199,7 +199,7 @@ func GetBitcoinTxFee(txid string) uint64 {
 					return 0
 				}
 				fee := tx["fee"].(float64)
-				return uint64(fee)
+				return int64(fee)
 			}
 		}
 	}
