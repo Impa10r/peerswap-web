@@ -41,6 +41,13 @@ import (
 
 const Implementation = "LND"
 
+type InflightHTLC struct {
+	OutgoingChannelId uint64
+	IncomingHtlcId    uint64
+	OutgoingHtlcId    uint64
+	forwardingEvent   *lnrpc.ForwardingEvent
+}
+
 var (
 	LndVerson = float64(0) // must be 0.18+ for RBF ability
 
@@ -50,12 +57,15 @@ var (
 	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
 	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
 
-	// for initial downloads
+	// inflight HTLCs mapped per Incoming channel
+	inflightHTLCs = make(map[uint64][]*InflightHTLC)
+
+	// las index for invoice subscriptions
+	lastInvoiceSettleIndex uint64
+
+	// last timestamps for downloads
 	lastforwardCreationTs uint64
 	lastPaymentCreationTs int64
-
-	// for subscriotions
-	lastInvoiceSettleIndex uint64
 
 	// default lock id used by LND
 	internalLockId = []byte{
@@ -664,23 +674,70 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-// cache routing history per channel from lnd
-func CacheForwards() {
-	// refresh history
-	client, cleanup, err := GetClient()
+// cache htlc history per channel, then subscribe to updates
+func CacheHtlcs() {
+	ctx := context.Background()
+	conn, err := lndConnection()
 	if err != nil {
 		return
 	}
-	defer cleanup()
+	defer conn.Close()
 
+	client := lnrpc.NewLightningClient(conn)
+
+	// initial download forwards
+	downloadForwards(client)
+
+	// subscribe to htlc events
+	routerClient := routerrpc.NewRouterClient(conn)
+	for {
+		if err := subscribeForwards(ctx, routerClient); err != nil {
+			log.Println("Forwards subscription error:", err)
+			time.Sleep(60 * time.Second)
+			// incremental download from last timestamp + 1
+			downloadForwards(client)
+		}
+	}
+}
+
+// cache payments history per channel, then subscribe to updates
+func CachePayments() {
+	ctx := context.Background()
+	conn, err := lndConnection()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	client := lnrpc.NewLightningClient(conn)
+
+	// initial download payments
+	downloadPayments(client)
+
+	// subscribe to htlc events
+	routerClient := routerrpc.NewRouterClient(conn)
+	for {
+		if err := subscribePayments(ctx, routerClient); err != nil {
+			log.Println("Payments subscription error:", err)
+			time.Sleep(60 * time.Second)
+			// incremental download from last timestamp + 1
+			downloadPayments(client)
+		}
+	}
+
+}
+
+func downloadForwards(client lnrpc.LightningClient) {
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
+	// incremental download if substription was interrupted
 	if lastforwardCreationTs > 0 {
 		// continue from the last timestamp in seconds
 		start = lastforwardCreationTs + 1
 	}
 
+	// download forwards
 	offset := uint32(0)
 	for {
 		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
@@ -708,28 +765,16 @@ func CacheForwards() {
 			// all events retrieved
 			break
 		}
-
 		// next pull start from the next index
 		offset = res.LastOffsetIndex
 	}
 }
 
-// cache all payments from lnd
-func CachePayments() {
-	client, cleanup, err := GetClient()
-	if err != nil {
-		return
-	}
-	defer cleanup()
-
-	var harnessNetParams = &chaincfg.TestNet3Params
-	if config.Config.Chain == "mainnet" {
-		harnessNetParams = &chaincfg.MainNetParams
-	}
-
+func downloadPayments(client lnrpc.LightningClient) {
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
+	// incremental download if substription was interrupted
 	if lastPaymentCreationTs > 0 {
 		// continue from the last timestamp in seconds
 		start = uint64(lastPaymentCreationTs + 1)
@@ -750,29 +795,7 @@ func CachePayments() {
 
 		// only append settled ones
 		for _, payment := range res.Payments {
-			if payment.Status == lnrpc.Payment_SUCCEEDED {
-				if payment.PaymentRequest != "" {
-					// Decode the payment request
-					invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
-					if err == nil {
-						if invoice.Description != nil {
-							if len(*invoice.Description) > 7 {
-								if (*invoice.Description)[:8] == "peerswap" {
-									// skip peerswap-related payments
-									continue
-								}
-							}
-						}
-					}
-				}
-				for _, htlc := range payment.Htlcs {
-					if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
-						// get channel from the first hop
-						chanId := htlc.Route.Hops[0].ChanId
-						paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
-					}
-				}
-			}
+			appendPayment(payment)
 		}
 
 		n := len(res.Payments)
@@ -790,6 +813,156 @@ func CachePayments() {
 	}
 }
 
+func appendPayment(payment *lnrpc.Payment) {
+	if payment == nil {
+		return
+	}
+
+	if payment.Status == lnrpc.Payment_SUCCEEDED {
+		if payment.PaymentRequest != "" {
+			// Decode the payment request
+			var harnessNetParams = &chaincfg.TestNet3Params
+			if config.Config.Chain == "mainnet" {
+				harnessNetParams = &chaincfg.MainNetParams
+			}
+			invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
+			if err == nil {
+				if invoice.Description != nil {
+					if len(*invoice.Description) > 7 {
+						if (*invoice.Description)[:8] == "peerswap" {
+							// skip peerswap-related payments
+							return
+						}
+					}
+				}
+			}
+		}
+		for _, htlc := range payment.Htlcs {
+			if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
+				// get channel from the first hop
+				chanId := htlc.Route.Hops[0].ChanId
+				paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+			}
+		}
+		// store the last timestamp
+		lastPaymentCreationTs = payment.CreationTimeNs / 1_000_000_000
+	}
+}
+
+func subscribePayments(ctx context.Context, client routerrpc.RouterClient) error {
+	req := &routerrpc.TrackPaymentsRequest{NoInflightUpdates: false}
+	stream, err := client.TrackPayments(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to payments")
+
+	for {
+		payment, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		appendPayment(payment)
+	}
+}
+
+func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error {
+	req := &routerrpc.SubscribeHtlcEventsRequest{}
+	stream, err := client.SubscribeHtlcEvents(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to forwards")
+
+	for {
+		htlcEvent, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		if htlcEvent.EventType != routerrpc.HtlcEvent_FORWARD {
+			continue
+		}
+
+		switch event := htlcEvent.Event.(type) {
+		case *routerrpc.HtlcEvent_ForwardEvent:
+			// add htlc to inflight queue until Settle event
+			info := event.ForwardEvent.GetInfo()
+			if info != nil {
+				htlc := new(InflightHTLC)
+				if htlcEvent.EventType == routerrpc.HtlcEvent_FORWARD {
+					forwardingEvent := new(lnrpc.ForwardingEvent)
+
+					forwardingEvent.FeeMsat = info.IncomingAmtMsat - info.OutgoingAmtMsat
+					forwardingEvent.AmtInMsat = info.IncomingAmtMsat
+					forwardingEvent.AmtOutMsat = info.OutgoingAmtMsat
+					forwardingEvent.AmtIn = info.IncomingAmtMsat / 1000
+					forwardingEvent.AmtOut = info.OutgoingAmtMsat / 1000
+					forwardingEvent.TimestampNs = htlcEvent.TimestampNs
+
+					htlc.forwardingEvent = forwardingEvent
+
+					htlc.OutgoingChannelId = htlcEvent.OutgoingChannelId
+					htlc.IncomingHtlcId = htlcEvent.IncomingHtlcId
+					htlc.OutgoingHtlcId = htlcEvent.OutgoingHtlcId
+
+					inflightHTLCs[htlcEvent.IncomingChannelId] = append(inflightHTLCs[htlcEvent.IncomingChannelId], htlc)
+				}
+			}
+		case *routerrpc.HtlcEvent_ForwardFailEvent:
+			// delete from queue
+			removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+
+		case *routerrpc.HtlcEvent_SettleEvent:
+			// find HTLC in queue
+			for _, htlc := range inflightHTLCs[htlcEvent.IncomingChannelId] {
+				if htlc.IncomingHtlcId == htlcEvent.IncomingHtlcId {
+					// add our stored forwards
+					forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
+					// settled htlcEvent has no Outgoing info, take from queue
+					forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
+					// store the last timestamp
+					lastforwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
+					// delete from queue
+					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+					break
+				}
+			}
+		}
+	}
+}
+
+// Function to remove an InflightHTLC object from a slice in the map by IncomingChannelId
+func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
+	// Retrieve the slice from the map
+	htlcSlice, exists := inflightHTLCs[incomingChannelId]
+	if !exists {
+		return
+	}
+
+	// Find the index of the object with the given IncomingHtlcId
+	index := -1
+	for i, htlc := range htlcSlice {
+		if htlc.IncomingHtlcId == incomingHtlcId {
+			index = i
+			break
+		}
+	}
+
+	// If the object is found, remove it from the slice
+	if index != -1 {
+		inflightHTLCs[incomingChannelId] = append(htlcSlice[:index], htlcSlice[index+1:]...)
+	}
+
+	// If the slice becomes empty after removal, delete the map entry
+	if len(inflightHTLCs[incomingChannelId]) == 0 {
+		delete(inflightHTLCs, incomingChannelId)
+	}
+}
+
 // cache all invoices from lnd
 func CacheInvoices() {
 	// refresh history
@@ -799,48 +972,44 @@ func CacheInvoices() {
 	}
 	defer cleanup()
 
-	if lastInvoiceSettleIndex == 0 {
-		// do initial download
-
-		// only go back 6 months
-		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
-		offset := uint64(0)
-		for {
-			res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
-				CreationDateStart: start,
-				Reversed:          false,
-				IndexOffset:       offset,
-				NumMaxInvoices:    50000,
-			})
-			if err != nil {
-				return
-			}
-
-			for _, invoice := range res.Invoices {
-				appendInvoice(invoice)
-			}
-
-			n := len(res.Invoices)
-			if n > 0 {
-				// global settle index for subscription
-				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
-			}
-			if n < 50000 {
-				// all invoices retrieved
-				break
-			}
-
-			// next pull start from the next index
-			offset = res.LastIndexOffset
+	// only go back 6 months for itinial download
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	offset := uint64(0)
+	for {
+		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
+			CreationDateStart: start,
+			Reversed:          false,
+			IndexOffset:       offset,
+			NumMaxInvoices:    50000,
+		})
+		if err != nil {
+			return
 		}
+
+		for _, invoice := range res.Invoices {
+			appendInvoice(invoice)
+		}
+
+		n := len(res.Invoices)
+		if n > 0 {
+			// global settle index for subscription
+			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+		}
+		if n < 50000 {
+			// all invoices retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastIndexOffset
 	}
 
+	// subscribe
 	ctx := context.Background()
-
 	for {
 		if err := subscribeInvoices(ctx, client); err != nil {
 			log.Println("Invoices subscription error:", err)
-			time.Sleep(60 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}
 }
@@ -989,25 +1158,27 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	var (
-		result       ChannelStats
-		feeMsat      uint64
-		assistedMsat uint64
-		paidOutMsat  int64
-		invoicedMsat uint64
-		costMsat     int64
+		result        ChannelStats
+		routedInMsat  uint64
+		routedOutMsat uint64
+		feeMsat       uint64
+		assistedMsat  uint64
+		paidOutMsat   int64
+		invoicedMsat  uint64
+		costMsat      int64
 	)
 
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
 		if e.TimestampNs > timestampNs {
-			result.RoutedOut += e.AmtOut
+			routedOutMsat += e.AmtOutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[channelId] {
 		if e.TimestampNs > timestampNs {
-			result.RoutedIn += e.AmtIn
+			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
 	}
@@ -1023,6 +1194,8 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		}
 	}
 
+	result.RoutedOut = routedOutMsat / 1000
+	result.RoutedIn = routedInMsat / 1000
 	result.FeeSat = feeMsat / 1000
 	result.AssistedFeeSat = assistedMsat / 1000
 	result.InvoicedIn = invoicedMsat / 1000
@@ -1186,4 +1359,8 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 	}
 
 	return &list, nil
+}
+
+func CacheForwards() {
+	// not implemented, see CacheHtlcs()
 }

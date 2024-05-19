@@ -887,10 +887,6 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-func CachePayments() {
-	//not implemented
-}
-
-func CacheInvoices() {
-	//not implemented
+func CacheHtlcs() {
+	// not implemented
 }
