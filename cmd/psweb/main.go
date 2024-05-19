@@ -40,11 +40,6 @@ const (
 	swapInFeeReserve = uint64(2000)
 )
 
-type AliasCache struct {
-	PublicKey string
-	Alias     string
-}
-
 type SwapParams struct {
 	PeerAlias string
 	ChannelId uint64
@@ -53,7 +48,7 @@ type SwapParams struct {
 }
 
 var (
-	aliasCache []AliasCache
+	aliasCache = make(map[string]string)
 	templates  = template.New("")
 	//go:embed static
 	staticFiles embed.FS
@@ -62,6 +57,8 @@ var (
 	logFile        *os.File
 	latestVersion  = version
 	mempoolFeeRate = float64(0)
+	// onchain realized transaction costs
+	txFee = make(map[string]uint64)
 )
 
 func main() {
@@ -687,6 +684,12 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
+
+	cost := swapCost(swap)
+	if cost > 0 {
+		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
+		swapData += formatWithThousandSeparators(uint64(cost))
+	}
 	swapData += `</td></tr>
 		  </table>
 		</div>
@@ -1151,9 +1154,6 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
-
-		// reset Aliases cache
-		aliasCache = []AliasCache{}
 
 		if mustRestart {
 			// show progress bar and log
@@ -2377,14 +2377,13 @@ func checkPegin() {
 
 func getNodeAlias(key string) string {
 	// search in cache
-	for _, n := range aliasCache {
-		if n.PublicKey == key {
-			return n.Alias
-		}
+	alias, exists := aliasCache[key]
+	if exists {
+		return alias
 	}
 
 	// try lightning
-	alias := ln.GetAlias(key)
+	alias = ln.GetAlias(key)
 
 	if alias == "" {
 		// try mempool
@@ -2397,10 +2396,7 @@ func getNodeAlias(key string) string {
 	}
 
 	// save to cache if alias was found
-	aliasCache = append(aliasCache, AliasCache{
-		PublicKey: key,
-		Alias:     alias,
-	})
+	aliasCache[key] = alias
 
 	return alias
 }
@@ -2567,4 +2563,50 @@ func executeAutoSwap() {
 
 	// Send telegram
 	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
+}
+
+func swapCost(swap *peerswaprpc.PrettyPrintSwap) uint64 {
+	if swap == nil {
+		return 0
+	}
+
+	if simplifySwapState(swap.State) != "success" {
+		return 0
+	}
+
+	fee := uint64(0)
+	switch swap.Type + swap.Role {
+	case "swap-outsender":
+		fee = ln.SwapRebatesMsat[swap.Id] / 1000
+	case "swap-insender":
+		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+	case "swap-outreceiver":
+		fee = ln.SwapRebatesMsat[swap.Id]/1000 - onchainTxFee(swap.Asset, swap.OpeningTxId)
+	case "swap-inreceiver":
+		fee = onchainTxFee(swap.Asset, swap.ClaimTxId)
+	}
+
+	return fee
+}
+
+// get tx fee from cache or online
+func onchainTxFee(asset, txId string) uint64 {
+	// try cache
+	fee, exists := txFee[txId]
+	if exists {
+		return fee
+	}
+	switch asset {
+	case "lbtc":
+
+		fee = internet.GetLiquidTxFee(txId)
+	case "btc":
+		fee = internet.GetBitcoinTxFee(txId)
+
+	}
+	// save to cache
+	if fee > 0 {
+		txFee[txId] = fee
+	}
+	return fee
 }
