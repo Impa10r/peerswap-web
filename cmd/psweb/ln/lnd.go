@@ -1362,5 +1362,5 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 }
 
 func CacheForwards() {
-	// not implemented, see CacheHtlcs()
+	// not implemented
 }

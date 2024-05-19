@@ -2,7 +2,7 @@
 
 ## 1.4.2
 
--
+- Subscribe to LND events to reduce CPU overhead
 
 ## 1.4.1
 

@@ -332,7 +332,7 @@ func GetPeginAddress(address *PeginAddress) error {
 		if err != nil {
 			return err
 		}
-		address.ClaimScript = ""
+		address.ClaimScript = "peg-in is not implemented on testnet"
 		address.MainChainAddress = addr
 		return nil
 	}

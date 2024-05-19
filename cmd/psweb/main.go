@@ -1394,7 +1394,6 @@ func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		onTimer()
 	}
-
 }
 
 // tasks that run every minute
@@ -1408,7 +1407,7 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// cache flow history for CLN and wipe html tables
+	// cache forwards history for CLN
 	go func() {
 		ln.CacheForwards()
 	}()

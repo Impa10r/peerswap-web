@@ -890,3 +890,11 @@ func GetMyAlias() string {
 func CacheHtlcs() {
 	// not implemented
 }
+
+func CacheInvoices() {
+	// not implemented
+}
+
+func CachePayments() {
+	// not implemented
+}
