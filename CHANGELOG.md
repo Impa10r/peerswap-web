@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.3
+
+- Add http retry middleware
+
 ## 1.4.2
 
 - Subscribe to LND events to reduce CPU overhead

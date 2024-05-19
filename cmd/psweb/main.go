@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.2"
+	version = "v1.4.3"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -148,7 +148,7 @@ func main() {
 	r.HandleFunc("/bumpfee", bumpfeeHandler)
 
 	// Start the server
-	http.Handle("/", r)
+	http.Handle("/", retryMiddleware(r))
 	go func() {
 		if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
 			log.Fatal(err)
@@ -174,7 +174,7 @@ func main() {
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
 
 	// Wait for termination signal
 	<-signalChan
