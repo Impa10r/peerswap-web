@@ -176,3 +176,32 @@ func SendRawTransaction(rawTx string) string {
 	}
 	return ""
 }
+
+// fetch transaction fee from api
+func GetBitcoinTxFee(txid string) int64 {
+	if config.Config.BitcoinApi != "" {
+		api := config.Config.BitcoinApi + "/api/tx/" + txid
+		req, err := http.NewRequest("GET", api, nil)
+		if err == nil {
+			cl := GetHttpClient(true)
+			if cl == nil {
+				return 0
+			}
+			resp, err2 := cl.Do(req)
+			if err2 == nil {
+				defer resp.Body.Close()
+
+				// Create an instance of the struct to store the parsed data
+				var tx map[string]interface{}
+
+				err = json.NewDecoder(resp.Body).Decode(&tx)
+				if err != nil {
+					return 0
+				}
+				fee := tx["fee"].(float64)
+				return int64(fee)
+			}
+		}
+	}
+	return 0
+}

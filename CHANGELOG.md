@@ -1,5 +1,10 @@
 # Versions
 
+## 1.4.3
+
+- Add http retry middleware
+- Add swap costs display
+
 ## 1.4.2
 
 - Subscribe to LND events to reduce CPU overhead

@@ -33,17 +33,12 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.2"
+	version = "v1.4.3"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
 	swapInFeeReserve = uint64(2000)
 )
-
-type AliasCache struct {
-	PublicKey string
-	Alias     string
-}
 
 type SwapParams struct {
 	PeerAlias string
@@ -53,7 +48,7 @@ type SwapParams struct {
 }
 
 var (
-	aliasCache []AliasCache
+	aliasCache = make(map[string]string)
 	templates  = template.New("")
 	//go:embed static
 	staticFiles embed.FS
@@ -62,6 +57,8 @@ var (
 	logFile        *os.File
 	latestVersion  = version
 	mempoolFeeRate = float64(0)
+	// onchain realized transaction costs
+	txFee = make(map[string]int64)
 )
 
 func main() {
@@ -116,6 +113,7 @@ func main() {
 			"sats": toSats,
 			"u":    toUint,
 			"fmt":  formatWithThousandSeparators,
+			"fs":   formatSigned,
 			"m":    toMil,
 		}).
 		ParseFS(tplFolder, templateNames...))
@@ -148,7 +146,7 @@ func main() {
 	r.HandleFunc("/bumpfee", bumpfeeHandler)
 
 	// Start the server
-	http.Handle("/", r)
+	http.Handle("/", retryMiddleware(r))
 	go func() {
 		if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
 			log.Fatal(err)
@@ -174,7 +172,7 @@ func main() {
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
 
 	// Wait for termination signal
 	<-signalChan
@@ -402,6 +400,51 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	activeSwaps := res4.GetSwaps()
 
+	res5, err := ps.ListSwaps(client)
+	if err != nil {
+		return
+	}
+	swaps := res5.GetSwaps()
+
+	senderInFee := int64(0)
+	receiverInFee := int64(0)
+	receiverOutFee := int64(0)
+
+	for _, swap := range swaps {
+		switch swap.Type + swap.Role {
+		case "swap-insender":
+			if swap.PeerNodeId == id {
+				senderInFee += swapCost(swap)
+			}
+		case "swap-outreceiver":
+			if swap.InitiatorNodeId == id {
+				receiverOutFee += swapCost(swap)
+			}
+		case "swap-inreceiver":
+			if swap.InitiatorNodeId == id {
+				receiverInFee += swapCost(swap)
+			}
+		}
+	}
+
+	senderInFeePPM := int64(0)
+	receiverInFeePPM := int64(0)
+	receiverOutFeePPM := int64(0)
+	senderOutFeePPM := int64(0)
+
+	if peer.AsSender.SatsOut > 0 {
+		senderOutFeePPM = int64(peer.PaidFee) * 1_000_000 / int64(peer.AsSender.SatsOut)
+	}
+	if peer.AsSender.SatsIn > 0 {
+		senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
+	}
+	if peer.AsReceiver.SatsOut > 0 {
+		receiverOutFeePPM = receiverOutFee * 1_000_000 / int64(peer.AsReceiver.SatsOut)
+	}
+	if peer.AsReceiver.SatsIn > 0 {
+		receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
+	}
+
 	// Get Lightning client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -453,27 +496,33 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// get routing stats
 
 	type Page struct {
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		BtcFeeRate     float64
-		ColorScheme    string
-		Peer           *peerswaprpc.PeerSwapPeer
-		PeerAlias      string
-		NodeUrl        string
-		Allowed        bool
-		Suspicious     bool
-		LBTC           bool
-		BTC            bool
-		LiquidBalance  uint64
-		BitcoinBalance uint64
-		ActiveSwaps    string
-		DirectionIn    bool
-		Stats          []*ln.ForwardingStats
-		ChannelInfo    []*ln.ChanneInfo
-		PeerSwapPeer   bool
-		MyAlias        string
-		FeePPM         uint64
+		ErrorMessage      string
+		PopUpMessage      string
+		MempoolFeeRate    float64
+		BtcFeeRate        float64
+		ColorScheme       string
+		Peer              *peerswaprpc.PeerSwapPeer
+		PeerAlias         string
+		NodeUrl           string
+		Allowed           bool
+		Suspicious        bool
+		LBTC              bool
+		BTC               bool
+		LiquidBalance     uint64
+		BitcoinBalance    uint64
+		ActiveSwaps       string
+		DirectionIn       bool
+		Stats             []*ln.ForwardingStats
+		ChannelInfo       []*ln.ChanneInfo
+		PeerSwapPeer      bool
+		MyAlias           string
+		SenderOutFeePPM   int64
+		SenderInFee       int64
+		ReceiverInFee     int64
+		ReceiverOutFee    int64
+		SenderInFeePPM    int64
+		ReceiverInFeePPM  int64
+		ReceiverOutFeePPM int64
 	}
 
 	feeRate := liquid.GetMempoolMinFee()
@@ -481,33 +530,34 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		feeRate = mempoolFeeRate
 	}
 
-	lnFeePPM := uint64(0)
-	if peer.AsSender.SatsOut > 0 {
-		lnFeePPM = peer.PaidFee * 1_000_000 / peer.AsSender.SatsOut
-	}
-
 	data := Page{
-		ErrorMessage:   errorMessage,
-		PopUpMessage:   "",
-		BtcFeeRate:     mempoolFeeRate,
-		MempoolFeeRate: feeRate,
-		ColorScheme:    config.Config.ColorScheme,
-		Peer:           peer,
-		PeerAlias:      getNodeAlias(peer.NodeId),
-		NodeUrl:        config.Config.NodeApi,
-		Allowed:        stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:     stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:            stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:           stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance:  satAmount,
-		BitcoinBalance: uint64(btcBalance),
-		ActiveSwaps:    convertSwapsToHTMLTable(activeSwaps, "", "", ""),
-		DirectionIn:    sumLocal < sumRemote,
-		Stats:          stats,
-		ChannelInfo:    channelInfo,
-		PeerSwapPeer:   psPeer,
-		MyAlias:        ln.GetMyAlias(),
-		FeePPM:         lnFeePPM,
+		ErrorMessage:      errorMessage,
+		PopUpMessage:      "",
+		BtcFeeRate:        mempoolFeeRate,
+		MempoolFeeRate:    feeRate,
+		ColorScheme:       config.Config.ColorScheme,
+		Peer:              peer,
+		PeerAlias:         getNodeAlias(peer.NodeId),
+		NodeUrl:           config.Config.NodeApi,
+		Allowed:           stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:        stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:               stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:              stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance:     satAmount,
+		BitcoinBalance:    uint64(btcBalance),
+		ActiveSwaps:       convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		DirectionIn:       sumLocal < sumRemote,
+		Stats:             stats,
+		ChannelInfo:       channelInfo,
+		PeerSwapPeer:      psPeer,
+		MyAlias:           ln.GetMyAlias(),
+		SenderOutFeePPM:   senderOutFeePPM,
+		SenderInFee:       senderInFee,
+		ReceiverInFee:     receiverInFee,
+		ReceiverOutFee:    receiverOutFee,
+		SenderInFeePPM:    senderInFeePPM,
+		ReceiverInFeePPM:  receiverInFeePPM,
+		ReceiverOutFeePPM: receiverOutFeePPM,
 	}
 
 	// executing template named "peer"
@@ -687,6 +737,16 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
+
+	cost := swapCost(swap)
+	if cost > 0 {
+		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
+		swapData += formatWithThousandSeparators(uint64(cost)) + " sats"
+	}
+	if cost < 0 {
+		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
+		swapData += "Rebate " + formatWithThousandSeparators(uint64(-cost)) + " sats"
+	}
 	swapData += `</td></tr>
 		  </table>
 		</div>
@@ -1151,9 +1211,6 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
-
-		// reset Aliases cache
-		aliasCache = []AliasCache{}
 
 		if mustRestart {
 			// show progress bar and log
@@ -2377,14 +2434,13 @@ func checkPegin() {
 
 func getNodeAlias(key string) string {
 	// search in cache
-	for _, n := range aliasCache {
-		if n.PublicKey == key {
-			return n.Alias
-		}
+	alias, exists := aliasCache[key]
+	if exists {
+		return alias
 	}
 
 	// try lightning
-	alias := ln.GetAlias(key)
+	alias = ln.GetAlias(key)
 
 	if alias == "" {
 		// try mempool
@@ -2397,10 +2453,7 @@ func getNodeAlias(key string) string {
 	}
 
 	// save to cache if alias was found
-	aliasCache = append(aliasCache, AliasCache{
-		PublicKey: key,
-		Alias:     alias,
-	})
+	aliasCache[key] = alias
 
 	return alias
 }
@@ -2567,4 +2620,50 @@ func executeAutoSwap() {
 
 	// Send telegram
 	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
+}
+
+func swapCost(swap *peerswaprpc.PrettyPrintSwap) int64 {
+	if swap == nil {
+		return 0
+	}
+
+	if simplifySwapState(swap.State) != "success" {
+		return 0
+	}
+
+	fee := int64(0)
+	switch swap.Type + swap.Role {
+	case "swap-outsender":
+		fee = ln.SwapRebates[swap.Id]
+	case "swap-insender":
+		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+	case "swap-outreceiver":
+		fee = onchainTxFee(swap.Asset, swap.OpeningTxId) - ln.SwapRebates[swap.Id]
+	case "swap-inreceiver":
+		fee = onchainTxFee(swap.Asset, swap.ClaimTxId)
+	}
+
+	return fee
+}
+
+// get tx fee from cache or online
+func onchainTxFee(asset, txId string) int64 {
+	// try cache
+	fee, exists := txFee[txId]
+	if exists {
+		return fee
+	}
+	switch asset {
+	case "lbtc":
+
+		fee = internet.GetLiquidTxFee(txId)
+	case "btc":
+		fee = internet.GetBitcoinTxFee(txId)
+
+	}
+	// save to cache
+	if fee > 0 {
+		txFee[txId] = fee
+	}
+	return fee
 }

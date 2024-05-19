@@ -830,6 +830,12 @@ func appendPayment(payment *lnrpc.Payment) {
 				if invoice.Description != nil {
 					if len(*invoice.Description) > 7 {
 						if (*invoice.Description)[:8] == "peerswap" {
+							// find swap id
+							parts := strings.Split(*invoice.Description, " ")
+							if parts[2] == "fee" && len(parts[4]) > 0 {
+								// save rebate payment
+								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
+							}
 							// skip peerswap-related payments
 							return
 						}
@@ -1021,8 +1027,15 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 	}
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
-		// skip peerswap-related
-		if len(invoice.Memo) < 8 || invoice.Memo[:8] != "peerswap" {
+		if len(invoice.Memo) > 7 && invoice.Memo[:8] == "peerswap" {
+			// find swap id
+			parts := strings.Split(invoice.Memo, " ")
+			if parts[2] == "fee" && len(parts[4]) > 0 {
+				// save rebate payment
+				SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
+			}
+		} else {
+			// skip peerswap-related
 			for _, htlc := range invoice.Htlcs {
 				if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
 					invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
