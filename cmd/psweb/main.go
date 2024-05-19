@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.1"
+	version = "v1.4.2"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -58,12 +58,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder         embed.FS
-	logFile           *os.File
-	latestVersion     = version
-	mempoolFeeRate    = float64(0)
-	peerTableCache    = ""
-	nonPeerTableCache = ""
+	tplFolder      embed.FS
+	logFile        *os.File
+	latestVersion  = version
+	mempoolFeeRate = float64(0)
 )
 
 func main() {
@@ -165,6 +163,15 @@ func main() {
 	// to speed up first load of home page
 	go cacheAliases()
 
+	// download and subscribe to invoices
+	go ln.CacheInvoices()
+
+	// download and subscribe to forwards
+	go ln.CacheHtlcs()
+
+	// download and subscribe to payments
+	go ln.CachePayments()
+
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -255,62 +262,46 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	var peers []*peerswaprpc.PeerSwapPeer
 
-	// use cache for page refreshes < 1 minute
-	peerTable := peerTableCache
-	if peerTable == "" {
-		res, err := ps.ReloadPolicyFile(client)
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-
-		allowlistedPeers := res.GetAllowlistedPeers()
-		suspiciousPeers := res.GetSuspiciousPeerList()
-
-		res2, err := ps.ListPeers(client)
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-		peers = res2.GetPeers()
-
-		peerTable = convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
-		peerTableCache = peerTable
+	res3, err := ps.ReloadPolicyFile(client)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
 	}
 
+	allowlistedPeers := res3.GetAllowlistedPeers()
+	suspiciousPeers := res3.GetSuspiciousPeerList()
+
+	res4, err := ps.ListPeers(client)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	peers = res4.GetPeers()
+
+	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
+
 	//check whether to display non-PS channels or swaps
-	nonPeerTable := ""
 	listSwaps := ""
+	nonPeerTable := ""
+
 	_, ok = r.URL.Query()["showall"]
 	if ok {
-		// use cache for page refreshes < 1 minute
-		nonPeerTable = nonPeerTableCache
-		if nonPeerTable == "" {
-			// make a list of peerswap peers
-			var psIds []string
+		// make a list of peerswap peers
+		var psIds []string
 
-			if len(peers) == 0 {
-				res, err := ps.ListPeers(client)
-				if err != nil {
-					redirectWithError(w, r, "/config?", err)
-					return
-				}
-				peers = res.GetPeers()
-			}
-			for _, peer := range peers {
-				psIds = append(psIds, peer.NodeId)
-			}
-
-			// Get the remaining Lightning peers
-			res5, err := ln.ListPeers(cl, "", &psIds)
-			if err != nil {
-				redirectWithError(w, r, "/config?", err)
-				return
-			}
-			otherPeers := res5.GetPeers()
-			nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
-			nonPeerTableCache = nonPeerTable
+		for _, peer := range peers {
+			psIds = append(psIds, peer.NodeId)
 		}
+
+		// Get the remaining Lightning peers
+		res5, err := ln.ListPeers(cl, "", &psIds)
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+		otherPeers := res5.GetPeers()
+		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
+
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
 			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
@@ -1403,7 +1394,6 @@ func startTimer() {
 	for range time.Tick(60 * time.Second) {
 		onTimer()
 	}
-
 }
 
 // tasks that run every minute
@@ -1417,14 +1407,9 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// cache flow history and wipe html tables
+	// cache forwards history for CLN
 	go func() {
 		ln.CacheForwards()
-		ln.CachePayments()
-		ln.CacheInvoices()
-
-		peerTableCache = ""
-		nonPeerTableCache = ""
 	}()
 
 	// check for updates
@@ -1866,13 +1851,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			// bump by 2 minutes to exclude peerswap-related payments
-			bump := int64(120)
-			if swap.Asset == "btc" {
-				// bump by 60 minutes for BTC
-				bump = int64(3600)
-			}
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt + bump
+			swapTimestamps[swap.LndChanId] = swap.CreatedAt
 		}
 	}
 

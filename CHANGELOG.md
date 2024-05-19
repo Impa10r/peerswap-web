@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.2
+
+- Subscribe to LND events to reduce CPU overhead
+
 ## 1.4.1
 
 - Account for paid and received invoices in channel flow statistics
