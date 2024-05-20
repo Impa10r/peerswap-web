@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.5"
+	version = "v1.4.6"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee

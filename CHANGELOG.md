@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.6
+
+-
+
 ## 1.4.5
 
 - Add swap costs to home page
