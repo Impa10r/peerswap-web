@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.4"
+	version = "v1.4.5"
 
 	// Liquid balance to reserve in auto swaps
 	// Min is 1000, but the swap will spend it all on fee
@@ -169,6 +169,9 @@ func main() {
 
 	// download and subscribe to payments
 	go ln.CachePayments()
+
+	// fetch all chain costs
+	go cacheSwapCosts()
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -709,7 +712,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += `</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
 	swapData += formatWithThousandSeparators(swap.Amount)
-	swapData += `</td></tr>
+	swapData += ` sats</td></tr>
 			<tr><td style="text-align: right">ChannelId:</td><td>`
 	swapData += swap.ChannelId
 	swapData += `</td></tr>`
@@ -739,14 +742,15 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
 
 	cost := swapCost(swap)
-	if cost > 0 {
+	if cost != 0 {
+		ppm := cost * 1_000_000 / int64(swap.Amount)
+
 		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += formatWithThousandSeparators(uint64(cost)) + " sats"
+		swapData += formatSigned(cost) + " sats"
+		swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
+		swapData += formatSigned(ppm)
 	}
-	if cost < 0 {
-		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += "Rebate " + formatWithThousandSeparators(uint64(-cost)) + " sats"
-	}
+
 	swapData += `</td></tr>
 		  </table>
 		</div>
@@ -1092,7 +1096,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err != nil {
-				if err.Error() == "Request timed out" {
+				e := err.Error()
+				if e == "Request timed out" || strings.HasPrefix(e, "rpc error: code = Unavailable desc = rpc timeout reached") {
 					// sometimes the swap is pending anyway
 					res, er := ps.ListActiveSwaps(client)
 					if er != nil {
@@ -1431,12 +1436,17 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	t := fmt.Sprintln(err)
 	// translate common errors into plain English
 	switch {
-	case strings.HasPrefix(t, "rpc error"):
+	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
 		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
 		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
+	case strings.HasPrefix(t, "rpc error: code = "):
+		i := strings.Index(t, "desc =")
+		if i > 0 {
+			t = t[i+7:]
+		}
 	}
 	// display the error to the web page header
 	msg := url.QueryEscape(t)
@@ -2305,7 +2315,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		// clicking on swap status will filter swaps with equal status
 		table += "<a title=\"Filter by state: " + simplifySwapState(swap.State) + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
 		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
-		table += formatWithThousandSeparators(swap.Amount)
+		table += " <span title=\"Swap amount, sats\">" + formatWithThousandSeparators(swap.Amount) + "</span>"
 
 		asset := "🌊"
 		if swap.Asset == "btc" {
@@ -2321,6 +2331,12 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 			table += " " + asset + "&nbsp⇨&nbsp⚡"
 		case "swap-inreceiver":
 			table += " ⚡&nbsp⇨&nbsp" + asset
+		}
+
+		cost := swapCost(swap)
+		if cost != 0 {
+			ppm := cost * 1_000_000 / int64(swap.Amount)
+			table += " <span title=\"Swap cost, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
@@ -2666,4 +2682,23 @@ func onchainTxFee(asset, txId string) int64 {
 		txFee[txId] = fee
 	}
 	return fee
+}
+
+func cacheSwapCosts() {
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListSwaps(client)
+	if err != nil {
+		return
+	}
+
+	swaps := res.GetSwaps()
+
+	for _, swap := range swaps {
+		swapCost(swap)
+	}
 }
