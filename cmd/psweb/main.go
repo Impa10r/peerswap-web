@@ -742,14 +742,15 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
 
 	cost := swapCost(swap)
-	if cost > 0 {
+	if cost != 0 {
+		ppm := cost * 1_000_000 / int64(swap.Amount)
+
 		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += formatWithThousandSeparators(uint64(cost)) + " sats"
+		swapData += formatSigned(cost) + " sats"
+		swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
+		swapData += formatSigned(ppm)
 	}
-	if cost < 0 {
-		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += "Rebate " + formatWithThousandSeparators(uint64(-cost)) + " sats"
-	}
+
 	swapData += `</td></tr>
 		  </table>
 		</div>
@@ -2328,7 +2329,8 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 		cost := swapCost(swap)
 		if cost != 0 {
-			table += " <span title=\"Swap cost, sats\">" + formatSigned(cost) + "</span>"
+			ppm := cost * 1_000_000 / int64(swap.Amount)
+			table += " <span title=\"Swap cost, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
