@@ -1435,12 +1435,17 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	t := fmt.Sprintln(err)
 	// translate common errors into plain English
 	switch {
-	case strings.HasPrefix(t, "rpc error"):
+	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
 		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
 		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
+	case strings.HasPrefix(t, "rpc error: code = "):
+		i := strings.Index(t, "desc =")
+		if i > 0 {
+			t = t[i+7:]
+		}
 	}
 	// display the error to the web page header
 	msg := url.QueryEscape(t)

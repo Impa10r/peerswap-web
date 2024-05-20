@@ -2,7 +2,8 @@
 
 ## 1.4.5
 
--
+- Add swap costs to home page
+- Fix error reporting
 
 ## 1.4.4
 
