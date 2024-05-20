@@ -199,16 +199,16 @@ Sincerely,
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">Sent
                   <td title="Initiated {{fmt .Peer.AsSender.SwapsIn}} swap-ins for {{fmt .Peer.AsSender.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
-                  <td title="Chain fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
+                  <td title="Opening fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
                   <td title="Initiated {{fmt .Peer.AsSender.SwapsOut}} swap-outs for {{fmt .Peer.AsSender.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                  <td title="Fees rebated to peer, Sats (PPM)" style="text-align: center">{{fmt .Peer.PaidFee}}{{if .Peer.PaidFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
+                  <td title="Rebated paid to peer, Sats (PPM)" style="text-align: center">{{fmt .Peer.PaidFee}}{{if .Peer.PaidFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
                 </tr>
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">Rcvd
                   <td title="Received {{fmt .Peer.AsReceiver.SwapsOut}} swap-outs for {{fmt .Peer.AsReceiver.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
-                  <td title="Chain fees paid less rebates, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
+                  <td title="Opening fees less rebates, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
                   <td title="Received {{fmt .Peer.AsReceiver.SwapsIn}} swap-ins for {{fmt .Peer.AsReceiver.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
-                  <td title="Chain fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
+                  <td title="Claim fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
                 </tr>
               </table>  
             {{end}}

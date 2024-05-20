@@ -170,6 +170,9 @@ func main() {
 	// download and subscribe to payments
 	go ln.CachePayments()
 
+	// fetch all chain costs
+	go cacheSwapCosts()
+
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
@@ -709,7 +712,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += `</a></td></tr>
 			<tr><td style="text-align: right">Amount:</td><td>`
 	swapData += formatWithThousandSeparators(swap.Amount)
-	swapData += `</td></tr>
+	swapData += ` sats</td></tr>
 			<tr><td style="text-align: right">ChannelId:</td><td>`
 	swapData += swap.ChannelId
 	swapData += `</td></tr>`
@@ -2305,7 +2308,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		// clicking on swap status will filter swaps with equal status
 		table += "<a title=\"Filter by state: " + simplifySwapState(swap.State) + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
 		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
-		table += formatWithThousandSeparators(swap.Amount)
+		table += " <span title=\"Swap amount, sats\">" + formatWithThousandSeparators(swap.Amount) + "</span>"
 
 		asset := "🌊"
 		if swap.Asset == "btc" {
@@ -2321,6 +2324,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 			table += " " + asset + "&nbsp⇨&nbsp⚡"
 		case "swap-inreceiver":
 			table += " ⚡&nbsp⇨&nbsp" + asset
+		}
+
+		cost := swapCost(swap)
+		if cost != 0 {
+			table += " <span title=\"Swap cost, sats\">" + formatSigned(cost) + "</span>"
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
@@ -2666,4 +2674,23 @@ func onchainTxFee(asset, txId string) int64 {
 		txFee[txId] = fee
 	}
 	return fee
+}
+
+func cacheSwapCosts() {
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListSwaps(client)
+	if err != nil {
+		return
+	}
+
+	swaps := res.GetSwaps()
+
+	for _, swap := range swaps {
+		swapCost(swap)
+	}
 }
