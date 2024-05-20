@@ -26,6 +26,9 @@ import (
 const (
 	Implementation = "CLN"
 	fileRPC        = "lightning-rpc"
+	// Liquid balance to reserve in auto swaps
+	// Min is 2000, but the swap would spend it all on fee
+	SwapFeeReserve = uint64(3000)
 )
 
 type Forwarding struct {
@@ -900,14 +903,6 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-func CacheHtlcs() {
-	// not implemented
-}
-
-func CacheInvoices() {
-	// not implemented
-}
-
-func CachePayments() {
+func SubscribeAll() {
 	// not implemented
 }

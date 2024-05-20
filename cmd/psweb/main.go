@@ -34,10 +34,6 @@ import (
 const (
 	// App version tag
 	version = "v1.4.6"
-
-	// Liquid balance to reserve in auto swaps
-	// Min is 1000, but the swap will spend it all on fee
-	swapInFeeReserve = uint64(2000)
 )
 
 type SwapParams struct {
@@ -161,14 +157,11 @@ func main() {
 	// to speed up first load of home page
 	go cacheAliases()
 
-	// download and subscribe to invoices
-	go ln.CacheInvoices()
+	// LND: download and subscribe to invoices, forwards and payments
+	go ln.SubscribeAll()
 
-	// download and subscribe to forwards
-	go ln.CacheHtlcs()
-
-	// download and subscribe to payments
-	go ln.CachePayments()
+	// CLN: cache forwarding stats
+	go ln.CacheForwards()
 
 	// fetch all chain costs
 	go cacheSwapCosts()
@@ -279,6 +272,9 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	peers = res4.GetPeers()
 
+	// refresh forwarding stats
+	ln.CacheForwards()
+
 	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
 
 	//check whether to display non-PS channels or swaps
@@ -325,6 +321,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter            bool
 		MempoolFeeRate    float64
 		AutoSwapEnabled   bool
+		PeginPending      bool
 	}
 
 	data := Page{
@@ -341,6 +338,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
+		PeginPending:      config.Config.PeginTxId != "",
 	}
 
 	// executing template named "homepage"
@@ -1474,11 +1472,6 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// cache forwards history for CLN
-	go func() {
-		ln.CacheForwards()
-	}()
-
 	// check for updates
 	t := internet.GetLatestTag()
 	if t != "" {
@@ -2498,7 +2491,7 @@ func cacheAliases() {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *SwapParams) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - swapInFeeReserve
+	minAmount := config.Config.AutoSwapThresholdAmount - ln.SwapFeeReserve
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -2620,8 +2613,8 @@ func executeAutoSwap() {
 	}
 
 	// swap in cannot be larger than this
-	if amount > satAmount-swapInFeeReserve {
-		amount = satAmount - swapInFeeReserve
+	if amount > satAmount-ln.SwapFeeReserve {
+		amount = satAmount - ln.SwapFeeReserve
 	}
 
 	// execute swap

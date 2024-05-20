@@ -39,7 +39,12 @@ import (
 	"gopkg.in/macaroon.v2"
 )
 
-const Implementation = "LND"
+const (
+	Implementation = "LND"
+	// Liquid balance to reserve in auto swaps
+	// Min is 1000, but the swap would spend it all on fee
+	SwapFeeReserve = uint64(2000)
+)
 
 type InflightHTLC struct {
 	OutgoingChannelId uint64
@@ -674,59 +679,6 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-// cache htlc history per channel, then subscribe to updates
-func CacheHtlcs() {
-	ctx := context.Background()
-	conn, err := lndConnection()
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	client := lnrpc.NewLightningClient(conn)
-
-	// initial download forwards
-	downloadForwards(client)
-
-	// subscribe to htlc events
-	routerClient := routerrpc.NewRouterClient(conn)
-	for {
-		if err := subscribeForwards(ctx, routerClient); err != nil {
-			log.Println("Forwards subscription error:", err)
-			time.Sleep(60 * time.Second)
-			// incremental download from last timestamp + 1
-			downloadForwards(client)
-		}
-	}
-}
-
-// cache payments history per channel, then subscribe to updates
-func CachePayments() {
-	ctx := context.Background()
-	conn, err := lndConnection()
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	client := lnrpc.NewLightningClient(conn)
-
-	// initial download payments
-	downloadPayments(client)
-
-	// subscribe to htlc events
-	routerClient := routerrpc.NewRouterClient(conn)
-	for {
-		if err := subscribePayments(ctx, routerClient); err != nil {
-			log.Println("Payments subscription error:", err)
-			time.Sleep(60 * time.Second)
-			// incremental download from last timestamp + 1
-			downloadPayments(client)
-		}
-	}
-
-}
-
 func downloadForwards(client lnrpc.LightningClient) {
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
@@ -969,53 +921,88 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 	}
 }
 
-// cache all invoices from lnd
-func CacheInvoices() {
-	// refresh history
-	client, cleanup, err := GetClient()
-	if err != nil {
-		return
-	}
-	defer cleanup()
-
-	// only go back 6 months for itinial download
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
-	offset := uint64(0)
+// cache all and subscribe to lnd
+func SubscribeAll() {
+	// loop forever until connected
 	for {
-		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
-			CreationDateStart: start,
-			Reversed:          false,
-			IndexOffset:       offset,
-			NumMaxInvoices:    50000,
-		})
+		conn, err := lndConnection()
 		if err != nil {
-			return
+			continue
+		}
+		defer conn.Close()
+
+		client := lnrpc.NewLightningClient(conn)
+		ctx := context.Background()
+
+		// only go back 6 months for itinial download
+		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+		offset := uint64(0)
+		for {
+			res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
+				CreationDateStart: start,
+				Reversed:          false,
+				IndexOffset:       offset,
+				NumMaxInvoices:    50000,
+			})
+			if err != nil {
+				return
+			}
+
+			for _, invoice := range res.Invoices {
+				appendInvoice(invoice)
+			}
+
+			n := len(res.Invoices)
+			if n > 0 {
+				// global settle index for subscription
+				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+			}
+			if n < 50000 {
+				// all invoices retrieved
+				break
+			}
+
+			// next pull start from the next index
+			offset = res.LastIndexOffset
 		}
 
-		for _, invoice := range res.Invoices {
-			appendInvoice(invoice)
-		}
+		// initial download forwards
+		downloadForwards(client)
+		routerClient := routerrpc.NewRouterClient(conn)
 
-		n := len(res.Invoices)
-		if n > 0 {
-			// global settle index for subscription
-			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
-		}
-		if n < 50000 {
-			// all invoices retrieved
-			break
-		}
+		go func() {
+			// subscribe to Forwards
+			for {
+				if err := subscribeForwards(ctx, routerClient); err != nil {
+					log.Println("Forwards subscription error:", err)
+					time.Sleep(60 * time.Second)
+					// incremental download from last timestamp + 1
+					downloadForwards(client)
+				}
+			}
+		}()
 
-		// next pull start from the next index
-		offset = res.LastIndexOffset
-	}
+		// initial download payments
+		downloadPayments(client)
 
-	// subscribe
-	ctx := context.Background()
-	for {
-		if err := subscribeInvoices(ctx, client); err != nil {
-			log.Println("Invoices subscription error:", err)
-			time.Sleep(5 * time.Second)
+		go func() {
+			// subscribe to Payments
+			for {
+				if err := subscribePayments(ctx, routerClient); err != nil {
+					log.Println("Payments subscription error:", err)
+					time.Sleep(60 * time.Second)
+					// incremental download from last timestamp + 1
+					downloadPayments(client)
+				}
+			}
+		}()
+
+		// subscribe to Invoices
+		for {
+			if err := subscribeInvoices(ctx, client); err != nil {
+				log.Println("Invoices subscription error:", err)
+				time.Sleep(60 * time.Second)
+			}
 		}
 	}
 }
