@@ -41,8 +41,8 @@ import (
 
 const (
 	Implementation = "LND"
-	// Liquid balance to reserve in auto swaps
-	// Min is 1000, but the swap would spend it all on fee
+	// Liquid balance to reserve in auto swap-ins
+	// Min is 1000, but peerswapd would spend it all on fee
 	SwapFeeReserve = uint64(2000)
 )
 
@@ -699,6 +699,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
+			log.Println("ForwardingHistory:", err)
 			return
 		}
 
@@ -742,6 +743,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			MaxPayments:       50000,
 		})
 		if err != nil {
+			log.Println("ListPayments:", err)
 			return
 		}
 
@@ -945,6 +947,7 @@ func SubscribeAll() {
 				NumMaxInvoices:    50000,
 			})
 			if err != nil {
+				log.Println("ListInvoices:", err)
 				return
 			}
 
@@ -954,7 +957,7 @@ func SubscribeAll() {
 
 			n := len(res.Invoices)
 			if n > 0 {
-				// global settle index for subscription
+				// settle index for subscription
 				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
 			}
 			if n < 50000 {
@@ -1363,4 +1366,23 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 
 func CacheForwards() {
 	// not implemented
+}
+
+// Estimate sat/vB fee
+func EstimateFee() float64 {
+	conn, err := lndConnection()
+	if err != nil {
+		return 0
+	}
+	cl := walletrpc.NewWalletKitClient(conn)
+
+	ctx := context.Background()
+	req := &walletrpc.EstimateFeeRequest{ConfTarget: 2}
+	res, err := cl.EstimateFee(ctx, req)
+
+	if err != nil {
+		return 0
+	}
+
+	return float64(res.SatPerKw) / 250
 }

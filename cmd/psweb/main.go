@@ -526,15 +526,20 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ReceiverOutFeePPM int64
 	}
 
-	feeRate := liquid.GetMempoolMinFee()
+	feeRate := liquid.EstimateFee()
 	if !psPeer {
 		feeRate = mempoolFeeRate
+	}
+
+	bitcoinFeeRate := ln.EstimateFee()
+	if bitcoinFeeRate == 0 {
+		bitcoinFeeRate = mempoolFeeRate
 	}
 
 	data := Page{
 		ErrorMessage:      errorMessage,
 		PopUpMessage:      "",
-		BtcFeeRate:        mempoolFeeRate,
+		BtcFeeRate:        bitcoinFeeRate,
 		MempoolFeeRate:    feeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		Peer:              peer,
@@ -870,7 +875,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		ErrorMessage:            errorMessage,
 		PopUpMessage:            popupMessage,
-		MempoolFeeRate:          liquid.GetMempoolMinFee(),
+		MempoolFeeRate:          liquid.EstimateFee(),
 		ColorScheme:             config.Config.ColorScheme,
 		LiquidAddress:           addr,
 		LiquidBalance:           satAmount,
@@ -1088,9 +1093,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			var id string
 			switch r.FormValue("direction") {
 			case "swapIn":
-				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
 			case "swapOut":
-				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
 			}
 
 			if err != nil {
@@ -1640,7 +1645,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration:         formattedDuration,
 		FeeRate:          config.Config.PeginFeeRate,
 		MempoolFeeRate:   mempoolFeeRate,
-		LiquidFeeRate:    liquid.GetMempoolMinFee(),
+		LiquidFeeRate:    liquid.EstimateFee(),
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          canBump,

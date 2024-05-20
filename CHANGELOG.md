@@ -2,7 +2,8 @@
 
 ## 1.4.6
 
--
+- LND: Fix invoice subscription reconnections 
+- CLN: Fix missing swap-out fees
 
 ## 1.4.5
 
