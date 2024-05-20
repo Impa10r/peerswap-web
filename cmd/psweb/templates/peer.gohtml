@@ -61,7 +61,7 @@
                           <div class="field">
                             <div class="control">
                               <div class="select is-medium is-fullwidth">
-                                <select name="direction">
+                                <select id="direction" name="direction" onchange="calculateTransactionFee()">
                                   <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
                                   <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
                                 </select>
@@ -94,9 +94,17 @@
                         <div class="field-body">
                           <div class="field">
                             <p>
-                              <input class="input is-medium" type="number" name="swapAmount" required min="100000" placeholder="⚡ Swap Amount (sats)">
+                              <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
                             </p>
                           </div>
+                        </div>
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                          <label class="label">Fee Estimate</label>
+                        </div>
+                        <div class="field-body">
+                          <label id="result" class="label">Please enter the Swap Amount</label>
                         </div>
                       </div>
                       <center>
@@ -106,13 +114,57 @@
                       </center>
                     </form>
                     <script>
+                      // Function to format number with thousand separators
+                      function formatWithThousandSeparators(number) {
+                          return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                      }
+                      
                       function calculateTransactionFee() {
                         var asset = document.getElementById("asset").value;
+                        var swapAmount = Number(document.getElementById("swapAmount").value);
+
+                        // amount cannot be blank
+                        if (swapAmount < 100000) {
+                          document.getElementById('result').innerText = "Please enter the Swap Amount";
+                          return;
+                        }
+
+                        let feeRate = {{.MempoolFeeRate}}; // LBTC
+                        let vbyteSize = 2590; // LBTC swap-in assumption 2 UTXOs
+                        
                         if (asset == "btc") {
+                          vbyteSize = 152.5; // BTC swap-in assumption 1 UTXO
+                          feeRate = {{.BtcFeeRate}};
                           document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
                         } else {
+                          // Liquid
                           document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
                         }
+
+                        if (document.getElementById("direction").value == "swapOut") {
+                          if (asset == "btc") {
+                            vbyteSize = 350 // onchain.EstimatedOpeningTxSize  
+                          } else {
+                            vbyteSize = 3000  // prepaid
+                          }
+                        } 
+
+                        const fee = vbyteSize * feeRate;
+                        let text = "Transaction size: " + vbyteSize + " vBytes\n";
+                        text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
+                        text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
+                        
+                        document.getElementById('result').innerText = text;
+                      }
+
+                      let timerId;
+                      // Function to execute after a delay
+                      function delayedCalculateTransactionFee() {
+                          // Clear previous timer if it exists
+                          clearTimeout(timerId);
+
+                          // Set a new timer to execute after 300 milliseconds
+                          timerId = setTimeout(calculateTransactionFee, 300);
                       }
                     </script>
                   {{end}}
