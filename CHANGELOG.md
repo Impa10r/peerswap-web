@@ -2,6 +2,7 @@
 
 ## 1.4.6
 
+- Estimate swap fees before submitting
 - LND: Fix invoice subscription reconnections 
 - Auto swap: account for MaxHtlc settings
 - Keysend: account for MinHtlc settings

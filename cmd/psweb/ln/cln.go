@@ -24,11 +24,10 @@ import (
 )
 
 const (
-	Implementation = "CLN"
-	fileRPC        = "lightning-rpc"
-	// Liquid balance to reserve in auto swap-ins
-	// Min is 2000, but peerswap would spend it all on fee
-	SwapFeeReserve = uint64(3000)
+	Implementation     = "CLN"
+	fileRPC            = "lightning-rpc"
+	SwapFeeReserveLBTC = uint64(000)
+	SwapFeeReserveBTC  = uint64(2000)
 )
 
 type Forwarding struct {

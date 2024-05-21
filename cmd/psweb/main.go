@@ -474,8 +474,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var channelInfo []*ln.ChanneInfo
 	var keysendSats = uint64(1)
 
-	var utxos []ln.UTXO
-	ln.ListUnspent(cl, &utxos, 1)
+	var utxosBTC []ln.UTXO
+	ln.ListUnspent(cl, &utxosBTC, 1)
+
+	var utxosLBTC []liquid.UTXO
+	liquid.ListUnspent(&utxosLBTC)
 
 	for _, ch := range peer.Channels {
 		stat := ln.GetForwardingStats(ch.ChannelId)
@@ -533,7 +536,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ReceiverInFeePPM  int64
 		ReceiverOutFeePPM int64
 		KeysendSats       uint64
-		Outputs           *[]ln.UTXO
+		OutputsBTC        *[]ln.UTXO
+		OutputsLBTC       *[]liquid.UTXO
+		ReserveLBTC       uint64
+		ReserveBTC        uint64
 	}
 
 	feeRate := liquid.EstimateFee()
@@ -541,10 +547,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		feeRate = mempoolFeeRate
 	}
 
-	bitcoinFeeRate := ln.EstimateFee()
-	if bitcoinFeeRate == 0 {
-		bitcoinFeeRate = mempoolFeeRate
-	}
+	// better be conservative
+	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	data := Page{
 		ErrorMessage:      errorMessage,
@@ -575,7 +579,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ReceiverInFeePPM:  receiverInFeePPM,
 		ReceiverOutFeePPM: receiverOutFeePPM,
 		KeysendSats:       keysendSats,
-		Outputs:           &utxos,
+		OutputsBTC:        &utxosBTC,
+		OutputsLBTC:       &utxosLBTC,
+		ReserveLBTC:       ln.SwapFeeReserveLBTC,
+		ReserveBTC:        ln.SwapFeeReserveBTC,
 	}
 
 	// executing template named "peer"
@@ -2516,7 +2523,8 @@ func cacheAliases() {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *SwapParams) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - ln.SwapFeeReserve
+	// extra 1000 to avoid no-change tx spending all on fees
+	minAmount := config.Config.AutoSwapThresholdAmount - ln.SwapFeeReserveLBTC - 1000
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -2653,8 +2661,8 @@ func executeAutoSwap() {
 		return
 	}
 
-	// swap in cannot be larger than this
-	amount = min(amount, satAmount-ln.SwapFeeReserve)
+	// extra 1000 reserve to avoid no-change tx spending all on fees
+	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC-1000)
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

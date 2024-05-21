@@ -42,8 +42,8 @@ import (
 const (
 	Implementation = "LND"
 	// Liquid balance to reserve in auto swap-ins
-	// Min is 1000, but peerswapd would spend it all on fee
-	SwapFeeReserve = uint64(2000)
+	SwapFeeReserveLBTC = uint64(1000)
+	SwapFeeReserveBTC  = uint64(2000)
 )
 
 type InflightHTLC struct {
