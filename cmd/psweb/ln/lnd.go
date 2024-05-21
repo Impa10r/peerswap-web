@@ -711,6 +711,8 @@ func downloadForwards(client lnrpc.LightningClient) {
 		}
 
 		n := len(res.ForwardingEvents)
+		totalForwards += uint64(n)
+
 		if n > 0 {
 			// store the last timestamp
 			lastforwardCreationTs = res.ForwardingEvents[n-1].TimestampNs / 1_000_000_000
@@ -721,7 +723,6 @@ func downloadForwards(client lnrpc.LightningClient) {
 		}
 		// next pull start from the next index
 		offset = res.LastOffsetIndex
-		totalForwards += uint64(n)
 	}
 
 	if totalForwards > 0 {
@@ -760,6 +761,8 @@ func downloadPayments(client lnrpc.LightningClient) {
 		}
 
 		n := len(res.Payments)
+		totalPayments += uint64(n)
+
 		if n > 0 {
 			// store the last timestamp
 			lastPaymentCreationTs = res.Payments[n-1].CreationTimeNs / 1_000_000_000
@@ -771,7 +774,6 @@ func downloadPayments(client lnrpc.LightningClient) {
 
 		// next pull start from the next index
 		offset = res.LastIndexOffset
-		totalPayments += uint64(n)
 	}
 
 	if totalPayments > 0 {
@@ -970,6 +972,8 @@ func SubscribeAll() {
 			}
 
 			n := len(res.Invoices)
+			totalInvoices += uint64(n)
+
 			if n > 0 {
 				// settle index for subscription
 				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
@@ -981,7 +985,6 @@ func SubscribeAll() {
 
 			// next pull start from the next index
 			offset = res.LastIndexOffset
-			totalInvoices += uint64(n)
 		}
 
 		if totalInvoices > 0 {
