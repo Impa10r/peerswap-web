@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.7
+
+- Remove resthost from peerswap.conf
+
 ## 1.4.6
 
 - Estimate swap fees before submitting

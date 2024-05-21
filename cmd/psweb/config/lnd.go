@@ -101,7 +101,8 @@ func SavePS() {
 
 	//key, default, new value, env key
 	t += setPeerswapdVariable("host", "localhost:42069", Config.RpcHost, "")
-	t += setPeerswapdVariable("resthost", "localhost:42070", "", "")
+	// remove resthost
+	// t += setPeerswapdVariable("resthost", "localhost:42070", "", "")
 	t += setPeerswapdVariable("lnd.host", "localhost:10009", "", "LND_HOST")
 	t += setPeerswapdVariable("lnd.tlscertpath", filepath.Join(Config.LightningDir, "tls.cert"), "", "")
 	t += setPeerswapdVariable("lnd.macaroonpath", filepath.Join(Config.LightningDir, "data", "chain", "bitcoin", Config.Chain, "admin.macaroon"), "", "LND_MACAROONPATH")
@@ -182,27 +183,22 @@ func getConfSetting(searchVariable, filePath string) string {
 		log.Println("Error reading file", filePath, err)
 		return ""
 	}
-	// Convert the content to a string
-	fileContent := string(content)
 
-	index := 0
+	lines := strings.Split(string(content), "\n")
 
-	// try the start of the file
-	if fileContent[:len(searchVariable)+1] != searchVariable+"=" {
-		// variables should start from new line '\n'
-		index = strings.Index(fileContent, "\n"+searchVariable+"=") + 1
-	}
-
-	if index > -1 {
-		startIndex := index + len(searchVariable) + 1
-		value := ""
-		for _, char := range fileContent[startIndex:] {
-			if char == '\n' || char == '\r' || char == ' ' {
-				break
+	for _, line := range lines {
+		if strings.HasPrefix(line, searchVariable+"=") {
+			startIndex := len(searchVariable) + 1
+			value := ""
+			for _, char := range line[startIndex:] {
+				if char == '\n' || char == '\r' || char == ' ' {
+					break
+				}
+				value += string(char)
 			}
-			value += string(char)
+			return value
 		}
-		return value
 	}
+	// not found
 	return ""
 }
