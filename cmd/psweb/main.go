@@ -2526,6 +2526,12 @@ func findSwapInCandidate(candidate *SwapParams) error {
 		}
 	}
 
+	cl, clean, err := ln.GetClient()
+	if err != nil {
+		return err
+	}
+	defer clean()
+
 	for _, peer := range peers {
 		// ignore peer with Liquid swaps disabled
 		if !peer.SwapsAllowed || !stringIsInSlice("lbtc", peer.SupportedAssets) {
@@ -2539,13 +2545,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			}
 			swapAmount := channel.LocalBalance - targetBalance
 
-			receivable, err := ln.ReceivableMsat(channel.ChannelId)
-			if err != nil {
-				return err
-			}
+			chanInfo := ln.GetChannelInfo(cl, channel.ChannelId, peer.NodeId)
 
-			// limit to what a channel can receive
-			swapAmount = min(swapAmount, receivable/1000)
+			// limit to max HTLC setting
+			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc)
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {

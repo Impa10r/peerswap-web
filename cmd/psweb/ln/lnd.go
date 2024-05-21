@@ -740,7 +740,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			IncludeIncomplete: false,
 			Reversed:          false,
 			IndexOffset:       offset,
-			MaxPayments:       50000,
+			MaxPayments:       5000,
 		})
 		if err != nil {
 			log.Println("ListPayments:", err)
@@ -757,7 +757,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			// store the last timestamp
 			lastPaymentCreationTs = res.Payments[n-1].CreationTimeNs / 1_000_000_000
 		}
-		if n < 50000 {
+		if n < 5000 {
 			// all events retrieved
 			break
 		}
@@ -944,7 +944,7 @@ func SubscribeAll() {
 				CreationDateStart: start,
 				Reversed:          false,
 				IndexOffset:       offset,
-				NumMaxInvoices:    50000,
+				NumMaxInvoices:    5000,
 			})
 			if err != nil {
 				log.Println("ListInvoices:", err)
@@ -960,7 +960,7 @@ func SubscribeAll() {
 				// settle index for subscription
 				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
 			}
-			if n < 50000 {
+			if n < 5000 {
 				// all invoices retrieved
 				break
 			}
@@ -1136,10 +1136,10 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 }
 
 // get fees on the channel
-func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId string) *ChanneInfo {
+func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId string) *ChanneInfo {
 	info := new(ChanneInfo)
 
-	res2, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
 	})
 	if err != nil {
@@ -1147,10 +1147,19 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 		return info
 	}
 
-	policy := res2.Node1Policy
-	if res2.Node1Pub == nodeId {
+	policy := r.Node1Policy
+	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
-		policy = res2.Node2Policy
+		policy = r.Node2Policy
+		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
+		info.PeerMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
+		info.OurMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc())
+	} else {
+		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
+		info.PeerMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
+		info.OurMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc())
 	}
 
 	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
@@ -1387,55 +1396,4 @@ func EstimateFee() float64 {
 	}
 
 	return float64(res.SatPerKw / 250)
-}
-
-func getMaxHtlcAmtMsat(client lnrpc.LightningClient, chanId uint64, pubkey string) uint64 {
-	var maxHtlcAmtMsat uint64 = 0
-	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
-		ChanId: chanId,
-	})
-	if err != nil {
-		// Ignore err because channel graph information is not always set.
-		return maxHtlcAmtMsat
-	}
-	if r.Node1Pub == pubkey {
-		maxHtlcAmtMsat = r.GetNode1Policy().GetMaxHtlcMsat()
-	} else if r.Node2Pub == pubkey {
-		maxHtlcAmtMsat = r.GetNode2Policy().GetMaxHtlcMsat()
-	}
-	return maxHtlcAmtMsat
-}
-
-// ReceivableMsat returns an estimate of the total we could receive through the
-// channel with given scid.
-func ReceivableMsat(chanId uint64) (uint64, error) {
-	client, cleanup, err := GetClient()
-	if err != nil {
-		return 0, nil
-	}
-	defer cleanup()
-
-	r, err := client.ListChannels(context.Background(), &lnrpc.ListChannelsRequest{
-		ActiveOnly:   false,
-		InactiveOnly: false,
-		PublicOnly:   false,
-		PrivateOnly:  false,
-	})
-	if err != nil {
-		return 0, err
-	}
-	for _, ch := range r.Channels {
-		if ch.ChanId == chanId {
-			maxHtlcAmtMsat := getMaxHtlcAmtMsat(client, ch.ChanId, ch.GetRemotePubkey())
-			receivable := (uint64(ch.GetRemoteBalance()) -
-				ch.GetRemoteConstraints().GetChanReserveSat()*1000)
-			// since the max htlc limit is not always set reliably,
-			// the check is skipped if it is not set.
-			if maxHtlcAmtMsat == 0 {
-				return receivable, nil
-			}
-			return min(maxHtlcAmtMsat, receivable), nil
-		}
-	}
-	return 0, fmt.Errorf("could not find a channel with scid: %d", chanId)
 }
