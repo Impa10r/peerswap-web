@@ -740,7 +740,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			IncludeIncomplete: false,
 			Reversed:          false,
 			IndexOffset:       offset,
-			MaxPayments:       1000,
+			MaxPayments:       100, // labels can be long
 		})
 		if err != nil {
 			log.Println("ListPayments:", err)
@@ -757,7 +757,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			// store the last timestamp
 			lastPaymentCreationTs = res.Payments[n-1].CreationTimeNs / 1_000_000_000
 		}
-		if n < 1000 {
+		if n < 100 {
 			// all events retrieved
 			break
 		}
@@ -944,7 +944,7 @@ func SubscribeAll() {
 				CreationDateStart: start,
 				Reversed:          false,
 				IndexOffset:       offset,
-				NumMaxInvoices:    1000,
+				NumMaxInvoices:    100, // bolt11 fields can be long
 			})
 			if err != nil {
 				log.Println("ListInvoices:", err)
@@ -960,7 +960,7 @@ func SubscribeAll() {
 				// settle index for subscription
 				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
 			}
-			if n < 1000 {
+			if n < 100 {
 				// all invoices retrieved
 				break
 			}
@@ -969,33 +969,29 @@ func SubscribeAll() {
 			offset = res.LastIndexOffset
 		}
 
-		// initial download forwards
-		downloadForwards(client)
 		routerClient := routerrpc.NewRouterClient(conn)
 
 		go func() {
+			// initial or incremental download forwards
+			downloadForwards(client)
 			// subscribe to Forwards
 			for {
 				if err := subscribeForwards(ctx, routerClient); err != nil {
 					log.Println("Forwards subscription error:", err)
 					time.Sleep(60 * time.Second)
-					// incremental download from last timestamp + 1
-					downloadForwards(client)
 				}
 			}
 		}()
 
-		// initial download payments
-		downloadPayments(client)
-
 		go func() {
+			// initial or incremental download payments
+			downloadPayments(client)
+
 			// subscribe to Payments
 			for {
 				if err := subscribePayments(ctx, routerClient); err != nil {
 					log.Println("Payments subscription error:", err)
 					time.Sleep(60 * time.Second)
-					// incremental download from last timestamp + 1
-					downloadPayments(client)
 				}
 			}
 		}()
@@ -1152,14 +1148,14 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
 		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.PeerMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc()) / 1000
 		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.OurMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc()) / 1000
 	} else {
 		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.PeerMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc()) / 1000
 		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.OurMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc()) / 1000
 	}
 
 	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())

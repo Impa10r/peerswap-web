@@ -3,8 +3,9 @@
 ## 1.4.6
 
 - LND: Fix invoice subscription reconnections 
-- CLN: Fix missing swap-out fees
-- Auto swap: account for peer's MaxHtlc setting for max swap amount
+- Auto swap: account for MaxHtlc settings
+- Keysend: account for MinHtlc settings
+- Fix swap-out fees missing for some swaps
 
 ## 1.4.5
 
