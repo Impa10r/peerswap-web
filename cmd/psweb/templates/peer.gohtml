@@ -61,7 +61,7 @@
                           <div class="field">
                             <div class="control">
                               <div class="select is-medium is-fullwidth">
-                                <select name="direction">
+                                <select id="direction" name="direction" onchange="calculateTransactionFee()">
                                   <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
                                   <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
                                 </select>
@@ -94,40 +94,211 @@
                         <div class="field-body">
                           <div class="field">
                             <p>
-                              <input class="input is-medium" type="number" name="swapAmount" required min="100000" placeholder="⚡ Swap Amount (sats)">
+                              <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
                             </p>
                           </div>
                         </div>
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
-                          <label class="label"></label>
+                          <label id="resultLabel" class="label">Fee Estimate</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <label class="checkbox is-large">
-                                <input type="checkbox" name="forced">
-                                <strong>&nbsp&nbspForce</strong>
-                              </label>
-                            </div>
-                          </div>
+                          <label id="result" class="label">Please enter the Swap Amount</label>
                         </div>
                       </div>
                       <center>
+                        <table id="utxoTableBTC" style="display: none; width:100%; table-layout:fixed;">
+                          {{range .OutputsBTC}}
+                            <tr>
+                              <td id="utxoAddressBTC">{{.Address}}</td>
+                              <td id="utxoAmountBTC">{{.AmountSat}}</td>
+                            </tr>
+                          {{end}}
+                        </table>
+                        <table id="utxoTableLBTC" style="display: none; width:100%; table-layout:fixed;">
+                          {{range .OutputsLBTC}}
+                            <tr>
+                              <td id="utxoAmountLBTC">{{.Amount}}</td>
+                            </tr>
+                          {{end}}
+                        </table>
                         <input type="hidden" name="action" value="doSwap">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                         <input class="button is-large" type="submit" value="Execute Swap">
                       </center>
                     </form>
                     <script>
+                      // Function to format number with thousand separators
+                      function formatWithThousandSeparators(number) {
+                          return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                      }
+                      
                       function calculateTransactionFee() {
                         var asset = document.getElementById("asset").value;
+                        var swapAmount = Number(document.getElementById("swapAmount").value);
+                        let fee = 0;
+                        let feeRate = {{.MempoolFeeRate}}; // LBTC
+                        let title = ""; 
+                        let change = 25000;
+
                         if (asset == "btc") {
+                          feeRate = {{.BtcFeeRate}};
                           document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
                         } else {
+                          // Liquid
                           document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
+                        }   
+
+                        // amount cannot be blank
+                        if (swapAmount < 100000) {
+                          document.getElementById('result').innerText = "Please enter the Swap Amount";
+                          return;
                         }
+                        
+                        if (document.getElementById("direction").value == "swapIn") {
+                          title = "Assumed UTXOs:\n";
+                          if (asset == "btc") {
+                            // Check amount
+                            const maxAmount = {{.BitcoinBalance}} - {{.ReserveBTC}};
+                            if (swapAmount > maxAmount) {
+                              document.getElementById('result').innerText = "Swap-in amount cannot exceed " + formatWithThousandSeparators(maxAmount);
+                              return;
+                            }
+
+                            // Initialize total UTXO amount and UTXO counters
+                            let totalUtxoAmount = 0;
+                            let inputsP2TR = 0; // Number of P2TR inputs
+                            let inputsP2WPKH = 0; // Number of P2WPKH inputs
+                            
+                            // Get all table rows and convert NodeList to an array
+                            let tableArray = Array.from(document.querySelectorAll("#utxoTableBTC tr"));  
+
+                            // Sort the array of table rows based on UTXO amount from high to low
+                            tableArray.sort((a, b) => {
+                                let amountA = parseFloat(a.querySelector("#utxoAmountBTC").textContent);
+                                let amountB = parseFloat(b.querySelector("#utxoAmountBTC").textContent);
+                                return amountB - amountA;
+                            });
+
+                            // total amount to allocate among UTXOs 
+                            let amountToAllocate = swapAmount;
+                            
+                            // Iterate through table rows
+                            tableArray.forEach(function(row) {
+                              // Check if allocation is not finished
+                              if (amountToAllocate >= 0) {
+                                  // Reduce unallocated amount by UTXO size
+                                  const utxoAmount = parseFloat(row.querySelector("#utxoAmountBTC").textContent);
+                                  amountToAllocate -= utxoAmount;
+
+                                  // identify P2TR vs P2WPKH address
+                                  const address = row.querySelector("#utxoAddressBTC").textContent
+                                  if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+                                    // Increment P2TR UTXO count
+                                    inputsP2TR++;
+                                  } else {
+                                    // Increment P2WPKH UTXO count
+                                    inputsP2WPKH++;
+                                  }
+                                  title += "#" + formatWithThousandSeparators(inputsP2WPKH+inputsP2TR) + ": " + formatWithThousandSeparators(utxoAmount) + "\n";
+                              }
+                            });
+
+                            // calc fee
+                            let baseSize = 41 * (inputsP2TR + inputsP2WPKH);
+                            let totalSize = 41 * (inputsP2TR + inputsP2WPKH);
+                            totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH;
+                            vbyteSize = 96 + Math.ceil((3 * baseSize + totalSize) / 4);
+                            fee = vbyteSize * feeRate;
+
+                            // peerswap spends dust change as extra fee
+                            change = {{.BitcoinBalance}} - swapAmount - fee;
+                            if (change < 1000) {
+                              fee += change;
+                            }
+                          } else {
+                            // Check amount
+                            const maxAmount = {{.LiquidBalance}} - {{.ReserveLBTC}};
+                            if (swapAmount > maxAmount) {
+                              document.getElementById('result').innerText = "Swap-in amount cannot exceed " + formatWithThousandSeparators(maxAmount);
+                              return;
+                            }
+
+                            // Initialize total UTXO amount and UTXO counters
+                            let totalUtxoAmount = 0;
+                            let inputs = 0; // Number of inputs
+                            
+                            // Get all table rows and convert NodeList to an array
+                            let tableArray = Array.from(document.querySelectorAll("#utxoTableLBTC tr"));  
+
+                            // Sort the array of table rows based on UTXO amount from high to low
+                            tableArray.sort((a, b) => {
+                                let amountA = parseFloat(a.querySelector("#utxoAmountLBTC").textContent);
+                                let amountB = parseFloat(b.querySelector("#utxoAmountLBTC").textContent);
+                                return amountB - amountA;
+                            });
+
+                            // total amount to allocate among UTXOs 
+                            let amountToAllocate = swapAmount;
+                            
+                            // Iterate through table rows
+                            tableArray.forEach(function(row) {
+                              // Check if allocation is not finished
+                              if (amountToAllocate >= 0) {
+                                  // Reduce unallocated amount by UTXO size
+                                  const utxoAmount = parseFloat(row.querySelector("#utxoAmountLBTC").textContent)*100000000;
+                                  amountToAllocate -= utxoAmount;
+
+                                  // increment inputs
+                                  inputs++;
+                                  title += "#" + formatWithThousandSeparators(inputs) + ": " + formatWithThousandSeparators(utxoAmount) + "\n";
+                              }
+                            });
+
+                            // Calculate tx size assuming always two outputs
+                            vbyteSize = 2510 + (inputs-1) * 160;
+                            fee = vbyteSize * feeRate;
+
+                            // peerswap spends dust change as extra fee
+                            change = {{.LiquidBalance}} - swapAmount - fee;
+
+                            if (change < 1000) {
+                              fee += change;
+                            }
+                          } 
+                        } else {
+                          if (asset == "btc") {
+                            vbyteSize = 350; // onchain.EstimatedOpeningTxSize
+                            title = "Assumed opening transaction size 350 vB";
+                          } else {
+                            vbyteSize = 3000; // prepaid
+                            title = "Assumed opening transaction size 3000 vB";
+                          }
+                          fee = vbyteSize * feeRate;
+                        } 
+
+                        let text = "Transaction size: " + vbyteSize + " vBytes\n";
+                        text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
+                        text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
+                        
+                        if (asset == "btc" && change < 25000) {
+                          text += "\nWARNING: No reserve is left for anchor fee bumping!";
+                        } 
+
+                        document.getElementById('result').title = title;
+                        document.getElementById('resultLabel').title = title;
+                        document.getElementById('result').innerText = text;
+                      }
+
+                      let timerId;
+                      // Function to execute after a delay
+                      function delayedCalculateTransactionFee() {
+                          // Clear previous timer if it exists
+                          clearTimeout(timerId);
+
+                          // Set a new timer to execute after 300 milliseconds
+                          timerId = setTimeout(calculateTransactionFee, 300);
                       }
                     </script>
                   {{end}}
@@ -160,7 +331,7 @@ Sincerely,
                   <div class="field-body">
                     <div class="field">
                       <p>
-                        <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "1" placeholder="⚡ Keysend Amount (sats)">
+                        <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
                       </p>
                     </div>
                   </div>

@@ -1,5 +1,13 @@
 # Versions
 
+## 1.4.6
+
+- Estimate swap fees before submitting
+- LND: Fix invoice subscription reconnections 
+- Auto swap: account for MaxHtlc settings
+- Keysend: account for MinHtlc settings
+- Fix swap-out fees missing for some swaps
+
 ## 1.4.5
 
 - Add swap costs to home page

@@ -394,8 +394,8 @@ type MemPoolInfo struct {
 	UnbroadcastCount int     `json:"unbroadcastcount"`
 }
 
-// return min fee in sat/vB
-func GetMempoolMinFee() float64 {
+// return fee estimate in sat/vB
+func EstimateFee() float64 {
 	client := ElementsClient()
 	service := &Elements{client}
 	params := &[]string{}

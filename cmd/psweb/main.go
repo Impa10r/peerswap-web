@@ -33,11 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.5"
-
-	// Liquid balance to reserve in auto swaps
-	// Min is 1000, but the swap will spend it all on fee
-	swapInFeeReserve = uint64(2000)
+	version = "v1.4.6"
 )
 
 type SwapParams struct {
@@ -53,9 +49,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder      embed.FS
-	logFile        *os.File
-	latestVersion  = version
+	tplFolder     embed.FS
+	logFile       *os.File
+	latestVersion = version
+	// Bitcoin sat/vB from mempool.space
 	mempoolFeeRate = float64(0)
 	// onchain realized transaction costs
 	txFee = make(map[string]int64)
@@ -161,14 +158,11 @@ func main() {
 	// to speed up first load of home page
 	go cacheAliases()
 
-	// download and subscribe to invoices
-	go ln.CacheInvoices()
+	// LND: download and subscribe to invoices, forwards and payments
+	go ln.SubscribeAll()
 
-	// download and subscribe to forwards
-	go ln.CacheHtlcs()
-
-	// download and subscribe to payments
-	go ln.CachePayments()
+	// CLN: cache forwarding stats
+	go ln.CacheForwards()
 
 	// fetch all chain costs
 	go cacheSwapCosts()
@@ -279,6 +273,9 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	peers = res4.GetPeers()
 
+	// refresh forwarding stats
+	ln.CacheForwards()
+
 	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
 
 	//check whether to display non-PS channels or swaps
@@ -325,6 +322,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter            bool
 		MempoolFeeRate    float64
 		AutoSwapEnabled   bool
+		PeginPending      bool
 	}
 
 	data := Page{
@@ -341,6 +339,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
+		PeginPending:      config.Config.PeginTxId != "",
 	}
 
 	// executing template named "homepage"
@@ -474,6 +473,13 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var sumRemote uint64
 	var stats []*ln.ForwardingStats
 	var channelInfo []*ln.ChanneInfo
+	var keysendSats = uint64(1)
+
+	var utxosBTC []ln.UTXO
+	ln.ListUnspent(cl, &utxosBTC, 1)
+
+	var utxosLBTC []liquid.UTXO
+	liquid.ListUnspent(&utxosLBTC)
 
 	for _, ch := range peer.Channels {
 		stat := ln.GetForwardingStats(ch.ChannelId)
@@ -487,6 +493,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 		sumLocal += ch.GetLocalBalance()
 		sumRemote += ch.GetRemoteBalance()
+
+		// should not be less than both Min HTLC setting
+		keysendSats = max(keysendSats, msatToSatUp(info.PeerMinHtlcMsat))
+		keysendSats = max(keysendSats, msatToSatUp(info.OurMinHtlcMsat))
 	}
 
 	//check for error errorMessage to display
@@ -526,17 +536,25 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SenderInFeePPM    int64
 		ReceiverInFeePPM  int64
 		ReceiverOutFeePPM int64
+		KeysendSats       uint64
+		OutputsBTC        *[]ln.UTXO
+		OutputsLBTC       *[]liquid.UTXO
+		ReserveLBTC       uint64
+		ReserveBTC        uint64
 	}
 
-	feeRate := liquid.GetMempoolMinFee()
+	feeRate := liquid.EstimateFee()
 	if !psPeer {
 		feeRate = mempoolFeeRate
 	}
 
+	// better be conservative
+	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
+
 	data := Page{
 		ErrorMessage:      errorMessage,
 		PopUpMessage:      "",
-		BtcFeeRate:        mempoolFeeRate,
+		BtcFeeRate:        bitcoinFeeRate,
 		MempoolFeeRate:    feeRate,
 		ColorScheme:       config.Config.ColorScheme,
 		Peer:              peer,
@@ -561,6 +579,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SenderInFeePPM:    senderInFeePPM,
 		ReceiverInFeePPM:  receiverInFeePPM,
 		ReceiverOutFeePPM: receiverOutFeePPM,
+		KeysendSats:       keysendSats,
+		OutputsBTC:        &utxosBTC,
+		OutputsLBTC:       &utxosLBTC,
+		ReserveLBTC:       ln.SwapFeeReserveLBTC,
+		ReserveBTC:        ln.SwapFeeReserveBTC,
 	}
 
 	// executing template named "peer"
@@ -872,7 +895,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		ErrorMessage:            errorMessage,
 		PopUpMessage:            popupMessage,
-		MempoolFeeRate:          liquid.GetMempoolMinFee(),
+		MempoolFeeRate:          liquid.EstimateFee(),
 		ColorScheme:             config.Config.ColorScheme,
 		LiquidAddress:           addr,
 		LiquidBalance:           satAmount,
@@ -1090,9 +1113,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			var id string
 			switch r.FormValue("direction") {
 			case "swapIn":
-				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
 			case "swapOut":
-				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), r.FormValue("force") == "on")
+				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
 			}
 
 			if err != nil {
@@ -1474,11 +1497,6 @@ func onTimer() {
 	// Check if pegin can be claimed
 	go checkPegin()
 
-	// cache forwards history for CLN
-	go func() {
-		ln.CacheForwards()
-	}()
-
 	// check for updates
 	t := internet.GetLatestTag()
 	if t != "" {
@@ -1647,7 +1665,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Duration:         formattedDuration,
 		FeeRate:          config.Config.PeginFeeRate,
 		MempoolFeeRate:   mempoolFeeRate,
-		LiquidFeeRate:    liquid.GetMempoolMinFee(),
+		LiquidFeeRate:    liquid.EstimateFee(),
 		SuggestedFeeRate: fee,
 		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
 		CanBump:          canBump,
@@ -2018,6 +2036,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			if flowText == "" {
 				flowText = "\nNo flows"
+			}
+
+			if stats.FeeSat > 0 {
+				flowText += "\nRevenue: +" + formatWithThousandSeparators(stats.FeeSat)
+			}
+
+			if stats.PaidCost > 0 {
+				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
 			}
 
 			tooltip += flowText
@@ -2498,7 +2524,8 @@ func cacheAliases() {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *SwapParams) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - swapInFeeReserve
+	// extra 1000 to avoid no-change tx spending all on fees
+	minAmount := config.Config.AutoSwapThresholdAmount - ln.SwapFeeReserveLBTC - 1000
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -2528,19 +2555,35 @@ func findSwapInCandidate(candidate *SwapParams) error {
 		}
 	}
 
+	cl, clean, err := ln.GetClient()
+	if err != nil {
+		return err
+	}
+	defer clean()
+
 	for _, peer := range peers {
-		// ignore peer if Lighting swaps disabled
+		// ignore peer with Liquid swaps disabled
 		if !peer.SwapsAllowed || !stringIsInSlice("lbtc", peer.SupportedAssets) {
 			continue
 		}
 		for _, channel := range peer.Channels {
-			// the potential swap amount to bring balance to target
-			swapAmount := (channel.LocalBalance + channel.RemoteBalance) * config.Config.AutoSwapTargetPct / 100
-			if swapAmount > channel.LocalBalance {
-				swapAmount -= channel.LocalBalance
-			} else {
-				swapAmount = 0
+			chanInfo := ln.GetChannelInfo(cl, channel.ChannelId, peer.NodeId)
+			// find the potential swap amount to bring balance to target
+			targetBalance := chanInfo.Capacity * config.Config.AutoSwapTargetPct / 100
+
+			// limit target to Remote - reserve
+			reserve := chanInfo.Capacity / 100
+			targetBalance = min(targetBalance, chanInfo.Capacity-reserve)
+
+			if targetBalance < channel.LocalBalance {
+				continue
 			}
+
+			swapAmount := targetBalance - channel.LocalBalance
+
+			// limit to max HTLC setting
+			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlcMsat/1000)
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlcMsat/1000)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
@@ -2558,7 +2601,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 				}
 
 				// aim to maximize accumulated PPM
-				// if ppm ties, choose the candidate with larger RemoteBalance
+				// if ppm ties, choose the candidate with larger potential swap amount
 				if ppm > minPPM || ppm == minPPM && swapAmount > candidate.Amount {
 					// set the candidate's PPM as the new target to beat
 					minPPM = ppm
@@ -2619,10 +2662,8 @@ func executeAutoSwap() {
 		return
 	}
 
-	// swap in cannot be larger than this
-	if amount > satAmount-swapInFeeReserve {
-		amount = satAmount - swapInFeeReserve
-	}
+	// extra 1000 reserve to avoid no-change tx spending all on fees
+	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC-1000)
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

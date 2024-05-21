@@ -24,8 +24,10 @@ import (
 )
 
 const (
-	Implementation = "CLN"
-	fileRPC        = "lightning-rpc"
+	Implementation     = "CLN"
+	fileRPC            = "lightning-rpc"
+	SwapFeeReserveLBTC = uint64(000)
+	SwapFeeReserveBTC  = uint64(2000)
 )
 
 type Forwarding struct {
@@ -371,6 +373,7 @@ type ListForwardsRequest struct {
 	Status string `json:"status"`
 	Index  string `json:"index"`
 	Start  uint64 `json:"start"`
+	Limit  uint64 `json:"limit"`
 }
 
 func (r *ListForwardsRequest) Name() string {
@@ -390,28 +393,34 @@ func CacheForwards() {
 		Forwards []Forwarding `json:"forwards"`
 	}
 
-	start := uint64(0)
-	if forwardsLastIndex > 0 {
-		// continue from the last index + 1
-		start = forwardsLastIndex + 1
+	totalForwards := uint64(0)
+
+	for {
+		// get incremental history
+		client.Request(&ListForwardsRequest{
+			Status: "settled",
+			Index:  "created",
+			Start:  forwardsLastIndex,
+			Limit:  1000,
+		}, &newForwards)
+
+		n := len(newForwards.Forwards)
+		if n > 0 {
+			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
+			for _, f := range newForwards.Forwards {
+				chIn := ConvertClnToLndChannelId(f.InChannel)
+				chOut := ConvertClnToLndChannelId(f.OutChannel)
+				forwardsIn[chIn] = append(forwardsIn[chIn], f)
+				forwardsOut[chOut] = append(forwardsOut[chOut], f)
+			}
+			totalForwards += uint64(n)
+		} else {
+			break
+		}
 	}
 
-	// get incremental history
-	client.Request(&ListForwardsRequest{
-		Status: "settled",
-		Index:  "created",
-		Start:  start,
-	}, &newForwards)
-
-	n := len(newForwards.Forwards)
-	if n > 0 {
-		forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex
-		for _, f := range newForwards.Forwards {
-			chIn := ConvertClnToLndChannelId(f.InChannel)
-			chOut := ConvertClnToLndChannelId(f.OutChannel)
-			forwardsIn[chIn] = append(forwardsIn[chIn], f)
-			forwardsOut[chOut] = append(forwardsOut[chOut], f)
-		}
+	if totalForwards > 0 {
+		log.Printf("Cached %d forwards", totalForwards)
 	}
 }
 
@@ -585,98 +594,12 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 
 	client, clean, err := GetClient()
 	if err != nil {
+		log.Println("GetClient:", err)
 		return &result
 	}
 	defer clean()
 
-	var harnessNetParams = &chaincfg.TestNet3Params
-	if config.Config.Chain == "mainnet" {
-		harnessNetParams = &chaincfg.MainNetParams
-	}
-
-	var res ListHtlcsResponse
-
-	err = client.Request(&ListHtlcsRequest{
-		ChannelId: channelId,
-	}, &res)
-	if err != nil {
-		log.Println("ListHtlcsRequest:", err)
-	}
-
-	for _, htlc := range res.HTLCs {
-		switch htlc.State {
-		case "SENT_REMOVE_ACK_REVOCATION":
-			// direction in, look for invoices
-			var inv ListInvoicesResponse
-			err := client.Request(&ListInvoicesRequest{
-				PaymentHash: htlc.PaymentHash,
-			}, &inv)
-			if err != nil {
-				continue
-			}
-			if len(inv.Invoices) != 1 {
-				continue
-			}
-			if inv.Invoices[0].Status == "paid" {
-				continue
-			}
-			if inv.Invoices[0].PaidAt > timeStamp {
-				if len(inv.Invoices[0].Label) > 7 {
-					if inv.Invoices[0].Label[:8] == "peerswap" {
-						// find swap id
-						parts := strings.Split(inv.Invoices[0].Label, " ")
-						if parts[2] == "fee" && len(parts[4]) > 0 {
-							// save rebate payment
-							SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
-						}
-					} else {
-						invoicedMsat += htlc.AmountMsat
-					}
-				}
-			}
-
-		case "RCVD_REMOVE_ACK_REVOCATION":
-			// direction out, look for payments
-			var pmt ListSendPaysResponse
-			err := client.Request(&ListSendPaysRequest{
-				PaymentHash: htlc.PaymentHash,
-			}, &pmt)
-			if err != nil {
-				continue
-			}
-			if len(pmt.Payments) != 1 {
-				continue
-			}
-			if pmt.Payments[0].Status != "complete" {
-				continue
-			}
-			if pmt.Payments[0].CompletedAt > timeStamp {
-				if pmt.Payments[0].Bolt11 != "" {
-					// Decode the payment request
-					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
-					if err == nil {
-						if invoice.Description != nil {
-							if len(*invoice.Description) > 7 {
-								if (*invoice.Description)[:8] == "peerswap" {
-									// find swap id
-									parts := strings.Split(*invoice.Description, " ")
-									if parts[2] == "fee" && len(parts[4]) > 0 {
-										// save rebate payment
-										SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
-									}
-									// skip peerswap-related payments
-									continue
-								}
-							}
-						}
-					}
-				}
-				paidOutMsat += htlc.AmountMsat
-				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
-				costMsat += fee
-			}
-		}
-	}
+	invoicedMsat, paidOutMsat, costMsat = fetchPaymentsStats(client, timeStamp, channelId)
 
 	timeStampF := float64(timeStamp)
 
@@ -734,6 +657,14 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 		if channelMap["short_channel_id"].(string) == channelId {
 			info.FeeBase = uint64(channelMap["fee_base_msat"].(float64))
 			info.FeeRate = uint64(channelMap["fee_proportional_millionths"].(float64))
+			updates := channelMap["updates"].(map[string]interface{})
+			local := updates["local"].(map[string]interface{})
+			remote := updates["remote"].(map[string]interface{})
+			info.PeerMinHtlcMsat = uint64(remote["htlc_minimum_msat"].(float64))
+			info.PeerMaxHtlcMsat = uint64(remote["htlc_maximum_msat"].(float64))
+			info.OurMaxHtlcMsat = uint64(local["htlc_maximum_msat"].(float64))
+			info.OurMinHtlcMsat = uint64(local["htlc_minimum_msat"].(float64))
+			info.Capacity = uint64(channelMap["total_msat"].(float64) / 1000)
 			break
 		}
 	}
@@ -803,7 +734,7 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 
 		for _, channel := range clnPeer.Channels {
 			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-				ChannelId:     ConvertClnToLndChannelId(channel.ChannelId),
+				ChannelId:     ConvertClnToLndChannelId(channel.ShortChannelId),
 				LocalBalance:  channel.SpendableMilliSatoshi / 1000,
 				RemoteBalance: channel.ReceivableMilliSatoshi / 1000,
 				Active:        clnPeer.Connected && channel.State == "CHANNELD_NORMAL",
@@ -900,14 +831,141 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-func CacheHtlcs() {
-	// not implemented
+// scans all channels to get peerswap lightning fees cached
+func SubscribeAll() {
+	client, clean, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer clean()
+
+	peers, err := ListPeers(client, "", nil)
+	if err != nil {
+		return
+	}
+
+	// last 6 months
+	timestamp := uint64(time.Now().AddDate(0, -6, 0).Unix())
+
+	for _, peer := range peers.Peers {
+		for _, channel := range peer.Channels {
+			channelId := ConvertLndToClnChannelId(channel.ChannelId)
+			fetchPaymentsStats(client, timestamp, channelId)
+		}
+	}
 }
 
-func CacheInvoices() {
-	// not implemented
+// get invoicedMsat, paidOutMsat, costMsat
+func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelId string) (uint64, uint64, uint64) {
+	var harnessNetParams = &chaincfg.TestNet3Params
+	if config.Config.Chain == "mainnet" {
+		harnessNetParams = &chaincfg.MainNetParams
+	}
+
+	var (
+		res          ListHtlcsResponse
+		invoicedMsat uint64
+		paidOutMsat  uint64
+		costMsat     uint64
+	)
+
+	err := client.Request(&ListHtlcsRequest{
+		ChannelId: channelId,
+	}, &res)
+	if err != nil {
+		log.Println("ListHtlcsRequest:", err)
+	}
+
+	for _, htlc := range res.HTLCs {
+		switch htlc.State {
+		case "SENT_REMOVE_ACK_REVOCATION":
+			// direction in, look for invoices
+			var inv ListInvoicesResponse
+			err := client.Request(&ListInvoicesRequest{
+				PaymentHash: htlc.PaymentHash,
+			}, &inv)
+			if err != nil {
+				continue
+			}
+			if len(inv.Invoices) != 1 {
+				continue
+			}
+			if inv.Invoices[0].Status == "paid" {
+				continue
+			}
+			if inv.Invoices[0].PaidAt > timeStamp {
+				if len(inv.Invoices[0].Label) > 7 {
+					if inv.Invoices[0].Label[:8] == "peerswap" {
+						// find swap id
+						parts := strings.Split(inv.Invoices[0].Label, " ")
+						if parts[2] == "fee" && len(parts[4]) > 0 {
+							// save rebate payment
+							SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
+						}
+					} else {
+						invoicedMsat += htlc.AmountMsat
+					}
+				}
+			}
+
+		case "RCVD_REMOVE_ACK_REVOCATION":
+			// direction out, look for payments
+			var pmt ListSendPaysResponse
+			err := client.Request(&ListSendPaysRequest{
+				PaymentHash: htlc.PaymentHash,
+			}, &pmt)
+			if err != nil {
+				continue
+			}
+			if len(pmt.Payments) != 1 {
+				continue
+			}
+			if pmt.Payments[0].Status != "complete" {
+				continue
+			}
+			if pmt.Payments[0].CompletedAt > timeStamp {
+				if pmt.Payments[0].Bolt11 != "" {
+					// Decode the payment request
+					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
+					if err == nil {
+						if invoice.Description != nil {
+							if len(*invoice.Description) > 7 {
+								if (*invoice.Description)[:8] == "peerswap" {
+									// find swap id
+									parts := strings.Split(*invoice.Description, " ")
+									if parts[2] == "fee" && len(parts[4]) > 0 {
+										// save rebate payment
+										SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
+									}
+									// skip peerswap-related payments
+									continue
+								}
+							}
+						}
+					}
+				}
+				paidOutMsat += htlc.AmountMsat
+				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
+				costMsat += fee
+			}
+		}
+	}
+
+	return invoicedMsat, paidOutMsat, costMsat
 }
 
-func CachePayments() {
-	// not implemented
+// Estimate sat/vB fee
+func EstimateFee() float64 {
+	client, clean, err := GetClient()
+	if err != nil {
+		return 0
+	}
+	defer clean()
+
+	res, err := client.FeeRates(glightning.PerKb)
+	if err != nil {
+		return 0
+	}
+
+	return float64(res.Details.Urgent) / 1000
 }

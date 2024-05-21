@@ -55,11 +55,16 @@ type ChannelStats struct {
 }
 
 type ChanneInfo struct {
-	LocalBalance  uint64
-	RemoteBalance uint64
-	FeeRate       uint64
-	FeeBase       uint64
-	Active        bool
+	LocalBalance    uint64
+	RemoteBalance   uint64
+	FeeRate         uint64
+	FeeBase         uint64
+	Active          bool
+	OurMaxHtlcMsat  uint64
+	OurMinHtlcMsat  uint64
+	PeerMaxHtlcMsat uint64
+	PeerMinHtlcMsat uint64
+	Capacity        uint64
 }
 
 // lighting payments from swap out initiator to receiver

@@ -39,7 +39,12 @@ import (
 	"gopkg.in/macaroon.v2"
 )
 
-const Implementation = "LND"
+const (
+	Implementation = "LND"
+	// Liquid balance to reserve in auto swap-ins
+	SwapFeeReserveLBTC = uint64(1000)
+	SwapFeeReserveBTC  = uint64(2000)
+)
 
 type InflightHTLC struct {
 	OutgoingChannelId uint64
@@ -674,59 +679,6 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-// cache htlc history per channel, then subscribe to updates
-func CacheHtlcs() {
-	ctx := context.Background()
-	conn, err := lndConnection()
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	client := lnrpc.NewLightningClient(conn)
-
-	// initial download forwards
-	downloadForwards(client)
-
-	// subscribe to htlc events
-	routerClient := routerrpc.NewRouterClient(conn)
-	for {
-		if err := subscribeForwards(ctx, routerClient); err != nil {
-			log.Println("Forwards subscription error:", err)
-			time.Sleep(60 * time.Second)
-			// incremental download from last timestamp + 1
-			downloadForwards(client)
-		}
-	}
-}
-
-// cache payments history per channel, then subscribe to updates
-func CachePayments() {
-	ctx := context.Background()
-	conn, err := lndConnection()
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	client := lnrpc.NewLightningClient(conn)
-
-	// initial download payments
-	downloadPayments(client)
-
-	// subscribe to htlc events
-	routerClient := routerrpc.NewRouterClient(conn)
-	for {
-		if err := subscribePayments(ctx, routerClient); err != nil {
-			log.Println("Payments subscription error:", err)
-			time.Sleep(60 * time.Second)
-			// incremental download from last timestamp + 1
-			downloadPayments(client)
-		}
-	}
-
-}
-
 func downloadForwards(client lnrpc.LightningClient) {
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
@@ -739,6 +691,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 	// download forwards
 	offset := uint32(0)
+	totalForwards := uint64(0)
 	for {
 		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
 			StartTime:       start,
@@ -747,6 +700,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
+			log.Println("ForwardingHistory:", err)
 			return
 		}
 
@@ -757,6 +711,8 @@ func downloadForwards(client lnrpc.LightningClient) {
 		}
 
 		n := len(res.ForwardingEvents)
+		totalForwards += uint64(n)
+
 		if n > 0 {
 			// store the last timestamp
 			lastforwardCreationTs = res.ForwardingEvents[n-1].TimestampNs / 1_000_000_000
@@ -767,6 +723,10 @@ func downloadForwards(client lnrpc.LightningClient) {
 		}
 		// next pull start from the next index
 		offset = res.LastOffsetIndex
+	}
+
+	if totalForwards > 0 {
+		log.Printf("Cached %d forwards", totalForwards)
 	}
 }
 
@@ -781,35 +741,43 @@ func downloadPayments(client lnrpc.LightningClient) {
 	}
 
 	offset := uint64(0)
+	totalPayments := uint64(0)
 	for {
 		res, err := client.ListPayments(context.Background(), &lnrpc.ListPaymentsRequest{
 			CreationDateStart: start,
 			IncludeIncomplete: false,
 			Reversed:          false,
 			IndexOffset:       offset,
-			MaxPayments:       50000,
+			MaxPayments:       100, // labels can be long
 		})
 		if err != nil {
+			log.Println("ListPayments:", err)
 			return
 		}
 
-		// only append settled ones
+		// will only append settled ones
 		for _, payment := range res.Payments {
 			appendPayment(payment)
 		}
 
 		n := len(res.Payments)
+		totalPayments += uint64(n)
+
 		if n > 0 {
 			// store the last timestamp
 			lastPaymentCreationTs = res.Payments[n-1].CreationTimeNs / 1_000_000_000
 		}
-		if n < 50000 {
+		if n < 100 {
 			// all events retrieved
 			break
 		}
 
 		// next pull start from the next index
 		offset = res.LastIndexOffset
+	}
+
+	if totalPayments > 0 {
+		log.Printf("Cached %d payments", totalPayments)
 	}
 }
 
@@ -969,53 +937,93 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 	}
 }
 
-// cache all invoices from lnd
-func CacheInvoices() {
-	// refresh history
-	client, cleanup, err := GetClient()
-	if err != nil {
-		return
-	}
-	defer cleanup()
-
-	// only go back 6 months for itinial download
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
-	offset := uint64(0)
+// cache all and subscribe to lnd
+func SubscribeAll() {
+	// loop forever until connected
 	for {
-		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
-			CreationDateStart: start,
-			Reversed:          false,
-			IndexOffset:       offset,
-			NumMaxInvoices:    50000,
-		})
+		conn, err := lndConnection()
 		if err != nil {
-			return
+			continue
+		}
+		defer conn.Close()
+
+		client := lnrpc.NewLightningClient(conn)
+		ctx := context.Background()
+
+		// only go back 6 months for itinial download
+		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+		offset := uint64(0)
+		totalInvoices := uint64(0)
+
+		for {
+			res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
+				CreationDateStart: start,
+				Reversed:          false,
+				IndexOffset:       offset,
+				NumMaxInvoices:    100, // bolt11 fields can be long
+			})
+			if err != nil {
+				log.Println("ListInvoices:", err)
+				return
+			}
+
+			for _, invoice := range res.Invoices {
+				appendInvoice(invoice)
+			}
+
+			n := len(res.Invoices)
+			totalInvoices += uint64(n)
+
+			if n > 0 {
+				// settle index for subscription
+				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+			}
+			if n < 100 {
+				// all invoices retrieved
+				break
+			}
+
+			// next pull start from the next index
+			offset = res.LastIndexOffset
 		}
 
-		for _, invoice := range res.Invoices {
-			appendInvoice(invoice)
+		if totalInvoices > 0 {
+			log.Printf("Cached %d invoices", totalInvoices)
 		}
 
-		n := len(res.Invoices)
-		if n > 0 {
-			// global settle index for subscription
-			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
-		}
-		if n < 50000 {
-			// all invoices retrieved
-			break
-		}
+		routerClient := routerrpc.NewRouterClient(conn)
 
-		// next pull start from the next index
-		offset = res.LastIndexOffset
-	}
+		go func() {
+			// initial or incremental download forwards
+			downloadForwards(client)
+			// subscribe to Forwards
+			for {
+				if err := subscribeForwards(ctx, routerClient); err != nil {
+					log.Println("Forwards subscription error:", err)
+					time.Sleep(60 * time.Second)
+				}
+			}
+		}()
 
-	// subscribe
-	ctx := context.Background()
-	for {
-		if err := subscribeInvoices(ctx, client); err != nil {
-			log.Println("Invoices subscription error:", err)
-			time.Sleep(5 * time.Second)
+		go func() {
+			// initial or incremental download payments
+			downloadPayments(client)
+
+			// subscribe to Payments
+			for {
+				if err := subscribePayments(ctx, routerClient); err != nil {
+					log.Println("Payments subscription error:", err)
+					time.Sleep(60 * time.Second)
+				}
+			}
+		}()
+
+		// subscribe to Invoices
+		for {
+			if err := subscribeInvoices(ctx, client); err != nil {
+				log.Println("Invoices subscription error:", err)
+				time.Sleep(60 * time.Second)
+			}
 		}
 	}
 }
@@ -1027,18 +1035,20 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 	}
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
-		if len(invoice.Memo) > 7 && invoice.Memo[:8] == "peerswap" {
-			// find swap id
-			parts := strings.Split(invoice.Memo, " ")
-			if parts[2] == "fee" && len(parts[4]) > 0 {
-				// save rebate payment
-				SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
-			}
-		} else {
-			// skip peerswap-related
-			for _, htlc := range invoice.Htlcs {
-				if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
-					invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+		if len(invoice.Memo) > 7 {
+			if invoice.Memo[:8] == "peerswap" {
+				// find swap id
+				parts := strings.Split(invoice.Memo, " ")
+				if parts[2] == "fee" && len(parts[4]) > 0 {
+					// save rebate payment
+					SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
+				}
+			} else {
+				// skip peerswap-related
+				for _, htlc := range invoice.Htlcs {
+					if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
+						invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+					}
 				}
 			}
 		}
@@ -1144,10 +1154,10 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 }
 
 // get fees on the channel
-func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId string) *ChanneInfo {
+func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId string) *ChanneInfo {
 	info := new(ChanneInfo)
 
-	res2, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
 	})
 	if err != nil {
@@ -1155,14 +1165,24 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, nodeId strin
 		return info
 	}
 
-	policy := res2.Node1Policy
-	if res2.Node1Pub == nodeId {
+	policy := r.Node1Policy
+	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
-		policy = res2.Node2Policy
+		policy = r.Node2Policy
+		info.PeerMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
+		info.PeerMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.OurMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
+		info.OurMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
+	} else {
+		info.PeerMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
+		info.PeerMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.OurMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
+		info.OurMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
 	}
 
 	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
 	info.FeeBase = uint64(policy.GetFeeBaseMsat())
+	info.Capacity = uint64(r.Capacity)
 
 	return info
 }
@@ -1376,4 +1396,23 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 
 func CacheForwards() {
 	// not implemented
+}
+
+// Estimate sat/vB fee
+func EstimateFee() float64 {
+	conn, err := lndConnection()
+	if err != nil {
+		return 0
+	}
+	cl := walletrpc.NewWalletKitClient(conn)
+
+	ctx := context.Background()
+	req := &walletrpc.EstimateFeeRequest{ConfTarget: 2}
+	res, err := cl.EstimateFee(ctx, req)
+
+	if err != nil {
+		return 0
+	}
+
+	return float64(res.SatPerKw / 250)
 }
