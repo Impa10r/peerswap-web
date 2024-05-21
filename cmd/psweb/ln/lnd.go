@@ -747,7 +747,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			return
 		}
 
-		// only append settled ones
+		// will only append settled ones
 		for _, payment := range res.Payments {
 			appendPayment(payment)
 		}
@@ -788,6 +788,8 @@ func appendPayment(payment *lnrpc.Payment) {
 							parts := strings.Split(*invoice.Description, " ")
 							if parts[2] == "fee" && len(parts[4]) > 0 {
 								// save rebate payment
+								log.Printf("%s %d", parts[4], int64(payment.ValueMsat)/1000)
+
 								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
 							}
 							// skip peerswap-related payments
@@ -1017,18 +1019,20 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 	}
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
-		if len(invoice.Memo) > 7 && invoice.Memo[:8] == "peerswap" {
-			// find swap id
-			parts := strings.Split(invoice.Memo, " ")
-			if parts[2] == "fee" && len(parts[4]) > 0 {
-				// save rebate payment
-				SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
-			}
-		} else {
-			// skip peerswap-related
-			for _, htlc := range invoice.Htlcs {
-				if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
-					invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+		if len(invoice.Memo) > 7 {
+			if invoice.Memo[:8] == "peerswap" {
+				// find swap id
+				parts := strings.Split(invoice.Memo, " ")
+				if parts[2] == "fee" && len(parts[4]) > 0 {
+					// save rebate payment
+					SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
+				}
+			} else {
+				// skip peerswap-related
+				for _, htlc := range invoice.Htlcs {
+					if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
+						invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+					}
 				}
 			}
 		}
