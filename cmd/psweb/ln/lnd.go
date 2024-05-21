@@ -1169,19 +1169,20 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
-		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc()) / 1000
-		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc()) / 1000
+		info.PeerMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
+		info.PeerMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.OurMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
+		info.OurMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
 	} else {
-		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = uint64(r.GetNode2Policy().GetMinHtlc()) / 1000
-		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = uint64(r.GetNode1Policy().GetMinHtlc()) / 1000
+		info.PeerMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
+		info.PeerMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.OurMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
+		info.OurMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
 	}
 
 	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
 	info.FeeBase = uint64(policy.GetFeeBaseMsat())
+	info.Capacity = uint64(r.Capacity)
 
 	return info
 }

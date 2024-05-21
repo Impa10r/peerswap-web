@@ -474,6 +474,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var channelInfo []*ln.ChanneInfo
 	var keysendSats = uint64(1)
 
+	var utxos []ln.UTXO
+	ln.ListUnspent(cl, &utxos, 1)
+
 	for _, ch := range peer.Channels {
 		stat := ln.GetForwardingStats(ch.ChannelId)
 		stats = append(stats, stat)
@@ -488,9 +491,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		sumRemote += ch.GetRemoteBalance()
 
 		// should not be less than both Min HTLC setting
-		keysendSats = max(keysendSats, info.PeerMinHtlc)
-		keysendSats = max(keysendSats, info.OurMinHtlc)
-
+		keysendSats = max(keysendSats, msatToSatUp(info.PeerMinHtlcMsat))
+		keysendSats = max(keysendSats, msatToSatUp(info.OurMinHtlcMsat))
 	}
 
 	//check for error errorMessage to display
@@ -531,6 +533,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ReceiverInFeePPM  int64
 		ReceiverOutFeePPM int64
 		KeysendSats       uint64
+		Outputs           *[]ln.UTXO
 	}
 
 	feeRate := liquid.EstimateFee()
@@ -572,6 +575,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ReceiverInFeePPM:  receiverInFeePPM,
 		ReceiverOutFeePPM: receiverOutFeePPM,
 		KeysendSats:       keysendSats,
+		Outputs:           &utxos,
 	}
 
 	// executing template named "peer"
@@ -2026,6 +2030,14 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 				flowText = "\nNo flows"
 			}
 
+			if stats.FeeSat > 0 {
+				flowText += "\nRevenue: +" + formatWithThousandSeparators(stats.FeeSat)
+			}
+
+			if stats.PaidCost > 0 {
+				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+			}
+
 			tooltip += flowText
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)
@@ -2546,18 +2558,23 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			continue
 		}
 		for _, channel := range peer.Channels {
+			chanInfo := ln.GetChannelInfo(cl, channel.ChannelId, peer.NodeId)
 			// find the potential swap amount to bring balance to target
-			targetBalance := (channel.LocalBalance + channel.RemoteBalance) * config.Config.AutoSwapTargetPct / 100
+			targetBalance := chanInfo.Capacity * config.Config.AutoSwapTargetPct / 100
+
+			// limit target to Remote - reserve
+			reserve := chanInfo.Capacity / 100
+			targetBalance = min(targetBalance, chanInfo.Capacity-reserve)
+
 			if targetBalance < channel.LocalBalance {
 				continue
 			}
-			swapAmount := channel.LocalBalance - targetBalance
 
-			chanInfo := ln.GetChannelInfo(cl, channel.ChannelId, peer.NodeId)
+			swapAmount := targetBalance - channel.LocalBalance
 
 			// limit to max HTLC setting
-			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc)
-			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc)
+			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlcMsat/1000)
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlcMsat/1000)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
@@ -2637,9 +2654,7 @@ func executeAutoSwap() {
 	}
 
 	// swap in cannot be larger than this
-	if amount > satAmount-ln.SwapFeeReserve {
-		amount = satAmount - ln.SwapFeeReserve
-	}
+	amount = min(amount, satAmount-ln.SwapFeeReserve)
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

@@ -374,6 +374,7 @@ type ListForwardsRequest struct {
 	Status string `json:"status"`
 	Index  string `json:"index"`
 	Start  uint64 `json:"start"`
+	Limit  uint64 `json:"limit"`
 }
 
 func (r *ListForwardsRequest) Name() string {
@@ -393,28 +394,34 @@ func CacheForwards() {
 		Forwards []Forwarding `json:"forwards"`
 	}
 
-	start := uint64(0)
-	if forwardsLastIndex > 0 {
-		// continue from the last index + 1
-		start = forwardsLastIndex + 1
+	totalForwards := uint64(0)
+
+	for {
+		// get incremental history
+		client.Request(&ListForwardsRequest{
+			Status: "settled",
+			Index:  "created",
+			Start:  forwardsLastIndex,
+			Limit:  1000,
+		}, &newForwards)
+
+		n := len(newForwards.Forwards)
+		if n > 0 {
+			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
+			for _, f := range newForwards.Forwards {
+				chIn := ConvertClnToLndChannelId(f.InChannel)
+				chOut := ConvertClnToLndChannelId(f.OutChannel)
+				forwardsIn[chIn] = append(forwardsIn[chIn], f)
+				forwardsOut[chOut] = append(forwardsOut[chOut], f)
+			}
+			totalForwards += uint64(n)
+		} else {
+			break
+		}
 	}
 
-	// get incremental history
-	client.Request(&ListForwardsRequest{
-		Status: "settled",
-		Index:  "created",
-		Start:  start,
-	}, &newForwards)
-
-	n := len(newForwards.Forwards)
-	if n > 0 {
-		forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex
-		for _, f := range newForwards.Forwards {
-			chIn := ConvertClnToLndChannelId(f.InChannel)
-			chOut := ConvertClnToLndChannelId(f.OutChannel)
-			forwardsIn[chIn] = append(forwardsIn[chIn], f)
-			forwardsOut[chOut] = append(forwardsOut[chOut], f)
-		}
+	if totalForwards > 0 {
+		log.Printf("Cached %d forwards", totalForwards)
 	}
 }
 
@@ -651,6 +658,14 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 		if channelMap["short_channel_id"].(string) == channelId {
 			info.FeeBase = uint64(channelMap["fee_base_msat"].(float64))
 			info.FeeRate = uint64(channelMap["fee_proportional_millionths"].(float64))
+			updates := channelMap["updates"].(map[string]interface{})
+			local := updates["local"].(map[string]interface{})
+			remote := updates["remote"].(map[string]interface{})
+			info.PeerMinHtlcMsat = uint64(remote["htlc_minimum_msat"].(float64))
+			info.PeerMaxHtlcMsat = uint64(remote["htlc_maximum_msat"].(float64))
+			info.OurMaxHtlcMsat = uint64(local["htlc_maximum_msat"].(float64))
+			info.OurMinHtlcMsat = uint64(local["htlc_minimum_msat"].(float64))
+			info.Capacity = uint64(channelMap["total_msat"].(float64) / 1000)
 			break
 		}
 	}

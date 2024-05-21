@@ -108,6 +108,14 @@
                         </div>
                       </div>
                       <center>
+                        <table id="utxoTable" style="display: none; width:100%; table-layout:fixed;">
+                          {{range .Outputs}}
+                            <tr>
+                              <td id="utxoAddress">{{.Address}}</td>
+                              <td id="utxoAmount">{{.AmountSat}}</td>
+                            </tr>
+                          {{end}}
+                        </table>
                         <input type="hidden" name="action" value="doSwap">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                         <input class="button is-large" type="submit" value="Execute Swap">
@@ -130,12 +138,55 @@
                         }
 
                         let feeRate = {{.MempoolFeeRate}}; // LBTC
-                        let vbyteSize = 2590; // LBTC swap-in assumption 2 UTXOs
+                        let vbyteSize = 2670; // LBTC swap-in assumption 2 UTXOs
                         
                         if (asset == "btc") {
-                          vbyteSize = 152.5; // BTC swap-in assumption 1 UTXO
                           feeRate = {{.BtcFeeRate}};
                           document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
+                          
+                          // Initialize total UTXO amount and UTXO counters
+                          let totalUtxoAmount = 0;
+                          let inputsP2TR = 0; // Number of P2TR inputs
+                          let inputsP2WPKH = 0; // Number of P2WPKH inputs
+                          
+                          // Get all table rows and convert NodeList to an array
+                          let tableArray = Array.from(document.querySelectorAll("#utxoTable tr"));  
+
+                          // Sort the array of table rows based on UTXO amount from high to low
+                          tableArray.sort((a, b) => {
+                              let amountA = parseFloat(a.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
+                              let amountB = parseFloat(b.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
+                              return amountB - amountA;
+                          });
+
+                          // total amount to allocate among UTXOs 
+                          let amountToAllocate = swapAmount;
+
+                          // Iterate through table rows
+                          tableArray.forEach(function(row) {
+                            // Check if allocation is not finished
+                            if (amountToAllocate > 0) {
+                                // Reduce unallocated amount by UTXO size
+                                amountToAllocate -= parseFloat(row.querySelector("#utxoAmount").textContent);
+
+                                // identify P2TR vs P2WPKH address
+                                const address = row.querySelector("#utxoAddress").textContent
+                                if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+                                  // Increment P2TR UTXO count
+                                  inputsP2TR++;
+                                } else {
+                                  // Increment P2WPKH UTXO count
+                                  inputsP2WPKH++;
+                                }
+                            }
+                          });
+              
+                          console.log(inputsP2TR, inputsP2WPKH);
+
+                          let baseSize = 41 * (inputsP2TR + inputsP2WPKH);
+                          let totalSize = 41 * (inputsP2TR + inputsP2WPKH);
+                          totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH;
+                          vbyteSize = 96 + Math.ceil((3 * baseSize + totalSize) / 4);
                         } else {
                           // Liquid
                           document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
