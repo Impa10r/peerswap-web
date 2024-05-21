@@ -691,6 +691,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 	// download forwards
 	offset := uint32(0)
+	totalForwards := uint64(0)
 	for {
 		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
 			StartTime:       start,
@@ -720,6 +721,11 @@ func downloadForwards(client lnrpc.LightningClient) {
 		}
 		// next pull start from the next index
 		offset = res.LastOffsetIndex
+		totalForwards += uint64(n)
+	}
+
+	if totalForwards > 0 {
+		log.Printf("Cached %d forwards", totalForwards)
 	}
 }
 
@@ -734,6 +740,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 	}
 
 	offset := uint64(0)
+	totalPayments := uint64(0)
 	for {
 		res, err := client.ListPayments(context.Background(), &lnrpc.ListPaymentsRequest{
 			CreationDateStart: start,
@@ -764,6 +771,11 @@ func downloadPayments(client lnrpc.LightningClient) {
 
 		// next pull start from the next index
 		offset = res.LastIndexOffset
+		totalPayments += uint64(n)
+	}
+
+	if totalPayments > 0 {
+		log.Printf("Cached %d payments", totalPayments)
 	}
 }
 
@@ -939,6 +951,8 @@ func SubscribeAll() {
 		// only go back 6 months for itinial download
 		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 		offset := uint64(0)
+		totalInvoices := uint64(0)
+
 		for {
 			res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
 				CreationDateStart: start,
@@ -967,6 +981,11 @@ func SubscribeAll() {
 
 			// next pull start from the next index
 			offset = res.LastIndexOffset
+			totalInvoices += uint64(n)
+		}
+
+		if totalInvoices > 0 {
+			log.Printf("Cached %d invoices", totalInvoices)
 		}
 
 		routerClient := routerrpc.NewRouterClient(conn)
