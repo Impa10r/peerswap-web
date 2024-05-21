@@ -2527,18 +2527,25 @@ func findSwapInCandidate(candidate *SwapParams) error {
 	}
 
 	for _, peer := range peers {
-		// ignore peer if Lighting swaps disabled
+		// ignore peer with Liquid swaps disabled
 		if !peer.SwapsAllowed || !stringIsInSlice("lbtc", peer.SupportedAssets) {
 			continue
 		}
 		for _, channel := range peer.Channels {
-			// the potential swap amount to bring balance to target
-			swapAmount := (channel.LocalBalance + channel.RemoteBalance) * config.Config.AutoSwapTargetPct / 100
-			if swapAmount > channel.LocalBalance {
-				swapAmount -= channel.LocalBalance
-			} else {
-				swapAmount = 0
+			// find the potential swap amount to bring balance to target
+			targetBalance := (channel.LocalBalance + channel.RemoteBalance) * config.Config.AutoSwapTargetPct / 100
+			if targetBalance < channel.LocalBalance {
+				continue
 			}
+			swapAmount := channel.LocalBalance - targetBalance
+
+			receivable, err := ln.ReceivableMsat(channel.ChannelId)
+			if err != nil {
+				return err
+			}
+
+			// limit to what a channel can receive
+			swapAmount = min(swapAmount, receivable/1000)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
@@ -2556,7 +2563,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 				}
 
 				// aim to maximize accumulated PPM
-				// if ppm ties, choose the candidate with larger RemoteBalance
+				// if ppm ties, choose the candidate with larger potential swap amount
 				if ppm > minPPM || ppm == minPPM && swapAmount > candidate.Amount {
 					// set the candidate's PPM as the new target to beat
 					minPPM = ppm

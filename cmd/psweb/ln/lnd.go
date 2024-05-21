@@ -788,8 +788,6 @@ func appendPayment(payment *lnrpc.Payment) {
 							parts := strings.Split(*invoice.Description, " ")
 							if parts[2] == "fee" && len(parts[4]) > 0 {
 								// save rebate payment
-								log.Printf("%s %d", parts[4], int64(payment.ValueMsat)/1000)
-
 								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
 							}
 							// skip peerswap-related payments
@@ -1389,4 +1387,55 @@ func EstimateFee() float64 {
 	}
 
 	return float64(res.SatPerKw / 250)
+}
+
+func getMaxHtlcAmtMsat(client lnrpc.LightningClient, chanId uint64, pubkey string) uint64 {
+	var maxHtlcAmtMsat uint64 = 0
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: chanId,
+	})
+	if err != nil {
+		// Ignore err because channel graph information is not always set.
+		return maxHtlcAmtMsat
+	}
+	if r.Node1Pub == pubkey {
+		maxHtlcAmtMsat = r.GetNode1Policy().GetMaxHtlcMsat()
+	} else if r.Node2Pub == pubkey {
+		maxHtlcAmtMsat = r.GetNode2Policy().GetMaxHtlcMsat()
+	}
+	return maxHtlcAmtMsat
+}
+
+// ReceivableMsat returns an estimate of the total we could receive through the
+// channel with given scid.
+func ReceivableMsat(chanId uint64) (uint64, error) {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return 0, nil
+	}
+	defer cleanup()
+
+	r, err := client.ListChannels(context.Background(), &lnrpc.ListChannelsRequest{
+		ActiveOnly:   false,
+		InactiveOnly: false,
+		PublicOnly:   false,
+		PrivateOnly:  false,
+	})
+	if err != nil {
+		return 0, err
+	}
+	for _, ch := range r.Channels {
+		if ch.ChanId == chanId {
+			maxHtlcAmtMsat := getMaxHtlcAmtMsat(client, ch.ChanId, ch.GetRemotePubkey())
+			receivable := (uint64(ch.GetRemoteBalance()) -
+				ch.GetRemoteConstraints().GetChanReserveSat()*1000)
+			// since the max htlc limit is not always set reliably,
+			// the check is skipped if it is not set.
+			if maxHtlcAmtMsat == 0 {
+				return receivable, nil
+			}
+			return min(maxHtlcAmtMsat, receivable), nil
+		}
+	}
+	return 0, fmt.Errorf("could not find a channel with scid: %d", chanId)
 }
