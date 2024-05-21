@@ -740,7 +740,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			IncludeIncomplete: false,
 			Reversed:          false,
 			IndexOffset:       offset,
-			MaxPayments:       5000,
+			MaxPayments:       1000,
 		})
 		if err != nil {
 			log.Println("ListPayments:", err)
@@ -757,7 +757,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 			// store the last timestamp
 			lastPaymentCreationTs = res.Payments[n-1].CreationTimeNs / 1_000_000_000
 		}
-		if n < 5000 {
+		if n < 1000 {
 			// all events retrieved
 			break
 		}
@@ -944,7 +944,7 @@ func SubscribeAll() {
 				CreationDateStart: start,
 				Reversed:          false,
 				IndexOffset:       offset,
-				NumMaxInvoices:    5000,
+				NumMaxInvoices:    1000,
 			})
 			if err != nil {
 				log.Println("ListInvoices:", err)
@@ -960,7 +960,7 @@ func SubscribeAll() {
 				// settle index for subscription
 				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
 			}
-			if n < 5000 {
+			if n < 1000 {
 				// all invoices retrieved
 				break
 			}

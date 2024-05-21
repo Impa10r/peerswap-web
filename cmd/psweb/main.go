@@ -472,6 +472,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var sumRemote uint64
 	var stats []*ln.ForwardingStats
 	var channelInfo []*ln.ChanneInfo
+	var keysendSats = uint64(1)
 
 	for _, ch := range peer.Channels {
 		stat := ln.GetForwardingStats(ch.ChannelId)
@@ -485,6 +486,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 		sumLocal += ch.GetLocalBalance()
 		sumRemote += ch.GetRemoteBalance()
+
+		// should not be less than both Min HTLC setting
+		keysendSats = max(keysendSats, info.PeerMinHtlc)
+		keysendSats = max(keysendSats, info.OurMinHtlc)
+
 	}
 
 	//check for error errorMessage to display
@@ -524,6 +530,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SenderInFeePPM    int64
 		ReceiverInFeePPM  int64
 		ReceiverOutFeePPM int64
+		KeysendSats       uint64
 	}
 
 	feeRate := liquid.EstimateFee()
@@ -564,6 +571,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SenderInFeePPM:    senderInFeePPM,
 		ReceiverInFeePPM:  receiverInFeePPM,
 		ReceiverOutFeePPM: receiverOutFeePPM,
+		KeysendSats:       keysendSats,
 	}
 
 	// executing template named "peer"
