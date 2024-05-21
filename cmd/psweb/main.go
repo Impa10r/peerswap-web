@@ -49,9 +49,10 @@ var (
 	//go:embed static
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
-	tplFolder      embed.FS
-	logFile        *os.File
-	latestVersion  = version
+	tplFolder     embed.FS
+	logFile       *os.File
+	latestVersion = version
+	// Bitcoin sat/vB from mempool.space
 	mempoolFeeRate = float64(0)
 	// onchain realized transaction costs
 	txFee = make(map[string]int64)

@@ -137,13 +137,6 @@
                       function calculateTransactionFee() {
                         var asset = document.getElementById("asset").value;
                         var swapAmount = Number(document.getElementById("swapAmount").value);
-                        
-                        // amount cannot be blank
-                        if (swapAmount < 100000) {
-                          document.getElementById('result').innerText = "Please enter the Swap Amount";
-                          return;
-                        }
-
                         let fee = 0;
                         let feeRate = {{.MempoolFeeRate}}; // LBTC
                         let title = ""; 
@@ -156,6 +149,12 @@
                           // Liquid
                           document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
                         }   
+
+                        // amount cannot be blank
+                        if (swapAmount < 100000) {
+                          document.getElementById('result').innerText = "Please enter the Swap Amount";
+                          return;
+                        }
                         
                         if (document.getElementById("direction").value == "swapIn") {
                           title = "Assumed UTXOs:\n";
