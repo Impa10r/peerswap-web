@@ -24,9 +24,11 @@ import (
 )
 
 const (
-	Implementation     = "CLN"
-	fileRPC            = "lightning-rpc"
-	SwapFeeReserveLBTC = uint64(000)
+	Implementation = "CLN"
+	fileRPC        = "lightning-rpc"
+	// Liquid balance to reserve in auto swap-ins
+	// https://github.com/ElementsProject/peerswap/blob/master/clightning/clightning_commands.go#L392
+	SwapFeeReserveLBTC = uint64(0)
 	SwapFeeReserveBTC  = uint64(2000)
 )
 
@@ -894,15 +896,15 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 				continue
 			}
 			if inv.Invoices[0].PaidAt > timeStamp {
-				if len(inv.Invoices[0].Label) > 7 {
-					if inv.Invoices[0].Label[:8] == "peerswap" {
+				if parts := strings.Split(inv.Invoices[0].Label, " "); len(parts) > 4 {
+					if parts[0] == "peerswap" {
 						// find swap id
-						parts := strings.Split(inv.Invoices[0].Label, " ")
 						if parts[2] == "fee" && len(parts[4]) > 0 {
 							// save rebate payment
 							SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
 						}
 					} else {
+						// only account for non-peerswap related
 						invoicedMsat += htlc.AmountMsat
 					}
 				}
@@ -929,10 +931,9 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
 					if err == nil {
 						if invoice.Description != nil {
-							if len(*invoice.Description) > 7 {
-								if (*invoice.Description)[:8] == "peerswap" {
+							if parts := strings.Split(*invoice.Description, " "); len(parts) > 4 {
+								if parts[0] == "peerswap" {
 									// find swap id
-									parts := strings.Split(*invoice.Description, " ")
 									if parts[2] == "fee" && len(parts[4]) > 0 {
 										// save rebate payment
 										SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000

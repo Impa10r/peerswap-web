@@ -42,6 +42,7 @@ import (
 const (
 	Implementation = "LND"
 	// Liquid balance to reserve in auto swap-ins
+	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
 	SwapFeeReserveLBTC = uint64(1000)
 	SwapFeeReserveBTC  = uint64(2000)
 )
@@ -796,10 +797,9 @@ func appendPayment(payment *lnrpc.Payment) {
 			invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
 			if err == nil {
 				if invoice.Description != nil {
-					if len(*invoice.Description) > 7 {
-						if (*invoice.Description)[:8] == "peerswap" {
+					if parts := strings.Split(*invoice.Description, " "); len(parts) > 4 {
+						if parts[0] == "peerswap" {
 							// find swap id
-							parts := strings.Split(*invoice.Description, " ")
 							if parts[2] == "fee" && len(parts[4]) > 0 {
 								// save rebate payment
 								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
@@ -1035,10 +1035,9 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 	}
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
-		if len(invoice.Memo) > 7 {
-			if invoice.Memo[:8] == "peerswap" {
+		if parts := strings.Split(invoice.Memo, " "); len(parts) > 4 {
+			if parts[0] == "peerswap" {
 				// find swap id
-				parts := strings.Split(invoice.Memo, " ")
 				if parts[2] == "fee" && len(parts[4]) > 0 {
 					// save rebate payment
 					SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000

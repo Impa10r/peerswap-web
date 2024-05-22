@@ -33,7 +33,7 @@ func LoadPS() {
 	user := GetPeerswapCLNSetting("Bitcoin", "rpcuser")
 	password := GetPeerswapCLNSetting("Bitcoin", "rpcpassword")
 
-	if host == "" && user == "" && password == "" {
+	if host == "" || user == "" || password == "" {
 		Config.BitcoinHost = GetBlockIoHost()
 		Config.BitcoinUser = ""
 		Config.BitcoinPass = ""
@@ -182,22 +182,18 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 	}
 	// Convert the content to a string
 	fileContent := string(content)
-	value := ""
 
 	// Search section
 	if sectionIndex := strings.Index(fileContent, "["+section+"]"); sectionIndex > -1 {
-		// Search variable should start from new line '\n' and be followed with '='
-		if index := strings.Index(fileContent[sectionIndex:], "\n"+searchVariable+"="); index > 0 {
-			startIndex := sectionIndex + index + len(searchVariable) + 2
-			for _, char := range fileContent[startIndex:] {
-				if char == '\n' || char == '\r' {
-					break
-				}
-				if char != '"' {
-					value += string(char)
+		lines := strings.Split(string(fileContent[sectionIndex:]), "\n")
+		for _, line := range lines {
+			if parts := strings.Split(line, "="); len(parts) > 1 {
+				if parts[0] == searchVariable {
+					// Remove double quotes
+					return strings.ReplaceAll(strings.TrimSpace(parts[1]), `"`, "")
 				}
 			}
 		}
 	}
-	return value
+	return ""
 }
