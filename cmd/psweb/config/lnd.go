@@ -185,18 +185,11 @@ func getConfSetting(searchVariable, filePath string) string {
 	}
 
 	lines := strings.Split(string(content), "\n")
-
 	for _, line := range lines {
-		if strings.HasPrefix(line, searchVariable+"=") {
-			startIndex := len(searchVariable) + 1
-			value := ""
-			for _, char := range line[startIndex:] {
-				if char == '\n' || char == '\r' || char == ' ' {
-					break
-				}
-				value += string(char)
+		if parts := strings.Split(line, "="); len(parts) > 1 {
+			if parts[0] == searchVariable {
+				return strings.TrimSpace(parts[1])
 			}
-			return value
 		}
 	}
 	// not found
