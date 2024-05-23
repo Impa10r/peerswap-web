@@ -2317,7 +2317,12 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		TimeStamp int64
 		HtmlBlob  string
 	}
-	var unsortedTable []Table
+	var (
+		unsortedTable []Table
+		totalCount    uint64
+		totalAmount   uint64
+		totalCost     int64
+	)
 
 	for _, swap := range swaps {
 		// filter by node Id
@@ -2336,7 +2341,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		}
 
 		table := "<tr>"
-		table += "<td style=\"width: 30%; text-align: left\">"
+		table += "<td style=\"width: 30%; text-align: left; padding-bottom: 0.5em;\">"
 
 		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
@@ -2345,9 +2350,15 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		table += "</td><td style=\"text-align: left\">"
 
 		// clicking on swap status will filter swaps with equal status
-		table += "<a title=\"Filter by state: " + simplifySwapState(swap.State) + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
+		state := simplifySwapState(swap.State)
+		table += "<a title=\"Filter by state: " + state + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
 		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
 		table += " <span title=\"Swap amount, sats\">" + formatWithThousandSeparators(swap.Amount) + "</span>"
+
+		if state == "success" {
+			totalAmount += swap.Amount
+			totalCount++
+		}
 
 		asset := "🌊"
 		if swap.Asset == "btc" {
@@ -2367,6 +2378,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 		cost := swapCost(swap)
 		if cost != 0 {
+			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
 			table += " <span title=\"Swap cost, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
 		}
@@ -2411,7 +2423,12 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		}
 		table += t.HtmlBlob
 	}
+
 	table += "</table>"
+
+	// show total #, amount and cost
+	table += "<p style=\"text-align: center\"> Total: " + formatWithThousandSeparators(totalCount) + " swaps for " + toMil(totalAmount) + ". Cost: " + formatSigned(totalCost) + "</p>"
+
 	return table
 }
 
