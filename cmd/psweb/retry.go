@@ -13,7 +13,7 @@ import (
 func retryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for i := 0; i < 3; i++ { // Retry up to 3 times
-			rw := &responseWriter{w, false}
+			rw := &responseWriter{ResponseWriter: w}
 			next.ServeHTTP(rw, r)
 			if !rw.brokenPipe {
 				return
@@ -32,20 +32,19 @@ type responseWriter struct {
 
 func (rw *responseWriter) Write(b []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(b)
-	if err != nil {
-		if isBrokenPipeError(err) {
-			rw.brokenPipe = true
-		}
+	if err != nil && isBrokenPipeError(err) {
+		rw.brokenPipe = true
 	}
 	return n, err
 }
 
 func isBrokenPipeError(err error) bool {
+	// Check if the error is a net.OpError
 	if ne, ok := err.(*net.OpError); ok {
-		if se, ok := ne.Err.(*os.SyscallError); ok && se.Syscall == "write" {
-			if se.Err == syscall.EPIPE {
-				return true
-			}
+		// Check if the OpError contains a syscall error
+		if se, ok := ne.Err.(*os.SyscallError); ok {
+			// Check if the syscall error is related to 'write' and is EPIPE
+			return se.Syscall == "write" && se.Err == syscall.EPIPE
 		}
 	}
 	return false

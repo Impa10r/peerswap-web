@@ -33,7 +33,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.7"
+	version = "v1.4.8"
 )
 
 type SwapParams struct {
@@ -172,8 +172,8 @@ func main() {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
 
 	// Wait for termination signal
-	<-signalChan
-	log.Println("Received termination signal")
+	sig := <-signalChan
+	log.Printf("Received termination signal: %s\n", sig)
 
 	// Exit the program gracefully
 	os.Exit(0)
