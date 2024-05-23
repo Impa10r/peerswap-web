@@ -2319,7 +2319,6 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 	}
 	var (
 		unsortedTable []Table
-		totalCount    uint64
 		totalAmount   uint64
 		totalCost     int64
 	)
@@ -2357,7 +2356,6 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 		if state == "success" {
 			totalAmount += swap.Amount
-			totalCount++
 		}
 
 		asset := "🌊"
@@ -2426,8 +2424,13 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 	table += "</table>"
 
-	// show total #, amount and cost
-	table += "<p style=\"text-align: center\"> Total: " + formatWithThousandSeparators(totalCount) + " swaps for " + toMil(totalAmount) + ". Cost: " + formatSigned(totalCost) + "</p>"
+	// show total amount and cost
+	ppm := int64(0)
+	if totalAmount > 0 {
+		ppm = totalCost * 1_000_000 / int64(totalAmount)
+	}
+
+	table += "<p style=\"text-align: center\">Total: " + toMil(totalAmount) + ", Cost: " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p"
 
 	return table
 }
