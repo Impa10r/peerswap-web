@@ -257,13 +257,16 @@
                             });
 
                             // Calculate tx size assuming always two outputs
-                            vbyteSize = 2510 + (inputs-1) * 160;
+                            vbyteSize = 2503 + (inputs-1) * 84;
                             fee = vbyteSize * feeRate;
 
                             // peerswap spends dust change as extra fee
                             change = {{.LiquidBalance}} - swapAmount - fee;
 
                             if (change < 1000) {
+                              // one output
+                              vbyteSize -= 1,191;
+                              // but the fee increases
                               fee += change;
                             }
                           } 
