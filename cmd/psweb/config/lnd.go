@@ -76,8 +76,11 @@ func LoadPS() {
 
 	// get bitcoin RPC from LND config
 	host = getLndConfSetting("bitcoind.rpchost")
+	user := getLndConfSetting("bitcoind.rpcuser")
+	pass := getLndConfSetting("bitcoind.rpcpass")
 
-	if host == "" {
+	if host == "" || user == "" || pass == "" {
+		// fallback
 		Config.BitcoinHost = GetBlockIoHost()
 		Config.BitcoinUser = ""
 		Config.BitcoinPass = ""
@@ -87,8 +90,8 @@ func LoadPS() {
 			port = "18332"
 		}
 		Config.BitcoinHost = "http://" + host + ":" + port
-		Config.BitcoinUser = getLndConfSetting("bitcoind.rpcuser")
-		Config.BitcoinPass = getLndConfSetting("bitcoind.rpcpass")
+		Config.BitcoinUser = user
+		Config.BitcoinPass = pass
 	}
 }
 
@@ -101,6 +104,7 @@ func SavePS() {
 
 	//key, default, new value, env key
 	t += setPeerswapdVariable("host", "localhost:42069", Config.RpcHost, "")
+	t += setPeerswapdVariable("rpchost", "", "", "") // will keep the same if set
 	// remove resthost
 	// t += setPeerswapdVariable("resthost", "localhost:42070", "", "")
 	t += setPeerswapdVariable("lnd.host", "localhost:10009", "", "LND_HOST")
@@ -163,7 +167,11 @@ func setPeerswapdVariable(variableName, defaultValue, newValue, envKey string) s
 	} else if s := GetPeerswapLNDSetting(variableName); s != "" {
 		v = s
 	}
-	return variableName + "=" + v + "\n"
+	if v == "" {
+		return "" // no value was set in peerswap.conf
+	} else {
+		return variableName + "=" + v + "\n"
+	}
 }
 
 func GetPeerswapLNDSetting(searchVariable string) string {

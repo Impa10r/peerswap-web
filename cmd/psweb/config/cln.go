@@ -165,6 +165,10 @@ func setPeerswapVariable(section, variableName, defaultValue, newValue, envKey s
 		v = s
 	}
 
+	if v == "" {
+		return "" // no value was set in peerswap.conf
+	}
+
 	if isString {
 		v = "\"" + v + "\""
 	}
