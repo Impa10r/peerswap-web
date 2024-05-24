@@ -2,7 +2,7 @@
 
 ## 1.4.8
 
--
+- Add swap statistics (Total amount, cost, PPM)
 
 ## 1.4.7
 
