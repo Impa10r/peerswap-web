@@ -159,3 +159,15 @@ func GetBlockIoHost() string {
 		return "https://go.getblock.io/6885fe0778944e28979adc739c7105b6"
 	}
 }
+
+// returns hostname of the machine or host if passed via Env
+func GetHostname() string {
+	// Get the hostname of the machine
+	hostname, _ := os.Hostname()
+
+	if os.Getenv("HOSTNAME") != "" {
+		hostname = os.Getenv("HOSTNAME")
+	}
+
+	return hostname
+}

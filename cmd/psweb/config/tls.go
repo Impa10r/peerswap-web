@@ -106,10 +106,7 @@ func GenereateServerCertificate() error {
 	pem.Encode(serverPrivKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(serverPrivKey)})
 
 	// Get the hostname of the machine
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
+	hostname := GetHostname()
 
 	// Set certificate name
 	subject := pkix.Name{
