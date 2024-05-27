@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,7 +36,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.8"
+	version = "v1.4.9"
 )
 
 type SwapParams struct {
@@ -861,7 +862,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	// populate server IP if empty
 	if config.Config.ServerIPs == "" {
 		ip := strings.Split(r.Host, ":")[0]
-		if ip != "localhost" && ip != "127.0.0.1" {
+		if net.ParseIP(ip) != nil && ip != "127.0.0.1" {
 			config.Config.ServerIPs = ip
 		}
 	}

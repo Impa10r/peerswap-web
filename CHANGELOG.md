@@ -1,5 +1,9 @@
 # Versions
 
+## 1.4.9
+
+- Fix HTTPS error when "PSWeb IPs" is blank
+
 ## 1.4.8
 
 - Add HTTPS connection with mandatory TLS certificates
