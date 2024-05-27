@@ -91,8 +91,6 @@ func GenereateServerCertificate() error {
 	crtPathCA := filepath.Join(Config.DataDir, "CA.crt")
 	keyPathCA := filepath.Join(Config.DataDir, "CA.key")
 
-	IPs := strings.Split(Config.ServerIPs, " ")
-
 	// Generate RSA private key for the server
 	serverPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -120,8 +118,13 @@ func GenereateServerCertificate() error {
 
 	// Add alternative IP addresses
 	var ipAdresses []net.IP
-	for _, ip := range IPs {
-		ipAdresses = append(ipAdresses, net.ParseIP(ip))
+	ipAdresses = append(ipAdresses, net.ParseIP("127.0.0.1"))
+
+	if Config.ServerIPs != "" {
+		IPs := strings.Split(Config.ServerIPs, " ")
+		for _, ip := range IPs {
+			ipAdresses = append(ipAdresses, net.ParseIP(ip))
+		}
 	}
 
 	// Load the CA private key
