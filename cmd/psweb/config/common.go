@@ -46,6 +46,10 @@ type Configuration struct {
 	AutoSwapThresholdAmount uint64
 	AutoSwapThresholdPPM    uint64
 	AutoSwapTargetPct       uint64
+	SecureConnection        bool
+	ServerIPs               string
+	SerialNumber            int64 // for CA-signed server certificates
+	SecurePort              string
 }
 
 var Config Configuration
@@ -79,6 +83,8 @@ func Load(dataDir string) {
 	Config.AutoSwapThresholdAmount = 2000000
 	Config.AutoSwapThresholdPPM = 300
 	Config.AutoSwapTargetPct = 50
+	Config.SecureConnection = false
+	Config.SecurePort = "1985"
 
 	if os.Getenv("NETWORK") == "testnet" {
 		Config.Chain = "testnet"

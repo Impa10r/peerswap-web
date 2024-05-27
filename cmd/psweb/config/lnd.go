@@ -79,16 +79,34 @@ func LoadPS() {
 	user := getLndConfSetting("bitcoind.rpcuser")
 	pass := getLndConfSetting("bitcoind.rpcpass")
 
+	port = "8332"
+	if Config.Chain == "testnet" {
+		port = "18332"
+	}
+
+	// env variables take priority
+	if os.Getenv("BITCOIN_HOST") != "" {
+		host = os.Getenv("BITCOIN_HOST")
+	}
+
+	if os.Getenv("BITCOIN_PORT") != "" {
+		port = os.Getenv("BITCOIN_PORT")
+	}
+
+	if os.Getenv("BITCOIN_USER") != "" {
+		user = os.Getenv("BITCOIN_USER")
+	}
+
+	if os.Getenv("BITCOIN_PASS") != "" {
+		pass = os.Getenv("BITCOIN_PASS")
+	}
+
 	if host == "" || user == "" || pass == "" {
 		// fallback
 		Config.BitcoinHost = GetBlockIoHost()
 		Config.BitcoinUser = ""
 		Config.BitcoinPass = ""
 	} else {
-		port := "8332"
-		if Config.Chain == "testnet" {
-			port = "18332"
-		}
 		Config.BitcoinHost = "http://" + host + ":" + port
 		Config.BitcoinUser = user
 		Config.BitcoinPass = pass

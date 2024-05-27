@@ -2,6 +2,7 @@
 
 ## 1.4.8
 
+- Add HTTPS connection
 - Add swap statistics (Total amount, cost, PPM)
 
 ## 1.4.7

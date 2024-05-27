@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"peerswap-web/cmd/psweb/config"
 	"syscall"
 	"time"
 )
@@ -12,6 +13,15 @@ import (
 // Middleware to retry on broken pipe
 func retryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if config.Config.SecureConnection {
+			// Check client certificate
+			cert := r.TLS.PeerCertificates
+			if len(cert) == 0 {
+				http.Error(w, "Client certificate not provided", http.StatusForbidden)
+				return
+			}
+		}
+
 		for i := 0; i < 3; i++ { // Retry up to 3 times
 			rw := &responseWriter{ResponseWriter: w}
 			next.ServeHTTP(rw, r)

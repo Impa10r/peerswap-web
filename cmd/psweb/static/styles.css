@@ -110,3 +110,7 @@ pre {
 .strikethrough {
     text-decoration: line-through;
 }
+
+li {
+    margin-left: 5em; 
+}

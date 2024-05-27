@@ -1,0 +1,59 @@
+{{define "ca"}}
+  {{template "header" .}}
+    <div class="container">
+      <div class="columns">
+        <div class="column"> 
+          <div class="box">
+            <h4 class="title is-4">Enable HTTPS</h4> 
+            <form autocomplete="off" action="/submit" method="post">
+              <input autocomplete="false" name="hidden" type="text" style="display:none;">
+              <p>To enable secure TLS connection it is necessary to install two certificates on all devices that will be permitted to access PeerSwap Web UI:</p>
+              <br>
+              <p>1. "Trusted Root Certification Authority" certificate CA.srt will ensure to the browser that the server is genuiine.</p>
+              <p>2. "Personal" certificate client.p12 will authenticate the client to the server.</p>
+              <br>
+              <p>Use secure methods to copy these files from .peerswap folder onto your devices. The password for client.p12 is "{{.Password}}". Important: write down this password before proceeding as it will not be displayed again.</p>
+              <br>
+              </p>After restart, PeerSwap Web UI will be listening on:<p>
+              <ol>
+              {{range .URLs}}
+                <li><a href="{{.}}">{{.}}</a></li>
+              {{end}}
+              </ol>
+              <br>
+              <p>HTTP endpoint at port {{.Config.ListenPort}} will redirect all traffic to HTTPS port {{.Config.SecurePort}}. Clients without the above certificates will be denied connection.</p>
+              <br>
+              <center>
+                <input type="hidden" name="action" value="enableHTTPS">
+                <input class="button is-large" type="submit" value="Enable HTTPS and Restart">          
+              </center>
+            </form>
+          </div>
+        </div>
+        <div class="column">
+          <div class="box">
+            <h4 class="title is-4">Certificates Installation</h4> 
+            <p style="padding-bottom: 0.5em">Windows 10</p>
+            <p>1. Double click on client.p12, enter the password, allow Automatically select store.</p>
+            <p>2. Double click on CA.crt, select "Trusted Root Certification Authorities" store.</p>
+            <br>
+            <p style="padding-bottom: 0.5em">Android</p>
+            <p>1. Click on client.p12, enter the password, the certificate will be installed.</p>
+            <p>2. For CA.crt, open Settings, search for "CA Certificate", "Install anyway", select the file.</p>
+            <br>
+            <p style="padding-bottom: 0.5em">iOS</p>
+            <p>1. E-mail the certificates to yourself as an attachment.</p>
+            <p>2. Click on the attachments to install.</p>
+            <br>
+            <p style="padding-bottom: 0.5em">Ubuntu</p>
+            <p>1. Install client.p12 in Firefox Settings - Privacy&Security - Certificates - Your Certificates - Import - Enter password.</p>
+            <p>2. Install CA.crt via command line:
+            <p style="margin-left: 3em">sudo apt-get install -y ca-certificates</p>
+            <p style="margin-left: 3em">sudo cp ~/.peerswap/CA.crt /usr/local/share/ca-certificates</p>
+            <p style="margin-left: 3em">sudo update-ca-certificates</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  {{template "footer" .}}
+{{end}}

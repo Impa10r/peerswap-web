@@ -138,8 +138,6 @@
                       </div>
                     </div>
                   </div> 
-                </div>
-                <div class="column"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">Color Theme</label>
@@ -157,6 +155,8 @@
                       </div>
                     </div>
                   </div>
+                </div>
+                <div class="column"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">
@@ -259,6 +259,35 @@
                       </div>
                     </div>
                   </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS **</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="secureConnection">
+                              <option value="true" {{if .Config.SecureConnection}}selected{{end}}>Enabled</option>
+                              <option value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disabled</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server (LAN, Tailscale)" class="label">PSWeb IPs **</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <center>
@@ -267,7 +296,7 @@
                 {{else}}
                     peerswapd
                 {{end}}</p>
-                <br>
+                <p style="padding-bottom: 0.5em">** Changing these values will restart PSWeb</p>
                 <input class="button is-large" type="submit" value="Save Configuration">     
                 <br>
                 <small>

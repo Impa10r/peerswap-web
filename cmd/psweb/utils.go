@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -156,4 +158,22 @@ func msatToSatUp(msat uint64) uint64 {
 		sat++
 	}
 	return sat
+}
+
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
+}
+
+func restart(w http.ResponseWriter, r *http.Request, url string) {
+	// assume systemd will restart it
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	time.Sleep(1 * time.Second)
+	os.Exit(0)
 }
