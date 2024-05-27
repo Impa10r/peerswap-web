@@ -174,6 +174,5 @@ func fileExists(filename string) bool {
 func restart(w http.ResponseWriter, r *http.Request, url string) {
 	// assume systemd will restart it
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-	time.Sleep(1 * time.Second)
 	os.Exit(0)
 }

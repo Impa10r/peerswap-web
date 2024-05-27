@@ -853,6 +853,14 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	// Get the hostname of the machine
 	hostname, _ := os.Hostname()
 
+	// populate server IP if empty
+	if config.Config.ServerIPs == "" {
+		ip := strings.Split(r.Host, ":")[0]
+		if ip != "localhost" && ip != "127.0.0.1" {
+			config.Config.ServerIPs = ip
+		}
+	}
+
 	type Page struct {
 		ErrorMessage   string
 		PopUpMessage   string
@@ -1322,16 +1330,18 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if secureConnection && r.FormValue("serverIPs") != config.Config.ServerIPs {
+		if r.FormValue("serverIPs") != config.Config.ServerIPs {
 			config.Config.ServerIPs = r.FormValue("serverIPs")
-			if err := config.GenereateServerCertificate(); err == nil {
-				config.Save()
-				url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
-				restart(w, r, url)
-			} else {
-				log.Println("GenereateServerCertificate:", err)
-				redirectWithError(w, r, "/config?", err)
-				return
+			if secureConnection {
+				if err := config.GenereateServerCertificate(); err == nil {
+					config.Save()
+					url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
+					restart(w, r, url)
+				} else {
+					log.Println("GenereateServerCertificate:", err)
+					redirectWithError(w, r, "/config?", err)
+					return
+				}
 			}
 		}
 
