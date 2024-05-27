@@ -9,10 +9,10 @@
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <p>To enable secure TLS connection it is necessary to install two certificates on all devices that will be permitted to access PeerSwap Web UI:</p>
               <br>
-              <p>1. "Trusted Root Certification Authority" certificate CA.srt will ensure to the browser that the server is genuiine.</p>
-              <p>2. "Personal" certificate client.p12 will authenticate the client to the server.</p>
+              <p>1. "Trusted Root Certification Authority" certificate <u>CA.crt</u> will inform the browser that the server is genuine.</p>
+              <p>2. "Personal" certificate <u>client.p12</u> will authenticate the client to the server.</p>
               <br>
-              <p>Use secure methods to copy these files from .peerswap folder onto your devices. The password for client.p12 is "{{.Password}}". Important: write down this password before proceeding as it will not be displayed again.</p>
+              <p>Use secure methods to copy these files from peerswap data folder onto your devices. The password for client.p12 is "<u>{{.Password}}</u>". <u>Important:</u> write down this password before proceeding as it will not be saved nor displayed again.</p>
               <br>
               </p>After restart, PeerSwap Web UI will be listening on:<p>
               <ol>
@@ -38,12 +38,13 @@
             <p>2. Double click on CA.crt, select "Trusted Root Certification Authorities" store.</p>
             <br>
             <p style="padding-bottom: 0.5em">Android</p>
-            <p>1. Click on client.p12, enter the password, the certificate will be installed.</p>
+            <p>1. Tap on client.p12, enter the password, the certificate will be installed.</p>
             <p>2. For CA.crt, open Settings, search for "CA Certificate", "Install anyway", select the file.</p>
             <br>
             <p style="padding-bottom: 0.5em">iOS</p>
             <p>1. E-mail the certificates to yourself as an attachment.</p>
-            <p>2. Click on the attachments to install.</p>
+            <p>2. One certificate at a time, tap on the attachment twice to download and launch.</p>
+            <p>3. In Settings app, Profile Downloaded, Install.</p>
             <br>
             <p style="padding-bottom: 0.5em">Ubuntu</p>
             <p>1. Install client.p12 in Firefox Settings - Privacy&Security - Certificates - Your Certificates - Import - Enter password.</p>

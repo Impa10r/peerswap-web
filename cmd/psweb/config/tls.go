@@ -19,7 +19,7 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 )
 
-// generates Certificate Autonrity CA.srt
+// generates Certificate Autonrity CA.crt
 func GenerateCA() error {
 	crtPath := filepath.Join(Config.DataDir, "CA.crt")
 	keyPath := filepath.Join(Config.DataDir, "CA.key")

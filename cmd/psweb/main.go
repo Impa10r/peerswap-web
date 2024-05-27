@@ -206,6 +206,11 @@ func serveHTTPS(handler http.Handler) {
 	certFile := filepath.Join(config.Config.DataDir, "server.crt")
 	keyFile := filepath.Join(config.Config.DataDir, "server.key")
 
+	//regenerate from CA if deleted
+	if !fileExists(certFile) {
+		config.GenereateServerCertificate()
+	}
+
 	// Load your server certificate and private key
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -914,7 +919,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	password, err := config.GeneratePassword(8)
+	password, err := config.GeneratePassword(10)
 	if err != nil {
 		log.Println("GeneratePassword:", err)
 		redirectWithError(w, r, "/config?", err)

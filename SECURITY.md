@@ -1,6 +1,6 @@
 # Security Protocol
 
-PeerSwap Web UI HTTP server offers secure communication with the clients via TLS. When HTTPS option is enabled, a self-signed root Certificate Authority certificate is created first. It is then used to sign two certificates: server.crt and client.crt. Both CA.srt and client.crt need to be installed on the client's PC or mobile, to bootstrap a secure connection with the server. The server.crt certificate is provided during TLS handshake to authenticate the server. The communication channel is now encrypted and no third party can eavesdrop or connect.
+PeerSwap Web UI HTTP server offers secure communication with the clients via TLS. When HTTPS option is enabled, a self-signed root Certificate Authority certificate CA.crt is created first. It is then used to sign two certificates: server.crt and client.crt. Both CA.crt and client.crt need to be installed on the client's devices, to bootstrap a secure connection with the server. The server.crt certificate is used during the TLS handshake to authenticate the server to the client. Our communication channel is now encrypted and no third party can eavesdrop or connect to the server.
 
 ## Privacy Disclosure
 
