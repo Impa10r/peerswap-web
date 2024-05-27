@@ -36,7 +36,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.9"
+	version = "v1.5.0"
 )
 
 type SwapParams struct {
@@ -857,7 +857,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the hostname of the machine
-	hostname, _ := os.Hostname()
+	hostname := config.GetHostname()
 
 	// populate server IP if empty
 	if config.Config.ServerIPs == "" {
@@ -888,7 +888,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Version:        version,
 		Latest:         latestVersion,
 		Implementation: ln.Implementation,
-		HTTPS:          "https://" + hostname + ".local:" + config.Config.ListenPort,
+		HTTPS:          "https://" + hostname + ".local:" + config.Config.SecurePort,
 	}
 
 	// executing template named "config"
@@ -906,8 +906,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 		errorMessage = keys[0]
 	}
 
-	// Get the hostname of the machine
-	hostname, _ := os.Hostname()
+	hostname := config.GetHostname()
 
 	urls := []string{
 		"https://localhost:" + config.Config.SecurePort,

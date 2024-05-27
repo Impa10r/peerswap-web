@@ -1,5 +1,9 @@
 # Versions
 
+## 1.5.0
+
+- Use hostname of the host in server.crt when run in Docker
+
 ## 1.4.9
 
 - Fix HTTPS error when "PSWeb IPs" is blank
