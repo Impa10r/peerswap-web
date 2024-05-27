@@ -68,7 +68,9 @@
                             <option value="{{.Config.LocalMempool}}" {{if eq .Config.NodeApi .Config.LocalMempool}}selected{{end}}>{{.Config.LocalMempool}}</option>
                           {{end}}
                           <option value="https://mempool.space/testnet" {{if eq .Config.BitcoinApi "https://mempool.space/testnet"}}selected{{end}}>https://mempool.space/testnet</option>
-                          <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>     
+                          <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>
+                          <option value="https://blockstream.info/testnet" {{if eq .Config.BitcoinApi "https://blockstream.info/testnet"}}selected{{end}}>https://blockstream.info/testnet</option>
+                          <option value="https://blockstream.info" {{if eq .Config.BitcoinApi "https://blockstream.info"}}selected{{end}}>https://blockstream.info</option>  
                         </select>
                       </div>
                     </div>
@@ -95,7 +97,7 @@
                           <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
                           <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>
                           <option value="https://blockstream.info/liquidtestnet" {{if eq .Config.LiquidApi "https://blockstream.info/liquidtestnet"}}selected{{end}}>https://blockstream.info/liquidtestnet</option>
-                          <option value="https://blockstream.info" {{if eq .Config.LiquidApi "https://blockstream.info"}}selected{{end}}>https://blockstream.info</option>            
+                          <option value="https://blockstream.info/liquid" {{if eq .Config.LiquidApi "https://blockstream.info/liquid"}}selected{{end}}>https://blockstream.info/liquid</option>            
                         </select>
                       </div>
                     </div>
@@ -136,8 +138,6 @@
                       </div>
                     </div>
                   </div> 
-                </div>
-                <div class="column"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">Color Theme</label>
@@ -155,6 +155,8 @@
                       </div>
                     </div>
                   </div>
+                </div>
+                <div class="column"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">
@@ -257,6 +259,35 @@
                       </div>
                     </div>
                   </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS **</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <div class="control">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="secureConnection">
+                              <option value="true" {{if .Config.SecureConnection}}selected{{end}}>Enabled</option>
+                              <option value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disabled</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server (LAN, Tailscale)" class="label">PSWeb IPs **</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="field">
+                        <p>
+                          <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <center>
@@ -265,7 +296,7 @@
                 {{else}}
                     peerswapd
                 {{end}}</p>
-                <br>
+                <p style="padding-bottom: 0.5em">** Changing these values will restart PSWeb</p>
                 <input class="button is-large" type="submit" value="Save Configuration">     
                 <br>
                 <small>

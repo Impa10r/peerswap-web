@@ -1,10 +1,6 @@
-# Security Disclosure
+# Security Protocol
 
-**Assuming the local network is secure**
-
-PeerSwap Web UI is currently a beta-grade software that makes the assumption that the local network is secure. This means local network communication is unencrypted using plain text HTTP. 
-
-Bootstrapping a secure connection over an insecure network and avoiding MITM attacks without being able to rely on certificate authorities is not an easy problem to solve.
+PeerSwap Web UI HTTP server offers secure communication with the clients via TLS. When HTTPS option is enabled, a self-signed root Certificate Authority certificate CA.crt is created first. It is then used to sign two certificates: server.crt and client.crt. Both CA.crt and client.crt need to be installed on the client's devices, to bootstrap a secure connection with the server. The server.crt certificate is used during the TLS handshake to authenticate the server to the client. Our communication channel is now encrypted and no third party can eavesdrop or connect to the server.
 
 ## Privacy Disclosure
 

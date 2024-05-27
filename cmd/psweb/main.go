@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -33,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.4.7"
+	version = "v1.4.8"
 )
 
 type SwapParams struct {
@@ -46,7 +48,7 @@ type SwapParams struct {
 var (
 	aliasCache = make(map[string]string)
 	templates  = template.New("")
-	//go:embed static
+	//go:embed static/*
 	staticFiles embed.FS
 	//go:embed templates/*.gohtml
 	tplFolder     embed.FS
@@ -119,10 +121,10 @@ func main() {
 	var staticFS = http.FS(staticFiles)
 	fs := http.FileServer(staticFS)
 
-	// Serve static files
-	http.Handle("/static/", fs)
-
 	r := mux.NewRouter()
+
+	// Serve static files
+	r.PathPrefix("/static/").Handler(fs)
 
 	// Serve templates
 	r.HandleFunc("/", indexHandler)
@@ -141,16 +143,31 @@ func main() {
 	r.HandleFunc("/bitcoin", bitcoinHandler)
 	r.HandleFunc("/pegin", peginHandler)
 	r.HandleFunc("/bumpfee", bumpfeeHandler)
+	r.HandleFunc("/ca", caHandler)
 
-	// Start the server
-	http.Handle("/", retryMiddleware(r))
-	go func() {
-		if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	if config.Config.SecureConnection {
+		// HTTP redirection
+		go func() {
+			httpMux := http.NewServeMux()
+			httpMux.HandleFunc("/", redirectToHTTPS)
+			log.Println("Starting HTTP server on port " + config.Config.ListenPort + " for redirection...")
+			if err := http.ListenAndServe(":"+config.Config.ListenPort, httpMux); err != nil {
+				log.Fatalf("Failed to start HTTP server: %v\n", err)
+			}
+		}()
 
-	log.Println("Listening on http://localhost:" + config.Config.ListenPort)
+		go serveHTTPS(retryMiddleware(r))
+		log.Println("Listening on https://localhost:" + config.Config.SecurePort)
+	} else {
+		// Start HTTP server
+		http.Handle("/", retryMiddleware(r))
+		go func() {
+			if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
+				log.Fatal(err)
+			}
+		}()
+		log.Println("Listening on http://localhost:" + config.Config.ListenPort)
+	}
 
 	// Start timer to run every minute
 	go startTimer()
@@ -172,11 +189,61 @@ func main() {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
 
 	// Wait for termination signal
-	<-signalChan
-	log.Println("Received termination signal")
+	sig := <-signalChan
+	log.Printf("Received termination signal: %s\n", sig)
 
 	// Exit the program gracefully
 	os.Exit(0)
+}
+
+func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
+	url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort + r.URL.String()
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func serveHTTPS(handler http.Handler) {
+	// Load your certificate and private key
+	certFile := filepath.Join(config.Config.DataDir, "server.crt")
+	keyFile := filepath.Join(config.Config.DataDir, "server.key")
+
+	//regenerate from CA if deleted
+	if !fileExists(certFile) {
+		config.GenereateServerCertificate()
+	}
+
+	// Load your server certificate and private key
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		log.Fatalf("Failed to load server certificate: %v", err)
+	}
+
+	// Load CA certificate
+	caCert, err := os.ReadFile(filepath.Join(config.Config.DataDir, "CA.crt"))
+	if err != nil {
+		log.Fatalf("Failed to load CA certificate: %v", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// Configure TLS settings
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    caCertPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert, // Require and verify client certificate
+		MinVersion:   tls.VersionTLS12,               // Force TLS 1.2 or higher
+	}
+
+	server := &http.Server{
+		Addr:      ":" + config.Config.SecurePort,
+		Handler:   handler,
+		TLSConfig: tlsConfig,
+	}
+
+	// Start the HTTPS server
+	err = server.ListenAndServeTLS(certFile, keyFile)
+	if err != nil {
+		log.Fatalf("Failed to start HTTPS server: %v\n", err)
+	}
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -346,14 +413,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	err = templates.ExecuteTemplate(w, "homepage", data)
 	if err != nil {
 		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
 	}
 }
 
 func peerHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
-		fmt.Println("URL parameter 'id' is missing")
 		http.Error(w, http.StatusText(500), 500)
 		return
 	}
@@ -590,14 +655,12 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	err = templates.ExecuteTemplate(w, "peer", data)
 	if err != nil {
 		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
 	}
 }
 
 func swapHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
-		fmt.Println("URL parameter 'id' is missing")
 		http.Error(w, http.StatusText(500), 500)
 		return
 	}
@@ -651,7 +714,6 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	err = templates.ExecuteTemplate(w, "swap", data)
 	if err != nil {
 		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
 	}
 }
 
@@ -659,7 +721,6 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 func updateHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
-		fmt.Println("URL parameter 'id' is missing")
 		http.Error(w, http.StatusText(500), 500)
 		return
 	}
@@ -794,6 +855,17 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		errorMessage = keys[0]
 	}
 
+	// Get the hostname of the machine
+	hostname, _ := os.Hostname()
+
+	// populate server IP if empty
+	if config.Config.ServerIPs == "" {
+		ip := strings.Split(r.Host, ":")[0]
+		if ip != "localhost" && ip != "127.0.0.1" {
+			config.Config.ServerIPs = ip
+		}
+	}
+
 	type Page struct {
 		ErrorMessage   string
 		PopUpMessage   string
@@ -803,6 +875,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Version        string
 		Latest         string
 		Implementation string
+		HTTPS          string
 	}
 
 	data := Page{
@@ -814,13 +887,85 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Version:        version,
 		Latest:         latestVersion,
 		Implementation: ln.Implementation,
+		HTTPS:          "https://" + hostname + ".local:" + config.Config.ListenPort,
 	}
 
-	// executing template named "error"
+	// executing template named "config"
 	err := templates.ExecuteTemplate(w, "config", data)
 	if err != nil {
 		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
+	}
+}
+
+func caHandler(w http.ResponseWriter, r *http.Request) {
+	//check for error message to display
+	errorMessage := ""
+	keys, ok := r.URL.Query()["err"]
+	if ok && len(keys[0]) > 0 {
+		errorMessage = keys[0]
+	}
+
+	// Get the hostname of the machine
+	hostname, _ := os.Hostname()
+
+	urls := []string{
+		"https://localhost:" + config.Config.SecurePort,
+		"https://" + hostname + ".local:" + config.Config.SecurePort,
+	}
+
+	if config.Config.ServerIPs != "" {
+		for _, ip := range strings.Split(config.Config.ServerIPs, " ") {
+			urls = append(urls, "https://"+ip+":"+config.Config.SecurePort)
+		}
+	}
+
+	password, err := config.GeneratePassword(10)
+	if err != nil {
+		log.Println("GeneratePassword:", err)
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+
+	type Page struct {
+		ErrorMessage   string
+		PopUpMessage   string
+		MempoolFeeRate float64
+		ColorScheme    string
+		Config         config.Configuration
+		URLs           []string
+		Password       string
+	}
+
+	data := Page{
+		ErrorMessage:   errorMessage,
+		PopUpMessage:   "",
+		MempoolFeeRate: mempoolFeeRate,
+		ColorScheme:    config.Config.ColorScheme,
+		Config:         config.Config,
+		URLs:           urls,
+		Password:       password,
+	}
+
+	if !fileExists(filepath.Join(config.Config.DataDir, "CA.crt")) {
+		err := config.GenerateCA()
+		if err != nil {
+			log.Println("Error generating CA.crt:", err)
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+	}
+
+	err = config.GenerateClientCertificate(password)
+	if err != nil {
+		log.Println("Error generating client.p12:", err)
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+
+	// executing template named "ca"
+	err = templates.ExecuteTemplate(w, "ca", data)
+	if err != nil {
+		log.Fatalln(err)
 	}
 }
 
@@ -913,7 +1058,6 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	err = templates.ExecuteTemplate(w, "liquid", data)
 	if err != nil {
 		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
 	}
 }
 
@@ -935,6 +1079,17 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "enableHTTPS":
+			// restart with HTTPS listener
+			if err := config.GenereateServerCertificate(); err == nil {
+				config.Config.SecureConnection = true
+				config.Save()
+				url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
+				restart(w, r, url)
+			} else {
+				redirectWithError(w, r, "/ca?", err)
+				return
+			}
 		case "keySend":
 			dest := r.FormValue("nodeId")
 			message := r.FormValue("keysendMessage")
@@ -1164,6 +1319,43 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Error parsing form data", http.StatusBadRequest)
 			return
+		}
+
+		secureConnection, err := strconv.ParseBool(r.FormValue("secureConnection"))
+		if err != nil {
+			redirectWithError(w, r, "/config?", err)
+			return
+		}
+
+		// display CA certificate installation instructions
+		if secureConnection && !config.Config.SecureConnection {
+			config.Config.ServerIPs = r.FormValue("serverIPs")
+			config.Save()
+			http.Redirect(w, r, "/ca", http.StatusSeeOther)
+			return
+		}
+
+		if r.FormValue("serverIPs") != config.Config.ServerIPs {
+			config.Config.ServerIPs = r.FormValue("serverIPs")
+			if secureConnection {
+				if err := config.GenereateServerCertificate(); err == nil {
+					config.Save()
+					url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
+					restart(w, r, url)
+				} else {
+					log.Println("GenereateServerCertificate:", err)
+					redirectWithError(w, r, "/config?", err)
+					return
+				}
+			}
+		}
+
+		// restart to listen on HTTP
+		if !secureConnection && config.Config.SecureConnection {
+			config.Config.SecureConnection = false
+			config.Save()
+			url := "http://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.ListenPort
+			restart(w, r, url)
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
@@ -2317,7 +2509,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		TimeStamp int64
 		HtmlBlob  string
 	}
-	var unsortedTable []Table
+	var (
+		unsortedTable []Table
+		totalAmount   uint64
+		totalCost     int64
+	)
 
 	for _, swap := range swaps {
 		// filter by node Id
@@ -2336,7 +2532,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		}
 
 		table := "<tr>"
-		table += "<td style=\"width: 30%; text-align: left\">"
+		table += "<td style=\"width: 30%; text-align: left; padding-bottom: 0.5em;\">"
 
 		tm := timePassedAgo(time.Unix(swap.CreatedAt, 0).UTC())
 
@@ -2345,9 +2541,14 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		table += "</td><td style=\"text-align: left\">"
 
 		// clicking on swap status will filter swaps with equal status
-		table += "<a title=\"Filter by state: " + simplifySwapState(swap.State) + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
+		state := simplifySwapState(swap.State)
+		table += "<a title=\"Filter by state: " + state + "\" href=\"/?id=" + nodeId + "&state=" + simplifySwapState(swap.State) + "&role=" + swapRole + "\">"
 		table += visualiseSwapState(swap.State, false) + "&nbsp</a>"
 		table += " <span title=\"Swap amount, sats\">" + formatWithThousandSeparators(swap.Amount) + "</span>"
+
+		if state == "success" {
+			totalAmount += swap.Amount
+		}
 
 		asset := "🌊"
 		if swap.Asset == "btc" {
@@ -2367,6 +2568,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 		cost := swapCost(swap)
 		if cost != 0 {
+			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
 			table += " <span title=\"Swap cost, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
 		}
@@ -2411,7 +2613,17 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		}
 		table += t.HtmlBlob
 	}
+
 	table += "</table>"
+
+	// show total amount and cost
+	ppm := int64(0)
+	if totalAmount > 0 {
+		ppm = totalCost * 1_000_000 / int64(totalAmount)
+	}
+
+	table += "<p style=\"text-align: center\">Total: " + toMil(totalAmount) + ", Cost: " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p"
+
 	return table
 }
 

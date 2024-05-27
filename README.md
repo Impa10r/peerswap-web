@@ -202,10 +202,10 @@ To convert some BTC on your node into L-BTC you don't need any third party (but 
 
 Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-How-do-I-peg-in-BTC-to-the-Liquid-Network-). 
 
-*Hint for Umbrel guys:* To save keystrokes, add these aliases to ~/.profile, then ```source .profile```
+*Hint for Umbrel:* To save keystrokes, add these aliases to ~/.profile, then ```source .profile```
 ```
-alias lncli="/home/umbrel/umbrel/scripts/app compose lightning exec -T lnd lncli"
-alias bcli="/home/umbrel/umbrel/scripts/app compose bitcoin exec bitcoind bitcoin-cli"
+alias lncli="docker exec -it lightning_lnd_1 lncli" `(Umbrel 0.5 only)`
+alias bcli="docker exec -it bitcoin_bitcoind_1 bitcoin-cli" `(Umbrel 0.5 only)`
 alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
 ```
 

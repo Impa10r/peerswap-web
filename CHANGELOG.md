@@ -1,5 +1,10 @@
 # Versions
 
+## 1.4.8
+
+- Add HTTPS connection with mandatory TLS certificates
+- Add swap statistics (Total amount, cost, PPM)
+
 ## 1.4.7
 
 - Remove resthost from peerswap.conf
