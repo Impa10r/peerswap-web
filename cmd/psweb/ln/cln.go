@@ -46,6 +46,7 @@ var (
 	forwardsIn        = make(map[uint64][]Forwarding)
 	forwardsOut       = make(map[uint64][]Forwarding)
 	forwardsLastIndex uint64
+	downloadComplete  bool
 )
 
 func GetClient() (*glightning.Lightning, func(), error) {
@@ -835,6 +836,11 @@ func GetMyAlias() string {
 
 // scans all channels to get peerswap lightning fees cached
 func SubscribeAll() {
+	if downloadComplete {
+		// only run once if successful
+		return
+	}
+
 	client, clean, err := GetClient()
 	if err != nil {
 		return
@@ -855,6 +861,8 @@ func SubscribeAll() {
 			fetchPaymentsStats(client, timestamp, channelId)
 		}
 	}
+
+	downloadComplete = true
 }
 
 // get invoicedMsat, paidOutMsat, costMsat

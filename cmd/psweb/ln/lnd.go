@@ -87,6 +87,8 @@ var (
 		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
 		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
 	}
+
+	downloadComplete bool
 )
 
 func lndConnection() (*grpc.ClientConn, error) {
@@ -939,91 +941,95 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 
 // cache all and subscribe to lnd
 func SubscribeAll() {
-	// loop forever until connected
+	if downloadComplete {
+		// only run once if successful
+		return
+	}
+
+	conn, err := lndConnection()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	client := lnrpc.NewLightningClient(conn)
+	ctx := context.Background()
+
+	// only go back 6 months for itinial download
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	offset := uint64(0)
+	totalInvoices := uint64(0)
+
 	for {
-		conn, err := lndConnection()
+		res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
+			CreationDateStart: start,
+			Reversed:          false,
+			IndexOffset:       offset,
+			NumMaxInvoices:    100, // bolt11 fields can be long
+		})
 		if err != nil {
-			continue
+			log.Println("ListInvoices:", err)
+			return
 		}
-		defer conn.Close()
 
-		client := lnrpc.NewLightningClient(conn)
-		ctx := context.Background()
+		for _, invoice := range res.Invoices {
+			appendInvoice(invoice)
+		}
 
-		// only go back 6 months for itinial download
-		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
-		offset := uint64(0)
-		totalInvoices := uint64(0)
+		n := len(res.Invoices)
+		totalInvoices += uint64(n)
 
+		if n > 0 {
+			// settle index for subscription
+			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+		}
+		if n < 100 {
+			// all invoices retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastIndexOffset
+	}
+
+	if totalInvoices > 0 {
+		log.Printf("Cached %d invoices", totalInvoices)
+	}
+
+	routerClient := routerrpc.NewRouterClient(conn)
+
+	go func() {
+		// initial or incremental download forwards
+		downloadForwards(client)
+		// subscribe to Forwards
 		for {
-			res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
-				CreationDateStart: start,
-				Reversed:          false,
-				IndexOffset:       offset,
-				NumMaxInvoices:    100, // bolt11 fields can be long
-			})
-			if err != nil {
-				log.Println("ListInvoices:", err)
-				return
-			}
-
-			for _, invoice := range res.Invoices {
-				appendInvoice(invoice)
-			}
-
-			n := len(res.Invoices)
-			totalInvoices += uint64(n)
-
-			if n > 0 {
-				// settle index for subscription
-				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
-			}
-			if n < 100 {
-				// all invoices retrieved
-				break
-			}
-
-			// next pull start from the next index
-			offset = res.LastIndexOffset
-		}
-
-		if totalInvoices > 0 {
-			log.Printf("Cached %d invoices", totalInvoices)
-		}
-
-		routerClient := routerrpc.NewRouterClient(conn)
-
-		go func() {
-			// initial or incremental download forwards
-			downloadForwards(client)
-			// subscribe to Forwards
-			for {
-				if err := subscribeForwards(ctx, routerClient); err != nil {
-					log.Println("Forwards subscription error:", err)
-					time.Sleep(60 * time.Second)
-				}
-			}
-		}()
-
-		go func() {
-			// initial or incremental download payments
-			downloadPayments(client)
-
-			// subscribe to Payments
-			for {
-				if err := subscribePayments(ctx, routerClient); err != nil {
-					log.Println("Payments subscription error:", err)
-					time.Sleep(60 * time.Second)
-				}
-			}
-		}()
-
-		// subscribe to Invoices
-		for {
-			if err := subscribeInvoices(ctx, client); err != nil {
-				log.Println("Invoices subscription error:", err)
+			if err := subscribeForwards(ctx, routerClient); err != nil {
+				log.Println("Forwards subscription error:", err)
 				time.Sleep(60 * time.Second)
 			}
+		}
+	}()
+
+	go func() {
+		// initial or incremental download payments
+		downloadPayments(client)
+
+		// subscribe to Payments
+		for {
+			if err := subscribePayments(ctx, routerClient); err != nil {
+				log.Println("Payments subscription error:", err)
+				time.Sleep(60 * time.Second)
+			}
+		}
+	}()
+
+	downloadComplete = true
+
+	// subscribe to Invoices
+	for {
+		if err := subscribeInvoices(ctx, client); err != nil {
+			log.Println("Invoices subscription error:", err)
+			time.Sleep(60 * time.Second)
 		}
 	}
 }

@@ -32,5 +32,6 @@ RUN useradd -rm -s /bin/bash -u 1000 -U peerswap
 USER peerswap
 
 EXPOSE 1984
+EXPOSE 1985
 
 CMD ["/usr/bin/supervisord"]

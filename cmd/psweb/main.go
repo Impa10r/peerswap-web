@@ -36,7 +36,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.0"
+	version = "v1.5.1"
 )
 
 type SwapParams struct {
@@ -151,14 +151,14 @@ func main() {
 		go func() {
 			httpMux := http.NewServeMux()
 			httpMux.HandleFunc("/", redirectToHTTPS)
-			log.Println("Starting HTTP server on port " + config.Config.ListenPort + " for redirection...")
+			log.Println("Listening on http://localhost:" + config.Config.ListenPort + " for redirection...")
 			if err := http.ListenAndServe(":"+config.Config.ListenPort, httpMux); err != nil {
 				log.Fatalf("Failed to start HTTP server: %v\n", err)
 			}
 		}()
 
 		go serveHTTPS(retryMiddleware(r))
-		log.Println("Listening on https://localhost:" + config.Config.SecurePort)
+		log.Println("Listening HTTPS on port " + config.Config.SecurePort)
 	} else {
 		// Start HTTP server
 		http.Handle("/", retryMiddleware(r))
@@ -175,9 +175,6 @@ func main() {
 
 	// to speed up first load of home page
 	go cacheAliases()
-
-	// LND: download and subscribe to invoices, forwards and payments
-	go ln.SubscribeAll()
 
 	// CLN: cache forwarding stats
 	go ln.CacheForwards()
@@ -1085,7 +1082,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.SecureConnection = true
 				config.Save()
 				url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
-				restart(w, r, url)
+				restart(w, url)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
 				return
@@ -1341,7 +1338,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 				if err := config.GenereateServerCertificate(); err == nil {
 					config.Save()
 					url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
-					restart(w, r, url)
+					restart(w, url)
 				} else {
 					log.Println("GenereateServerCertificate:", err)
 					redirectWithError(w, r, "/config?", err)
@@ -1355,7 +1352,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			config.Config.SecureConnection = false
 			config.Save()
 			url := "http://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.ListenPort
-			restart(w, r, url)
+			restart(w, url)
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
@@ -1705,6 +1702,10 @@ func onTimer() {
 	if config.Config.AutoSwapEnabled {
 		go executeAutoSwap()
 	}
+
+	// LND: download and subscribe to invoices, forwards and payments
+	// CLN: fetch swap fees paid and received via LN
+	go ln.SubscribeAll()
 }
 
 func liquidBackup(force bool) {

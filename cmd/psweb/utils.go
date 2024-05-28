@@ -171,8 +171,21 @@ func fileExists(filename string) bool {
 	return false
 }
 
-func restart(w http.ResponseWriter, r *http.Request, url string) {
+func restart(w http.ResponseWriter, url string) {
 	// assume systemd will restart it
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-	os.Exit(0)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Server is restarting...")
+	fmt.Fprintln(w, "Next url:")
+	fmt.Fprintln(w, url)
+
+	// Flush the response writer to ensure the message is sent before shutdown
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Delay to ensure the message is displayed
+	go func() {
+		time.Sleep(1 * time.Second)
+		os.Exit(0)
+	}()
 }

@@ -24,6 +24,7 @@ require (
 	golang.org/x/net v0.24.0
 	google.golang.org/grpc v1.63.2
 	gopkg.in/macaroon.v2 v2.1.0
+	software.sslmate.com/src/go-pkcs12 v0.4.0
 )
 
 require (
@@ -189,5 +190,4 @@ require (
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-	software.sslmate.com/src/go-pkcs12 v0.4.0 // indirect
 )
