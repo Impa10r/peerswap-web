@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -191,4 +192,17 @@ func restart(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1 * time.Second)
 		os.Exit(0)
 	}()
+}
+
+// NoOpWriter is an io.Writer that does nothing.
+type NoOpWriter struct{}
+
+// Write discards the data and returns success.
+func (NoOpWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+// NewMuteLogger creates a logger that discards all log output.
+func NewMuteLogger() *log.Logger {
+	return log.New(NoOpWriter{}, "", 0)
 }

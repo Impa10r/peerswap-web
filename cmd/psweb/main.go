@@ -235,6 +235,8 @@ func serveHTTPS(handler http.Handler) {
 		Addr:      ":" + config.Config.SecurePort,
 		Handler:   handler,
 		TLSConfig: tlsConfig,
+		// Assign the mute logger to prevent log spamming
+		ErrorLog: NewMuteLogger(),
 	}
 
 	// Start the HTTPS server
