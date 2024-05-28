@@ -1081,8 +1081,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if err := config.GenereateServerCertificate(); err == nil {
 				config.Config.SecureConnection = true
 				config.Save()
-				url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
-				restart(w, url)
+				restart(w, r)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
 				return
@@ -1337,8 +1336,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			if secureConnection {
 				if err := config.GenereateServerCertificate(); err == nil {
 					config.Save()
-					url := "https://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.SecurePort
-					restart(w, url)
+					restart(w, r)
 				} else {
 					log.Println("GenereateServerCertificate:", err)
 					redirectWithError(w, r, "/config?", err)
@@ -1351,8 +1349,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if !secureConnection && config.Config.SecureConnection {
 			config.Config.SecureConnection = false
 			config.Save()
-			url := "http://" + strings.Split(r.Host, ":")[0] + ":" + config.Config.ListenPort
-			restart(w, url)
+			restart(w, r)
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))

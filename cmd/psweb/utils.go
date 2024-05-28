@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"peerswap-web/cmd/psweb/config"
 )
 
 // returns time passed as a string
@@ -171,12 +174,12 @@ func fileExists(filename string) bool {
 	return false
 }
 
-func restart(w http.ResponseWriter, url string) {
+func restart(w http.ResponseWriter, r *http.Request) {
 	// assume systemd will restart it
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "Server is restarting...")
-	fmt.Fprintln(w, "Next url:")
-	fmt.Fprintln(w, url)
+	fmt.Fprintln(w, "PeerSwap Web UI is restarting...")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Please navigate manualy to http://"+strings.Split(r.Host, ":")[0]+":"+config.Config.ListenPort)
 
 	// Flush the response writer to ensure the message is sent before shutdown
 	if flusher, ok := w.(http.Flusher); ok {
