@@ -98,6 +98,8 @@ func GetFeeRate() float64 {
 				}
 
 				return fees.FastestFee
+			} else {
+				log.Printf("Mempool GetFee: %v", err)
 			}
 		}
 	}

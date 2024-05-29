@@ -13,7 +13,6 @@ func GetLatestTag() string {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Println("Error creating request:", err)
 		return ""
 	}
 
@@ -22,6 +21,7 @@ func GetLatestTag() string {
 	client := GetHttpClient(true)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("GetLatestTag: %v", err)
 		return ""
 	}
 	defer resp.Body.Close()
