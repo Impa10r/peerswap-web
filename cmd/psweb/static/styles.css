@@ -31,7 +31,7 @@ header {
     background-image:
         linear-gradient(lightblue,blue),
         linear-gradient(white,darkred),
-        linear-gradient(green,darkgreen),
+        linear-gradient(white,darkgreen),
         linear-gradient(grey,grey);
     background-repeat:no-repeat;
     transition:1s;
