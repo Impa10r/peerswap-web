@@ -1109,7 +1109,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fees are not enabled by your LN back end"))
+					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fees are not enabled by your LN backend"))
 					return
 				}
 

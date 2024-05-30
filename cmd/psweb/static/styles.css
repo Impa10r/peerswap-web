@@ -30,7 +30,7 @@ header {
     font-size:1em;
     background-image:
         linear-gradient(lightblue,blue),
-        linear-gradient(red,darkred),
+        linear-gradient(white,darkred),
         linear-gradient(green,darkgreen),
         linear-gradient(grey,grey);
     background-repeat:no-repeat;
