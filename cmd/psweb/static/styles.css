@@ -81,6 +81,16 @@ pre {
     border-radius: 5px;
 }
 
+#error-message {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    color: white;
+    background-color: darkred;
+    padding: 10px;
+    border-radius: 5px;
+}
+
 .logo-container {
     display: flex;
     justify-content: space-between;

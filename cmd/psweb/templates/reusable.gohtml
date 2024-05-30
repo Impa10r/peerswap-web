@@ -27,6 +27,7 @@
             </div>
             <div id="message-container">
                 <div id="temp-message" class="hidden"></div>
+                <div id="error-message" class="hidden"></div>
             </div>
             <script>
                 function displayTemporaryMessage(msg) {
@@ -43,25 +44,36 @@
                 {{if ne .PopUpMessage ""}}
                     displayTemporaryMessage("{{.PopUpMessage}}");
                 {{end}}
+
+                function displayErrorMessage(msg) {
+                    var messageContainer = document.getElementById("message-container");
+                    var tempMessage = document.getElementById("error-message");
+                    
+                    tempMessage.innerHTML = msg;
+                    tempMessage.classList.remove("hidden");
+
+                    setTimeout(function() {
+                        tempMessage.classList.add("hidden");
+                    }, 5000); // 5 seconds
+                }
+                {{if ne .ErrorMessage ""}}
+                    displayErrorMessage("{{.ErrorMessage}}");
+                {{end}}
             </script>  
         </header>
         <section class="section">
-            {{if ne .ErrorMessage ""}}
+            {{if eq .ErrorMessage "welcome"}}
                 <div class="container">
                     <div class="columns">
                         <div class="column">
                             <div class="box">
-                                {{if eq .ErrorMessage "welcome"}} 
-                                    <h4 class="title is-4">Welcome to PeerSwap!</h4>
-                                    <center>
-                                    <br>
-                                    <p>Please copy-paste your Elements Core Username and Password into the configuration fields below.</p>
-                                    <br>
-                                    <img src="/static/elements.png" alt="Elements Core">
-                                    </center>
-                                {{else}}
-                                    <p style="overflow-wrap: break-word;">❗ {{.ErrorMessage}}</>
-                                {{end}}
+                                <h4 class="title is-4">Welcome to PeerSwap!</h4>
+                                <center>
+                                <br>
+                                <p>Please copy-paste your Elements Core Username and Password into the configuration fields below.</p>
+                                <br>
+                                <img src="/static/elements.png" alt="Elements Core">
+                                </center>
                             </div>
                         </div>
                     </div>

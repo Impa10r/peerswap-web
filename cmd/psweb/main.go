@@ -1118,6 +1118,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fee rate cannot be positive"))
 					return
 				}
+			} else {
+				if feeRate < 0 {
+					// Only discounts are allowed for now
+					redirectWithError(w, r, "/?"+showAll, errors.New("outbound fee rate cannot be negative"))
+					return
+				}
 			}
 
 			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound)
@@ -1696,7 +1702,7 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
-	t := fmt.Sprintln(err)
+	t := fmt.Sprint(err)
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
