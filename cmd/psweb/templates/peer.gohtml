@@ -420,21 +420,25 @@ Sincerely,
             </table>  
             <table style="width:100%; table-layout:fixed; margin-bottom:1em;">
               <tr>
-                <th title="Channel Outbound Capacity" style="text-align: center">Local</th>
-                <th title="Channel Inbound Capacity" style="text-align: center">Remote</th>
-                <th title="Outbound Rate PPM" style="text-align: center">FeeRate</th>
-                <th title="Outbound Base mSats" style="text-align: center">FeeBase</th>
+                <th title="Channel Outbound / Inbound Capacity" style="text-align: center">Local / Remote</th>
+                <th title="Outbound Rate PPM" style="text-align: center">Fee Rate</th>
+                <th title="Outbound Base mSats" style="text-align: center">Fee Base</th>
+                <th title="Inbound Rate PPM" style="text-align: center">Inbound Rate</th>
+                <th title="Inbound Base mSats" style="text-align: center">Inbound Base</th>
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="{{fmt .LocalBalance}}" style="text-align: center">{{m .LocalBalance}}</td>
-                  <td title="{{fmt .RemoteBalance}}" style="text-align: center">{{m .RemoteBalance}}</td>
+                  <td title="{{fmt .LocalBalance}} sats local / {{fmt .RemoteBalance}} sats remote" style="text-align: center">{{m .LocalBalance}} / {{m .RemoteBalance}}</td>
                   {{if .Active}}
-                    <td style="text-align: center">{{fmt .FeeRate}}</td>
-                    <td style="text-align: center">{{fmt .FeeBase}}</td>
+                    <td style="text-align: center">{{fs .FeeRate}}</td>
+                    <td style="text-align: center">{{fs .FeeBase}}</td>
+                    <td style="text-align: center">{{fs .InboundFeeRate}}</td>
+                    <td style="text-align: center">{{fs .InboundFeeBase}}</td>
                   {{else}}
-                    <td style="text-align: right">CHANNEL</td>
-                    <td style="text-align: left">INACTIVE</td>
+                    <td style="text-align: right"></td>
+                    <td style="text-align: right">INACTIVE</td>
+                    <td style="text-align: left">CHANNEL</td>
+                    <td style="text-align: left"></td>
                   {{end}}
                 </tr>
               {{end}}

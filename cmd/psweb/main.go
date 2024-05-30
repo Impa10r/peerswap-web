@@ -343,7 +343,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	// refresh forwarding stats
 	ln.CacheForwards()
 
-	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps)
+	// get fee rates for all channels
+	outboundFeeRates := make(map[uint64]int64)
+	inboundFeeRates := make(map[uint64]int64)
+
+	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
+
+	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates)
 
 	//check whether to display non-PS channels or swaps
 	listSwaps := ""
@@ -365,7 +371,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		otherPeers := res5.GetPeers()
-		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers)
+		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates)
 
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
@@ -2116,7 +2122,7 @@ func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswapr
 }
 
 // converts a list of peers into an HTML table to display
-func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string, swaps []*peerswaprpc.PrettyPrintSwap) string {
+func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string, swaps []*peerswaprpc.PrettyPrintSwap, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) string {
 
 	type Table struct {
 		AvgLocal int
@@ -2149,20 +2155,25 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		for _, channel := range peer.Channels {
 			// red background for inactive channels
 			bc := "#590202"
+			fc := "grey"
 			if config.Config.ColorScheme == "light" {
 				bc = "#fcb6b6"
+				fc = "grey"
 			}
 
 			if channel.Active {
 				// green background for active channels
 				bc = "#224725"
+				fc = "white"
 				if config.Config.ColorScheme == "light" {
 					bc = "#e6ffe8"
+					fc = "black"
 				}
 			}
 
 			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
-			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += feeInputField(channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc)
+			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 6ch; text-align: center\">"
 			channelsTable += toMil(channel.LocalBalance)
 			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
 			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -2251,9 +2262,11 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			channelsTable += "</a></td>"
-			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 6ch; text-align: center\">"
 			channelsTable += toMil(channel.RemoteBalance)
-			channelsTable += "</td></tr>"
+			channelsTable += "</td>"
+			channelsTable += feeInputField(channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc)
+			channelsTable += "</tr>"
 		}
 		channelsTable += "</table>"
 
@@ -2330,7 +2343,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 }
 
 // converts a list of non-PS peers into an HTML table to display
-func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
+func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) string {
 
 	type Table struct {
 		AvgLocal int
@@ -2357,19 +2370,24 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 		for _, channel := range peer.Channels {
 			// red background for inactive channels
 			bc := "#590202"
+			fc := "grey"
 			if config.Config.ColorScheme == "light" {
 				bc = "#fcb6b6"
+				fc = "grey"
 			}
 
 			if channel.Active {
 				// green background for active channels
 				bc = "#224725"
+				fc = "white"
 				if config.Config.ColorScheme == "light" {
 					bc = "#e6ffe8"
+					fc = "black"
 				}
 			}
 
 			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
+			channelsTable += feeInputField(channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc)
 			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
 			channelsTable += toMil(channel.LocalBalance)
 			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
@@ -2441,7 +2459,9 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer) string {
 			channelsTable += "</a></td>"
 			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
 			channelsTable += toMil(channel.RemoteBalance)
-			channelsTable += "</td></tr>"
+			channelsTable += "</td>"
+			channelsTable += feeInputField(channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc)
+			channelsTable += "</tr>"
 		}
 		channelsTable += "</table>"
 

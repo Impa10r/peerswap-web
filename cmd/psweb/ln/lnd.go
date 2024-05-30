@@ -1185,8 +1185,12 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 		info.OurMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
 	}
 
-	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
-	info.FeeBase = uint64(policy.GetFeeBaseMsat())
+	info.FeeRate = policy.GetFeeRateMilliMsat()
+	info.FeeBase = policy.GetFeeBaseMsat()
+	if CanRBF() { // signals LND 0.18+
+		info.InboundFeeBase = int64(policy.GetInboundFeeBaseMsat())
+		info.InboundFeeRate = int64(policy.GetInboundFeeRateMilliMsat())
+	}
 	info.Capacity = uint64(r.Capacity)
 
 	return info
@@ -1420,4 +1424,20 @@ func EstimateFee() float64 {
 	}
 
 	return float64(res.SatPerKw / 250)
+}
+
+// get fees for all channels by filling the maps [channelId]
+func FeeReport(client lnrpc.LightningClient, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) error {
+	r, err := client.FeeReport(context.Background(), &lnrpc.FeeReportRequest{})
+	if err != nil {
+		log.Println("FeeReport:", err)
+		return err
+	}
+
+	for _, ch := range r.ChannelFees {
+		outboundFeeRates[ch.ChanId] = ch.FeePerMil
+		inboundFeeRates[ch.ChanId] = int64(ch.InboundFeePerMil)
+	}
+
+	return nil
 }

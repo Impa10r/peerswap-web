@@ -133,18 +133,22 @@ func simplifySwapState(state string) string {
 }
 
 func toSats(amount float64) uint64 {
-	return uint64(float64(100000000) * amount)
+	return uint64(float64(100_000_000) * amount)
 }
 
 func toUint(num int64) uint64 {
 	return uint64(num)
 }
 
+// displays balances in millions
 func toMil(num uint64) string {
 	if num == 0 {
 		return "-"
 	}
-	return fmt.Sprintf("%.1f", float32(num)/1000000) + "m"
+	if num >= 10_000_000 {
+		return fmt.Sprintf("%d", num/1_000_000) + "m"
+	}
+	return fmt.Sprintf("%.1f", float32(num)/1_000_000) + "m"
 }
 
 func formatSigned(num int64) string {
@@ -206,4 +210,21 @@ func (NoOpWriter) Write(p []byte) (n int, err error) {
 // NewMuteLogger creates a logger that discards all log output.
 func NewMuteLogger() *log.Logger {
 	return log.New(NoOpWriter{}, "", 0)
+}
+
+// html snippet to display and update fee PPM
+func feeInputField(channelId uint64, direction string, feePerMil int64, backgroundColor string, fontColor string) string {
+	// direction: inbound or outbound
+	fieldId := strconv.FormatUint(channelId, 10) + "_" + direction
+	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch">`
+	t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
+	t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
+	t += `<input type="hidden" name="action" value="setFee">`
+	t += `<input type="hidden" name="direction" value="` + direction + `">`
+	t += `<input type="hidden" name="channelId" value="` + strconv.FormatUint(channelId, 10) + `">`
+	t += `<input type="text" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="fee" value="` + formatSigned(feePerMil) + `" oninput="feeSubmitForm("` + fieldId + `")">`
+	t += `</form>`
+	t += `</td>`
+
+	return t
 }
