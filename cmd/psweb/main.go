@@ -1109,19 +1109,19 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fees are not enabled by your LN backend"))
+					redirectWithError(w, r, "/?"+showAll, errors.New("Inbound fees are not enabled by your LN backend"))
 					return
 				}
 
 				if feeRate > 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fee rate cannot be positive"))
+					redirectWithError(w, r, "/?"+showAll, errors.New("Inbound fee rate cannot be positive"))
 					return
 				}
 			} else {
 				if feeRate < 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, "/?"+showAll, errors.New("outbound fee rate cannot be negative"))
+					redirectWithError(w, r, "/?"+showAll, errors.New("Outbound fee rate cannot be negative"))
 					return
 				}
 			}

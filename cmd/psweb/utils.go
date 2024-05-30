@@ -228,7 +228,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 	t += `<input type="hidden" name="direction" value="` + direction + `">`
 	t += `<input type="hidden" name="showAll" value="` + strconv.FormatBool(showAll) + `">`
 	t += `<input type="hidden" name="channelId" value="` + strconv.FormatUint(channelId, 10) + `">`
-	t += `<input type="text" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + formatSigned(feePerMil) + `" onchange="feeSubmitForm('` + fieldId + `')">`
+	t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + formatSigned(feePerMil) + `" onchange="feeSubmitForm('` + fieldId + `')">`
 	t += `</form>`
 	t += `</td>`
 
