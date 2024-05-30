@@ -16,7 +16,7 @@ type responseWriter struct {
 func (rw *responseWriter) Write(p []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(p)
 	if err != nil {
-		if strings.Contains(err.Error(), "stream closed") {
+		if strings.Contains(err.Error(), "stream closed") || strings.Contains(err.Error(), "broken pipe") {
 			rw.brokenPipe = true
 			log.Println("Detected broken pipe error")
 		} else {

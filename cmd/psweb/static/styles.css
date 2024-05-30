@@ -30,8 +30,8 @@ header {
     font-size:1em;
     background-image:
         linear-gradient(lightblue,blue),
-        linear-gradient(white,darkred),
-        linear-gradient(white,darkgreen),
+        linear-gradient(#debaba,darkred),
+        linear-gradient(#95cb96,darkgreen),
         linear-gradient(grey,grey);
     background-repeat:no-repeat;
     transition:1s;

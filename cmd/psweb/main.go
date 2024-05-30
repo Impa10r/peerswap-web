@@ -2450,7 +2450,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 
 			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
 			channelsTable += feeInputField(peer.NodeId, channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc, showAll)
-			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 10ch; text-align: center\">"
+			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 6ch; text-align: center\">"
 			channelsTable += toMil(channel.LocalBalance)
 			channelsTable += "</td><td style=\"padding: 0px; text-align: center; vertical-align: middle;\">"
 			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
@@ -2519,7 +2519,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 
 			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			channelsTable += "</a></td>"
-			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 10ch; text-align: center\">"
+			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 6ch; text-align: center\">"
 			channelsTable += toMil(channel.RemoteBalance)
 			channelsTable += "</td>"
 			channelsTable += feeInputField(peer.NodeId, channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc, showAll)
