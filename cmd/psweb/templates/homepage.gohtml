@@ -123,6 +123,11 @@
         return greekAlphabet.charAt(randomIndex);
       }
 
+      // submits new fee rate 
+      function feeSubmitForm(formId) {
+        document.getElementById(formId).submit();
+      }
+
     </script>
   {{template "footer" .}}
 {{end}}

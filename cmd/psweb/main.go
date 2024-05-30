@@ -179,8 +179,8 @@ func main() {
 	// CLN: cache forwarding stats
 	go ln.CacheForwards()
 
-	// fetch all chain costs
-	go cacheSwapCosts()
+	// fetch all chain costs (synchronous to protect map writes)
+	cacheSwapCosts()
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -349,14 +349,15 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
-	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates)
+	_, showAll := r.URL.Query()["showall"]
+
+	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates, showAll)
 
 	//check whether to display non-PS channels or swaps
 	listSwaps := ""
 	nonPeerTable := ""
 
-	_, ok = r.URL.Query()["showall"]
-	if ok {
+	if showAll {
 		// make a list of peerswap peers
 		var psIds []string
 
@@ -371,7 +372,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		otherPeers := res5.GetPeers()
-		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates)
+		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates, showAll)
 
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
@@ -1084,6 +1085,51 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "setFee":
+			showAll := ""
+			if r.FormValue("showAll") == "true" {
+				// reloaded index page to show all peers
+				showAll = "showall&"
+			}
+
+			feeRate, err := strconv.ParseInt(r.FormValue("feeRate"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/?"+showAll, err)
+				return
+			}
+
+			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/?"+showAll, err)
+				return
+			}
+
+			inbound := r.FormValue("direction") == "inbound"
+
+			if inbound {
+				if ln.Implementation == "CLN" || !ln.CanRBF() {
+					// CLN and LND < 0.18 cannot set inbound fees
+					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fees are not enabled by your LN back end"))
+					return
+				}
+
+				if feeRate > 0 {
+					// Only discounts are allowed for now
+					redirectWithError(w, r, "/?"+showAll, errors.New("inbound fee rate cannot be positive"))
+					return
+				}
+			}
+
+			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound)
+			if err != nil {
+				redirectWithError(w, r, "/?"+showAll, err)
+				return
+			}
+
+			// all good, display confirmation
+			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
+			http.Redirect(w, r, "/?"+showAll+"msg="+msg, http.StatusSeeOther)
+
 		case "enableHTTPS":
 			// restart with HTTPS listener
 			if err := config.GenereateServerCertificate(); err == nil {
@@ -2122,7 +2168,14 @@ func findPeerById(peers []*peerswaprpc.PeerSwapPeer, targetId string) *peerswapr
 }
 
 // converts a list of peers into an HTML table to display
-func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers []string, suspiciousPeers []string, swaps []*peerswaprpc.PrettyPrintSwap, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) string {
+func convertPeersToHTMLTable(
+	peers []*peerswaprpc.PeerSwapPeer,
+	allowlistedPeers []string,
+	suspiciousPeers []string,
+	swaps []*peerswaprpc.PrettyPrintSwap,
+	outboundFeeRates map[uint64]int64,
+	inboundFeeRates map[uint64]int64,
+	showAll bool) string {
 
 	type Table struct {
 		AvgLocal int
@@ -2172,10 +2225,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 			}
 
 			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
-			channelsTable += feeInputField(channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc)
-			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 6ch; text-align: center\">"
+			channelsTable += feeInputField(peer.NodeId, channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc, showAll)
+			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 6ch; text-align: center\">"
 			channelsTable += toMil(channel.LocalBalance)
-			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
+			channelsTable += "</td><td style=\"padding: 0px; text-align: center; vertical-align: middle;\">"
 			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 			local := float64(channel.LocalBalance)
@@ -2262,10 +2315,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 
 			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			channelsTable += "</a></td>"
-			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 6ch; text-align: center\">"
+			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 6ch; text-align: center\">"
 			channelsTable += toMil(channel.RemoteBalance)
 			channelsTable += "</td>"
-			channelsTable += feeInputField(channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc)
+			channelsTable += feeInputField(peer.NodeId, channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc, showAll)
 			channelsTable += "</tr>"
 		}
 		channelsTable += "</table>"
@@ -2274,7 +2327,7 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 		pct := int(1000000 * totalLocal / totalCapacity)
 
 		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
-		peerTable += "<tr style=\"border: 1px dotted\">"
+		peerTable += "<tr style=\"border: 1px dotted;\">"
 		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page
@@ -2343,7 +2396,10 @@ func convertPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, allowlistedPeers
 }
 
 // converts a list of non-PS peers into an HTML table to display
-func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) string {
+func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
+	outboundFeeRates map[uint64]int64,
+	inboundFeeRates map[uint64]int64,
+	showAll bool) string {
 
 	type Table struct {
 		AvgLocal int
@@ -2387,10 +2443,10 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, outboundFee
 			}
 
 			channelsTable += "<tr style=\"background-color: " + bc + "\"; >"
-			channelsTable += feeInputField(channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc)
-			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += feeInputField(peer.NodeId, channel.ChannelId, "outbound", outboundFeeRates[channel.ChannelId], bc, fc, showAll)
+			channelsTable += "<td title=\"Local balance: " + formatWithThousandSeparators(channel.LocalBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 10ch; text-align: center\">"
 			channelsTable += toMil(channel.LocalBalance)
-			channelsTable += "</td><td style=\"text-align: center; vertical-align: middle;\">"
+			channelsTable += "</td><td style=\"padding: 0px; text-align: center; vertical-align: middle;\">"
 			channelsTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
 			local := float64(channel.LocalBalance)
@@ -2457,10 +2513,10 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, outboundFee
 
 			channelsTable += "<div title=\"" + tooltip + "\" class=\"progress\" style=\"background-size: " + currentProgress + ";\" onmouseover=\"this.style.backgroundSize = '" + previousProgress + "';\" onmouseout=\"this.style.backgroundSize = '" + currentProgress + "';\"></div>"
 			channelsTable += "</a></td>"
-			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"width: 10ch; text-align: center\">"
+			channelsTable += "<td title=\"Remote balance: " + formatWithThousandSeparators(channel.RemoteBalance) + "\" id=\"scramble\" style=\"padding: 0px; width: 10ch; text-align: center\">"
 			channelsTable += toMil(channel.RemoteBalance)
 			channelsTable += "</td>"
-			channelsTable += feeInputField(channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc)
+			channelsTable += feeInputField(peer.NodeId, channel.ChannelId, "inbound", inboundFeeRates[channel.ChannelId], bc, fc, showAll)
 			channelsTable += "</tr>"
 		}
 		channelsTable += "</table>"
@@ -2469,7 +2525,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer, outboundFee
 		pct := int(1000000 * totalLocal / totalCapacity)
 
 		peerTable := "<table style=\"table-layout:fixed; width: 100%\">"
-		peerTable += "<tr style=\"border: 1px dotted\">"
+		peerTable += "<tr style=\"border: 1px dotted;\">"
 		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page

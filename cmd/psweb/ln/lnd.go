@@ -1166,7 +1166,7 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 		ChanId: channelId,
 	})
 	if err != nil {
-		log.Println("GetChanInfo:", err)
+		log.Println("GetChannelInfo:", err)
 		return info
 	}
 
@@ -1437,6 +1437,77 @@ func FeeReport(client lnrpc.LightningClient, outboundFeeRates map[uint64]int64, 
 	for _, ch := range r.ChannelFees {
 		outboundFeeRates[ch.ChanId] = ch.FeePerMil
 		inboundFeeRates[ch.ChanId] = int64(ch.InboundFeePerMil)
+	}
+
+	return nil
+}
+
+// set fee rate for a channel
+func SetFeeRate(peerNodeId string, channelId uint64, feeRate int64, inbound bool) error {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+	defer cleanup()
+
+	// get channel point first
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	policy := r.Node1Policy
+	if r.Node1Pub == peerNodeId {
+		// the first policy is not ours, use the second
+		policy = r.Node2Policy
+	}
+
+	parts := strings.Split(r.ChanPoint, ":")
+	outputIndex, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	var req lnrpc.PolicyUpdateRequest
+
+	req.Scope = &lnrpc.PolicyUpdateRequest_ChanPoint{
+		ChanPoint: &lnrpc.ChannelPoint{
+			FundingTxid: &lnrpc.ChannelPoint_FundingTxidStr{
+				FundingTxidStr: parts[0],
+			},
+			OutputIndex: uint32(outputIndex),
+		},
+	}
+
+	// preserve policy values
+	req.BaseFeeMsat = policy.FeeBaseMsat
+	req.FeeRatePpm = uint32(policy.FeeRateMilliMsat)
+	req.TimeLockDelta = policy.TimeLockDelta
+	req.MinHtlcMsatSpecified = false
+	req.MaxHtlcMsat = policy.MaxHtlcMsat
+	req.InboundFee = &lnrpc.InboundFee{
+		FeeRatePpm:  policy.InboundFeeRateMilliMsat,
+		BaseFeeMsat: policy.InboundFeeBaseMsat,
+	}
+
+	// change what's new
+	if inbound {
+		req.InboundFee = &lnrpc.InboundFee{
+			FeeRatePpm: int32(feeRate),
+		}
+	} else {
+		req.FeeRatePpm = uint32(feeRate)
+	}
+
+	_, err = client.UpdateChannelPolicy(context.Background(), &req)
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
 	}
 
 	return nil
