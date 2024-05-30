@@ -613,7 +613,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		feeRate = mempoolFeeRate
 	}
 
-	// better be conservative
+	// to be conservative
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	data := Page{

@@ -190,6 +190,7 @@ func restart(w http.ResponseWriter, r *http.Request) {
 	// Delay to ensure the message is displayed
 	go func() {
 		time.Sleep(1 * time.Second)
+		log.Println("Restart requested, stopping PSWeb.")
 		os.Exit(0)
 	}()
 }
