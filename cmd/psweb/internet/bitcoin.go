@@ -69,8 +69,8 @@ func GetFeeRate() float64 {
 			if cl == nil {
 				return 0
 			}
-			resp, err2 := cl.Do(req)
-			if err2 == nil {
+			resp, err := cl.Do(req)
+			if err == nil {
 				defer resp.Body.Close()
 				if resp.StatusCode != 200 {
 					return 0
@@ -93,13 +93,10 @@ func GetFeeRate() float64 {
 
 				// Unmarshal the JSON string into the struct
 				if err := json.Unmarshal(buf.Bytes(), &fees); err != nil {
-					log.Println("Mempool GetFee:", err)
 					return 0
 				}
 
 				return fees.FastestFee
-			} else {
-				log.Printf("Mempool GetFee: %v", err)
 			}
 		}
 	}

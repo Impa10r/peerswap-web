@@ -2,7 +2,6 @@ package internet
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
 
@@ -21,7 +20,6 @@ func GetLatestTag() string {
 	client := GetHttpClient(true)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("GetLatestTag: %v", err)
 		return ""
 	}
 	defer resp.Body.Close()
