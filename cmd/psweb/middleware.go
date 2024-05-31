@@ -47,5 +47,8 @@ func retryMiddleware(next http.Handler) http.Handler {
 			log.Println("Retrying due to broken pipe...")
 			time.Sleep(1 * time.Second) // Wait before retrying
 		}
+
+		log.Println("Failed to handle request after 3 attempts due to broken pipe")
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 	})
 }

@@ -638,9 +638,12 @@ func (r ListPeerChannelsRequest) Name() string {
 	return "listpeerchannels"
 }
 
-// get fees on the channel
+// get fees for the channel
 func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId string) *ChanneInfo {
 	info := new(ChanneInfo)
+
+	info.ChannelId = lndChannelId
+
 	channelId := ConvertLndToClnChannelId(lndChannelId)
 
 	var response map[string]interface{}
@@ -1002,8 +1005,8 @@ func FeeReport(client *glightning.Lightning, outboundFeeRates map[uint64]int64, 
 
 type SetChannelRequest struct {
 	Id                string `json:"id"`
-	BaseMilliSatoshis string `json:"feebase,omitempty"`
-	PartPerMillion    uint32 `json:"feeppm,omitempty"`
+	BaseMilliSatoshis int64  `json:"feebase,omitempty"`
+	PartPerMillion    int64  `json:"feeppm,omitempty"`
 }
 
 func (r *SetChannelRequest) Name() string {
@@ -1011,7 +1014,16 @@ func (r *SetChannelRequest) Name() string {
 }
 
 // set fee rate for a channel
-func SetFeeRate(peerNodeId string, channelId uint64, feeRate int64, inbound bool) error {
+func SetFeeRate(peerNodeId string,
+	channelId uint64,
+	feeRate int64,
+	inbound bool,
+	isBase bool) error {
+
+	if inbound {
+		return errors.New("inbound rates are not implemented")
+	}
+
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1023,7 +1035,11 @@ func SetFeeRate(peerNodeId string, channelId uint64, feeRate int64, inbound bool
 	var res map[string]interface{}
 
 	req.Id = ConvertLndToClnChannelId(channelId)
-	req.PartPerMillion = uint32(feeRate)
+	if isBase {
+		req.BaseMilliSatoshis = feeRate
+	} else {
+		req.PartPerMillion = feeRate
+	}
 
 	err = client.Request(&req, &res)
 	if err != nil {

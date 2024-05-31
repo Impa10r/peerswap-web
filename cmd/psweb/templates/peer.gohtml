@@ -418,22 +418,62 @@ Sincerely,
                 </tr>
               {{end}}
             </table>  
-            <table style="width:100%; table-layout:fixed; margin-bottom:1em;">
+            <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
               <tr>
-                <th title="Channel Outbound / Inbound Capacity" style="text-align: center">Local / Remote</th>
-                <th title="Outbound Rate PPM" style="text-align: center">Fee Rate</th>
-                <th title="Outbound Base mSats" style="text-align: center">Fee Base</th>
-                <th title="Inbound Rate PPM" style="text-align: center">Inbound Rate</th>
-                <th title="Inbound Base mSats" style="text-align: center">Inbound Base</th>
+                <th title="Channel Capacity" style="text-align: center">Capacity</th>
+                <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
+                <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
+                <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
+                <th title="Inbound Fee Base mSats" style="text-align: center">Inbound Base</th>
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="{{fmt .LocalBalance}} sats local / {{fmt .RemoteBalance}} sats remote" style="text-align: center">{{m .LocalBalance}} / {{m .RemoteBalance}}</td>
+                  <td title="Channel capacity: {{fmt .Capacity}} sats" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
                   {{if .Active}}
-                    <td style="text-align: center">{{fs .FeeRate}}</td>
-                    <td style="text-align: center">{{fs .FeeBase}}</td>
-                    <td style="text-align: center">{{fs .InboundFeeRate}}</td>
-                    <td style="text-align: center">{{fs .InboundFeeBase}}</td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setFee">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="outbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_outbound')">
+                      </form>
+                    </td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setBase">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="outbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_outboundbase')">
+                      </form>
+                    </td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setFee">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="inbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_inbound')">
+                      </form>
+                    </td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setBase">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="inbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_inboundbase')">
+                      </form>
+                    </td>
                   {{else}}
                     <td style="text-align: right"></td>
                     <td style="text-align: right">INACTIVE</td>
@@ -443,6 +483,12 @@ Sincerely,
                 </tr>
               {{end}}
             </table>
+            <script>
+              // submits new fee rate 
+              function feeSubmitForm(formId) {
+                document.getElementById(formId).submit();
+              }
+            </script>
             {{if .PeerSwapPeer}}
               <div class="columns">
                 <div class="column">

@@ -1158,9 +1158,11 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	return &result
 }
 
-// get fees on the channel
+// get fees for the channel
 func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId string) *ChanneInfo {
 	info := new(ChanneInfo)
+
+	info.ChannelId = channelId
 
 	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
@@ -1443,7 +1445,11 @@ func FeeReport(client lnrpc.LightningClient, outboundFeeRates map[uint64]int64, 
 }
 
 // set fee rate for a channel
-func SetFeeRate(peerNodeId string, channelId uint64, feeRate int64, inbound bool) error {
+func SetFeeRate(peerNodeId string,
+	channelId uint64,
+	feeRate int64,
+	inbound bool,
+	isBase bool) error {
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1496,12 +1502,18 @@ func SetFeeRate(peerNodeId string, channelId uint64, feeRate int64, inbound bool
 	}
 
 	// change what's new
-	if inbound {
-		req.InboundFee = &lnrpc.InboundFee{
-			FeeRatePpm: int32(feeRate),
+	if isBase {
+		if inbound {
+			req.InboundFee.BaseFeeMsat = int32(feeRate)
+		} else {
+			req.BaseFeeMsat = feeRate
 		}
 	} else {
-		req.FeeRatePpm = uint32(feeRate)
+		if inbound {
+			req.InboundFee.FeeRatePpm = int32(feeRate)
+		} else {
+			req.FeeRatePpm = uint32(feeRate)
+		}
 	}
 
 	_, err = client.UpdateChannelPolicy(context.Background(), &req)

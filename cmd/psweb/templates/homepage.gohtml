@@ -38,7 +38,7 @@
             {{.ListPeers}}
             {{if eq .OtherPeers ""}}
               <center>
-                <a id="showOtherLink" href="/?showall">Show Non-PeerSwap Channels</a>
+                <p id="showOtherLink" style="text-align: center; white-space: nowrap"><a href="/?showall">Display Non-PeerSwap Channels</a></p>
               </center>
             {{end}}
           </div>
@@ -127,7 +127,6 @@
       function feeSubmitForm(formId) {
         document.getElementById(formId).submit();
       }
-
     </script>
   {{template "footer" .}}
 {{end}}

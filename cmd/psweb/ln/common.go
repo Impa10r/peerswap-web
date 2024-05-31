@@ -55,6 +55,7 @@ type ChannelStats struct {
 }
 
 type ChanneInfo struct {
+	ChannelId       uint64
 	LocalBalance    uint64
 	RemoteBalance   uint64
 	FeeRate         int64 // PPM

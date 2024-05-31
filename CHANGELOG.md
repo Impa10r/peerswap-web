@@ -2,7 +2,9 @@
 
 ## 1.5.1
 
+- Enable setting fee rates, including inbound for LND 0.18+
 - If failed on startup, keep trying to subscribe every minute
+- Better UI colors (I think)
 
 ## 1.5.0
 

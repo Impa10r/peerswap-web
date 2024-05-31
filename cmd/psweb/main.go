@@ -416,11 +416,25 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		PeginPending:      config.Config.PeginTxId != "",
 	}
 
-	// executing template named "homepage"
-	err = templates.ExecuteTemplate(w, "homepage", data)
-	if err != nil {
-		log.Fatalln(err)
+	// executing template named "homepage" with retries
+	for i := 0; i < 3; i++ {
+		err := templates.ExecuteTemplate(w, "homepage", data)
+		if err != nil {
+			if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
+				log.Printf("Detected error '%v' while executing template, retrying...", err.Error())
+				time.Sleep(1 * time.Second)
+				continue
+			} else {
+				log.Printf("Template execution error: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+		}
+		return
 	}
+
+	log.Println("Failed to execute template after 3 attempts due to broken pipe")
+	http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 }
 
 func peerHandler(w http.ResponseWriter, r *http.Request) {
@@ -553,6 +567,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var utxosLBTC []liquid.UTXO
 	liquid.ListUnspent(&utxosLBTC)
 
+	// get routing stats
 	for _, ch := range peer.Channels {
 		stat := ln.GetForwardingStats(ch.ChannelId)
 		stats = append(stats, stat)
@@ -578,7 +593,12 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		errorMessage = keys[0]
 	}
 
-	// get routing stats
+	//check for pop-up message to display
+	popupMessage := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		popupMessage = keys[0]
+	}
 
 	type Page struct {
 		ErrorMessage      string
@@ -625,7 +645,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := Page{
 		ErrorMessage:      errorMessage,
-		PopUpMessage:      "",
+		PopUpMessage:      popupMessage,
 		BtcFeeRate:        bitcoinFeeRate,
 		MempoolFeeRate:    feeRate,
 		ColorScheme:       config.Config.ColorScheme,
@@ -1086,21 +1106,17 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "setFee":
-			showAll := ""
-			if r.FormValue("showAll") == "true" {
-				// reloaded index page to show all peers
-				showAll = "showall&"
-			}
+			nextPage := r.FormValue("nextPage")
 
 			feeRate, err := strconv.ParseInt(r.FormValue("feeRate"), 10, 64)
 			if err != nil {
-				redirectWithError(w, r, "/?"+showAll, err)
+				redirectWithError(w, r, nextPage, err)
 				return
 			}
 
 			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
 			if err != nil {
-				redirectWithError(w, r, "/?"+showAll, err)
+				redirectWithError(w, r, nextPage, err)
 				return
 			}
 
@@ -1109,32 +1125,77 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, "/?"+showAll, errors.New("Inbound fees are not enabled by your LN backend"))
+					redirectWithError(w, r, nextPage, errors.New("Inbound fees are not allowed by your LN backend"))
 					return
 				}
 
 				if feeRate > 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, "/?"+showAll, errors.New("Inbound fee rate cannot be positive"))
+					redirectWithError(w, r, nextPage, errors.New("Inbound fee rate cannot be positive"))
 					return
 				}
 			} else {
 				if feeRate < 0 {
-					// Only discounts are allowed for now
-					redirectWithError(w, r, "/?"+showAll, errors.New("Outbound fee rate cannot be negative"))
+					redirectWithError(w, r, nextPage, errors.New("Outbound fee rate cannot be negative"))
 					return
 				}
 			}
 
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound)
+			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound, false)
 			if err != nil {
-				redirectWithError(w, r, "/?"+showAll, err)
+				redirectWithError(w, r, nextPage, err)
 				return
 			}
 
 			// all good, display confirmation
 			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
-			http.Redirect(w, r, "/?"+showAll+"msg="+msg, http.StatusSeeOther)
+			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
+
+		case "setBase":
+			nextPage := r.FormValue("nextPage")
+
+			feeBase, err := strconv.ParseInt(r.FormValue("feeBase"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			inbound := r.FormValue("direction") == "inbound"
+
+			if inbound {
+				if ln.Implementation == "CLN" || !ln.CanRBF() {
+					// CLN and LND < 0.18 cannot set inbound fees
+					redirectWithError(w, r, nextPage, errors.New("Inbound fees are not allowed by your LN backend"))
+					return
+				}
+
+				if feeBase > 0 {
+					// Only discounts are allowed for now
+					redirectWithError(w, r, nextPage, errors.New("Inbound fee base cannot be positive"))
+					return
+				}
+			} else {
+				if feeBase < 0 {
+					redirectWithError(w, r, nextPage, errors.New("Outbound fee base cannot be negative"))
+					return
+				}
+			}
+
+			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeBase, inbound, true)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			// all good, display confirmation
+			msg := strings.Title(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
+			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 
 		case "enableHTTPS":
 			// restart with HTTPS listener
@@ -2704,7 +2765,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		ppm = totalCost * 1_000_000 / int64(totalAmount)
 	}
 
-	table += "<p style=\"text-align: center\">Total: " + toMil(totalAmount) + ", Cost: " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p"
+	table += "<p style=\"text-align: center; white-space: nowrap\">Total: " + toMil(totalAmount) + ", Cost: " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
 
 	return table
 }

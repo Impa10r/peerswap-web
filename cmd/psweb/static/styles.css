@@ -29,7 +29,7 @@ header {
     color:white;
     font-size:1em;
     background-image:
-        linear-gradient(lightblue,blue),
+        linear-gradient(#c0bdff,blue),
         linear-gradient(#debaba,darkred),
         linear-gradient(#95cb96,darkgreen),
         linear-gradient(grey,grey);
@@ -125,14 +125,25 @@ li {
     margin-left: 5em; 
 }
 
- /* Hide the spin buttons in Chrome, Safari, Edge, and Opera */
- input[type="number"]::-webkit-outer-spin-button,
- input[type="number"]::-webkit-inner-spin-button {
-     -webkit-appearance: none;
-     margin: 0;
- }
+/* Hide the spin buttons in Chrome, Safari, Edge, and Opera */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
 
- /* Hide the spin buttons in Firefox */
- input[type="number"] {
-     -moz-appearance: textfield;
- }
+/* Hide the spin buttons in Firefox */
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.transparent-input {
+    background-color: transparent; /* Transparent background */
+    padding: 0px; /* Add padding */
+    color: white; /* Text color */
+    text-align: center;
+    font-size: 1em; /* Font size */
+    width: 100%; /* Make input take full width of the cell */
+    box-sizing: border-box; /* Ensure padding is included in the width calculation */
+}

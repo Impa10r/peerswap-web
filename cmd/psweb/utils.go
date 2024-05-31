@@ -220,13 +220,19 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 	if direction == "inbound" {
 		align = "text-align: right"
 	}
+
+	nextPage := "/?"
+	if showAll {
+		nextPage += "showall&"
+	}
+
 	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
 	t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
 	t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
 	t += `<input type="hidden" name="action" value="setFee">`
 	t += `<input type="hidden" name="peerNodeId" value="` + peerNodeId + `">`
 	t += `<input type="hidden" name="direction" value="` + direction + `">`
-	t += `<input type="hidden" name="showAll" value="` + strconv.FormatBool(showAll) + `">`
+	t += `<input type="hidden" name="nextPage" value="` + nextPage + `">`
 	t += `<input type="hidden" name="channelId" value="` + strconv.FormatUint(channelId, 10) + `">`
 	t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + strconv.FormatInt(feePerMil, 10) + `" onchange="feeSubmitForm('` + fieldId + `')">`
 	t += `</form>`
