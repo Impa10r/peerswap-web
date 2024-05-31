@@ -2,7 +2,6 @@ package internet
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 )
 
@@ -13,7 +12,6 @@ func GetLatestTag() string {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Println("Error creating request:", err)
 		return ""
 	}
 

@@ -55,10 +55,13 @@ type ChannelStats struct {
 }
 
 type ChanneInfo struct {
+	ChannelId       uint64
 	LocalBalance    uint64
 	RemoteBalance   uint64
-	FeeRate         uint64
-	FeeBase         uint64
+	FeeRate         int64 // PPM
+	FeeBase         int64 // mSat
+	InboundFeeRate  int64 // PPM
+	InboundFeeBase  int64 // mSat
 	Active          bool
 	OurMaxHtlcMsat  uint64
 	OurMinHtlcMsat  uint64

@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"peerswap-web/cmd/psweb/config"
 )
 
 // returns time passed as a string
@@ -129,18 +133,22 @@ func simplifySwapState(state string) string {
 }
 
 func toSats(amount float64) uint64 {
-	return uint64(float64(100000000) * amount)
+	return uint64(float64(100_000_000) * amount)
 }
 
 func toUint(num int64) uint64 {
 	return uint64(num)
 }
 
+// displays balances in millions
 func toMil(num uint64) string {
 	if num == 0 {
 		return "-"
 	}
-	return fmt.Sprintf("%.1f", float32(num)/1000000) + "m"
+	if num >= 10_000_000 {
+		return fmt.Sprintf("%d", num/1_000_000) + "m"
+	}
+	return fmt.Sprintf("%.1f", float32(num)/1_000_000) + "m"
 }
 
 func formatSigned(num int64) string {
@@ -171,8 +179,64 @@ func fileExists(filename string) bool {
 	return false
 }
 
-func restart(w http.ResponseWriter, r *http.Request, url string) {
+func restart(w http.ResponseWriter, r *http.Request) {
 	// assume systemd will restart it
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-	os.Exit(0)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "PeerSwap Web UI is restarting...")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Please navigate manualy to http://"+strings.Split(r.Host, ":")[0]+":"+config.Config.ListenPort)
+
+	// Flush the response writer to ensure the message is sent before shutdown
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Delay to ensure the message is displayed
+	go func() {
+		time.Sleep(1 * time.Second)
+		log.Println("Restart requested, stopping PSWeb.")
+		os.Exit(0)
+	}()
+}
+
+// NoOpWriter is an io.Writer that does nothing.
+type NoOpWriter struct{}
+
+// Write discards the data and returns success.
+func (NoOpWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+// NewMuteLogger creates a logger that discards all log output.
+func NewMuteLogger() *log.Logger {
+	return log.New(NoOpWriter{}, "", 0)
+}
+
+// html snippet to display and update fee PPM
+func feeInputField(peerNodeId string, channelId uint64, direction string, feePerMil int64, backgroundColor string, fontColor string, showAll bool) string {
+	// direction: inbound or outbound
+	fieldId := strconv.FormatUint(channelId, 10) + "_" + direction
+	align := "margin-left: 1px"
+	if direction == "inbound" {
+		align = "text-align: right"
+	}
+
+	nextPage := "/?"
+	if showAll {
+		nextPage += "showall&"
+	}
+
+	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
+	t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
+	t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
+	t += `<input type="hidden" name="action" value="setFee">`
+	t += `<input type="hidden" name="peerNodeId" value="` + peerNodeId + `">`
+	t += `<input type="hidden" name="direction" value="` + direction + `">`
+	t += `<input type="hidden" name="nextPage" value="` + nextPage + `">`
+	t += `<input type="hidden" name="channelId" value="` + strconv.FormatUint(channelId, 10) + `">`
+	t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + strconv.FormatInt(feePerMil, 10) + `" onchange="feeSubmitForm('` + fieldId + `')">`
+	t += `</form>`
+	t += `</td>`
+
+	return t
 }

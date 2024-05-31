@@ -46,6 +46,7 @@ var (
 	forwardsIn        = make(map[uint64][]Forwarding)
 	forwardsOut       = make(map[uint64][]Forwarding)
 	forwardsLastIndex uint64
+	downloadComplete  bool
 )
 
 func GetClient() (*glightning.Lightning, func(), error) {
@@ -637,9 +638,12 @@ func (r ListPeerChannelsRequest) Name() string {
 	return "listpeerchannels"
 }
 
-// get fees on the channel
+// get fees for the channel
 func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId string) *ChanneInfo {
 	info := new(ChanneInfo)
+
+	info.ChannelId = lndChannelId
+
 	channelId := ConvertLndToClnChannelId(lndChannelId)
 
 	var response map[string]interface{}
@@ -657,8 +661,8 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 	for _, channel := range channels {
 		channelMap := channel.(map[string]interface{})
 		if channelMap["short_channel_id"].(string) == channelId {
-			info.FeeBase = uint64(channelMap["fee_base_msat"].(float64))
-			info.FeeRate = uint64(channelMap["fee_proportional_millionths"].(float64))
+			info.FeeBase = int64(channelMap["fee_base_msat"].(float64))
+			info.FeeRate = int64(channelMap["fee_proportional_millionths"].(float64))
 			updates := channelMap["updates"].(map[string]interface{})
 			local := updates["local"].(map[string]interface{})
 			remote := updates["remote"].(map[string]interface{})
@@ -835,6 +839,11 @@ func GetMyAlias() string {
 
 // scans all channels to get peerswap lightning fees cached
 func SubscribeAll() {
+	if downloadComplete {
+		// only run once if successful
+		return
+	}
+
 	client, clean, err := GetClient()
 	if err != nil {
 		return
@@ -855,6 +864,8 @@ func SubscribeAll() {
 			fetchPaymentsStats(client, timestamp, channelId)
 		}
 	}
+
+	downloadComplete = true
 }
 
 // get invoicedMsat, paidOutMsat, costMsat
@@ -969,4 +980,72 @@ func EstimateFee() float64 {
 	}
 
 	return float64(res.Details.Urgent) / 1000
+}
+
+// get fees for all channels by filling the maps [channelId]
+func FeeReport(client *glightning.Lightning, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) error {
+	var response map[string]interface{}
+
+	err := client.Request(&ListPeerChannelsRequest{}, &response)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	// Iterate over channels to get fees
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+		channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
+		outboundFeeRates[channelId] = int64(channelMap["fee_proportional_millionths"].(float64))
+	}
+
+	return nil
+}
+
+type SetChannelRequest struct {
+	Id                string `json:"id"`
+	BaseMilliSatoshis int64  `json:"feebase,omitempty"`
+	PartPerMillion    int64  `json:"feeppm,omitempty"`
+}
+
+func (r *SetChannelRequest) Name() string {
+	return "setchannel"
+}
+
+// set fee rate for a channel
+func SetFeeRate(peerNodeId string,
+	channelId uint64,
+	feeRate int64,
+	inbound bool,
+	isBase bool) error {
+
+	if inbound {
+		return errors.New("inbound rates are not implemented")
+	}
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+	defer cleanup()
+
+	var req SetChannelRequest
+	var res map[string]interface{}
+
+	req.Id = ConvertLndToClnChannelId(channelId)
+	if isBase {
+		req.BaseMilliSatoshis = feeRate
+	} else {
+		req.PartPerMillion = feeRate
+	}
+
+	err = client.Request(&req, &res)
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	return nil
 }

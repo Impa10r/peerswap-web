@@ -2,18 +2,34 @@ package main
 
 import (
 	"log"
-	"net"
 	"net/http"
-	"os"
 	"peerswap-web/cmd/psweb/config"
-	"syscall"
+	"strings"
 	"time"
 )
+
+type responseWriter struct {
+	http.ResponseWriter
+	brokenPipe bool
+}
+
+func (rw *responseWriter) Write(p []byte) (int, error) {
+	n, err := rw.ResponseWriter.Write(p)
+	if err != nil {
+		if strings.Contains(err.Error(), "stream closed") || strings.Contains(err.Error(), "broken pipe") {
+			rw.brokenPipe = true
+			log.Println("Detected broken pipe error")
+		} else {
+			log.Printf("Write error: %v", err)
+		}
+	}
+	return n, err
+}
 
 // Middleware to retry on broken pipe
 func retryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Config.SecureConnection {
+		if config.Config.SecureConnection && r.TLS != nil {
 			// Check client certificate
 			cert := r.TLS.PeerCertificates
 			if len(cert) == 0 {
@@ -31,31 +47,8 @@ func retryMiddleware(next http.Handler) http.Handler {
 			log.Println("Retrying due to broken pipe...")
 			time.Sleep(1 * time.Second) // Wait before retrying
 		}
+
+		log.Println("Failed to handle request after 3 attempts due to broken pipe")
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 	})
-}
-
-// Custom ResponseWriter to detect broken pipe
-type responseWriter struct {
-	http.ResponseWriter
-	brokenPipe bool
-}
-
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	n, err := rw.ResponseWriter.Write(b)
-	if err != nil && isBrokenPipeError(err) {
-		rw.brokenPipe = true
-	}
-	return n, err
-}
-
-func isBrokenPipeError(err error) bool {
-	// Check if the error is a net.OpError
-	if ne, ok := err.(*net.OpError); ok {
-		// Check if the OpError contains a syscall error
-		if se, ok := ne.Err.(*os.SyscallError); ok {
-			// Check if the syscall error is related to 'write' and is EPIPE
-			return se.Syscall == "write" && se.Err == syscall.EPIPE
-		}
-	}
-	return false
 }

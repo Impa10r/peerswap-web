@@ -25,12 +25,14 @@ docker run --net=host \
 -v ~/.peerswap:/home/peerswap/.peerswap \
 -e ELEMENTS_FOLDER="/home/$(whoami)/.elements" \
 -e ELEMENTS_FOLDER_MAPPED="/home/peerswap/.elements" \
+-e HOSTNAME="$(hostname)" \
+-e NETWORK="testnet" \
 ghcr.io/impa10r/peerswap-web:latest
 ```
 
-This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. 
+This example assumes .lnd and .elements folders in the host user's home directory, and connects to LND via host network. Change "testnet" to "mainnet" for production.
 
-Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require different parameters (-e). If -e NETWORK="testnet" is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/Impa10r/umbrel-apps/blob/master/peerswap/docker-compose.yml) for supported env variables.
+Config files should exist or wiil be created with default values. Depending on how your LND and Elements Core are actually installed, may require different parameters (-e). If -e NETWORK="testnet" is ommitted, mainnet assumed. See [Umbrel integration](https://github.com/getumbrel/umbrel-apps/blob/master/peerswap/docker-compose.yml) for all supported env variables.
 
 If you need to run pscli in the docker container, first lookup container id with ```docker ps```. Then run ```docker exec "container id" pscli```.
 
@@ -204,10 +206,12 @@ Taken from [here](https://help.blockstream.com/hc/en-us/articles/900000632703-Ho
 
 *Hint for Umbrel:* To save keystrokes, add these aliases to ~/.profile, then ```source .profile```
 ```
-alias lncli="docker exec -it lightning_lnd_1 lncli" `(Umbrel 0.5 only)`
-alias bcli="docker exec -it bitcoin_bitcoind_1 bitcoin-cli" `(Umbrel 0.5 only)`
+alias lncli="docker exec -it lightning_lnd_1 lncli --lnddir /home/umbrel/umbrel/app-data/lightning/data/lnd"
+alias bcli="docker exec -it bitcoin_bitcoind_1 bitcoin-cli -rpcuser=umbrel -rpcpassword=<your bitcoin password>"
 alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
 ```
+
+(lookup Elements and Bitcoin rpc passwords in pswebconfig.com)
 
 # Support
 

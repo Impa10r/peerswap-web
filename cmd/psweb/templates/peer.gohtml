@@ -24,7 +24,7 @@
                   <p>⛔ {{.PeerAlias}} did not whitelist your node. Please contact them to do it.</p>
                 {{else}}
                   {{if ne .ActiveSwaps ""}}
-                    <h4 class="title is-4">Active Swaps</h4>
+                    <h4 class="title is-4">Pending Swaps</h4>
                     {{.ActiveSwaps}}
                     <script>
                       // Reload the page every minute (60000 milliseconds)
@@ -316,11 +316,11 @@
                       <textarea name="keysendMessage" class="textarea" rows="13">
 Hello {{.PeerAlias}}! 
 
-It's great to have you as a peer! I've been rebalancing my channels with Liquid PeerSwap for a while and really enjoy it. Currently, it costs about 300 sats for any swap amount, and it will be even cheaper when Liquid implements a 10x discount for confidential transactions.
+It's great to have you as a peer! I've been rebalancing my channels with Liquid PeerSwap for a while now and am really enjoying it. Currently, it costs about 300 sats for any swap amount, and it will be even cheaper when Liquid implements a 10x discount for confidential transactions.
 
-PeerSwap is available for CLN and LND, and comes with an excellent Web UI. Check it out at https://github.com/Impa10r/peerswap-web and give it a try.
+PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. Check it out at https://github.com/Impa10r/peerswap-web and give it a try.
 
-Feel free to ping me if you have any questions.
+Feel free to ping me if you have any questions!
 
 Sincerely,
 {{.MyAlias}}</textarea>
@@ -418,27 +418,77 @@ Sincerely,
                 </tr>
               {{end}}
             </table>  
-            <table style="width:100%; table-layout:fixed; margin-bottom:1em;">
+            <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
               <tr>
-                <th title="Channel Outbound Capacity" style="text-align: center">Local</th>
-                <th title="Channel Inbound Capacity" style="text-align: center">Remote</th>
-                <th title="Outbound Rate PPM" style="text-align: center">FeeRate</th>
-                <th title="Outbound Base mSats" style="text-align: center">FeeBase</th>
+                <th title="Channel Capacity" style="text-align: center">Capacity</th>
+                <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
+                <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
+                <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
+                <th title="Inbound Fee Base mSats" style="text-align: center">Inbound Base</th>
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="{{fmt .LocalBalance}}" style="text-align: center">{{m .LocalBalance}}</td>
-                  <td title="{{fmt .RemoteBalance}}" style="text-align: center">{{m .RemoteBalance}}</td>
+                  <td title="Channel capacity: {{fmt .Capacity}} sats" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
                   {{if .Active}}
-                    <td style="text-align: center">{{fmt .FeeRate}}</td>
-                    <td style="text-align: center">{{fmt .FeeBase}}</td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setFee">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="outbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_outbound')">
+                      </form>
+                    </td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setBase">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="outbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_outboundbase')">
+                      </form>
+                    </td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setFee">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="inbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_inbound')">
+                      </form>
+                    </td>
+                    <td style="padding: 0px; text-align: center">
+                      <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
+                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                        <input type="hidden" name="action" value="setBase">
+                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                        <input type="hidden" name="direction" value="inbound">
+                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_inboundbase')">
+                      </form>
+                    </td>
                   {{else}}
-                    <td style="text-align: right">CHANNEL</td>
-                    <td style="text-align: left">INACTIVE</td>
+                    <td style="text-align: right"></td>
+                    <td style="text-align: right">INACTIVE</td>
+                    <td style="text-align: left">CHANNEL</td>
+                    <td style="text-align: left"></td>
                   {{end}}
                 </tr>
               {{end}}
             </table>
+            <script>
+              // submits new fee rate 
+              function feeSubmitForm(formId) {
+                document.getElementById(formId).submit();
+              }
+            </script>
             {{if .PeerSwapPeer}}
               <div class="columns">
                 <div class="column">

@@ -87,6 +87,8 @@ var (
 		0x82, 0x54, 0x5d, 0x4b, 0xb4, 0xfa, 0xe0, 0x8b,
 		0xd5, 0x93, 0x78, 0x31, 0xb7, 0xe3, 0x8f, 0x98,
 	}
+
+	downloadComplete bool
 )
 
 func lndConnection() (*grpc.ClientConn, error) {
@@ -939,91 +941,95 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 
 // cache all and subscribe to lnd
 func SubscribeAll() {
-	// loop forever until connected
+	if downloadComplete {
+		// only run once if successful
+		return
+	}
+
+	conn, err := lndConnection()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	client := lnrpc.NewLightningClient(conn)
+	ctx := context.Background()
+
+	// only go back 6 months for itinial download
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	offset := uint64(0)
+	totalInvoices := uint64(0)
+
 	for {
-		conn, err := lndConnection()
+		res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
+			CreationDateStart: start,
+			Reversed:          false,
+			IndexOffset:       offset,
+			NumMaxInvoices:    100, // bolt11 fields can be long
+		})
 		if err != nil {
-			continue
+			log.Println("ListInvoices:", err)
+			return
 		}
-		defer conn.Close()
 
-		client := lnrpc.NewLightningClient(conn)
-		ctx := context.Background()
+		for _, invoice := range res.Invoices {
+			appendInvoice(invoice)
+		}
 
-		// only go back 6 months for itinial download
-		start := uint64(time.Now().AddDate(0, -6, 0).Unix())
-		offset := uint64(0)
-		totalInvoices := uint64(0)
+		n := len(res.Invoices)
+		totalInvoices += uint64(n)
 
+		if n > 0 {
+			// settle index for subscription
+			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+		}
+		if n < 100 {
+			// all invoices retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastIndexOffset
+	}
+
+	if totalInvoices > 0 {
+		log.Printf("Cached %d invoices", totalInvoices)
+	}
+
+	routerClient := routerrpc.NewRouterClient(conn)
+
+	go func() {
+		// initial or incremental download forwards
+		downloadForwards(client)
+		// subscribe to Forwards
 		for {
-			res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
-				CreationDateStart: start,
-				Reversed:          false,
-				IndexOffset:       offset,
-				NumMaxInvoices:    100, // bolt11 fields can be long
-			})
-			if err != nil {
-				log.Println("ListInvoices:", err)
-				return
-			}
-
-			for _, invoice := range res.Invoices {
-				appendInvoice(invoice)
-			}
-
-			n := len(res.Invoices)
-			totalInvoices += uint64(n)
-
-			if n > 0 {
-				// settle index for subscription
-				lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
-			}
-			if n < 100 {
-				// all invoices retrieved
-				break
-			}
-
-			// next pull start from the next index
-			offset = res.LastIndexOffset
-		}
-
-		if totalInvoices > 0 {
-			log.Printf("Cached %d invoices", totalInvoices)
-		}
-
-		routerClient := routerrpc.NewRouterClient(conn)
-
-		go func() {
-			// initial or incremental download forwards
-			downloadForwards(client)
-			// subscribe to Forwards
-			for {
-				if err := subscribeForwards(ctx, routerClient); err != nil {
-					log.Println("Forwards subscription error:", err)
-					time.Sleep(60 * time.Second)
-				}
-			}
-		}()
-
-		go func() {
-			// initial or incremental download payments
-			downloadPayments(client)
-
-			// subscribe to Payments
-			for {
-				if err := subscribePayments(ctx, routerClient); err != nil {
-					log.Println("Payments subscription error:", err)
-					time.Sleep(60 * time.Second)
-				}
-			}
-		}()
-
-		// subscribe to Invoices
-		for {
-			if err := subscribeInvoices(ctx, client); err != nil {
-				log.Println("Invoices subscription error:", err)
+			if err := subscribeForwards(ctx, routerClient); err != nil {
+				log.Println("Forwards subscription error:", err)
 				time.Sleep(60 * time.Second)
 			}
+		}
+	}()
+
+	go func() {
+		// initial or incremental download payments
+		downloadPayments(client)
+
+		// subscribe to Payments
+		for {
+			if err := subscribePayments(ctx, routerClient); err != nil {
+				log.Println("Payments subscription error:", err)
+				time.Sleep(60 * time.Second)
+			}
+		}
+	}()
+
+	downloadComplete = true
+
+	// subscribe to Invoices
+	for {
+		if err := subscribeInvoices(ctx, client); err != nil {
+			log.Println("Invoices subscription error:", err)
+			time.Sleep(60 * time.Second)
 		}
 	}
 }
@@ -1152,15 +1158,17 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	return &result
 }
 
-// get fees on the channel
+// get fees for the channel
 func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId string) *ChanneInfo {
 	info := new(ChanneInfo)
+
+	info.ChannelId = channelId
 
 	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
 	})
 	if err != nil {
-		log.Println("GetChanInfo:", err)
+		log.Println("GetChannelInfo:", err)
 		return info
 	}
 
@@ -1179,8 +1187,12 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 		info.OurMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
 	}
 
-	info.FeeRate = uint64(policy.GetFeeRateMilliMsat())
-	info.FeeBase = uint64(policy.GetFeeBaseMsat())
+	info.FeeRate = policy.GetFeeRateMilliMsat()
+	info.FeeBase = policy.GetFeeBaseMsat()
+	if CanRBF() { // signals LND 0.18+
+		info.InboundFeeBase = int64(policy.GetInboundFeeBaseMsat())
+		info.InboundFeeRate = int64(policy.GetInboundFeeRateMilliMsat())
+	}
 	info.Capacity = uint64(r.Capacity)
 
 	return info
@@ -1414,4 +1426,101 @@ func EstimateFee() float64 {
 	}
 
 	return float64(res.SatPerKw / 250)
+}
+
+// get fees for all channels by filling the maps [channelId]
+func FeeReport(client lnrpc.LightningClient, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) error {
+	r, err := client.FeeReport(context.Background(), &lnrpc.FeeReportRequest{})
+	if err != nil {
+		log.Println("FeeReport:", err)
+		return err
+	}
+
+	for _, ch := range r.ChannelFees {
+		outboundFeeRates[ch.ChanId] = ch.FeePerMil
+		inboundFeeRates[ch.ChanId] = int64(ch.InboundFeePerMil)
+	}
+
+	return nil
+}
+
+// set fee rate for a channel
+func SetFeeRate(peerNodeId string,
+	channelId uint64,
+	feeRate int64,
+	inbound bool,
+	isBase bool) error {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+	defer cleanup()
+
+	// get channel point first
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	policy := r.Node1Policy
+	if r.Node1Pub == peerNodeId {
+		// the first policy is not ours, use the second
+		policy = r.Node2Policy
+	}
+
+	parts := strings.Split(r.ChanPoint, ":")
+	outputIndex, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	var req lnrpc.PolicyUpdateRequest
+
+	req.Scope = &lnrpc.PolicyUpdateRequest_ChanPoint{
+		ChanPoint: &lnrpc.ChannelPoint{
+			FundingTxid: &lnrpc.ChannelPoint_FundingTxidStr{
+				FundingTxidStr: parts[0],
+			},
+			OutputIndex: uint32(outputIndex),
+		},
+	}
+
+	// preserve policy values
+	req.BaseFeeMsat = policy.FeeBaseMsat
+	req.FeeRatePpm = uint32(policy.FeeRateMilliMsat)
+	req.TimeLockDelta = policy.TimeLockDelta
+	req.MinHtlcMsatSpecified = false
+	req.MaxHtlcMsat = policy.MaxHtlcMsat
+	req.InboundFee = &lnrpc.InboundFee{
+		FeeRatePpm:  policy.InboundFeeRateMilliMsat,
+		BaseFeeMsat: policy.InboundFeeBaseMsat,
+	}
+
+	// change what's new
+	if isBase {
+		if inbound {
+			req.InboundFee.BaseFeeMsat = int32(feeRate)
+		} else {
+			req.BaseFeeMsat = feeRate
+		}
+	} else {
+		if inbound {
+			req.InboundFee.FeeRatePpm = int32(feeRate)
+		} else {
+			req.FeeRatePpm = uint32(feeRate)
+		}
+	}
+
+	_, err = client.UpdateChannelPolicy(context.Background(), &req)
+	if err != nil {
+		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	return nil
 }
