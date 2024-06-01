@@ -353,7 +353,7 @@ Sincerely,
           <div class="box">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
-                <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
+                <h4 class="title is-4" style="white-space: nowrap"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 {{if .PeerSwapPeer}}
@@ -494,14 +494,14 @@ Sincerely,
                 <div class="column">
                   <center>            
                     {{if .Suspicious}}
-                      <p style="margin-bottom:0.5em;">🕵 This peer is suspicious</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">🕵 This peer is suspicious</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="unsuspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                         <input class="button is-large" type="submit" value="Unsuspect This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;">✅ This peer is not suspicious</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is not suspicious</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="suspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
@@ -513,14 +513,14 @@ Sincerely,
                 <div class="column">
                   <center>
                     {{if .Allowed}}
-                      <p style="margin-bottom:0.5em;">✅ This peer is whitelisted</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is whitelisted</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="removePeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                         <input class="button is-large" type="submit" value="Blacklist This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;">⛔ This peer is blacklisted</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">⛔ This peer is blacklisted</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="addPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
