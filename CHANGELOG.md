@@ -1,5 +1,9 @@
 # Versions
 
+## 1.5.2
+
+-
+
 ## 1.5.1
 
 - Enable setting fee rates, including inbound for LND 0.18+
