@@ -2573,6 +2573,20 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 				flowText = "\nNo flows"
 			}
 
+			if stats.FeeSat > 0 {
+				flowText += "\nRevenue: +" + formatWithThousandSeparators(stats.FeeSat)
+				if stats.RoutedOut > 0 {
+					flowText += "\nRevenue PPM: " + formatWithThousandSeparators(stats.FeeSat*1_000_000/stats.RoutedOut)
+				}
+			}
+
+			if stats.PaidCost > 0 {
+				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+				if stats.PaidOut > 0 {
+					flowText += "\nCosts PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+				}
+			}
+
 			tooltip += flowText
 
 			currentProgress := fmt.Sprintf("%d%% 100%%, %d%% 100%%, %d%% 100%%, 100%% 100%%", bluePct, redPct, greenPct)

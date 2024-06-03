@@ -104,11 +104,11 @@ pre {
     padding-top: 3px;
 }
 
-.right-logos {
+.right-logo {
     display: flex;
     order: 2; /* This will ensure it's placed far right */
-    padding-right: 5px;
-    padding-top: 4px;
+    padding-right: 10px;
+    padding-top: 0px;
 }
 
 .logo {
@@ -146,4 +146,22 @@ input[type="number"] {
     font-size: 1em; /* Font size */
     width: 100%; /* Make input take full width of the cell */
     box-sizing: border-box; /* Ensure padding is included in the width calculation */
+}
+
+.menu-button {
+    background-color: transparent;
+    color: white;
+    border: none;
+}
+
+.menu-button:hover {
+    cursor: pointer;
+}
+
+.dropdown-item {
+    font-size: 1.5em;
+}
+
+.icon {
+    font-size: 2em;
 }

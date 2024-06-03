@@ -351,6 +351,9 @@
 
             // amount cannot be blank
             if (peginAmount < 1) {
+              // remove unselect all
+              document.getElementById("unselectAll").textContent = "";
+              document.getElementById("unselectAll").style.visibility = "hidden";
               document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
               return;
             }
