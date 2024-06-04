@@ -121,10 +121,6 @@ pre {
     text-decoration: line-through;
 }
 
-li {
-    margin-left: 5em; 
-}
-
 /* Hide the spin buttons in Chrome, Safari, Edge, and Opera */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {

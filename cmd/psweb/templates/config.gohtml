@@ -278,7 +278,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label title="Space separated additional IP addresses for PeerSwap Web UI server (LAN, Tailscale)" class="label">PSWeb IPs **</label>
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server (LAN, Tailscale) for the client certificate" class="label">PSWeb IPs **</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -306,14 +306,6 @@
                   {{else}}
                     {{.Latest}}
                   {{end}}
-                  <br>
-                  Logs: 
-                  {{if eq .Implementation "CLN"}}
-                    <a href="/log?log=cln.log">CLN</a>
-                  {{else}}
-                    <a href="/log?log=lnd.log">LND</a>
-                    <a href="/log">PSd</a>
-                  {{end}} <a href="/log?log=psweb.log">PSw</a>
                 </small>         
               </center>
             </form>

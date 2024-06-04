@@ -32,6 +32,7 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 const (
@@ -59,6 +60,8 @@ var (
 	mempoolFeeRate = float64(0)
 	// onchain realized transaction costs
 	txFee = make(map[string]int64)
+	// Key used for cookie encryption
+	store = sessions.NewCookieStore([]byte("hdfjge5fdn8qrler94"))
 )
 
 func main() {
@@ -145,6 +148,8 @@ func main() {
 	r.HandleFunc("/pegin", peginHandler)
 	r.HandleFunc("/bumpfee", bumpfeeHandler)
 	r.HandleFunc("/ca", caHandler)
+	r.HandleFunc("/login", loginHandler)
+	r.HandleFunc("/logout", logoutHandler)
 
 	if config.Config.SecureConnection {
 		// HTTP redirection
@@ -206,7 +211,7 @@ func serveHTTPS(handler http.Handler) {
 
 	//regenerate from CA if deleted
 	if !fileExists(certFile) {
-		config.GenereateServerCertificate()
+		config.GenerateServerCertificate()
 	}
 
 	// Load your server certificate and private key
@@ -229,6 +234,11 @@ func serveHTTPS(handler http.Handler) {
 		ClientCAs:    caCertPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert, // Require and verify client certificate
 		MinVersion:   tls.VersionTLS12,               // Force TLS 1.2 or higher
+	}
+
+	// Do not require client certificate if Password auth enabled
+	if config.Config.Password != "" {
+		tlsConfig.ClientAuth = tls.NoClientCert
 	}
 
 	server := &http.Server{
@@ -383,6 +393,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated     bool
 		AllowSwapRequests bool
 		BitcoinSwaps      bool
 		ErrorMessage      string
@@ -400,6 +411,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
 		AllowSwapRequests: config.Config.AllowSwapRequests,
 		BitcoinSwaps:      config.Config.BitcoinSwaps,
 		ErrorMessage:      errorMessage,
@@ -601,6 +613,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated     bool
 		ErrorMessage      string
 		PopUpMessage      string
 		MempoolFeeRate    float64
@@ -644,6 +657,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	data := Page{
+		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:      errorMessage,
 		PopUpMessage:      popupMessage,
 		BtcFeeRate:        bitcoinFeeRate,
@@ -720,6 +734,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated  bool
 		ColorScheme    string
 		Id             string
 		ErrorMessage   string
@@ -729,6 +744,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
 		Id:             id,
 		ErrorMessage:   "",
@@ -894,6 +910,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated  bool
 		ErrorMessage   string
 		PopUpMessage   string
 		MempoolFeeRate float64
@@ -906,6 +923,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
@@ -953,6 +971,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated  bool
 		ErrorMessage   string
 		PopUpMessage   string
 		MempoolFeeRate float64
@@ -963,6 +982,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
@@ -993,6 +1013,65 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		if r.FormValue("password") == config.Config.Password {
+			session, _ := store.Get(r, "session")
+			session.Options = &sessions.Options{
+				Path:   "/",
+				MaxAge: 0, // MaxAge 0 means no 'Expires' attribute and the cookie is deleted when the browser closes.
+			}
+			session.Values["authenticated"] = true
+			session.Save(r, w)
+			http.Redirect(w, r, "/", http.StatusFound)
+		} else {
+			// delay brute force
+			time.Sleep(5 * time.Second)
+			redirectWithError(w, r, "/login?", errors.New("Invalid password"))
+		}
+	} else {
+		//check for error message to display
+		errorMessage := ""
+		keys, ok := r.URL.Query()["err"]
+		if ok && len(keys[0]) > 0 {
+			errorMessage = keys[0]
+		}
+
+		type Page struct {
+			Authenticated  bool
+			ErrorMessage   string
+			PopUpMessage   string
+			MempoolFeeRate float64
+			ColorScheme    string
+			Config         config.Configuration
+		}
+
+		data := Page{
+			Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
+			ErrorMessage:   errorMessage,
+			PopUpMessage:   "",
+			MempoolFeeRate: mempoolFeeRate,
+			ColorScheme:    config.Config.ColorScheme,
+			Config:         config.Config,
+		}
+
+		// executing template named "login"
+		err := templates.ExecuteTemplate(w, "login", data)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session")
+	session.Values["authenticated"] = false
+	session.Options.MaxAge = -1 // MaxAge < 0 means delete the cookie immediately.
+	session.Save(r, w)
+	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 func liquidHandler(w http.ResponseWriter, r *http.Request) {
@@ -1047,6 +1126,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated           bool
 		ErrorMessage            string
 		PopUpMessage            string
 		MempoolFeeRate          float64
@@ -1064,6 +1144,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:            errorMessage,
 		PopUpMessage:            popupMessage,
 		MempoolFeeRate:          liquid.EstimateFee(),
@@ -1198,9 +1279,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 
 		case "enableHTTPS":
-			// restart with HTTPS listener
-			if err := config.GenereateServerCertificate(); err == nil {
+			if err := config.GenerateServerCertificate(); err == nil {
 				config.Config.SecureConnection = true
+				// opt-in for a single password auth
+				if r.FormValue("enablePassword") == "on" {
+					config.Config.Password = r.FormValue("password")
+				}
+				// restart with HTTPS listener
 				config.Save()
 				restart(w, r)
 			} else {
@@ -1455,7 +1540,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("serverIPs") != config.Config.ServerIPs {
 			config.Config.ServerIPs = r.FormValue("serverIPs")
 			if secureConnection {
-				if err := config.GenereateServerCertificate(); err == nil {
+				if err := config.GenerateServerCertificate(); err == nil {
 					config.Save()
 					restart(w, r)
 				} else {
@@ -1573,6 +1658,7 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
+		Authenticated  bool
 		ColorScheme    string
 		ErrorMessage   string
 		PopUpMessage   string
@@ -1590,6 +1676,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
 		ErrorMessage:   "",
 		PopUpMessage:   "",
@@ -1628,6 +1715,7 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 // shows peerswapd log
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
+		Authenticated  bool
 		ColorScheme    string
 		ErrorMessage   string
 		PopUpMessage   string
@@ -1645,6 +1733,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
 		ErrorMessage:   "",
 		PopUpMessage:   "",
@@ -1912,6 +2001,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	type Page struct {
+		Authenticated    bool
 		ErrorMessage     string
 		PopUpMessage     string
 		ColorScheme      string
@@ -1963,6 +2053,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	ln.ListUnspent(cl, &utxos, minConfs)
 
 	data := Page{
+		Authenticated:    config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:     errorMessage,
 		PopUpMessage:     popupMessage,
 		ColorScheme:      config.Config.ColorScheme,

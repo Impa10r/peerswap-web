@@ -2,7 +2,8 @@
 
 ## 1.5.2
 
--
+- Add navigation menu
+- Allow simple password client authentication
 
 ## 1.5.1
 

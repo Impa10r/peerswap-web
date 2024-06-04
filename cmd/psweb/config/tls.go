@@ -85,7 +85,7 @@ func GenerateCA() error {
 	return nil
 }
 
-func GenereateServerCertificate() error {
+func GenerateServerCertificate() error {
 	crtPath := filepath.Join(Config.DataDir, "server.crt")
 	keyPath := filepath.Join(Config.DataDir, "server.key")
 	crtPathCA := filepath.Join(Config.DataDir, "CA.crt")

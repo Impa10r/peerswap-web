@@ -7,24 +7,33 @@
             <h4 class="title is-4">Enable HTTPS</h4> 
             <form autocomplete="off" action="/submit" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <p>To enable secure TLS connection it is necessary to install two certificates on all devices that will be permitted to access PeerSwap Web UI:</p>
+              <p>To enable secure TLS connection it is necessary to install two certificates on all devices that will be permitted access to PeerSwap Web UI:</p>
               <br>
-              <p>1. "Trusted Root Certification Authority" certificate <u>CA.crt</u> will inform the browser that the server is genuine.</p>
+              <p>1. "Trusted Root Certification Authority" certificate <u>CA.crt</u> will inform the browser that the Web UI server is genuine.</p>
               <p>2. "Personal" certificate <u>client.p12</u> will authenticate the client to the server.</p>
               <br>
-              <p>Use secure methods to copy these files from peerswap data folder onto your devices. The password for client.p12 is "<b>{{.Password}}</b>". <u>Important:</u> write down this password before proceeding as it will not be saved nor displayed again.</p>
+              <p>Use secure methods to copy these files from peerswap data folder onto your devices. The password for installing client.p12 is <b>{{.Password}}</b></p>
               <br>
-              </p>After restart, PeerSwap Web UI will be listening on:<p>
-              <ol>
-              {{range .URLs}}
-                <li><a href="{{.}}">{{.}}</a></li>
-              {{end}}
-              </ol>
+              <p><u>Important:</u> write down this password before proceeding as it will not be displayed again.</p>
               <br>
-              <p>HTTP endpoints at port {{.Config.ListenPort}} will remain, but redirect all traffic to HTTPS port {{.Config.SecurePort}}. Clients without the above certificates will be denied connection.</p>
+              <p>A less secure alternative is to only install CA certificate and use the above password for client authentication. Mark the option below to opt-in for this setup:</p>
+              <br>
+              <div class="field is-horizontal">
+                <div class="field-body">
+                  <div class="field">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" name="enablePassword">
+                        <strong>&nbsp&nbspEnable password client authentication (less secure)</strong>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <br>
               <center>
                 <input type="hidden" name="action" value="enableHTTPS">
+                <input type="hidden" name="password" value="{{.Password}}">
                 <input class="button is-large" type="submit" value="Enable HTTPS and Restart">          
               </center>
             </form>
@@ -33,25 +42,25 @@
         <div class="column">
           <div class="box">
             <h4 class="title is-4">Certificates Installation</h4> 
-            <p style="padding-bottom: 0.5em">Windows 10</p>
-            <p>1. Double click on client.p12, enter the password, allow Automatically select store.</p>
-            <p>2. Double click on CA.crt, select "Trusted Root Certification Authorities" store.</p>
+            <b>Windows 10</b>
+            <p>1. Double click on CA.crt, select "Trusted Root Certification Authorities" store.</p>
+            <p>2. Double click on client.p12, enter the password, allow Automatically select store.</p>
             <br>
-            <p style="padding-bottom: 0.5em">Android</p>
-            <p>1. Tap on client.p12, enter the password, the certificate will be installed.</p>
-            <p>2. For CA.crt, open Settings, search for "CA Certificate", "Install anyway", select the file.</p>
+            <b>Android</b>
+            <p>1. For CA.crt, open Settings, search for "CA Certificate", "Install anyway", select the file.</p>
+            <p>2. Tap on client.p12, enter the password, the certificate will be installed.</p>
             <br>
-            <p style="padding-bottom: 0.5em">iOS</p>
+            <b>iOS</b>
             <p>1. E-mail the certificates to yourself as an attachment.</p>
             <p>2. One certificate at a time, tap on the attachment twice to download and launch.</p>
             <p>3. In Settings app, Profile Downloaded, Install.</p>
             <br>
-            <p style="padding-bottom: 0.5em">Ubuntu</p>
-            <p>1. Install client.p12 in Firefox Settings - Privacy&Security - Certificates - Your Certificates - Import - Enter password.</p>
-            <p>2. Install CA.crt via command line:
-            <p style="margin-left: 3em">sudo apt-get install -y ca-certificates</p>
-            <p style="margin-left: 3em">sudo cp ~/.peerswap/CA.crt /usr/local/share/ca-certificates</p>
-            <p style="margin-left: 3em">sudo update-ca-certificates</p>
+            <b>Ubuntu</b>
+            <p>1. Install CA.crt via command line:
+            <p style="margin-left: 1em; font-family: monospace">sudo apt-get install -y ca-certificates</p>
+            <p style="margin-left: 1em; font-family: monospace">sudo cp ~/.peerswap/CA.crt /usr/local/share/ca-certificates</p>
+            <p style="margin-left: 1em; font-family: monospace">sudo update-ca-certificates</p>
+            <p>2. Install client.p12 in Firefox Settings - Privacy&Security - Certificates - Your Certificates - Import - Enter password.</p>
           </div>
         </div>
       </div>
