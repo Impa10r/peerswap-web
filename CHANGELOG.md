@@ -4,6 +4,7 @@
 
 - Add navigation menu
 - Allow HTTPS with single password client authentication
+- Add -password key to configure PSWeb with HTTPS and password 
 
 ## 1.5.1
 
