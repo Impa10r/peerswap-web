@@ -68,6 +68,7 @@ func main() {
 
 	var (
 		dataDir     = flag.String("datadir", "", "Path to config folder (default: ~/.peerswap)")
+		password    = flag.String("password", "", "Enable HTTPS with password authentication (default: per pswebconfig.json)")
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
 	)
@@ -89,6 +90,24 @@ func main() {
 	// loading from config file or creating default one
 	config.Load(*dataDir)
 
+	if password != nil {
+		if *password != "" {
+			// enable HTTPS
+			config.Config.SecureConnection = true
+			config.Config.Password = *password
+			config.Save()
+		}
+	}
+
+	if config.Config.SecureConnection && config.Config.Password != "" {
+		// generate unique cookie
+		cookie, err := config.GeneratePassword(10)
+		if err != nil {
+			log.Panicln("Cannot generate cookie store")
+		}
+		store = sessions.NewCookieStore([]byte(cookie))
+	}
+
 	// set logging params
 	cleanup, err := setLogging()
 	if err != nil {
@@ -109,13 +128,6 @@ func main() {
 			templateNames = append(templateNames, filepath.Join("templates", file.Name()))
 		}
 	}
-
-	// generate unique cookie
-	cookie, err := config.GeneratePassword(10)
-	if err != nil {
-		log.Panicln("Cannot generate cookie store")
-	}
-	store = sessions.NewCookieStore([]byte(cookie))
 
 	// Parse all template files in the templates directory
 	templates = template.Must(templates.
@@ -216,8 +228,12 @@ func serveHTTPS(handler http.Handler) {
 	certFile := filepath.Join(config.Config.DataDir, "server.crt")
 	keyFile := filepath.Join(config.Config.DataDir, "server.key")
 
-	//regenerate from CA if deleted
 	if !fileExists(certFile) {
+		// generate CA if does not exist
+		if !fileExists(filepath.Join(config.Config.DataDir, "CA.crt")) {
+			config.GenerateCA()
+		}
+		// generate from CA if does not exist
 		config.GenerateServerCertificate()
 	}
 
@@ -1037,7 +1053,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// delay brute force
 			time.Sleep(5 * time.Second)
-			redirectWithError(w, r, "/login?", errors.New("Invalid password"))
+			redirectWithError(w, r, "/login?", errors.New("invalid password"))
 		}
 	} else {
 		//check for error message to display
@@ -1213,18 +1229,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, nextPage, errors.New("Inbound fees are not allowed by your LN backend"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
 				}
 
 				if feeRate > 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, nextPage, errors.New("Inbound fee rate cannot be positive"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fee rate cannot be positive"))
 					return
 				}
 			} else {
 				if feeRate < 0 {
-					redirectWithError(w, r, nextPage, errors.New("Outbound fee rate cannot be negative"))
+					redirectWithError(w, r, nextPage, errors.New("outbound fee rate cannot be negative"))
 					return
 				}
 			}
@@ -1259,18 +1275,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, nextPage, errors.New("Inbound fees are not allowed by your LN backend"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
 				}
 
 				if feeBase > 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, nextPage, errors.New("Inbound fee base cannot be positive"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fee base cannot be positive"))
 					return
 				}
 			} else {
 				if feeBase < 0 {
-					redirectWithError(w, r, nextPage, errors.New("Outbound fee base cannot be negative"))
+					redirectWithError(w, r, nextPage, errors.New("outbound fee base cannot be negative"))
 					return
 				}
 			}
