@@ -90,13 +90,11 @@ func main() {
 	// loading from config file or creating default one
 	config.Load(*dataDir)
 
-	if password != nil {
-		if *password != "" {
-			// enable HTTPS
-			config.Config.SecureConnection = true
-			config.Config.Password = *password
-			config.Save()
-		}
+	if *password != "" {
+		// enable HTTPS
+		config.Config.SecureConnection = true
+		config.Config.Password = *password
+		config.Save()
 	}
 
 	if config.Config.SecureConnection && config.Config.Password != "" {
@@ -2478,6 +2476,13 @@ func convertPeersToHTMLTable(
 				}
 			}
 
+			if stats.AssistedFeeSat > 0 {
+				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
+				if stats.RoutedIn > 0 {
+					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+				}
+			}
+
 			if stats.PaidCost > 0 {
 				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
 				if stats.PaidOut > 0 {
@@ -2687,6 +2692,13 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 				flowText += "\nRevenue: +" + formatWithThousandSeparators(stats.FeeSat)
 				if stats.RoutedOut > 0 {
 					flowText += "\nRevenue PPM: " + formatWithThousandSeparators(stats.FeeSat*1_000_000/stats.RoutedOut)
+				}
+			}
+
+			if stats.AssistedFeeSat > 0 {
+				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
+				if stats.RoutedIn > 0 {
+					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
