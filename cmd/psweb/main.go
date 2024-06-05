@@ -61,7 +61,7 @@ var (
 	// onchain realized transaction costs
 	txFee = make(map[string]int64)
 	// Key used for cookie encryption
-	store = sessions.NewCookieStore([]byte("hdfjge5fdn8qrler94"))
+	store *sessions.CookieStore
 )
 
 func main() {
@@ -109,6 +109,13 @@ func main() {
 			templateNames = append(templateNames, filepath.Join("templates", file.Name()))
 		}
 	}
+
+	// generate unique cookie
+	cookie, err := config.GeneratePassword(10)
+	if err != nil {
+		log.Panicln("Cannot generate cookie store")
+	}
+	store = sessions.NewCookieStore([]byte(cookie))
 
 	// Parse all template files in the templates directory
 	templates = template.Must(templates.
@@ -1280,14 +1287,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "enableHTTPS":
 			if err := config.GenerateServerCertificate(); err == nil {
-				config.Config.SecureConnection = true
 				// opt-in for a single password auth
+				password := ""
 				if r.FormValue("enablePassword") == "on" {
-					config.Config.Password = r.FormValue("password")
+					password = r.FormValue("password")
 				}
 				// restart with HTTPS listener
-				config.Save()
-				restart(w, r)
+				restart(w, r, true, password)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
 				return
@@ -1541,8 +1547,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			config.Config.ServerIPs = r.FormValue("serverIPs")
 			if secureConnection {
 				if err := config.GenerateServerCertificate(); err == nil {
-					config.Save()
-					restart(w, r)
+					restart(w, r, true, config.Config.Password)
 				} else {
 					log.Println("GenereateServerCertificate:", err)
 					redirectWithError(w, r, "/config?", err)
@@ -1551,11 +1556,9 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// restart to listen on HTTP
 		if !secureConnection && config.Config.SecureConnection {
-			config.Config.SecureConnection = false
-			config.Save()
-			restart(w, r)
+			// restart to listen on HTTP only
+			restart(w, r, false, "")
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))

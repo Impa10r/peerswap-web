@@ -179,12 +179,48 @@ func fileExists(filename string) bool {
 	return false
 }
 
-func restart(w http.ResponseWriter, r *http.Request) {
-	// assume systemd will restart it
+func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string) {
+	w.Header().Set("Content-Type", "text/html")
+	host := strings.Split(r.Host, ":")[0]
+	url := fmt.Sprintf("http://%s:%s", host, config.Config.ListenPort)
+
+	html := fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html lang="en">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Restarting...</title>
+			<link rel="stylesheet" href="/static/bulma-%s.min.css">
+			<link rel="stylesheet" href="/static/styles.css">
+		</head>
+		<body>
+			<section class="section">
+				<div class="container">
+					<div class="columns is-centered">
+						<div class="column is-4-desktop is-6-tablet is-12-mobile">
+							<div class="box">
+								<p>PeerSwap Web UI is restarting...</p>
+								<br>
+								<p>Please navigate to <a href="%s">%s</a> to continue.</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</body>
+		</html>`, config.Config.ColorScheme, url, url)
+
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "PeerSwap Web UI is restarting...")
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Please navigate manualy to http://"+strings.Split(r.Host, ":")[0]+":"+config.Config.ListenPort)
+	fmt.Fprint(w, html)
+
+	if !enableHTTPS && config.Config.Password != "" {
+		// delete cookie
+		session, _ := store.Get(r, "session")
+		session.Values["authenticated"] = false
+		session.Options.MaxAge = -1 // MaxAge < 0 means delete the cookie immediately.
+		session.Save(r, w)
+	}
 
 	// Flush the response writer to ensure the message is sent before shutdown
 	if flusher, ok := w.(http.Flusher); ok {
@@ -194,7 +230,13 @@ func restart(w http.ResponseWriter, r *http.Request) {
 	// Delay to ensure the message is displayed
 	go func() {
 		time.Sleep(1 * time.Second)
+
+		config.Config.Password = password
+		config.Config.SecureConnection = enableHTTPS
+		config.Save()
+
 		log.Println("Restart requested, stopping PSWeb.")
+		// assume systemd will restart it
 		os.Exit(0)
 	}()
 }
