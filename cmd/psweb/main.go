@@ -37,7 +37,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.2"
+	version = "v1.5.3"
 )
 
 type SwapParams struct {
