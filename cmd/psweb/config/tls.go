@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net"
 	"os"
@@ -82,10 +83,12 @@ func GenerateCA() error {
 	defer signedCertFile.Close()
 	pem.Encode(signedCertFile, &pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 
+	log.Println("Generated new CA.crt and CA.key")
+
 	return nil
 }
 
-func GenereateServerCertificate() error {
+func GenerateServerCertificate() error {
 	crtPath := filepath.Join(Config.DataDir, "server.crt")
 	keyPath := filepath.Join(Config.DataDir, "server.key")
 	crtPathCA := filepath.Join(Config.DataDir, "CA.crt")
@@ -175,6 +178,8 @@ func GenereateServerCertificate() error {
 
 	Save()
 
+	log.Println("Generated new server.crt and server.key")
+
 	return nil
 }
 
@@ -252,6 +257,8 @@ func GenerateClientCertificate(password string) error {
 	if err != nil {
 		return err
 	}
+
+	log.Println("Generated new client.crt and client.key")
 
 	return nil
 }

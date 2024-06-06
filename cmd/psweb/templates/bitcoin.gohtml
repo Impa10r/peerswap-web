@@ -6,11 +6,11 @@
       {{end}}
       <div class="columns">
         <div class="column">
-          <div class="box">
-            <h4 class="title is-4"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h4>
+          <div class="box has-text-left">
+            <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h4>
           </div>
           {{if eq .PeginTxId ""}}
-            <div class="box">
+            <div class="box has-text-left">
               <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
                 <div style="text-align: left;">
                     <h4 class="title is-4">Liquid Peg-In</h4>
@@ -84,7 +84,7 @@
               </div>
             </div>
           {{else}}
-            <div class="box">
+            <div class="box has-text-left">
               <h4 class="title is-4">Peg-In Progress</h4> 
               <table style="table-layout:fixed; width: 100%;">
                 <tr>
@@ -189,7 +189,7 @@
           {{end}}
         </div> 
         <div class="column"> 
-          <div class="box">
+          <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
                   <h4 class="title is-4">Unspent Outputs</h4>
@@ -351,6 +351,9 @@
 
             // amount cannot be blank
             if (peginAmount < 1) {
+              // remove unselect all
+              document.getElementById("unselectAll").textContent = "";
+              document.getElementById("unselectAll").style.visibility = "hidden";
               document.getElementById('result').innerText = "Please enter the Amount or select Unspent Outputs";
               return;
             }

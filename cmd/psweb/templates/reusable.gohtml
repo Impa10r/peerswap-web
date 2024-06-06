@@ -20,9 +20,29 @@
                 <div class="left-logo">
                     <a title="Navigate to starting page" href="/"><img class="logo" src="/static/peerswap_logo.png" alt="PEERSWAP"></a>
                 </div>
-                <div class="right-logos">
-                    <p id="mempoolFeeRate" style="color: white; margin-right: 20px; margin-top: 18px">{{.MempoolFeeRate}} sat/vB</p>
-                    <a href="/config"><img class="logo" src="/static/cog.png" alt="Config"></a>
+                <div class="right-logo">
+                    <div class="dropdown is-right">
+                        <div class="dropdown-trigger">
+                            <button class="menu-button" aria-haspopup="true" aria-controls="dropdown-menu">
+                                <span id="mempoolFeeRate" style="margin-right: 1em">{{.MempoolFeeRate}} sat/vB</span>
+                                <span class="icon">☰</span>
+                            </button>
+                        </div>
+                        <div class="dropdown-menu" id="dropdown-menu" role="menu">
+                            <div class="dropdown-content">
+                                <a href="/" class="dropdown-item"> Peer List </a>
+                                <a href="/bitcoin" class="dropdown-item"> Liquid Peg-in </a>
+                                <a href="/liquid" class="dropdown-item"> Liquid Auto Swap </a>
+                                <hr class="dropdown-divider" />
+                                <a href="/config" class="dropdown-item"> Configuration </a>
+                                <a href="/log?log=psweb.log" class="dropdown-item"> Logs </a>
+                                {{if .Authenticated}}
+                                    <hr class="dropdown-divider" />
+                                    <a href="/logout" class="dropdown-item"> Logout </a>   
+                                {{end}}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="message-container">
@@ -59,6 +79,11 @@
                 {{if ne .ErrorMessage ""}}
                     displayErrorMessage("{{.ErrorMessage}}");
                 {{end}}
+                var dropdown = document.querySelector('.dropdown');
+                dropdown.addEventListener('click', function(event) {
+                event.stopPropagation();
+                dropdown.classList.toggle('is-active');
+                });
             </script>  
         </header>
         <section class="section">

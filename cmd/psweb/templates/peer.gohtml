@@ -5,17 +5,17 @@
         <div class="column">
           {{if .PeerSwapPeer}}
             <div class="box">
-              <div class="columns">
-                <div class="column">
-                  <h4 class="title is-4"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp{{fmt .BitcoinBalance}}</h4>
+              <div style="display: grid; grid-template-columns: auto auto;">
+                <div style="text-align: center;">
+                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
                 </div>
-                <div class="column">
-                  <h4 class="title is-4">🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp{{fmt .LiquidBalance}}</h4>
+                <div style="text-align: center;">
+                  <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
                 </div>
               </div>
             </div>
           {{end}}
-          <div class="box">
+          <div class="box has-text-left">
             {{if .PeerSwapPeer}}         
               {{if not .Peer.Channels}}
                 <p>🙁 There are no channels with {{.PeerAlias}}.</p>
@@ -247,7 +247,7 @@
                               // Check if allocation is not finished
                               if (amountToAllocate >= 0) {
                                   // Reduce unallocated amount by UTXO size
-                                  const utxoAmount = parseFloat(row.querySelector("#utxoAmountLBTC").textContent)*100000000;
+                                  const utxoAmount = Math.round(parseFloat(row.querySelector("#utxoAmountLBTC").textContent)*100000000, 0);
                                   amountToAllocate -= utxoAmount;
 
                                   // increment inputs
@@ -258,7 +258,7 @@
 
                             // Calculate tx size assuming always two outputs
                             vbyteSize = 2503 + (inputs-1) * 84;
-                            fee = vbyteSize * feeRate;
+                            fee = Math.ceil(vbyteSize * feeRate);
 
                             // peerswap spends dust change as extra fee
                             change = {{.LiquidBalance}} - swapAmount - fee;
@@ -278,7 +278,7 @@
                             vbyteSize = 3000; // prepaid
                             title = "Assumed opening transaction size 3000 vB";
                           }
-                          fee = vbyteSize * feeRate;
+                          fee = Math.ceil(vbyteSize * feeRate);
                         } 
 
                         let text = "Transaction size: " + vbyteSize + " vBytes\n";
@@ -350,10 +350,10 @@ Sincerely,
           </div>
         </div>
         <div class="column">
-          <div class="box">
+          <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
-                <h4 class="title is-4"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
+                <h4 class="title is-4" style="white-space: nowrap"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 {{if .PeerSwapPeer}}
@@ -428,7 +428,7 @@ Sincerely,
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="Channel capacity: {{fmt .Capacity}} sats" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+                  <td title="Channel Id: {{.ChannelId}}, Capacity: {{fmt .Capacity}} sats" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
                   {{if .Active}}
                     <td style="padding: 0px; text-align: center">
                       <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
@@ -494,14 +494,14 @@ Sincerely,
                 <div class="column">
                   <center>            
                     {{if .Suspicious}}
-                      <p style="margin-bottom:0.5em;">🕵 This peer is suspicious</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">🕵 This peer is suspicious</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="unsuspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                         <input class="button is-large" type="submit" value="Unsuspect This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;">✅ This peer is not suspicious</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is not suspicious</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="suspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
@@ -513,14 +513,14 @@ Sincerely,
                 <div class="column">
                   <center>
                     {{if .Allowed}}
-                      <p style="margin-bottom:0.5em;">✅ This peer is whitelisted</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is whitelisted</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="removePeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                         <input class="button is-large" type="submit" value="Blacklist This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;">⛔ This peer is blacklisted</p>
+                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">⛔ This peer is blacklisted</p>
                       <form action="/submit" method="post">
                         <input type="hidden" name="action" value="addPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">

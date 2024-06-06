@@ -109,6 +109,8 @@ To enable downloading of a backup file of the Elements wallet it is necessary to
 
 ***Warning*** If you tried PS Web's Docker version first and then switched to the one built from source, the configuration files will be incorrect. The easiest way to fix this is to delete ```peerswap.conf``` and ```pswebconfig.json```.
 
+PeerSwap Web UI can be initialized in HTTPS mode with a pre-set password using -password key. CA and server certificates will be generated and saved in the data folder.
+
 ## Update
 
 When a new version comes out, just build the app again and restart:

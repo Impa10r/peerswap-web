@@ -32,11 +32,12 @@ import (
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 const (
 	// App version tag
-	version = "v1.5.1"
+	version = "v1.5.2"
 )
 
 type SwapParams struct {
@@ -59,12 +60,15 @@ var (
 	mempoolFeeRate = float64(0)
 	// onchain realized transaction costs
 	txFee = make(map[string]int64)
+	// Key used for cookie encryption
+	store *sessions.CookieStore
 )
 
 func main() {
 
 	var (
 		dataDir     = flag.String("datadir", "", "Path to config folder (default: ~/.peerswap)")
+		password    = flag.String("password", "", "Enable HTTPS with password authentication (default: per pswebconfig.json)")
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
 	)
@@ -85,6 +89,22 @@ func main() {
 
 	// loading from config file or creating default one
 	config.Load(*dataDir)
+
+	if *password != "" {
+		// enable HTTPS
+		config.Config.SecureConnection = true
+		config.Config.Password = *password
+		config.Save()
+	}
+
+	if config.Config.SecureConnection && config.Config.Password != "" {
+		// generate unique cookie
+		cookie, err := config.GeneratePassword(10)
+		if err != nil {
+			log.Panicln("Cannot generate cookie store")
+		}
+		store = sessions.NewCookieStore([]byte(cookie))
+	}
 
 	// set logging params
 	cleanup, err := setLogging()
@@ -145,6 +165,8 @@ func main() {
 	r.HandleFunc("/pegin", peginHandler)
 	r.HandleFunc("/bumpfee", bumpfeeHandler)
 	r.HandleFunc("/ca", caHandler)
+	r.HandleFunc("/login", loginHandler)
+	r.HandleFunc("/logout", logoutHandler)
 
 	if config.Config.SecureConnection {
 		// HTTP redirection
@@ -204,9 +226,13 @@ func serveHTTPS(handler http.Handler) {
 	certFile := filepath.Join(config.Config.DataDir, "server.crt")
 	keyFile := filepath.Join(config.Config.DataDir, "server.key")
 
-	//regenerate from CA if deleted
 	if !fileExists(certFile) {
-		config.GenereateServerCertificate()
+		// generate CA if does not exist
+		if !fileExists(filepath.Join(config.Config.DataDir, "CA.crt")) {
+			config.GenerateCA()
+		}
+		// generate from CA if does not exist
+		config.GenerateServerCertificate()
 	}
 
 	// Load your server certificate and private key
@@ -229,6 +255,11 @@ func serveHTTPS(handler http.Handler) {
 		ClientCAs:    caCertPool,
 		ClientAuth:   tls.RequireAndVerifyClientCert, // Require and verify client certificate
 		MinVersion:   tls.VersionTLS12,               // Force TLS 1.2 or higher
+	}
+
+	// Do not require client certificate if Password auth enabled
+	if config.Config.Password != "" {
+		tlsConfig.ClientAuth = tls.NoClientCert
 	}
 
 	server := &http.Server{
@@ -383,6 +414,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated     bool
 		AllowSwapRequests bool
 		BitcoinSwaps      bool
 		ErrorMessage      string
@@ -400,6 +432,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
 		AllowSwapRequests: config.Config.AllowSwapRequests,
 		BitcoinSwaps:      config.Config.BitcoinSwaps,
 		ErrorMessage:      errorMessage,
@@ -601,6 +634,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated     bool
 		ErrorMessage      string
 		PopUpMessage      string
 		MempoolFeeRate    float64
@@ -644,6 +678,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	data := Page{
+		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:      errorMessage,
 		PopUpMessage:      popupMessage,
 		BtcFeeRate:        bitcoinFeeRate,
@@ -720,6 +755,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated  bool
 		ColorScheme    string
 		Id             string
 		ErrorMessage   string
@@ -729,6 +765,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
 		Id:             id,
 		ErrorMessage:   "",
@@ -777,7 +814,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData := `<div class="container">
 	<div class="columns">
 	  <div class="column">
-		<div class="box">
+		<div class="box has-text-left">
 		  <table style="table-layout:fixed; width: 100%;">
 				<tr>
 			  <td style="float: left; text-align: left; width: 80%;">
@@ -894,6 +931,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated  bool
 		ErrorMessage   string
 		PopUpMessage   string
 		MempoolFeeRate float64
@@ -906,6 +944,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
@@ -953,6 +992,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated  bool
 		ErrorMessage   string
 		PopUpMessage   string
 		MempoolFeeRate float64
@@ -963,6 +1003,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
@@ -993,6 +1034,65 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		if r.FormValue("password") == config.Config.Password {
+			session, _ := store.Get(r, "session")
+			session.Options = &sessions.Options{
+				Path:   "/",
+				MaxAge: 0, // MaxAge 0 means no 'Expires' attribute and the cookie is deleted when the browser closes.
+			}
+			session.Values["authenticated"] = true
+			session.Save(r, w)
+			http.Redirect(w, r, "/", http.StatusFound)
+		} else {
+			// delay brute force
+			time.Sleep(5 * time.Second)
+			redirectWithError(w, r, "/login?", errors.New("invalid password"))
+		}
+	} else {
+		//check for error message to display
+		errorMessage := ""
+		keys, ok := r.URL.Query()["err"]
+		if ok && len(keys[0]) > 0 {
+			errorMessage = keys[0]
+		}
+
+		type Page struct {
+			Authenticated  bool
+			ErrorMessage   string
+			PopUpMessage   string
+			MempoolFeeRate float64
+			ColorScheme    string
+			Config         config.Configuration
+		}
+
+		data := Page{
+			Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
+			ErrorMessage:   errorMessage,
+			PopUpMessage:   "",
+			MempoolFeeRate: mempoolFeeRate,
+			ColorScheme:    config.Config.ColorScheme,
+			Config:         config.Config,
+		}
+
+		// executing template named "login"
+		err := templates.ExecuteTemplate(w, "login", data)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session")
+	session.Values["authenticated"] = false
+	session.Options.MaxAge = -1 // MaxAge < 0 means delete the cookie immediately.
+	session.Save(r, w)
+	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 func liquidHandler(w http.ResponseWriter, r *http.Request) {
@@ -1047,6 +1147,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
+		Authenticated           bool
 		ErrorMessage            string
 		PopUpMessage            string
 		MempoolFeeRate          float64
@@ -1064,6 +1165,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:            errorMessage,
 		PopUpMessage:            popupMessage,
 		MempoolFeeRate:          liquid.EstimateFee(),
@@ -1125,18 +1227,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, nextPage, errors.New("Inbound fees are not allowed by your LN backend"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
 				}
 
 				if feeRate > 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, nextPage, errors.New("Inbound fee rate cannot be positive"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fee rate cannot be positive"))
 					return
 				}
 			} else {
 				if feeRate < 0 {
-					redirectWithError(w, r, nextPage, errors.New("Outbound fee rate cannot be negative"))
+					redirectWithError(w, r, nextPage, errors.New("outbound fee rate cannot be negative"))
 					return
 				}
 			}
@@ -1171,18 +1273,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			if inbound {
 				if ln.Implementation == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, nextPage, errors.New("Inbound fees are not allowed by your LN backend"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
 				}
 
 				if feeBase > 0 {
 					// Only discounts are allowed for now
-					redirectWithError(w, r, nextPage, errors.New("Inbound fee base cannot be positive"))
+					redirectWithError(w, r, nextPage, errors.New("inbound fee base cannot be positive"))
 					return
 				}
 			} else {
 				if feeBase < 0 {
-					redirectWithError(w, r, nextPage, errors.New("Outbound fee base cannot be negative"))
+					redirectWithError(w, r, nextPage, errors.New("outbound fee base cannot be negative"))
 					return
 				}
 			}
@@ -1198,11 +1300,14 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 
 		case "enableHTTPS":
-			// restart with HTTPS listener
-			if err := config.GenereateServerCertificate(); err == nil {
-				config.Config.SecureConnection = true
-				config.Save()
-				restart(w, r)
+			if err := config.GenerateServerCertificate(); err == nil {
+				// opt-in for a single password auth
+				password := ""
+				if r.FormValue("enablePassword") == "on" {
+					password = r.FormValue("password")
+				}
+				// restart with HTTPS listener
+				restart(w, r, true, password)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
 				return
@@ -1455,9 +1560,8 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("serverIPs") != config.Config.ServerIPs {
 			config.Config.ServerIPs = r.FormValue("serverIPs")
 			if secureConnection {
-				if err := config.GenereateServerCertificate(); err == nil {
-					config.Save()
-					restart(w, r)
+				if err := config.GenerateServerCertificate(); err == nil {
+					restart(w, r, true, config.Config.Password)
 				} else {
 					log.Println("GenereateServerCertificate:", err)
 					redirectWithError(w, r, "/config?", err)
@@ -1466,11 +1570,9 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// restart to listen on HTTP
 		if !secureConnection && config.Config.SecureConnection {
-			config.Config.SecureConnection = false
-			config.Save()
-			restart(w, r)
+			// restart to listen on HTTP only
+			restart(w, r, false, "")
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
@@ -1573,6 +1675,7 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
+		Authenticated  bool
 		ColorScheme    string
 		ErrorMessage   string
 		PopUpMessage   string
@@ -1590,6 +1693,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
 		ErrorMessage:   "",
 		PopUpMessage:   "",
@@ -1628,6 +1732,7 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 // shows peerswapd log
 func logHandler(w http.ResponseWriter, r *http.Request) {
 	type Page struct {
+		Authenticated  bool
 		ColorScheme    string
 		ErrorMessage   string
 		PopUpMessage   string
@@ -1645,6 +1750,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
 		ErrorMessage:   "",
 		PopUpMessage:   "",
@@ -1912,6 +2018,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	type Page struct {
+		Authenticated    bool
 		ErrorMessage     string
 		PopUpMessage     string
 		ColorScheme      string
@@ -1963,6 +2070,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	ln.ListUnspent(cl, &utxos, minConfs)
 
 	data := Page{
+		Authenticated:    config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:     errorMessage,
 		PopUpMessage:     popupMessage,
 		ColorScheme:      config.Config.ColorScheme,
@@ -2368,6 +2476,13 @@ func convertPeersToHTMLTable(
 				}
 			}
 
+			if stats.AssistedFeeSat > 0 {
+				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
+				if stats.RoutedIn > 0 {
+					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+				}
+			}
+
 			if stats.PaidCost > 0 {
 				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
 				if stats.PaidOut > 0 {
@@ -2571,6 +2686,27 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 
 			if flowText == "" {
 				flowText = "\nNo flows"
+			}
+
+			if stats.FeeSat > 0 {
+				flowText += "\nRevenue: +" + formatWithThousandSeparators(stats.FeeSat)
+				if stats.RoutedOut > 0 {
+					flowText += "\nRevenue PPM: " + formatWithThousandSeparators(stats.FeeSat*1_000_000/stats.RoutedOut)
+				}
+			}
+
+			if stats.AssistedFeeSat > 0 {
+				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
+				if stats.RoutedIn > 0 {
+					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+				}
+			}
+
+			if stats.PaidCost > 0 {
+				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+				if stats.PaidOut > 0 {
+					flowText += "\nCosts PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+				}
 			}
 
 			tooltip += flowText

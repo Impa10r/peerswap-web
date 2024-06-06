@@ -48,8 +48,8 @@ type Configuration struct {
 	AutoSwapTargetPct       uint64
 	SecureConnection        bool
 	ServerIPs               string
-	SerialNumber            int64 // for CA-signed server certificates
 	SecurePort              string
+	Password                string
 }
 
 var Config Configuration

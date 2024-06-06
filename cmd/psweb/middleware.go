@@ -26,14 +26,28 @@ func (rw *responseWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// Middleware to retry on broken pipe
+// Middleware to retry on broken pipe and check auth
 func retryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Config.SecureConnection && r.TLS != nil {
-			// Check client certificate
-			cert := r.TLS.PeerCertificates
-			if len(cert) == 0 {
-				http.Error(w, "Client certificate not provided", http.StatusForbidden)
+		if config.Config.SecureConnection {
+			if r.TLS != nil {
+				// Check client certificate
+				cert := r.TLS.PeerCertificates
+				if len(cert) == 0 {
+					if config.Config.Password != "" {
+						if !isAuthenticated(r) {
+							if !strings.HasPrefix(r.RequestURI, "/static/") && !strings.HasPrefix(r.RequestURI, "/login") {
+								http.Redirect(w, r, "/login", http.StatusFound)
+								return
+							}
+						}
+					} else {
+						http.Error(w, "Client certificate not provided", http.StatusForbidden)
+						return
+					}
+				}
+			} else {
+				http.Error(w, "Requires TLS connection", http.StatusForbidden)
 				return
 			}
 		}
@@ -51,4 +65,10 @@ func retryMiddleware(next http.Handler) http.Handler {
 		log.Println("Failed to handle request after 3 attempts due to broken pipe")
 		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 	})
+}
+
+func isAuthenticated(r *http.Request) bool {
+	session, _ := store.Get(r, "session")
+	auth, ok := session.Values["authenticated"].(bool)
+	return ok && auth
 }

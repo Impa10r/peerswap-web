@@ -1,5 +1,11 @@
 # Versions
 
+## 1.5.2
+
+- Add navigation menu
+- Allow HTTPS with single password client authentication
+- Add -password key to configure PSWeb with HTTPS and password 
+
 ## 1.5.1
 
 - Enable setting fee rates, including inbound for LND 0.18+

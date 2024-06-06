@@ -6,13 +6,13 @@
           <div class="box">
             <div class="columns">
               <div class="column">
-                <h4 class="title is-4">
+                <h4 class="title is-4" style="white-space: nowrap">
                   <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span>
                   <small><small><small><span title="Bitcoin swaps {{if and .AllowSwapRequests .BitcoinSwaps}}enabled">✔️{{else}}disabled">❌{{end}}</span></small></small></small>
                 </h4>
               </div>
               <div class="column">
-                <h4 class="title is-4">
+                <h4 class="title is-4" style="white-space: nowrap">
                   🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span>
                   {{if .PeginPending}}
                     <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
@@ -26,7 +26,7 @@
               </div> 
             </div>
           </div>          
-          <div class="box">
+          <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
                 <h4 class="title is-4">Peer List</h4>
@@ -44,7 +44,7 @@
           </div>
         </div>
         <div id="swaps" class="column">
-          <div class="box">
+          <div class="box has-text-left">
             {{if eq .OtherPeers ""}}
               <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
                 <div style="text-align: left;">

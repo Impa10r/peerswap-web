@@ -3,12 +3,12 @@
     <div class="container">
       <div class="columns">
         <div class="column"> 
-          <div class="box">
+          <div class="box has-text-left">
             <h4 class="title is-4">Configuration</h4> 
             <form autocomplete="off" action="/save" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <div class="columns">
-                <div class="column"> 
+                <div class="column has-text-left"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">Swap Requests</label>
@@ -156,7 +156,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="column"> 
+                <div class="column has-text-left"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">
@@ -267,9 +267,9 @@
                       <div class="field">
                         <div class="control">
                           <div class="select is-medium is-fullwidth">
-                            <select name="secureConnection">
-                              <option value="true" {{if .Config.SecureConnection}}selected{{end}}>Enabled</option>
-                              <option value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disabled</option>
+                            <select id="secureConnection" name="secureConnection">
+                              <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enabled</option>
+                              <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disabled</option>
                             </select>
                           </div>
                         </div>
@@ -278,7 +278,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label title="Space separated additional IP addresses for PeerSwap Web UI server (LAN, Tailscale)" class="label">PSWeb IPs **</label>
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale)" class="label">PSWeb IPs **</label>
                     </div>
                     <div class="field-body">
                       <div class="field">
@@ -306,17 +306,75 @@
                   {{else}}
                     {{.Latest}}
                   {{end}}
-                  <br>
-                  Logs: 
-                  {{if eq .Implementation "CLN"}}
-                    <a href="/log?log=cln.log">CLN</a>
-                  {{else}}
-                    <a href="/log?log=lnd.log">LND</a>
-                    <a href="/log">PSd</a>
-                  {{end}} <a href="/log?log=psweb.log">PSw</a>
                 </small>         
               </center>
             </form>
+            <div id="passwordModal" class="modal">
+              <div class="modal-background"></div>
+              <div class="modal-card">
+                <header class="modal-card-head">
+                    <p class="modal-card-title">Password Required</p>
+                    <button class="delete" aria-label="close"></button>
+                </header>
+                <section class="modal-card-body">
+                  <p>Please enter the password to disable HTTPS:</p>
+                  <input type="password" id="passwordInput" class="input">
+                </section>
+                <footer class="modal-card-foot">
+                    <button id="submitPassword" class="button is-success">Submit</button>
+                    <button class="button" id="closeModal">Cancel</button>
+                </footer>
+              </div>
+            </div>
+            <script>
+              document.addEventListener('DOMContentLoaded', () => {
+                const toggleField = document.getElementById('secureConnection');
+                const correctPassword = "{{.Config.Password}}";
+                let previousValue = toggleField.value;
+                const passwordModal = document.getElementById('passwordModal');
+                const closeModal = document.getElementById('closeModal');
+                const passwordInput = document.getElementById('passwordInput');
+                const submitPassword = document.getElementById('submitPassword');
+
+                toggleField.addEventListener('change', function() {
+                  const newValue = this.value;
+                  if (previousValue === 'true' && newValue === 'false' && correctPassword != '') {
+                      passwordInput.value = ''; // Clear the password input
+                      // show password modal
+                      passwordModal.classList.add('is-active');
+                  } 
+                });
+
+                closeModal.addEventListener('click', () => {
+                  passwordModal.classList.remove('is-active');
+                  // Revert the value back to 'true'
+                  document.getElementById('secureConnectionTrue').selected = true;
+                  document.getElementById('secureConnectionFalse').selected = false;
+                });
+
+                submitPassword.addEventListener('click', () => {
+                  const password = passwordInput.value;
+                  if (password !== correctPassword) {
+                    // Revert the value back to 'true'
+                    document.getElementById('secureConnectionTrue').selected = true;
+                    document.getElementById('secureConnectionFalse').selected = false;
+                  }
+                  // close password modal
+                  passwordModal.classList.remove('is-active');
+                });
+
+                // Close the modal when clicking outside of it
+                window.addEventListener('click', (event) => {
+                  if (event.target == passwordModal) {
+                    // close password modal
+                    passwordModal.classList.remove('is-active');
+                    // Revert the value back to 'true'
+                    document.getElementById('secureConnectionTrue').selected = true;
+                    document.getElementById('secureConnectionFalse').selected = false;
+                  }
+                });
+              });
+            </script>
           </div>
         </div>
       </div>
