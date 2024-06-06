@@ -4,18 +4,16 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <div class="columns">
-              <div class="column">
+            <div style="display: grid; grid-template-columns: auto auto;">
+              <div style="text-align: left;">
                 <h4 class="title is-4" style="white-space: nowrap">🌊&nbspLiquid:&nbsp{{fmt .LiquidBalance}}</h4>
               </div>
-              <div class="column">
-                <div style="display: flex; justify-content: flex-end;">
-                  <button class="button is-small" onclick="window.location.href = '/backup';">Backup Wallet</button>       
-                </div>
-              </div> 
-            </div> 
-          </div>         
-          <div class="box">
+              <div style="display: flex; justify-content: flex-end;">
+                <button title="Backup Elements wallet" class="button is-small" onclick="window.location.href = '/backup';">Backup</button>
+              </div>
+            </div>
+          </div>       
+          <div class="box has-text-left">
              <h4 class="title is-4">Automatic Swap-Ins</h4> 
              <form autocomplete="off" action="/submit" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
@@ -90,7 +88,7 @@
         </div>
         <div class="column">
           {{if eq .TxId ""}}
-            <div class="box">
+            <div class="box has-text-left">
               <h4 class="title is-4">Send Liquid</h4> 
               <form autocomplete="off" action="/submit" method="post">
                 <input autocomplete="false" name="hidden" type="text" style="display:none;">
@@ -171,7 +169,7 @@
               </script>
             </div>     
           {{else}}
-            <div class="box">
+            <div class="box has-text-left">
               <h4 class="title is-4">Payment Sent</h4> 
               <table style="table-layout:fixed; width: 100%;">
                 <tr><td style="overflow-wrap: break-word;">
@@ -182,7 +180,7 @@
               </table>
             </div>
           {{end}}
-          <div class="box">
+          <div class="box has-text-left">
             <h4 class="title is-4">Receive Liquid</h4> 
             {{if eq .LiquidAddress ""}}
               <form action="/submit" method="post">

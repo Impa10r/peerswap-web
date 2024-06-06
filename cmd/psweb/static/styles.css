@@ -161,3 +161,13 @@ input[type="number"] {
 .icon {
     font-size: 2em;
 }
+
+/* Custom styles for mobile */
+@media (max-width: 768px) {
+    /* Remove padding for columns on mobile */
+    .column {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        text-align: center; /* For text centering */
+    }
+}
