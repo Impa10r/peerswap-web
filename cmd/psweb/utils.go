@@ -199,7 +199,7 @@ func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password 
 				<div class="container">
 					<div class="columns is-centered">
 						<div class="column is-4-desktop is-6-tablet is-12-mobile">
-							<div class="box">
+							<div class="box has-text-left">
 								<p>PeerSwap Web UI is restarting...</p>
 								<br>
 								<p>Please navigate to <a href="%s">%s</a> to continue.</p>

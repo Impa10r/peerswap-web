@@ -814,7 +814,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData := `<div class="container">
 	<div class="columns">
 	  <div class="column">
-		<div class="box">
+		<div class="box has-text-left">
 		  <table style="table-layout:fixed; width: 100%;">
 				<tr>
 			  <td style="float: left; text-align: left; width: 80%;">
