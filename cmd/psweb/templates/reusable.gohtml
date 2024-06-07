@@ -124,23 +124,10 @@
     </html>
 {{end}}
 
-{{define "log"}}  
-    <h4 class="title is-4">{{if eq .LogFile "psweb.log"}}
-            PeerSwap Web
-        {{else}}
-            {{if eq .LogFile "cln.log"}}
-                Lightningd
-            {{else}}
-                {{if eq .LogFile "lnd.log"}}
-                    LND
-                {{else}}
-                    Peerswapd
-                {{end}}
-            {{end}}
-        {{end}} Log</h4>
+{{define "log"}}
     <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
     <tr>
-        <td style="max-width: 100%; overflow: hidden;">
+        <td style="max-width: 100%; overflow: hidden; padding: 0">
         <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
         </td>
     </tr>

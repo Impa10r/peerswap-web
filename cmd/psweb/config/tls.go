@@ -269,7 +269,7 @@ func GenerateClientCertificate(password string) error {
 	return nil
 }
 
-const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ23456789"
+const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 // GeneratePassword generates a random password of a given length
 func GeneratePassword(length int) (string, error) {

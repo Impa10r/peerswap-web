@@ -123,8 +123,7 @@ func SavePS() {
 	//key, default, new value, env key
 	t += setPeerswapdVariable("host", "localhost:42069", Config.RpcHost, "")
 	t += setPeerswapdVariable("rpchost", "", "", "") // will keep the same if set
-	// remove resthost
-	// t += setPeerswapdVariable("resthost", "localhost:42070", "", "")
+	t += setPeerswapdVariable("resthost", "localhost:42070", "", "")
 	t += setPeerswapdVariable("lnd.host", "localhost:10009", "", "LND_HOST")
 	t += setPeerswapdVariable("lnd.tlscertpath", filepath.Join(Config.LightningDir, "tls.cert"), "", "")
 	t += setPeerswapdVariable("lnd.macaroonpath", filepath.Join(Config.LightningDir, "data", "chain", "bitcoin", Config.Chain, "admin.macaroon"), "", "LND_MACAROONPATH")

@@ -34,6 +34,12 @@
             </script>
           </div>
           <div class="box has-text-left">
+            <h4 class="title is-4">
+            {{if eq .LogFile "cln.log"}}
+              Lightningd
+            {{else}}
+              Peerswapd
+            {{end}} Log</h4>
             {{template "log" .}}
           </div>
         </div>
