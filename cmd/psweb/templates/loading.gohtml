@@ -34,12 +34,15 @@
             </script>
           </div>
           <div class="box has-text-left">
-            <h4 class="title is-4">
-            {{if eq .LogFile "cln.log"}}
-              Lightningd
-            {{else}}
-              Peerswapd
-            {{end}} Log</h4>
+            <div class="tabs is-medium is-boxed" style="margin-bottom: 0">
+              <ul>
+                {{if eq .LogFile "cln.log"}}
+                  <li class="is-active"><a href="/log?log=cln.log">lightningd</a></li>
+                {{else}}
+                  <li class="is-active"><a href="/log">peerswapd</a></li>
+                {{end}}
+              </ul>
+            </div>
             {{template "log" .}}
           </div>
         </div>
