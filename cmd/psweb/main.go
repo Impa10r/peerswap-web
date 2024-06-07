@@ -179,11 +179,11 @@ func main() {
 			}
 		}()
 
-		go serveHTTPS(retryMiddleware(r))
+		go serveHTTPS(authMiddleware(r))
 		log.Println("Listening HTTPS on port " + config.Config.SecurePort)
 	} else {
 		// Start HTTP server
-		http.Handle("/", retryMiddleware(r))
+		http.Handle("/", authMiddleware(r))
 		go func() {
 			if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
 				log.Fatal(err)
@@ -1873,9 +1873,9 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
+		t = "Peerswapd has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
+		t = "Lightningd failed to start or has wrong configuration. Check logs."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
 		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
 	case strings.HasPrefix(t, "rpc error: code = "):
@@ -2479,14 +2479,14 @@ func convertPeersToHTMLTable(
 			if stats.AssistedFeeSat > 0 {
 				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
 				if stats.RoutedIn > 0 {
-					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+					flowText += "\nAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
 			if stats.PaidCost > 0 {
-				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+				flowText += "\nLightning Costs: -" + formatWithThousandSeparators(stats.PaidCost)
 				if stats.PaidOut > 0 {
-					flowText += "\nCosts PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+					flowText += "\nLightning Costs PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
 				}
 			}
 
@@ -2698,14 +2698,14 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			if stats.AssistedFeeSat > 0 {
 				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
 				if stats.RoutedIn > 0 {
-					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+					flowText += "\nAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
 			if stats.PaidCost > 0 {
-				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+				flowText += "\nLightning Costs: -" + formatWithThousandSeparators(stats.PaidCost)
 				if stats.PaidOut > 0 {
-					flowText += "\nCosts PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+					flowText += "\nLightning Costs PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
 				}
 			}
 

@@ -60,9 +60,15 @@ func GenerateCA() error {
 		return err
 	}
 
+	// Generate a random serial number
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return err
+	}
+
 	// Create a certificate based on the CSR
 	certTemplate := x509.Certificate{
-		SerialNumber:          big.NewInt(1),
+		SerialNumber:          serialNumber,
 		Subject:               certFromCSR.Subject,
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(10, 0, 0), // Valid for 10 years
