@@ -2,7 +2,7 @@
 
 ## 1.5.3
 
--
+- Randomize serial number of CA to install in Ubuntu/Firefox
 
 ## 1.5.2
 

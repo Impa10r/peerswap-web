@@ -23,7 +23,7 @@
                   <div class="field">
                     <div class="control">
                       <label class="checkbox is-large">
-                        <input type="checkbox" name="enablePassword">
+                        <input type="checkbox" id="enablePassword" name="enablePassword">
                         <strong>&nbsp&nbspEnable password client authentication (less secure)</strong>
                       </label>
                     </div>
@@ -37,6 +37,20 @@
                 <input class="button is-large" type="submit" value="Enable HTTPS and Restart">          
               </center>
             </form>
+            <script>
+              document.getElementById('enablePassword').addEventListener('change', function() {
+                var fields = document.querySelectorAll('.p12');
+                fields.forEach(function(element) {
+                  if (element) {
+                    if (document.getElementById('enablePassword').checked) {
+                      element.classList.add('hidden');
+                    } else {
+                      element.classList.remove('hidden');
+                    }
+                  }
+                });
+              });
+            </script>
           </div>
         </div>
         <div class="column">
@@ -44,11 +58,11 @@
             <h4 class="title is-4">Certificates Installation</h4> 
             <b>Windows 10</b>
             <p>1. Double click on CA.crt, select "Trusted Root Certification Authorities" store.</p>
-            <p>2. Double click on client.p12, enter the password, allow Automatically select store.</p>
+            <p class="p12">2. Double click on client.p12, enter the password, allow Automatically select store.</p>
             <br>
             <b>Android</b>
             <p>1. For CA.crt, open Settings, search for "CA Certificate", "Install anyway", select the file.</p>
-            <p>2. Tap on client.p12, enter the password, the certificate will be installed.</p>
+            <p class="p12">2. Tap on client.p12, enter the password, the certificate will be installed.</p>
             <br>
             <b>iOS</b>
             <p>1. E-mail the certificates to yourself as an attachment.</p>
@@ -60,7 +74,8 @@
             <p style="margin-left: 1em; font-family: monospace">sudo apt-get install -y ca-certificates</p>
             <p style="margin-left: 1em; font-family: monospace">sudo cp ~/.peerswap/CA.crt /usr/local/share/ca-certificates</p>
             <p style="margin-left: 1em; font-family: monospace">sudo update-ca-certificates</p>
-            <p>2. Install client.p12 in Firefox Settings - Privacy&Security - Certificates - Your Certificates - Import - Enter password.</p>
+            <p>2. Install CA.crt in Firefox: Settings - Privacy&Security - View Certificates - Authorities - Import - Other Locations - /usr/local/share/ca-certificates/CA.crt</p>
+            <p class="p12">3. Install client.p12 in Firefox: Settings - Privacy&Security - View Certificates - Your Certificates - Import - Enter password.</p>
           </div>
         </div>
       </div>
