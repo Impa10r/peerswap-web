@@ -968,7 +968,9 @@ func SubscribeAll() {
 			NumMaxInvoices:    100, // bolt11 fields can be long
 		})
 		if err != nil {
-			log.Println("ListInvoices:", err)
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") {
+				log.Println("ListInvoices:", err)
+			}
 			return
 		}
 
