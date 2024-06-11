@@ -2,7 +2,8 @@
 
 ## 1.5.3
 
-- Randomize serial number of CA to install in Ubuntu/Firefox
+- Randomize serial number of CA to let install in Ubuntu/Firefox
+- Increase Web UI password cookie expiry to 7 days
 
 ## 1.5.2
 

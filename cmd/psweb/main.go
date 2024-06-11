@@ -1043,7 +1043,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			session, _ := store.Get(r, "session")
 			session.Options = &sessions.Options{
 				Path:   "/",
-				MaxAge: 0, // MaxAge 0 means no 'Expires' attribute and the cookie is deleted when the browser closes.
+				MaxAge: 604800, // 7 days
 			}
 			session.Values["authenticated"] = true
 			session.Save(r, w)
