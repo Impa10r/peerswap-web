@@ -566,7 +566,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	psPeer := true
 	if peer == nil {
-		// Search amoung all Lighting peers
+		// Search amoung all Lightning peers
 		res, err := ln.ListPeers(cl, id, nil)
 		if err != nil {
 			redirectWithError(w, r, "/?", err)
@@ -2473,7 +2473,7 @@ func convertPeersToHTMLTable(
 			if stats.AssistedFeeSat > 0 {
 				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
 				if stats.RoutedIn > 0 {
-					flowText += "\nAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+					flowText += "\nAssisted PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
@@ -2535,7 +2535,7 @@ func convertPeersToHTMLTable(
 
 		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lighting costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -2692,7 +2692,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			if stats.AssistedFeeSat > 0 {
 				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
 				if stats.RoutedIn > 0 {
-					flowText += "\nAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+					flowText += "\nAssisted PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
@@ -2744,7 +2744,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lighting costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"

@@ -70,7 +70,7 @@ type ChanneInfo struct {
 	Capacity        uint64
 }
 
-// lighting payments from swap out initiator to receiver
+// lightning payments from swap out initiator to receiver
 var SwapRebates = make(map[string]int64)
 
 func toSats(amount float64) int64 {
