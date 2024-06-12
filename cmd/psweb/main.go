@@ -167,6 +167,7 @@ func main() {
 	r.HandleFunc("/ca", caHandler)
 	r.HandleFunc("/login", loginHandler)
 	r.HandleFunc("/logout", logoutHandler)
+	r.HandleFunc("/downloadca", downloadCaHandler)
 
 	if config.Config.SecureConnection {
 		// HTTP redirection
@@ -971,19 +972,6 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 		errorMessage = keys[0]
 	}
 
-	hostname := config.GetHostname()
-
-	urls := []string{
-		"https://localhost:" + config.Config.SecurePort,
-		"https://" + hostname + ".local:" + config.Config.SecurePort,
-	}
-
-	if config.Config.ServerIPs != "" {
-		for _, ip := range strings.Split(config.Config.ServerIPs, " ") {
-			urls = append(urls, "https://"+ip+":"+config.Config.SecurePort)
-		}
-	}
-
 	password, err := config.GeneratePassword(10)
 	if err != nil {
 		log.Println("GeneratePassword:", err)
@@ -998,7 +986,6 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate float64
 		ColorScheme    string
 		Config         config.Configuration
-		URLs           []string
 		Password       string
 	}
 
@@ -1009,7 +996,6 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate: mempoolFeeRate,
 		ColorScheme:    config.Config.ColorScheme,
 		Config:         config.Config,
-		URLs:           urls,
 		Password:       password,
 	}
 
@@ -1727,6 +1713,14 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		redirectWithError(w, r, "/liquid?", err)
 	}
+}
+
+func downloadCaHandler(w http.ResponseWriter, r *http.Request) {
+	fileName := "CA.crt"
+	// Set the Content-Disposition header to suggest a filename
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
+	// Serve the file for download
+	http.ServeFile(w, r, filepath.Join(config.Config.DataDir, fileName))
 }
 
 // shows peerswapd log

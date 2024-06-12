@@ -29,7 +29,7 @@ func (rw *responseWriter) Write(p []byte) (int, error) {
 // Middleware to check auth and retry on broken pipe
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Config.SecureConnection {
+		if config.Config.SecureConnection && !strings.HasPrefix(r.RequestURI, "/downloadca") {
 			if r.TLS != nil {
 				// Check client certificate
 				if len(r.TLS.PeerCertificates) == 0 {

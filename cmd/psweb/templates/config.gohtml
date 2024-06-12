@@ -268,8 +268,8 @@
                         <div class="control">
                           <div class="select is-medium is-fullwidth">
                             <select id="secureConnection" name="secureConnection">
-                              <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enabled</option>
-                              <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disabled</option>
+                              <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enable</option>
+                              <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disable</option>
                             </select>
                           </div>
                         </div>
@@ -278,7 +278,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale)" class="label">PSWeb IPs **</label>
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs **</label>
                     </div>
                     <div class="field-body">
                       <div class="field">

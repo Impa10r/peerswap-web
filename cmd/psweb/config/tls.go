@@ -20,7 +20,7 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 )
 
-// generates Certificate Autonrity CA.crt
+// generates Root Certificate Autority CA.crt
 func GenerateCA() error {
 	crtPath := filepath.Join(Config.DataDir, "CA.crt")
 	keyPath := filepath.Join(Config.DataDir, "CA.key")
@@ -42,7 +42,7 @@ func GenerateCA() error {
 	// Create a certificate signing request (CSR)
 	csrTemplate := x509.CertificateRequest{
 		Subject: pkix.Name{
-			Organization: []string{"PeerSwap Web UI"},
+			Organization: []string{"PeerSwap Web UI Local Root CA"},
 		},
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
@@ -264,7 +264,7 @@ func GenerateClientCertificate(password string) error {
 		return err
 	}
 
-	log.Println("Generated new client.crt and client.key")
+	log.Println("Generated new client.p12")
 
 	return nil
 }
