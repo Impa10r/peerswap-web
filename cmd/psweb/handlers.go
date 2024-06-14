@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/internet"
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
@@ -1362,6 +1363,119 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "saveAutoFee":
+			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			rule := &ln.AutoFeeDefaults
+			msg := ""
+
+			if r.FormValue("update_button") != "" {
+				failedBumpPPM, err := strconv.Atoi(r.FormValue("failBump"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				lowLiqPct, err := strconv.Atoi(r.FormValue("lowLiqPct"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				lowLiqRate, err := strconv.Atoi(r.FormValue("lowLiqRate"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				normalRate, err := strconv.Atoi(r.FormValue("normalRate"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				excessPct, err := strconv.Atoi(r.FormValue("excessPct"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				excessRate, err := strconv.Atoi(r.FormValue("excessRate"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				inactivityDays, err := strconv.Atoi(r.FormValue("inactivityDays"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				inactivityDropPPM, err := strconv.Atoi(r.FormValue("inactivityDropPPM"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				inactivityDropPct, err := strconv.Atoi(r.FormValue("inactivityDropPct"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				coolOffHours, err := strconv.Atoi(r.FormValue("coolOffHours"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
+				// channelId == 0 means default rule
+				msg = "Default rule updated"
+
+				if channelId > 0 {
+					// custom rule
+					msg = "Custom rule updated"
+					if ln.AutoFee[channelId] == nil {
+						// add new
+						ln.AutoFee[channelId] = new(ln.AutoFeeParams)
+						msg = "Custom rule added"
+					}
+					rule = ln.AutoFee[channelId]
+				}
+				// populate values
+				rule.FailedBumpPPM = failedBumpPPM
+				rule.LowLiqPct = lowLiqPct
+				rule.LowLiqRate = lowLiqRate
+				rule.NormalRate = normalRate
+				rule.ExcessPct = excessPct
+				rule.ExcessRate = excessRate
+				rule.InactivityDays = inactivityDays
+				rule.InactivityDropPPM = inactivityDropPPM
+				rule.InactivityDropPct = inactivityDropPct
+				rule.CoolOffHours = coolOffHours
+				// persist to db
+				if channelId > 0 {
+					db.Save("AutoFees", "AutoFee", ln.AutoFee)
+				} else {
+					db.Save("AutoFees", "AutoFeeDefaults", ln.AutoFeeDefaults)
+				}
+			} else if r.FormValue("delete_button") != "" {
+				if ln.AutoFee[channelId] != nil {
+					// delete custom rule
+					ln.AutoFee[channelId] = nil
+					msg = "Deleted custom rule"
+					// persist to db
+					db.Save("AutoFees", "AutoFee", ln.AutoFee)
+				}
+			}
+			// all done, display confirmation
+			http.Redirect(w, r, "/af?id="+r.FormValue("channelId")+"&msg="+msg, http.StatusSeeOther)
+
 		case "toggleAutoFee":
 			channelId, err := strconv.ParseInt(r.FormValue("channelId"), 10, 64)
 			if err != nil {
@@ -1370,39 +1484,58 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			isEnabled := r.FormValue("enabled") == "on"
+			msg := "Disabled"
+			if isEnabled {
+				msg = "Enabled"
+			}
+
+			cl, clean, er := ln.GetClient()
+			if er != nil {
+				redirectWithError(w, r, "/config?", er)
+				return
+			}
+			defer clean()
+
+			// Get all public Lightning channels
+			res, err := ln.ListPeers(cl, "", nil)
+			if err != nil {
+				redirectWithError(w, r, "/?", err)
+				return
+			}
 
 			if channelId == 0 {
 				// global setting
 				ln.AutoFeeEnabledAll = isEnabled
+				db.Save("AutoFees", "AutoFeeEnabledAll", ln.AutoFeeEnabledAll)
+				msg = "Global AutoFees " + msg
 			} else if channelId == -1 {
 				// toggle for all channels
-				cl, clean, er := ln.GetClient()
-				if er != nil {
-					redirectWithError(w, r, "/config?", er)
-					return
-				}
-				defer clean()
-
-				// Get all public Lightning channels
-				res, err := ln.ListPeers(cl, "", nil)
-				if err != nil {
-					redirectWithError(w, r, "/?", err)
-					return
-				}
-
 				for _, peer := range res.GetPeers() {
 					for _, ch := range peer.Channels {
 						ln.AutoFeeEnabled[ch.ChannelId] = isEnabled
 					}
 				}
+				db.Save("AutoFees", "AutoFeeEnabled", ln.AutoFeeEnabled)
+				msg = "All per-channel AutoFees " + msg
 
 			} else {
 				// toggle for a single channel
 				ln.AutoFeeEnabled[uint64(channelId)] = isEnabled
+				db.Save("AutoFees", "AutoFeeEnabled", ln.AutoFeeEnabled)
+
+			outerLoop:
+				for _, peer := range res.GetPeers() {
+					for _, ch := range peer.Channels {
+						if ch.ChannelId == uint64(channelId) {
+							msg = "AutoFees for " + getNodeAlias(peer.NodeId) + " " + msg
+							break outerLoop
+						}
+					}
+				}
 			}
 
-			// all good, display confirmation
-			http.Redirect(w, r, "/af?id="+r.FormValue("nextId"), http.StatusSeeOther)
+			// all done, display confirmation
+			http.Redirect(w, r, "/af?id="+r.FormValue("nextId")+"&msg="+msg, http.StatusSeeOther)
 
 		case "setFee":
 			nextPage := r.FormValue("nextPage")
@@ -1583,13 +1716,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if msg == "" {
-				// Reload liquid page
-				http.Redirect(w, r, "/liquid", http.StatusSeeOther)
-			} else {
-				// Go to home page with pop-up
-				http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
-			}
+			// Reload liquid page with pop-up
+			http.Redirect(w, r, "/liquid?msg="+msg, http.StatusSeeOther)
 			return
 
 		case "newAddress":

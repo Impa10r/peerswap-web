@@ -14,8 +14,23 @@
             </div>
           </div>       
           <div class="box has-text-left">
-             <h4 class="title is-4">Automatic Swap-Ins</h4> 
-             <form autocomplete="off" action="/submit" method="post">
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: .5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Liquid Auto Swap-In</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                {{if .AutoSwapEnabled}}
+                  <p style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                    ON
+                  </p>
+                {{else}}
+                  <p style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                    OFF
+                  </p>
+                {{end}}
+              </div>
+            </div>
+            <form autocomplete="off" action="/submit" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <div class="field is-horizontal">
                 <div class="field-label is-normal">

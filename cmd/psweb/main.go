@@ -200,6 +200,9 @@ func main() {
 	// CLN: cache forwarding stats
 	go ln.CacheForwards()
 
+	// Load persisted AutoFee data from database
+	go ln.LoadAutoFees()
+
 	// fetch all chain costs (synchronous to protect map writes)
 	cacheSwapCosts()
 

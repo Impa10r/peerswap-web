@@ -12,10 +12,6 @@ import (
 
 func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) {
 
-	// test
-	AutoFeeEnabledAll = true
-	AutoFeeEnabled[2790248249995558912] = true
-
 	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
 		return
 	}
@@ -50,7 +46,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		peerId = r.Node1Pub
 	}
 
-	oldFee := policy.FeeRateMilliMsat
+	oldFee := int(policy.FeeRateMilliMsat)
 	newFee := oldFee
 
 	if failedHTLC {
@@ -79,7 +75,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 			}
 		}
 
-		liqPct := uint(localBalance * 100 / r.Capacity)
+		liqPct := int(localBalance * 100 / r.Capacity)
 		if liqPct > params.LowLiqPct {
 			// normal or high liquidity regime, check if fees can be dropped
 			if policy.LastUpdate < uint32(time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix()) {
@@ -105,7 +101,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 
 	// set the new rate
 	if newFee != oldFee {
-		SetFeeRate(peerId, channelId, newFee, false, false)
+		SetFeeRate(peerId, channelId, int64(newFee), false, false)
 	}
 }
 

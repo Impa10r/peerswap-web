@@ -944,7 +944,6 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					defer cleanup()
 
 					ApplyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
-
 					break
 				}
 			}

@@ -93,7 +93,7 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label title="Low local balance threshold where fee rates stay high" class="label">Low Liq %</label>
+                  <label title="Low local balance threshold where fee rates do not auto decrease" class="label">Low Liq %</label>
                 </div>
                 <div class="field-body">
                   <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
@@ -128,7 +128,7 @@
                   <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop PPM</label>
                 </div>
                 <div class="field-body">
-                  <input class="input is-medium" type="number" name="inactivityDrop" min="0" required value="{{.Params.InactivityDropPPM}}">
+                  <input class="input is-medium" type="number" name="inactivityDropPPM" min="0" required value="{{.Params.InactivityDropPPM}}">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -144,25 +144,15 @@
                   <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
                 </div>
                 <div class="field-body">
-                  <input class="input is-medium" type="number" name="coolOff" min="0" required value="{{.Params.CoolOffHours}}">
+                  <input class="input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
                 </div>
               </div>
               <div style="text-align: center;">
                 <input type="hidden" name="action" value="saveAutoFee">
                 <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                <input class="button is-large" type="submit" name="save" value="
-                  {{if .ChannelId}}
-                    {{if .CustomRule}}
-                      Update
-                    {{else}}
-                      Add
-                    {{end}}
-                    Custom
-                  {{else}}
-                    Update Default
-                  {{end}} Rule">
+                <input class="button is-large" type="submit" name="update_button" value="{{if .ChannelId}}{{if .CustomRule}}Update{{else}}Add{{end}} Custom{{else}}Update Default{{end}} Rule">
                 {{if and .CustomRule .ChannelId}}
-                  <input class="button is-large" type="submit" name="delete" value="Delete Custom Rule">
+                  <input class="button is-large" type="submit" name="delete_button" value="Delete Custom Rule">
                 {{end}}
               </div>
             </div>
@@ -195,9 +185,10 @@
                 <tr>
                   <th>Alias</th>
                   <th style="width: 7ch; text-align: center;">Local</th>
-                  <th style="width: 3ch; text-align: center;">Pct</th>
+                  <th style="width: 3ch; text-align: center;">%</th>
                   <th style="width: 7ch; text-align: center;">Remote</th>
-                  <th title="Excess/Normal/LowLiq rates, * indicates custom rule" style="text-align: center;">Rates</th>
+                  <th title="Excess/Normal/LowLiq floor PPM levels
+* indicates custom rule" style="text-align: center;">Rates</th>
                   <th style="width: 2ch;"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>
@@ -206,9 +197,9 @@
                 <tr>
                   <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
                   <td style="text-align: center;">{{m .LocalBalance}}</td>
-                  <td style="text-align: center;">{{fmt .LocalPct}}%</td>
+                  <td style="text-align: center;">{{fmt .LocalPct}}</td>
                   <td style="text-align: center;">{{m .RemoteBalance}}</td>
-                  <td class="truncate" style="text-align: center;">{{.Rates}}</td>
+                  <td class="truncate" style="text-align: center;">{{if .Custom}}*{{end}}{{.Rates}}</td>
                   <td>
                     <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">
                       <input type="hidden" name="action" value="toggleAutoFee">
@@ -216,7 +207,6 @@
                       <input type="hidden" name="nextId" value="{{$.ChannelId}}">
                       <input type="checkbox" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
                     </form>
-                    {{if .Custom}} *{{end}}
                   </td>
                 </tr>
               {{end}}

@@ -3,6 +3,8 @@ package ln
 import (
 	"strconv"
 	"strings"
+
+	"peerswap-web/cmd/psweb/db"
 )
 
 type UTXO struct {
@@ -81,25 +83,25 @@ type AutoFeeStatus struct {
 
 type AutoFeeParams struct {
 	// fee rate ppm increase after each "Insufficient Balance" HTLC failure
-	FailedBumpPPM int64
+	FailedBumpPPM int
 	// low local balance threshold where fee rates stay high
-	LowLiqPct uint
+	LowLiqPct int
 	// ppm rate when liquidity is below LowLiqPct
-	LowLiqRate int64
+	LowLiqRate int
 	// high local balance threshold
-	ExcessPct uint
+	ExcessPct int
 	// ppm rate when liquidity is at or below ExcessPct
-	NormalRate int64
+	NormalRate int
 	// ppm rate when liquidity is above ExcessPct
-	ExcessRate int64
+	ExcessRate int
 	// days of outbound inactivity to start lowering rates
 	InactivityDays int
 	// reduce ppm by absolute number
-	InactivityDropPPM int64
+	InactivityDropPPM int
 	// and then by a percentage
-	InactivityDropPct int64
+	InactivityDropPct int
 	// hours to wait before reducing the fee rate again
-	CoolOffHours uint
+	CoolOffHours int
 }
 
 var (
@@ -194,4 +196,11 @@ func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 	low := strconv.FormatUint(uint64(params.LowLiqRate), 10)
 
 	return excess + "/" + normal + "/" + low, isCustom
+}
+
+func LoadAutoFees() {
+	db.Load("AutoFees", "AutoFeeEnabledAll", &AutoFeeEnabledAll)
+	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
+	db.Load("AutoFees", "AutoFee", &AutoFee)
+	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
 }
