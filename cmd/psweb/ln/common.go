@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-var myNodeAlias string
-
 type UTXO struct {
 	Address       string
 	AmountSat     int64
@@ -70,8 +68,63 @@ type ChanneInfo struct {
 	Capacity        uint64
 }
 
-// lightning payments from swap out initiator to receiver
-var SwapRebates = make(map[string]int64)
+type AutoFeeStatus struct {
+	Alias         string
+	ChannelId     uint64
+	LocalBalance  uint64
+	LocalPct      uint64
+	RemoteBalance uint64
+	Enabled       bool
+	Rates         string
+	Custom        bool
+}
+
+type AutoFeeParams struct {
+	// fee rate ppm increase after each "Insufficient Balance" HTLC failure
+	FailedBumpPPM int64
+	// low local balance threshold where fee rates stay high
+	LowLiqPct uint
+	// ppm rate when liquidity is below LowLiqPct
+	LowLiqRate int64
+	// high local balance threshold
+	ExcessPct uint
+	// ppm rate when liquidity is at or below ExcessPct
+	NormalRate int64
+	// ppm rate when liquidity is above ExcessPct
+	ExcessRate int64
+	// days of outbound inactivity to start lowering rates
+	InactivityDays int
+	// reduce ppm by absolute number
+	InactivityDropPPM int64
+	// and then by a percentage
+	InactivityDropPct int64
+	// hours to wait before reducing the fee rate again
+	CoolOffHours uint
+}
+
+var (
+	// lightning payments from swap out initiator to receiver
+	SwapRebates = make(map[string]int64)
+	myNodeAlias string
+	myNodeId    string
+
+	AutoFeeEnabledAll bool
+	// maps to LND channel Id
+	AutoFee         = make(map[uint64]*AutoFeeParams)
+	AutoFeeEnabled  = make(map[uint64]bool)
+	AutoFeeDefaults = AutoFeeParams{
+		FailedBumpPPM:     10,
+		LowLiqPct:         20,
+		LowLiqRate:        2000,
+		NormalRate:        300,
+		ExcessPct:         70,
+		ExcessRate:        50,
+		InactivityDays:    14,
+		InactivityDropPPM: 10,
+		InactivityDropPct: 5,
+		CoolOffHours:      12,
+	}
+)
 
 func toSats(amount float64) int64 {
 	return int64(float64(100000000) * amount)
@@ -118,4 +171,27 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 		}
 	}
 	return false
+}
+
+// returns the rule and whether it is custom and enabled
+func AutoFeeRule(channelId uint64) (*AutoFeeParams, bool) {
+	params := &AutoFeeDefaults
+	isCustom := false
+	if AutoFee[channelId] != nil {
+		// channel has custom parameters
+		params = AutoFee[channelId]
+		isCustom = true
+	}
+	return params, isCustom
+}
+
+// returns a string representation for the rule and whether it is not default
+func AutoFeeRatesSummary(channelId uint64) (string, bool) {
+	params, isCustom := AutoFeeRule(channelId)
+
+	excess := strconv.FormatUint(uint64(params.ExcessRate), 10)
+	normal := strconv.FormatUint(uint64(params.NormalRate), 10)
+	low := strconv.FormatUint(uint64(params.LowLiqRate), 10)
+
+	return excess + "/" + normal + "/" + low, isCustom
 }

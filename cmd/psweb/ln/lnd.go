@@ -45,6 +45,9 @@ const (
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
 	SwapFeeReserveLBTC = uint64(1000)
 	SwapFeeReserveBTC  = uint64(2000)
+
+	// used in outbound forwards tracking for auto fees
+	forwardAmountThreshold = uint64(1000)
 )
 
 type InflightHTLC struct {
@@ -62,6 +65,9 @@ var (
 	forwardsOut  = make(map[uint64][]*lnrpc.ForwardingEvent)
 	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
 	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
+
+	// track timestamp of the last outbound forward per channel
+	lastForwardTS = make(map[uint64]int64)
 
 	// inflight HTLCs mapped per Incoming channel
 	inflightHTLCs = make(map[uint64][]*InflightHTLC)
@@ -644,6 +650,7 @@ func CanRBF() bool {
 		if err != nil {
 			return false
 		}
+
 		version := res.GetVersion()
 		parts := strings.Split(version, ".")
 
@@ -711,6 +718,10 @@ func downloadForwards(client lnrpc.LightningClient) {
 		for _, event := range res.ForwardingEvents {
 			forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 			forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
+			// record for autofees
+			if event.AmtOut >= forwardAmountThreshold {
+				lastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
+			}
 		}
 
 		n := len(res.ForwardingEvents)
@@ -839,7 +850,6 @@ func subscribePayments(ctx context.Context, client routerrpc.RouterClient) error
 		if err != nil {
 			return err
 		}
-
 		appendPayment(payment)
 	}
 }
@@ -892,6 +902,22 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 			// delete from queue
 			removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
+		case *routerrpc.HtlcEvent_LinkFailEvent:
+			// delete from queue
+			removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+
+			// check reason
+			if event.LinkFailEvent.FailureDetail == routerrpc.FailureDetail_INSUFFICIENT_BALANCE {
+				// execute autofee
+				client, cleanup, err := GetClient()
+				if err != nil {
+					return err
+				}
+				defer cleanup()
+
+				ApplyAutoFee(client, htlcEvent.OutgoingChannelId, true)
+			}
+
 		case *routerrpc.HtlcEvent_SettleEvent:
 			// find HTLC in queue
 			for _, htlc := range inflightHTLCs[htlcEvent.IncomingChannelId] {
@@ -904,6 +930,21 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					lastforwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
 					// delete from queue
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+
+					// record for autofees
+					if htlc.forwardingEvent.AmtOut >= forwardAmountThreshold {
+						lastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
+					}
+
+					// execute autofee
+					client, cleanup, err := GetClient()
+					if err != nil {
+						return err
+					}
+					defer cleanup()
+
+					ApplyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
+
 					break
 				}
 			}

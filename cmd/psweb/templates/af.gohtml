@@ -1,0 +1,242 @@
+{{define "af"}}
+  {{template "header" .}}
+    <div class="container">
+      <div class="columns">
+        <div class="column">         
+          <div class="box has-text-left">
+            <div style="display: grid; grid-template-columns: auto auto;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Automatic Fees</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <form id="toggleForm_0" action="/submit" method="post">
+                  <input type="hidden" name="action" value="toggleAutoFee">
+                  <input type="hidden" name="channelId" value="0">
+                  <input type="hidden" name="nextId" value="{{.ChannelId}}">
+                  <label class="checkbox is-large" style="padding-top: .5em;">
+                    <input type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    {{if .GlobalEnabled}}
+                      <label for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        ON
+                      </label>
+                    {{else}}
+                      <label for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        OFF
+                      </label>
+                    {{end}}
+                  </label>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div class="box has-text-left">
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">
+                  {{.PeerName}}
+                  {{if .ChannelId}}
+                    {{if .CustomRule}}
+                      (custom)
+                    {{else}}
+                      (<a href="/af">default</a>)
+                    {{end}}
+                  {{end}}
+                </h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                {{if .ChannelId}}
+                  <form id="toggleForm_{{.ChannelId}}" action="/submit" method="post">
+                    <input type="hidden" name="action" value="toggleAutoFee">
+                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                    <input type="hidden" name="nextId" value="{{.ChannelId}}">
+                    <label class="checkbox is-large" style="padding-top: .5em;">
+                      <input type="checkbox" id="enabled" name="enabled" {{if .Enabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_{{.ChannelId}}')">
+                      {{if .Enabled}}
+                        <label for="enabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                          ON
+                        </label>
+                      {{else}}
+                        <label for="enabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                          OFF
+                        </label>
+                      {{end}}
+                    </label>
+                  </form>
+                {{end}}
+              </div>
+            </div>
+            <form autocomplete="off" action="/submit" method="post">
+              <input autocomplete="false" name="hidden" type="text" style="display:none;">
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="High local balance threshold" class="label">Excess %</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Fee rate PPM floor when liquidity is high" class="label">Excess Rate</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="excessRate" min="0" required value="{{.Params.ExcessRate}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Fee rate PPM floor when liquidity is normal" class="label">Normal Rate</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="normalRate" min="0" required required value="{{.Params.NormalRate}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Low local balance threshold where fee rates stay high" class="label">Low Liq %</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump PPM</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Days of outbound inactivity to start lowering rates" class="label">Inactivity Days</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="inactivityDays" min="0" required value="{{.Params.InactivityDays}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop PPM</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="inactivityDrop" min="0" required value="{{.Params.InactivityDropPPM}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="...and then also by a percentage" class="label">Inactivity Drop %</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="inactivityDropPct" min="0" required value="{{.Params.InactivityDropPct}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="coolOff" min="0" required value="{{.Params.CoolOffHours}}">
+                </div>
+              </div>
+              <div style="text-align: center;">
+                <input type="hidden" name="action" value="saveAutoFee">
+                <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                <input class="button is-large" type="submit" name="save" value="
+                  {{if .ChannelId}}
+                    {{if .CustomRule}}
+                      Update
+                    {{else}}
+                      Add
+                    {{end}}
+                    Custom
+                  {{else}}
+                    Update Default
+                  {{end}} Rule">
+                {{if and .CustomRule .ChannelId}}
+                  <input class="button is-large" type="submit" name="delete" value="Delete Custom Rule">
+                {{end}}
+              </div>
+            </div>
+          </form>
+        </div> 
+        <div class="column"> 
+          <div class="box has-text-left">
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Public Channels</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <div style="text-align: right;">
+                  <a href="javascript:void(0);" title="Disable for all individual channels" onclick="toggleAll(false)">
+                    {{if .HasEnabled}}
+                      Disable All
+                    {{end}}
+                  </a>
+                </div>
+              </div>
+              <form id="toggleForm_all" action="/submit" method="post">
+                <input type="hidden" name="action" value="toggleAutoFee">
+                <input type="hidden" name="channelId" value="-1">
+                <input type="hidden" name="nextId" value="{{.ChannelId}}">
+                <input type="checkbox" id="enabledAll" name="enabled" style="display:none;">
+              </form>
+            </div>
+            <table id="channelsTable" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th>Alias</th>
+                  <th style="width: 7ch; text-align: center;">Local</th>
+                  <th style="width: 3ch; text-align: center;">%</th>
+                  <th style="width: 7ch; text-align: center;">Remote</th>
+                  <th title="Excess/Normal/LowLiq rates, * indicates custom rule" style="text-align: center;">Floor Rates</th>
+                  <th style="width: 2ch;"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
+                </tr>
+              </thead>
+              <tbody>
+              {{range .ChannelList}}
+                <tr>
+                  <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
+                  <td style="text-align: center;">{{m .LocalBalance}}</td>
+                  <td style="text-align: center;">{{fmt .LocalPct}}</td>
+                  <td style="text-align: center;">{{m .RemoteBalance}}</td>
+                  <td class="truncate" style="text-align: center;">{{.Rates}}</td>
+                  <td>
+                    <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">
+                      <input type="hidden" name="action" value="toggleAutoFee">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input type="hidden" name="nextId" value="{{$.ChannelId}}">
+                      <input type="checkbox" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
+                    </form>
+                    {{if .Custom}} *{{end}}
+                  </td>
+                </tr>
+              {{end}}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </form>
+    <script>
+      // submits enable/disable toggle 
+      function submitForm(formId) {
+        document.getElementById(formId).submit();
+      }
+
+      function toggleAll(enable) {
+        document.getElementById("enabledAll").checked = enable;
+        document.getElementById("toggleForm_all").submit();
+      }
+    </script>
+    </div>
+  {{template "footer" .}}
+{{end}}

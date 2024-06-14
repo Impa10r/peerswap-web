@@ -1049,3 +1049,7 @@ func SetFeeRate(peerNodeId string,
 
 	return nil
 }
+
+// not implemented:
+func ApplyAutoFeeAll() {}
+func ApplyAutoFee()    {}

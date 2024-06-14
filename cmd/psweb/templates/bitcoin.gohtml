@@ -37,11 +37,7 @@
                   <label class="label">Amount</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -49,11 +45,7 @@
                   <label class="label">Fee Rate</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -69,13 +61,11 @@
                 <div class="field-label is-normal">
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <div class="control">
-                      <label class="checkbox is-large">
-                        <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
-                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                      </label>
-                    </div>
+                  <div class="control">
+                    <label class="checkbox is-large">
+                      <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
+                      <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                    </label>
                   </div>
                 </div>
               </div>     

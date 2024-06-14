@@ -166,8 +166,8 @@ input[type="number"] {
 @media (max-width: 768px) {
     /* Remove padding for columns on mobile */
     .column {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+        padding-left: 0;
+        padding-right: 0;
         text-align: center; /* For text centering */
     }
 }

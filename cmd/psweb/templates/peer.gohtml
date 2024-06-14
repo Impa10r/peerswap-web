@@ -40,15 +40,13 @@
                           <label class="label">Channel</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <div class="select is-medium is-fullwidth">
-                                <select name="channelId">
-                                {{range .Peer.Channels}}
-                                  <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
-                                {{end}}
-                                </select>
-                              </div>
+                          <div class="control">
+                            <div class="select is-medium is-fullwidth">
+                              <select name="channelId">
+                              {{range .Peer.Channels}}
+                                <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
+                              {{end}}
+                              </select>
                             </div>
                           </div>
                         </div>
@@ -58,14 +56,12 @@
                           <label class="label">Direction</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <div class="select is-medium is-fullwidth">
-                                <select id="direction" name="direction" onchange="calculateTransactionFee()">
-                                  <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
-                                  <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
-                                </select>
-                              </div>
+                          <div class="control">
+                            <div class="select is-medium is-fullwidth">
+                              <select id="direction" name="direction" onchange="calculateTransactionFee()">
+                                <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
+                                <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
+                              </select>
                             </div>
                           </div>
                         </div>
@@ -75,14 +71,12 @@
                           <label class="label">Asset</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <div class="select is-medium is-fullwidth">
-                                <select id="asset" name="asset" onchange="calculateTransactionFee()">
-                                  <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
-                                  <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
-                                </select>
-                              </div>
+                          <div class="control">
+                            <div class="select is-medium is-fullwidth">
+                              <select id="asset" name="asset" onchange="calculateTransactionFee()">
+                                <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
+                                <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
+                              </select>
                             </div>
                           </div>
                         </div>
@@ -92,11 +86,7 @@
                           <label class="label">Amount</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <p>
-                              <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
-                            </p>
-                          </div>
+                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
                         </div>
                       </div>
                       <div class="field is-horizontal">
@@ -332,11 +322,7 @@ Sincerely,
                     <label class="label">Keysend Sats</label>
                   </div>
                   <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
-                      </p>
-                    </div>
+                    <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
                   </div>
                 </div> 
                 <br>
