@@ -1383,6 +1383,13 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 		return nil, err
 	}
 
+	res2, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+		PublicOnly: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	var peers []*peerswaprpc.PeerSwapPeer
 
 	for _, lndPeer := range res.Peers {
@@ -1391,39 +1398,23 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 			continue
 		}
 
-		// skip if not the signle one requested
+		// skip if not the single one requested
 		if peerId != "" && lndPeer.PubKey != peerId {
-			continue
-		}
-
-		bytePeer, err := hex.DecodeString(lndPeer.PubKey)
-		if err != nil {
-			return nil, err
-		}
-
-		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
-			PublicOnly: true,
-			Peer:       bytePeer,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		// skip peers with no channels
-		if len(res.Channels) == 0 {
 			continue
 		}
 
 		peer := peerswaprpc.PeerSwapPeer{}
 		peer.NodeId = lndPeer.PubKey
 
-		for _, channel := range res.Channels {
-			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-				ChannelId:     channel.ChanId,
-				LocalBalance:  uint64(channel.LocalBalance),
-				RemoteBalance: uint64(channel.RemoteBalance),
-				Active:        channel.Active,
-			})
+		for _, channel := range res2.Channels {
+			if channel.RemotePubkey == lndPeer.PubKey {
+				peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+					ChannelId:     channel.ChanId,
+					LocalBalance:  uint64(channel.LocalBalance),
+					RemoteBalance: uint64(channel.RemoteBalance),
+					Active:        channel.Active,
+				})
+			}
 		}
 
 		peer.AsSender = &peerswaprpc.SwapStats{}
