@@ -162,6 +162,11 @@ input[type="number"] {
     font-size: 2em;
 }
 
+input[type=checkbox] {
+    transform: scale(1.5);
+    cursor: pointer;
+}
+
 /* Custom styles for mobile */
 @media (max-width: 768px) {
     /* Remove padding for columns on mobile */
@@ -170,4 +175,9 @@ input[type="number"] {
         padding-right: 0;
         text-align: center; /* For text centering */
     }
+
+    input[type=checkbox] {
+        transform: scale(1.1);
+    }
 }
+

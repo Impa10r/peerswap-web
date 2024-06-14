@@ -189,7 +189,7 @@
                   <th style="width: 7ch; text-align: center;">Remote</th>
                   <th title="Excess/Normal/LowLiq floor PPM levels
 * indicates custom rule" style="text-align: center;">Rates</th>
-                  <th style="width: 2ch;"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
+                  <th style="width: 2ch; text-align: center; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>
               <tbody>
@@ -205,7 +205,7 @@
                       <input type="hidden" name="action" value="toggleAutoFee">
                       <input type="hidden" name="channelId" value="{{.ChannelId}}">
                       <input type="hidden" name="nextId" value="{{$.ChannelId}}">
-                      <input type="checkbox" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
+                      <input type="checkbox" style="text-align: center;" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
                     </form>
                   </td>
                 </tr>

@@ -3,6 +3,7 @@ package ln
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"peerswap-web/cmd/psweb/db"
 )
@@ -203,4 +204,31 @@ func LoadAutoFees() {
 	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
 	db.Load("AutoFees", "AutoFee", &AutoFee)
 	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
+}
+
+func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int, lastUpdate uint32) int {
+	newFee := oldFee
+	if liqPct > params.LowLiqPct {
+		// normal or high liquidity regime, check if fees can be dropped
+		if lastUpdate < uint32(time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix()) {
+			// check the last outbound timestamp
+			if lastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
+				// decrease the fee
+				newFee -= params.InactivityDropPPM
+				newFee = newFee * (100 - params.InactivityDropPct) / 100
+			}
+
+			// check the floors
+			if liqPct < params.ExcessPct {
+				newFee = max(newFee, params.NormalRate)
+			} else {
+				newFee = max(newFee, params.ExcessRate)
+			}
+		}
+	} else {
+		// liquidity is low, floor the rate at high value
+		newFee = max(newFee, params.LowLiqRate)
+	}
+
+	return newFee
 }
