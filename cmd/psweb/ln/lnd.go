@@ -1419,7 +1419,10 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 
 		peer.AsSender = &peerswaprpc.SwapStats{}
 		peer.AsReceiver = &peerswaprpc.SwapStats{}
-		peers = append(peers, &peer)
+
+		if len(peer.Channels) > 0 {
+			peers = append(peers, &peer)
+		}
 
 		if peer.NodeId == peerId {
 			// skip the rest

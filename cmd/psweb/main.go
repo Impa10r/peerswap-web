@@ -310,7 +310,7 @@ func startTimer() {
 // tasks that run every minute
 func onTimer() {
 	// Start Telegram bot if not already running
-	telegramStart()
+	go telegramStart()
 
 	// Back up to Telegram if Liquid balance changed
 	liquidBackup(false)
