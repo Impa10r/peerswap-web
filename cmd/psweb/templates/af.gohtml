@@ -189,7 +189,7 @@
                 <input type="checkbox" id="enabledAll" name="enabled" style="display:none;">
               </form>
             </div>
-            <table id="channelsTable" style="width:100%; table-layout:fixed;">
+            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
                   <th>Alias</th>
@@ -198,12 +198,12 @@
                   <th style="width: 7ch; text-align: center;">Remote</th>
                   <th title="Excess/Normal/LowLiq floor PPM levels
 * indicates custom rule" style="text-align: center;">Rates</th>
-                  <th style="width: 2ch; text-align: center; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
+                  <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>
               <tbody>
               {{range .ChannelList}}
-                <tr>
+                <tr{{if .Enabled}} class="is-selected"{{end}}>
                   <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
                   <td style="text-align: center;">{{m .LocalBalance}}</td>
                   <td style="text-align: center;">{{fmt .LocalPct}}</td>
@@ -214,7 +214,7 @@
                       <input type="hidden" name="action" value="toggleAutoFee">
                       <input type="hidden" name="channelId" value="{{.ChannelId}}">
                       <input type="hidden" name="nextId" value="{{$.ChannelId}}">
-                      <input type="checkbox" style="text-align: center;" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
+                      <input type="checkbox" style="text-align: left;" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
                     </form>
                   </td>
                 </tr>

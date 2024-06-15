@@ -1370,7 +1370,7 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 	return nil
 }
 
-// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes
+// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding certain nodes
 func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	ctx := context.Background()
 
@@ -1380,7 +1380,7 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 	}
 
 	res2, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
-		PublicOnly: true,
+		// PublicOnly: true,
 	})
 	if err != nil {
 		return nil, err
