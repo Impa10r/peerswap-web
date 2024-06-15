@@ -70,6 +70,7 @@ type ChanneInfo struct {
 	PeerMinHtlc    uint64
 	Capacity       uint64
 	LocalPct       uint64
+	AutoFeeLog     string
 }
 
 type AutoFeeStatus struct {

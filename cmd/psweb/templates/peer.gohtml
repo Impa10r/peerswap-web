@@ -499,6 +499,13 @@ Sincerely,
                         </table>
                       </td>
                     </tr>
+                    {{if ne .AutoFeeLog ""}}
+                      <tr style="border: 1px dotted">
+                        <td colspan="5" style="text-align: center; padding: 0px;">
+                          {{.AutoFeeLog}}
+                        </td>
+                      </tr>
+                    {{end}}
                   {{else}}
                     <td style="text-align: right"></td>
                     <td style="text-align: right">INACTIVE</td>

@@ -367,6 +367,23 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		// should not be less than both Min HTLC setting
 		keysendSats = max(keysendSats, info.PeerMinHtlc)
 		keysendSats = max(keysendSats, info.OurMinHtlc)
+
+		// add AF info
+		if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[ch.ChannelId] {
+			rates, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
+			if custom {
+				rates = "*" + rates
+			}
+
+			feeLog := ln.AutoFeeLog[ch.ChannelId]
+			if feeLog != nil {
+				rates += ", last update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
+				rates += " from " + formatWithThousandSeparators(uint64(feeLog.OldRate))
+				rates += " to " + formatWithThousandSeparators(uint64(feeLog.OldRate))
+			}
+
+			info.AutoFeeLog = "AF rates: " + rates
+		}
 	}
 
 	//check for error errorMessage to display
