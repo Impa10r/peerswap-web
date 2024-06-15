@@ -358,14 +358,15 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		info.LocalBalance = ch.GetLocalBalance()
 		info.RemoteBalance = ch.GetRemoteBalance()
 		info.Active = ch.GetActive()
+		info.LocalPct = info.LocalBalance * 100 / info.Capacity
 		channelInfo = append(channelInfo, info)
 
 		sumLocal += ch.GetLocalBalance()
 		sumRemote += ch.GetRemoteBalance()
 
 		// should not be less than both Min HTLC setting
-		keysendSats = max(keysendSats, msatToSatUp(info.PeerMinHtlcMsat))
-		keysendSats = max(keysendSats, msatToSatUp(info.OurMinHtlcMsat))
+		keysendSats = max(keysendSats, info.PeerMinHtlc)
+		keysendSats = max(keysendSats, info.OurMinHtlc)
 	}
 
 	//check for error errorMessage to display
@@ -802,6 +803,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	var channelList []*ln.AutoFeeStatus
 	hasEnabled := false
+	peerId := ""
 
 	// Get all public Lightning channels
 	res, err := ln.ListPeers(cl, "", nil)
@@ -827,6 +829,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 			if ch.ChannelId == channelId {
 				peerName = alias
+				peerId = peer.NodeId
 			}
 			if ln.AutoFeeEnabled[ch.ChannelId] {
 				hasEnabled = true
@@ -860,6 +863,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme    string
 		ChannelId      uint64
 		PeerName       string
+		PeerId         string
 		GlobalEnabled  bool
 		ChannelList    []*ln.AutoFeeStatus
 		Params         *ln.AutoFeeParams
@@ -876,6 +880,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		ColorScheme:    config.Config.ColorScheme,
 		GlobalEnabled:  ln.AutoFeeEnabledAll,
 		PeerName:       peerName,
+		PeerId:         peerId,
 		ChannelId:      channelId,
 		ChannelList:    channelList,
 		Params:         rule,
@@ -1434,6 +1439,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
+				maxHtlcPct, err := strconv.Atoi(r.FormValue("maxHtlcPct"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
 				// channelId == 0 means default rule
 				msg = "Default rule updated"
 
@@ -1458,6 +1469,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				rule.InactivityDropPPM = inactivityDropPPM
 				rule.InactivityDropPct = inactivityDropPct
 				rule.CoolOffHours = coolOffHours
+				rule.MaxHtlcPct = maxHtlcPct
+
 				// persist to db
 				if channelId > 0 {
 					db.Save("AutoFees", "AutoFee", ln.AutoFee)
@@ -1475,6 +1488,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			// all done, display confirmation
 			http.Redirect(w, r, "/af?id="+r.FormValue("channelId")+"&msg="+msg, http.StatusSeeOther)
+			return
 
 		case "toggleAutoFee":
 			channelId, err := strconv.ParseInt(r.FormValue("channelId"), 10, 64)
@@ -1536,6 +1550,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			// all done, display confirmation
 			http.Redirect(w, r, "/af?id="+r.FormValue("nextId")+"&msg="+msg, http.StatusSeeOther)
+			return
 
 		case "setFee":
 			nextPage := r.FormValue("nextPage")
@@ -1582,6 +1597,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			// all good, display confirmation
 			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
+			return
 
 		case "setBase":
 			nextPage := r.FormValue("nextPage")
@@ -1628,6 +1644,35 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			// all good, display confirmation
 			msg := strings.Title(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
+			return
+
+		case "setHtlcSize":
+			nextPage := r.FormValue("nextPage")
+
+			size, err := strconv.ParseInt(r.FormValue("size"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			isMax := r.FormValue("minMax") == "max"
+
+			err = ln.SetHtlcSize(r.FormValue("peerNodeId"), channelId, size*1000, isMax)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			// all good, display confirmation
+			msg := strings.Title(r.FormValue("minMax")) + " HTLC size updated to " + formatSigned(size) + " sats"
+			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
+			return
 
 		case "enableHTTPS":
 			if err := config.GenerateServerCertificate(); err == nil {
@@ -1640,8 +1685,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				restart(w, r, true, password)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
-				return
 			}
+			return
+
 		case "keySend":
 			dest := r.FormValue("nodeId")
 			message := r.FormValue("keysendMessage")
@@ -1665,6 +1711,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			// Load main page with all pees and a pop-up message
 			http.Redirect(w, r, "/?showall&msg="+msg, http.StatusSeeOther)
 			return
+
 		case "setAutoSwap":
 			newAmount, err := strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
 			if err != nil {

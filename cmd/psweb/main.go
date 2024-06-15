@@ -197,7 +197,7 @@ func main() {
 	// to speed up first load of home page
 	go cacheAliases()
 
-	// CLN: cache forwarding stats
+	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
 
 	// Load persisted AutoFee data from database
@@ -284,9 +284,9 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Peerswapd has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
+		t = "Peerswapd has not started listening yet or PeerSwap Host parameter is wrong. <a href='/log'>Check log</a>."
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Lightningd failed to start or has wrong configuration. Check logs."
+		t = "Lightningd failed to start or has wrong configuration. <a href='/log?log=cln.log'>Check log</a>."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
 		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
 	case strings.HasPrefix(t, "rpc error: code = "):
@@ -1188,8 +1188,8 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			swapAmount := targetBalance - channel.LocalBalance
 
 			// limit to max HTLC setting
-			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlcMsat/1000)
-			swapAmount = min(swapAmount, chanInfo.OurMaxHtlcMsat/1000)
+			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc)
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
@@ -1427,11 +1427,19 @@ func NewMuteLogger() *log.Logger {
 
 // html snippet to display and update fee PPM
 func feeInputField(peerNodeId string, channelId uint64, direction string, feePerMil int64, backgroundColor string, fontColor string, showAll bool) string {
+
+	channelIdStr := strconv.FormatUint(channelId, 10)
+	ppm := strconv.FormatInt(feePerMil, 10)
+
 	// direction: inbound or outbound
 	fieldId := strconv.FormatUint(channelId, 10) + "_" + direction
 	align := "margin-left: 1px"
 	if direction == "inbound" {
 		align = "text-align: right"
+	} else {
+		if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
+			align = "text-align: center"
+		}
 	}
 
 	nextPage := "/?"
@@ -1439,16 +1447,26 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 		nextPage += "showall&"
 	}
 
-	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
-	t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
-	t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
-	t += `<input type="hidden" name="action" value="setFee">`
-	t += `<input type="hidden" name="peerNodeId" value="` + peerNodeId + `">`
-	t += `<input type="hidden" name="direction" value="` + direction + `">`
-	t += `<input type="hidden" name="nextPage" value="` + nextPage + `">`
-	t += `<input type="hidden" name="channelId" value="` + strconv.FormatUint(channelId, 10) + `">`
-	t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + strconv.FormatInt(feePerMil, 10) + `" onchange="feeSubmitForm('` + fieldId + `')">`
-	t += `</form>`
+	t := `<td class="corner-mark" title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
+	// for autofees show link
+	if direction == "outbound" && ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
+		rates, custom := ln.AutoFeeRatesSummary(channelId)
+		if custom {
+			rates = "*" + rates
+		}
+		t += "<a title=\"Auto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + ppm + "</a>"
+	} else {
+		t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
+		t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
+		t += `<input type="hidden" name="action" value="setFee">`
+		t += `<input type="hidden" name="peerNodeId" value="` + peerNodeId + `">`
+		t += `<input type="hidden" name="direction" value="` + direction + `">`
+		t += `<input type="hidden" name="nextPage" value="` + nextPage + `">`
+		t += `<input type="hidden" name="channelId" value="` + channelIdStr + `">`
+		t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + ppm + `" onchange="feeSubmitForm('` + fieldId + `')">`
+		t += `</form>`
+	}
+
 	t += `</td>`
 
 	return t

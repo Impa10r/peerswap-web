@@ -135,6 +135,7 @@ input[type="number"] {
 }
 
 .transparent-input {
+    display: inline; 
     background-color: transparent; /* Transparent background */
     padding: 0px; /* Add padding */
     color: white; /* Text color */
@@ -179,5 +180,10 @@ input[type=checkbox] {
     input[type=checkbox] {
         transform: scale(1.1);
     }
+}
+
+.corner-mark::after {border: 1px solid grey;
+    border: 1px solid grey;
+    background-image: linear-gradient(225deg, red, red 10px, transparent 10px, transparent);
 }
 

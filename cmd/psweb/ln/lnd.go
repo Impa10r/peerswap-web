@@ -66,9 +66,6 @@ var (
 	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
 	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
 
-	// track timestamp of the last outbound forward per channel
-	lastForwardTS = make(map[uint64]int64)
-
 	// inflight HTLCs mapped per Incoming channel
 	inflightHTLCs = make(map[uint64][]*InflightHTLC)
 
@@ -1218,15 +1215,15 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
-		info.PeerMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
-		info.PeerMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
-		info.OurMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
-		info.OurMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
+		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
+		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
+		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
 	} else {
-		info.PeerMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
-		info.PeerMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
-		info.OurMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
-		info.OurMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
+		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
+		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
+		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
 	}
 
 	info.FeeRate = policy.GetFeeRateMilliMsat()
@@ -1486,6 +1483,7 @@ func SetFeeRate(peerNodeId string,
 	feeRate int64,
 	inbound bool,
 	isBase bool) error {
+
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1561,6 +1559,87 @@ func SetFeeRate(peerNodeId string,
 	return nil
 }
 
+// set min or max HTLC size (Msat!!!) for a channel
+func SetHtlcSize(peerNodeId string,
+	channelId uint64,
+	htlcMsat int64,
+	isMax bool) error {
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+	defer cleanup()
+
+	// get channel point first
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	policy := r.Node1Policy
+	if r.Node1Pub == peerNodeId {
+		// the first policy is not ours, use the second
+		policy = r.Node2Policy
+	}
+
+	parts := strings.Split(r.ChanPoint, ":")
+	outputIndex, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	var req lnrpc.PolicyUpdateRequest
+
+	req.Scope = &lnrpc.PolicyUpdateRequest_ChanPoint{
+		ChanPoint: &lnrpc.ChannelPoint{
+			FundingTxid: &lnrpc.ChannelPoint_FundingTxidStr{
+				FundingTxidStr: parts[0],
+			},
+			OutputIndex: uint32(outputIndex),
+		},
+	}
+
+	// preserve policy values
+	req.BaseFeeMsat = policy.FeeBaseMsat
+	req.FeeRatePpm = uint32(policy.FeeRateMilliMsat)
+	req.TimeLockDelta = policy.TimeLockDelta
+	req.MinHtlcMsatSpecified = !isMax
+	req.MaxHtlcMsat = policy.MaxHtlcMsat
+	req.InboundFee = &lnrpc.InboundFee{
+		FeeRatePpm:  policy.InboundFeeRateMilliMsat,
+		BaseFeeMsat: policy.InboundFeeBaseMsat,
+	}
+
+	// change what's new
+	if isMax {
+		if uint64(htlcMsat) == policy.MaxHtlcMsat {
+			// nothing to do
+			return nil
+		}
+		req.MaxHtlcMsat = uint64(htlcMsat)
+	} else {
+		if htlcMsat == policy.MinHtlc {
+			// nothing to do
+			return nil
+		}
+		req.MinHtlcMsat = uint64(htlcMsat)
+	}
+
+	_, err = client.UpdateChannelPolicy(context.Background(), &req)
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	return nil
+}
+
 func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) {
 
 	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
@@ -1627,6 +1706,11 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		}
 
 		liqPct := int(localBalance * 100 / r.Capacity)
+
+		if params.MaxHtlcPct > 0 && params.MaxHtlcPct < 100 {
+			// will only update if value changed
+			SetHtlcSize(peerId, channelId, int64(params.MaxHtlcPct)*10*localBalance, true)
+		}
 
 		newFee = calculateAutoFee(channelId, params, liqPct, oldFee, policy.LastUpdate)
 	}

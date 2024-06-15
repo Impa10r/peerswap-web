@@ -4,36 +4,12 @@
       <div class="columns">
         <div class="column">         
           <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto;">
-              <div style="text-align: left;">
-                <h4 class="title is-4">Automatic Fees</h4>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <form id="toggleForm_0" action="/submit" method="post">
-                  <input type="hidden" name="action" value="toggleAutoFee">
-                  <input type="hidden" name="channelId" value="0">
-                  <input type="hidden" name="nextId" value="{{.ChannelId}}">
-                  <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
-                    {{if .GlobalEnabled}}
-                      <label for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                        ON
-                      </label>
-                    {{else}}
-                      <label for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
-                        OFF
-                      </label>
-                    {{end}}
-                  </label>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
                 <h4 class="title is-4">
+                  {{if ne .PeerName "Default Rule"}}<a href="/peer?id={{.PeerId}}">{{end}}
                   {{.PeerName}}
+                  {{if ne .PeerName "Default Rule"}}</a>{{end}}
                   {{if .ChannelId}}
                     {{if .CustomRule}}
                       (custom)
@@ -109,7 +85,7 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump PPM</label>
+                  <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump</label>
                 </div>
                 <div class="field-body">
                   <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
@@ -125,7 +101,7 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
-                  <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop PPM</label>
+                  <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop</label>
                 </div>
                 <div class="field-body">
                   <input class="input is-medium" type="number" name="inactivityDropPPM" min="0" required value="{{.Params.InactivityDropPPM}}">
@@ -136,7 +112,7 @@
                   <label title="...and then also by a percentage" class="label">Inactivity Drop %</label>
                 </div>
                 <div class="field-body">
-                  <input class="input is-medium" type="number" name="inactivityDropPct" min="0" required value="{{.Params.InactivityDropPct}}">
+                  <input class="input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -145,6 +121,14 @@
                 </div>
                 <div class="field-body">
                   <input class="input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label title="Maintain Max HTLC size as percentage of Local Balance (0 = off)" class="label">Max HTLC %</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="maxHtlcPct" min="0" max="99" required value="{{.Params.MaxHtlcPct}}">
                 </div>
               </div>
               <div style="text-align: center;">
@@ -160,9 +144,34 @@
         </div> 
         <div class="column"> 
           <div class="box has-text-left">
+            <div style="display: grid; grid-template-columns: auto auto;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Automatic Fees</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <form id="toggleForm_0" action="/submit" method="post">
+                  <input type="hidden" name="action" value="toggleAutoFee">
+                  <input type="hidden" name="channelId" value="0">
+                  <input type="hidden" name="nextId" value="{{.ChannelId}}">
+                  <label class="checkbox is-large" style="padding-top: .5em;">
+                    <input type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    {{if .GlobalEnabled}}
+                      <label for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        ON
+                      </label>
+                    {{else}}
+                      <label for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        OFF
+                      </label>
+                    {{end}}
+                  </label>
+                </form>
+              </div>
+            </div>
+            <br>
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
-                <h4 class="title is-4">Public Channels</h4>
+                <h4 class="title is-4">Channel List</h4>
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 <div style="text-align: right;">
@@ -185,7 +194,7 @@
                 <tr>
                   <th>Alias</th>
                   <th style="width: 7ch; text-align: center;">Local</th>
-                  <th style="width: 3ch; text-align: center;">%</th>
+                  <th title="Local balance as % of capacity" style="width: 3ch; text-align: center;">%</th>
                   <th style="width: 7ch; text-align: center;">Remote</th>
                   <th title="Excess/Normal/LowLiq floor PPM levels
 * indicates custom rule" style="text-align: center;">Rates</th>

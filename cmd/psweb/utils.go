@@ -153,16 +153,6 @@ func formatSigned(num int64) string {
 	return formatWithThousandSeparators(uint64(num))
 }
 
-// msatToSatUp converts millisatoshis to satoshis, rounding up.
-func msatToSatUp(msat uint64) uint64 {
-	// Divide msat by 1000 and round up if there's any remainder.
-	sat := msat / 1000
-	if msat%1000 != 0 {
-		sat++
-	}
-	return sat
-}
-
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	if err == nil {

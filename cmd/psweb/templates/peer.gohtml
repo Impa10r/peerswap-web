@@ -424,7 +424,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="outbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_outbound')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -435,7 +435,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="outbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_outboundbase')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -446,7 +446,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_inbound')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')">
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -457,9 +457,48 @@ Sincerely,
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_inboundbase')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="submitForm('{{.ChannelId}}_inboundbase')">
                       </form>
                     </td>
+                    <tr style="border: 1px dotted">
+                      <td colspan="5" style="text-align: center; padding: 0px;">
+                        <table style="width:100%; table-layout:fixed; padding: 0px;">
+                          <tr>
+                            <td title="Local balance as % of capacity" style="text-align: center; padding: 0px;">
+                              {{.LocalPct}}% local
+                            </td>
+                            <td title="Min HTLC Size Sats" style="text-align: right; padding: 0px; padding-right: 1em;">
+                              Min HTLC:
+                            </td>
+                            <td style="padding: 0px;">
+                              <form id="{{.ChannelId}}_minhtlc" autocomplete="off" action="/submit" method="post">
+                                <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                                <input type="hidden" name="action" value="setHtlcSize">
+                                <input type="hidden" name="minMax" value="min">
+                                <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                                <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                                <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                                <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="size" value="{{.OurMinHtlc}}" onchange="submitForm('{{.ChannelId}}_minhtlc')">
+                              </form>
+                            </td>
+                            <td style="text-align: right; padding: 0px; padding-right: 1em;">
+                              Max HTLC:
+                            </td>
+                            <td title="Max HTLC Size Sats" style="padding: 0px;">
+                              <form id="{{.ChannelId}}_maxhtlc" autocomplete="off" action="/submit" method="post">
+                                <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                                <input type="hidden" name="action" value="setHtlcSize">
+                                <input type="hidden" name="minMax" value="max">
+                                <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                                <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                                <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                                <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="size" value="{{.OurMaxHtlc}}" onchange="submitForm('{{.ChannelId}}_maxhtlc')">
+                              </form>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
                   {{else}}
                     <td style="text-align: right"></td>
                     <td style="text-align: right">INACTIVE</td>
@@ -470,8 +509,7 @@ Sincerely,
               {{end}}
             </table>
             <script>
-              // submits new fee rate 
-              function feeSubmitForm(formId) {
+              function submitForm(formId) {
                 document.getElementById(formId).submit();
               }
             </script>
@@ -480,18 +518,16 @@ Sincerely,
                 <div class="column">
                   <center>            
                     {{if .Suspicious}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">🕵 This peer is suspicious</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('unsuspectPeer')">🕵 This peer is suspicious</p>
+                      <form id="unsuspectPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="unsuspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Unsuspect This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is not suspicious</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('suspectPeer')">✅ This peer is not suspicious</p>
+                      <form id="suspectPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="suspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Suspect This Peer">
                       </form>
                     {{end}}
                   </center>
@@ -499,18 +535,16 @@ Sincerely,
                 <div class="column">
                   <center>
                     {{if .Allowed}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is whitelisted</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('removePeer')">✅ This peer is whitelisted</p>
+                      <form id="removePeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="removePeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Blacklist This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">⛔ This peer is blacklisted</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is blacklisted</p>
+                      <form id="addPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="addPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Whitelist This Peer">
                       </form>
                     {{end}}
                   </center>

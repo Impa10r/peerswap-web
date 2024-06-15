@@ -56,19 +56,20 @@ type ChannelStats struct {
 }
 
 type ChanneInfo struct {
-	ChannelId       uint64
-	LocalBalance    uint64
-	RemoteBalance   uint64
-	FeeRate         int64 // PPM
-	FeeBase         int64 // mSat
-	InboundFeeRate  int64 // PPM
-	InboundFeeBase  int64 // mSat
-	Active          bool
-	OurMaxHtlcMsat  uint64
-	OurMinHtlcMsat  uint64
-	PeerMaxHtlcMsat uint64
-	PeerMinHtlcMsat uint64
-	Capacity        uint64
+	ChannelId      uint64
+	LocalBalance   uint64
+	RemoteBalance  uint64
+	FeeRate        int64 // PPM
+	FeeBase        int64 // mSat
+	InboundFeeRate int64 // PPM
+	InboundFeeBase int64 // mSat
+	Active         bool
+	OurMaxHtlc     uint64
+	OurMinHtlc     uint64
+	PeerMaxHtlc    uint64
+	PeerMinHtlc    uint64
+	Capacity       uint64
+	LocalPct       uint64
 }
 
 type AutoFeeStatus struct {
@@ -103,6 +104,8 @@ type AutoFeeParams struct {
 	InactivityDropPct int
 	// hours to wait before reducing the fee rate again
 	CoolOffHours int
+	// maintain Max HTLC size as percentage of Local Balance (0 = off)
+	MaxHtlcPct int
 }
 
 var (
@@ -118,7 +121,7 @@ var (
 	AutoFeeDefaults = AutoFeeParams{
 		FailedBumpPPM:     10,
 		LowLiqPct:         20,
-		LowLiqRate:        2000,
+		LowLiqRate:        1500,
 		NormalRate:        300,
 		ExcessPct:         70,
 		ExcessRate:        50,
@@ -126,7 +129,11 @@ var (
 		InactivityDropPPM: 10,
 		InactivityDropPct: 5,
 		CoolOffHours:      12,
+		MaxHtlcPct:        0,
 	}
+
+	// track timestamp of the last outbound forward per channel
+	lastForwardTS = make(map[uint64]int64)
 )
 
 func toSats(amount float64) int64 {
@@ -217,13 +224,13 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 				newFee -= params.InactivityDropPPM
 				newFee = newFee * (100 - params.InactivityDropPct) / 100
 			}
+		}
 
-			// check the floors
-			if liqPct < params.ExcessPct {
-				newFee = max(newFee, params.NormalRate)
-			} else {
-				newFee = max(newFee, params.ExcessRate)
-			}
+		// check the floors
+		if liqPct < params.ExcessPct {
+			newFee = max(newFee, params.NormalRate)
+		} else {
+			newFee = max(newFee, params.ExcessRate)
 		}
 	} else {
 		// liquidity is low, floor the rate at high value
@@ -231,4 +238,14 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 	}
 
 	return newFee
+}
+
+// msatToSatUp converts millisatoshis to satoshis, rounding up.
+func msatToSatUp(msat uint64) uint64 {
+	// Divide msat by 1000 and round up if there's any remainder.
+	sat := msat / 1000
+	if msat%1000 != 0 {
+		sat++
+	}
+	return sat
 }

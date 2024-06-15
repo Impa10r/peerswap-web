@@ -39,6 +39,8 @@ type Forwarding struct {
 	OutMsat      uint64  `json:"out_msat"`
 	FeeMsat      uint64  `json:"fee_msat"`
 	ResolvedTime float64 `json:"resolved_time"`
+	Status       string  `json:"status"`
+	FailCode     uint64  `json:"failcode,omitempty"`
 }
 
 var (
@@ -415,6 +417,8 @@ func CacheForwards() {
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
 				forwardsIn[chIn] = append(forwardsIn[chIn], f)
 				forwardsOut[chOut] = append(forwardsOut[chOut], f)
+				// save for autofees
+				lastForwardTS[chOut] = int64(f.ResolvedTime)
 			}
 			totalForwards += uint64(n)
 		} else {
@@ -666,10 +670,10 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 			updates := channelMap["updates"].(map[string]interface{})
 			local := updates["local"].(map[string]interface{})
 			remote := updates["remote"].(map[string]interface{})
-			info.PeerMinHtlcMsat = uint64(remote["htlc_minimum_msat"].(float64))
-			info.PeerMaxHtlcMsat = uint64(remote["htlc_maximum_msat"].(float64))
-			info.OurMaxHtlcMsat = uint64(local["htlc_maximum_msat"].(float64))
-			info.OurMinHtlcMsat = uint64(local["htlc_minimum_msat"].(float64))
+			info.PeerMinHtlc = msatToSatUp(uint64(remote["htlc_minimum_msat"].(float64)))
+			info.PeerMaxHtlc = uint64(remote["htlc_maximum_msat"].(float64)) / 1000
+			info.OurMaxHtlc = uint64(local["htlc_maximum_msat"].(float64)) / 1000
+			info.OurMinHtlc = msatToSatUp(uint64(local["htlc_minimum_msat"].(float64)))
 			info.Capacity = uint64(channelMap["total_msat"].(float64) / 1000)
 			break
 		}
@@ -1004,9 +1008,11 @@ func FeeReport(client *glightning.Lightning, outboundFeeRates map[uint64]int64, 
 }
 
 type SetChannelRequest struct {
-	Id                string `json:"id"`
-	BaseMilliSatoshis int64  `json:"feebase,omitempty"`
-	PartPerMillion    int64  `json:"feeppm,omitempty"`
+	Id          string `json:"id"`
+	BaseMsat    int64  `json:"feebase,omitempty"`
+	FeePPM      int64  `json:"feeppm,omitempty"`
+	HtlcMinMsat int64  `json:"htlcmin,omitempty"`
+	HtlcMaxMsat int64  `json:"htlcmax,omitempty"`
 }
 
 func (r *SetChannelRequest) Name() string {
@@ -1036,14 +1042,46 @@ func SetFeeRate(peerNodeId string,
 
 	req.Id = ConvertLndToClnChannelId(channelId)
 	if isBase {
-		req.BaseMilliSatoshis = feeRate
+		req.BaseMsat = feeRate
 	} else {
-		req.PartPerMillion = feeRate
+		req.FeePPM = feeRate
 	}
 
 	err = client.Request(&req, &res)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
+		return err
+	}
+
+	return nil
+}
+
+// set min or max HTLC size (Msat!!!) for a channel
+func SetHtlcSize(peerNodeId string,
+	channelId uint64,
+	htlcMsat int64,
+	isMax bool) error {
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+	defer cleanup()
+
+	var req SetChannelRequest
+	var res map[string]interface{}
+
+	req.Id = ConvertLndToClnChannelId(channelId)
+	if isMax {
+		req.HtlcMaxMsat = htlcMsat
+	} else {
+		req.HtlcMinMsat = htlcMsat
+	}
+
+	err = client.Request(&req, &res)
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
 		return err
 	}
 
