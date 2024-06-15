@@ -1725,6 +1725,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 				OldRate:   oldFee,
 				NewRate:   newFee,
 			}
+			// persist to db
 			db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
 		}
 	}

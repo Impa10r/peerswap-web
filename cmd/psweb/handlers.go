@@ -379,7 +379,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 			if feeLog != nil {
 				rates += ", last update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
 				rates += " from " + formatWithThousandSeparators(uint64(feeLog.OldRate))
-				rates += " to " + formatWithThousandSeparators(uint64(feeLog.OldRate))
+				rates += " to " + formatWithThousandSeparators(uint64(feeLog.NewRate))
 			}
 
 			info.AutoFeeLog = "<a href=\"/af?id=" + strconv.FormatUint(ch.ChannelId, 10) + "\">AF rates</a>: " + rates
@@ -1498,7 +1498,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				if ln.AutoFee[channelId] != nil {
 					// delete custom rule
 					ln.AutoFee[channelId] = nil
-					msg = "Deleted custom rule"
+					msg = "Custom rule deleted"
 					// persist to db
 					db.Save("AutoFees", "AutoFee", ln.AutoFee)
 				}

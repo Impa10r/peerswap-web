@@ -1459,7 +1459,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 		if feeLog != nil {
 			rates += "\nLast update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
 			rates += "\nFrom: " + formatWithThousandSeparators(uint64(feeLog.OldRate))
-			rates += "\nTo: " + formatWithThousandSeparators(uint64(feeLog.OldRate))
+			rates += "\nTo: " + formatWithThousandSeparators(uint64(feeLog.NewRate))
 		}
 
 		t += "<a title=\"Auto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
