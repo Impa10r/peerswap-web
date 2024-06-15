@@ -108,6 +108,12 @@ type AutoFeeParams struct {
 	MaxHtlcPct int
 }
 
+type AutoFeeEvent struct {
+	TimeStamp int64
+	OldRate   int
+	NewRate   int
+}
+
 var (
 	// lightning payments from swap out initiator to receiver
 	SwapRebates = make(map[string]int64)
@@ -117,6 +123,7 @@ var (
 	AutoFeeEnabledAll bool
 	// maps to LND channel Id
 	AutoFee         = make(map[uint64]*AutoFeeParams)
+	AutoFeeLog      = make(map[uint64]*AutoFeeEvent)
 	AutoFeeEnabled  = make(map[uint64]bool)
 	AutoFeeDefaults = AutoFeeParams{
 		FailedBumpPPM:     10,
@@ -211,6 +218,7 @@ func LoadAutoFees() {
 	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
 	db.Load("AutoFees", "AutoFee", &AutoFee)
 	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
+	db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
 }
 
 func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int, lastUpdate uint32) int {

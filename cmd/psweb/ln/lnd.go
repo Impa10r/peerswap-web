@@ -19,6 +19,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
@@ -1640,10 +1641,10 @@ func SetHtlcSize(peerNodeId string,
 	return nil
 }
 
-func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) {
+func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) bool {
 
 	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
-		return
+		return false
 	}
 
 	params := &AutoFeeDefaults
@@ -1657,7 +1658,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
-			return
+			return false
 		}
 		myNodeId = res.GetIdentityPubkey()
 	}
@@ -1665,7 +1666,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		ChanId: channelId,
 	})
 	if err != nil {
-		return
+		return false
 	}
 
 	policy := r.Node1Policy
@@ -1686,7 +1687,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		// get balances
 		bytePeer, err := hex.DecodeString(peerId)
 		if err != nil {
-			return
+			return false
 		}
 
 		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
@@ -1694,7 +1695,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 			Peer:       bytePeer,
 		})
 		if err != nil {
-			return
+			return false
 		}
 
 		localBalance := int64(0)
@@ -1717,8 +1718,18 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 
 	// set the new rate
 	if newFee != oldFee {
-		SetFeeRate(peerId, channelId, int64(newFee), false, false)
+		if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+			// log the last change
+			AutoFeeLog[channelId] = &AutoFeeEvent{
+				TimeStamp: time.Now().Unix(),
+				OldRate:   oldFee,
+				NewRate:   newFee,
+			}
+			db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+		}
 	}
+
+	return false
 }
 
 func ApplyAutoFeeAll() {
