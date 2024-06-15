@@ -2,7 +2,33 @@
   {{template "header" .}}
     <div class="container">
       <div class="columns">
-        <div class="column">         
+        <div class="column">
+          <div class="box has-text-left">
+            <div style="display: grid; grid-template-columns: auto auto;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Automatic Fees</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <form id="toggleForm_0" action="/submit" method="post">
+                  <input type="hidden" name="action" value="toggleAutoFee">
+                  <input type="hidden" name="channelId" value="0">
+                  <input type="hidden" name="nextId" value="{{.ChannelId}}">
+                  <label class="checkbox is-large" style="padding-top: .5em;">
+                    <input type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    {{if .GlobalEnabled}}
+                      <label for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        ON
+                      </label>
+                    {{else}}
+                      <label for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        OFF
+                      </label>
+                    {{end}}
+                  </label>
+                </form>
+              </div>
+            </div>
+          </div>         
           <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
@@ -43,94 +69,132 @@
             </div>
             <form autocomplete="off" action="/submit" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="High local balance threshold" class="label">Excess %</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Fee rate PPM floor when liquidity is high" class="label">Excess Rate</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="excessRate" min="0" required value="{{.Params.ExcessRate}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Fee rate PPM floor when liquidity is normal" class="label">Normal Rate</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="normalRate" min="0" required required value="{{.Params.NormalRate}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Low local balance threshold where fee rates do not auto decrease" class="label">Low Liq %</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Days of outbound inactivity to start lowering rates" class="label">Inactivity Days</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="inactivityDays" min="0" required value="{{.Params.InactivityDays}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="inactivityDropPPM" min="0" required value="{{.Params.InactivityDropPPM}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="...and then also by a percentage" class="label">Inactivity Drop %</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Maintain Max HTLC size as percentage of Local Balance (0 = off)" class="label">Max HTLC %</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="maxHtlcPct" min="0" max="99" required value="{{.Params.MaxHtlcPct}}">
-                </div>
-              </div>
+              <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
+                <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="High local balance threshold" class="label">Excess %</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Fee rate PPM floor when liquidity is high" class="label">Excess Rate</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="excessRate" min="0" required value="{{.Params.ExcessRate}}">
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Low local balance threshold below which fee rates will not auto decrease" class="label">Low Liq %</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Fee rate PPM floor when liquidity is normal" class="label">Normal Rate</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="normalRate" min="0" required required value="{{.Params.NormalRate}}">
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}">
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Days of outbound inactivity to start lowering rates" class="label">Inactivity Days</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="inactivityDays" min="0" required value="{{.Params.InactivityDays}}">
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="inactivityDropPPM" min="0" required value="{{.Params.InactivityDropPPM}}">
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="...and then also by a percentage" class="label">Inactivity Drop %</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="half-width input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="half-width input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td></td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Maintain Max HTLC size as percentage of Local Balance (0 = off)" class="label">Max HTLC %</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="half-width input is-medium" type="number" name="maxHtlcPct" min="0" max="99" required value="{{.Params.MaxHtlcPct}}">
+                    </div>
+                  </td>
+                </tr>
+              </table>
               <div style="text-align: center;">
                 <input type="hidden" name="action" value="saveAutoFee">
                 <input type="hidden" name="channelId" value="{{.ChannelId}}">
@@ -144,31 +208,6 @@
         </div> 
         <div class="column"> 
           <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto;">
-              <div style="text-align: left;">
-                <h4 class="title is-4">Automatic Fees</h4>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <form id="toggleForm_0" action="/submit" method="post">
-                  <input type="hidden" name="action" value="toggleAutoFee">
-                  <input type="hidden" name="channelId" value="0">
-                  <input type="hidden" name="nextId" value="{{.ChannelId}}">
-                  <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
-                    {{if .GlobalEnabled}}
-                      <label for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                        ON
-                      </label>
-                    {{else}}
-                      <label for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
-                        OFF
-                      </label>
-                    {{end}}
-                  </label>
-                </form>
-              </div>
-            </div>
-            <br>
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
                 <h4 class="title is-4">Channel List</h4>

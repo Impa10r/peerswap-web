@@ -120,8 +120,8 @@ var (
 	AutoFeeEnabled  = make(map[uint64]bool)
 	AutoFeeDefaults = AutoFeeParams{
 		FailedBumpPPM:     10,
-		LowLiqPct:         20,
-		LowLiqRate:        1500,
+		LowLiqPct:         10,
+		LowLiqRate:        999,
 		NormalRate:        300,
 		ExcessPct:         70,
 		ExcessRate:        50,
