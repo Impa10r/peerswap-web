@@ -382,7 +382,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 				rates += " to " + formatWithThousandSeparators(uint64(feeLog.OldRate))
 			}
 
-			info.AutoFeeLog = "AF rates: " + rates
+			info.AutoFeeLog = "<a href=\"/af?id=" + strconv.FormatUint(ch.ChannelId, 10) + "\">AF rates</a>: " + rates
 		}
 	}
 
@@ -854,9 +854,9 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// sort by LocalPct
+	// sort by LocalPct descending
 	sort.Slice(channelList, func(i, j int) bool {
-		return channelList[i].LocalPct < channelList[j].LocalPct
+		return channelList[i].LocalPct > channelList[j].LocalPct
 	})
 	//check for error errorMessage to display
 	errorMessage := ""

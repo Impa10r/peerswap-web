@@ -1462,7 +1462,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 			rates += "\nTo: " + formatWithThousandSeparators(uint64(feeLog.OldRate))
 		}
 
-		t += "<a title=\"Auto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + ppm + "</a>"
+		t += "<a title=\"Auto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
 	} else {
 		t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
 		t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
