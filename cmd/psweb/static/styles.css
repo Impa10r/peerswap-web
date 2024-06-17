@@ -180,6 +180,10 @@ input[type=checkbox] {
     input[type=checkbox] {
         transform: scale(1.1);
     }
+
+    .input { 
+        padding: 0.5em; /* reduce padding inside input cells */
+    }
 }
 
 .corner-mark::after {border: 1px solid grey;

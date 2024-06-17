@@ -7,7 +7,7 @@
       <div class="columns">
         <div class="column">
           <div class="box has-text-left">
-            <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h4>
+            <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box has-text-left">
@@ -265,8 +265,6 @@
             const amount = Number(document.getElementById("peginAmount").value);
             const payall = document.getElementById("subtractfee").checked;
 
-            console.log(fee, amount);
-            
             if (payall && fee >= amount / 4) {
               alert("Total fee exceeding 25% of the amount is not allowed");
               return false;

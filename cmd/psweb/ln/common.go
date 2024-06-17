@@ -105,8 +105,10 @@ type AutoFeeParams struct {
 	InactivityDropPct int
 	// hours to wait before reducing the fee rate again
 	CoolOffHours int
-	// maintain Max HTLC size as percentage of Local Balance (0 = off)
+	// set Max HTLC size as percentage of Local Balance (0 = off)
 	MaxHtlcPct int
+	// inbound fee (<0 = discount) when liquidity is below LowLiqPct
+	LowLiqDiscount int
 }
 
 type AutoFeeEvent struct {
@@ -131,13 +133,14 @@ var (
 		LowLiqPct:         10,
 		LowLiqRate:        999,
 		NormalRate:        300,
-		ExcessPct:         70,
+		ExcessPct:         75,
 		ExcessRate:        50,
-		InactivityDays:    14,
+		InactivityDays:    7,
 		InactivityDropPPM: 10,
 		InactivityDropPct: 5,
 		CoolOffHours:      12,
 		MaxHtlcPct:        0,
+		LowLiqDiscount:    0,
 	}
 
 	// track timestamp of the last outbound forward per channel
@@ -191,7 +194,7 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 	return false
 }
 
-// returns the rule and whether it is custom and enabled
+// returns the rule and whether it is custom
 func AutoFeeRule(channelId uint64) (*AutoFeeParams, bool) {
 	params := &AutoFeeDefaults
 	isCustom := false
@@ -207,11 +210,16 @@ func AutoFeeRule(channelId uint64) (*AutoFeeParams, bool) {
 func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 	params, isCustom := AutoFeeRule(channelId)
 
-	excess := strconv.FormatUint(uint64(params.ExcessRate), 10)
-	normal := strconv.FormatUint(uint64(params.NormalRate), 10)
-	low := strconv.FormatUint(uint64(params.LowLiqRate), 10)
+	excess := strconv.Itoa(params.ExcessRate)
+	normal := strconv.Itoa(params.NormalRate)
+	low := strconv.Itoa(params.LowLiqRate)
+	disc := strconv.Itoa(params.LowLiqDiscount)
 
-	return excess + "/" + normal + "/" + low, isCustom
+	summary := excess + "/" + normal + "/" + low
+	if HasInboundFees() {
+		summary += "/" + disc
+	}
+	return summary, isCustom
 }
 
 func LoadAutoFees() {
@@ -222,11 +230,15 @@ func LoadAutoFees() {
 	db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
 }
 
-func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int, lastUpdate uint32) int {
+func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {
 	newFee := oldFee
 	if liqPct > params.LowLiqPct {
-		// normal or high liquidity regime, check if fees can be dropped
-		if lastUpdate < uint32(time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix()) {
+		// normal or high liquidity regime, check if fee can be dropped
+		lastUpdate := int64(0)
+		if AutoFeeLog[channelId] != nil {
+			lastUpdate = AutoFeeLog[channelId].TimeStamp
+		}
+		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the last outbound timestamp
 			if lastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
@@ -242,7 +254,7 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 			newFee = max(newFee, params.ExcessRate)
 		}
 	} else {
-		// liquidity is low, floor the rate at high value
+		// liquidity is low, keep the rate at high value
 		newFee = max(newFee, params.LowLiqRate)
 	}
 

@@ -5,14 +5,16 @@
         <div class="column">
           {{if .PeerSwapPeer}}
             <div class="box">
-              <div style="display: grid; grid-template-columns: auto auto;">
-                <div style="text-align: center;">
-                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
-                </div>
-                <div style="text-align: center;">
-                  <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
-                </div>
-              </div>
+              <table style="width:100%; table-layout:fixed;">
+                <tr>
+                  <td style="padding: 0px; text-align: left;">
+                    <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
+                  </td>
+                  <td style="padding: 0px; text-align: left;">
+                    <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
+                  </td>
+                </tr> 
+              </table>
             </div>
           {{end}}
           <div class="box has-text-left">
@@ -40,14 +42,12 @@
                           <label class="label">Channel</label>
                         </div>
                         <div class="field-body">
-                          <div class="control">
-                            <div class="select is-medium is-fullwidth">
-                              <select name="channelId">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="channelId">
                               {{range .Peer.Channels}}
                                 <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
                               {{end}}
-                              </select>
-                            </div>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -56,13 +56,11 @@
                           <label class="label">Direction</label>
                         </div>
                         <div class="field-body">
-                          <div class="control">
-                            <div class="select is-medium is-fullwidth">
-                              <select id="direction" name="direction" onchange="calculateTransactionFee()">
-                                <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
-                                <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
-                              </select>
-                            </div>
+                          <div class="select is-medium is-fullwidth">
+                            <select id="direction" name="direction" onchange="calculateTransactionFee()">
+                              <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
+                              <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -71,13 +69,11 @@
                           <label class="label">Asset</label>
                         </div>
                         <div class="field-body">
-                          <div class="control">
-                            <div class="select is-medium is-fullwidth">
-                              <select id="asset" name="asset" onchange="calculateTransactionFee()">
-                                <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
-                                <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
-                              </select>
-                            </div>
+                          <div class="select is-medium is-fullwidth">
+                            <select id="asset" name="asset" onchange="calculateTransactionFee()">
+                              <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
+                              <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -86,7 +82,7 @@
                           <label class="label">Amount</label>
                         </div>
                         <div class="field-body">
-                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
+                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="10000" placeholder="⚡ Swap Amount (sats)">
                         </div>
                       </div>
                       <div class="field is-horizontal">
@@ -343,7 +339,7 @@ Sincerely,
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 {{if .PeerSwapPeer}}
-                  <h4><a title="Display successful swaps with this peer" href="/?id={{.Peer.NodeId}}&state=success">🔍</a></h4>
+                  <h4 style="transform: scale(1.5)"><a title="Display successful swaps with this peer" href="/?id={{.Peer.NodeId}}&state=success">🔍</a></h4>
                 {{end}}
               </div>
             </div>
@@ -548,7 +544,7 @@ Sincerely,
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is blacklisted</p>
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is not whitelisted</p>
                       <form id="addPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="addPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">

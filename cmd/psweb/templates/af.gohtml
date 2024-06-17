@@ -67,23 +67,13 @@
                 {{end}}
               </div>
             </div>
-            <form autocomplete="off" action="/submit" method="post">
+            <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="High local balance threshold" class="label">Excess %</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is high" class="label">Excess Rate</label>
+                      <label title="Fee rate PPM floor when liquidity is high" class="label">High Liq Floor</label>
                     </div>
                   </td>
                   <td>
@@ -91,8 +81,28 @@
                       <input class="input is-medium" type="number" name="excessRate" min="0" required value="{{.Params.ExcessRate}}">
                     </div>
                   </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="High local balance threshold" class="label">High Liq %</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
+                    </div>
+                  </td>
                 </tr>
                 <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label">Normal Floor</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="normalRate" min="0" required required value="{{.Params.NormalRate}}">
+                    </div>
+                  </td>
                   <td>
                     <div class="field-label is-normal">
                       <label title="Low local balance threshold below which fee rates will not auto decrease" class="label">Low Liq %</label>
@@ -103,9 +113,11 @@
                       <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
                     </div>
                   </td>
+                </tr>
+                <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
+                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Floor</label>
                     </div>
                   </td>
                   <td>
@@ -113,26 +125,14 @@
                       <input class="input is-medium" type="number" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}">
                     </div>
                   </td>
-                </tr>
-                <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor between Low Liq and Excess thresholds" class="label">Normal Rate</label>
+                      <label title="Inbound fee discount when liquidity is below Low Liq % (use negative value)" class="label">Low Liq Discount</label>
                     </div>
                   </td>
                   <td>
                     <div class="field-body">
-                      <input class="input is-medium" type="number" name="normalRate" min="0" required required value="{{.Params.NormalRate}}">
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Maintain Max HTLC size as percentage of Local Balance (0 = off)" class="label">Max HTLC %</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="half-width input is-medium" type="number" name="maxHtlcPct" min="0" max="99" required value="{{.Params.MaxHtlcPct}}">
+                      <input class="input is-medium" type="number" name="lowLiqDiscount" max="0" required value="{{.Params.LowLiqDiscount}}">
                     </div>
                   </td>
                 </tr>
@@ -166,7 +166,7 @@
                   </td>
                   <td>
                     <div class="field-body">
-                      <input class="half-width input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
+                      <input class="input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
                     </div>
                   </td>
                   <td>
@@ -176,13 +176,11 @@
                   </td>
                   <td>
                     <div class="field-body">
-                      <input class="half-width input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
+                      <input class="input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
                     </div>
                   </td>
                 </tr>
                 <tr>
-                  <td></td>
-                  <td></td>
                   <td>
                     <div class="field-label is-normal">
                       <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump</label>
@@ -193,7 +191,18 @@
                       <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
                     </div>
                   </td>
-                </tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Maintain Max HTLC size as percentage of Local Balance (0 = off)
+WARNING: NOT recommended as it will disable large swaps and inbound payments" class="label">Max HTLC %</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input id="maxHtlcPct" class="input is-medium" type="number" name="maxHtlcPct" min="0" max="99" required value="{{.Params.MaxHtlcPct}}">
+                    </div>
+                  </td> 
+                </tr> 
               </table>
               <div style="text-align: center;">
                 <input type="hidden" name="action" value="saveAutoFee">
@@ -269,10 +278,16 @@
       function submitForm(formId) {
         document.getElementById(formId).submit();
       }
-
-      function toggleAll(enable) {
-        document.getElementById("enabledAll").checked = enable;
-        document.getElementById("toggleForm_all").submit();
+      // warning message if Max HTLC % > 0 
+      function confirmSubmit() {
+        if (Number(document.getElementById("maxHtlcPct").value)>0) {
+          var confirmed = confirm("Setting Max HTLC size to a % of Local Balance will only be done when Local Balance exceeds 50% of Capacity. Still, reducing Max HTLC can prevent receiving certain large swaps and inbound payments. A better way to avoid failed HTLCs is to bump channel's fee rate upon every fail. Please confirm if you still want to set Max HTLC % > 0.");
+          if (!confirmed) {
+            // user cancels, prevent form submission
+            document.getElementById("maxHtlcPct").value = "0";
+            return false;
+          }
+        }
       }
     </script>
     </div>

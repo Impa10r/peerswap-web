@@ -635,18 +635,25 @@ func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeR
 }
 
 func CanRBF() bool {
-	if LndVerson == 0 {
+	return getLndVersion() >= 0.18
+}
 
+func HasInboundFees() bool {
+	return getLndVersion() >= 0.18
+}
+
+func getLndVersion() float64 {
+	if LndVerson == 0 {
 		// get lnd server version
 		client, cleanup, err := GetClient()
 		if err != nil {
-			return false
+			return 0
 		}
 		defer cleanup()
 
 		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
 		if err != nil {
-			return false
+			return 0
 		}
 
 		version := res.GetVersion()
@@ -654,20 +661,20 @@ func CanRBF() bool {
 
 		a, err := strconv.ParseFloat(parts[0], 64)
 		if err != nil {
-			return false
+			return 0
 		}
 
 		LndVerson = a
 
 		b, err := strconv.ParseFloat(parts[1], 64)
 		if err != nil {
-			return false
+			return 0
 		}
 
 		LndVerson += b / 100
 	}
 
-	return LndVerson >= 0.18
+	return LndVerson
 }
 
 func GetMyAlias() string {
@@ -1709,11 +1716,25 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		liqPct := int(localBalance * 100 / r.Capacity)
 
 		if params.MaxHtlcPct > 0 && params.MaxHtlcPct < 100 {
-			// will only update if value changed
-			SetHtlcSize(peerId, channelId, int64(params.MaxHtlcPct)*10*localBalance, true)
+			// do not decrease when localBalance < r.Capacity / 2
+			maxHTLC := int64(params.MaxHtlcPct) * 10 * max(localBalance, r.Capacity/2)
+			if int64(policy.MaxHtlcMsat) != maxHTLC {
+				// set max htlc
+				SetHtlcSize(peerId, channelId, maxHTLC, true)
+			}
 		}
 
-		newFee = calculateAutoFee(channelId, params, liqPct, oldFee, policy.LastUpdate)
+		if params.MaxHtlcPct == 0 && int64(policy.MaxHtlcMsat) < 1000*r.Capacity {
+			// reset to maximum when disabled
+			SetHtlcSize(peerId, channelId, 1000*r.Capacity, true)
+		}
+
+		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+			// set discount
+			SetFeeRate(peerId, channelId, int64(params.LowLiqDiscount), true, false)
+		}
+
+		newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
 	}
 
 	// set the new rate

@@ -38,6 +38,7 @@ type Forwarding struct {
 	OutChannel   string  `json:"out_channel"`
 	OutMsat      uint64  `json:"out_msat"`
 	FeeMsat      uint64  `json:"fee_msat"`
+	ReceivedTime float64 `json:"received_time"`
 	ResolvedTime float64 `json:"resolved_time"`
 	Status       string  `json:"status"`
 	FailCode     uint64  `json:"failcode,omitempty"`
@@ -49,6 +50,8 @@ var (
 	forwardsOut       = make(map[uint64][]Forwarding)
 	forwardsLastIndex uint64
 	downloadComplete  bool
+	// track timestamp of the last failed forward
+	failedForwardTS = make(map[uint64]int64)
 )
 
 func GetClient() (*glightning.Lightning, func(), error) {
@@ -403,22 +406,28 @@ func CacheForwards() {
 	for {
 		// get incremental history
 		client.Request(&ListForwardsRequest{
-			Status: "settled",
-			Index:  "created",
-			Start:  forwardsLastIndex,
-			Limit:  1000,
+			Index: "created",
+			Start: forwardsLastIndex,
+			Limit: 1000,
 		}, &newForwards)
 
 		n := len(newForwards.Forwards)
 		if n > 0 {
 			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
 			for _, f := range newForwards.Forwards {
-				chIn := ConvertClnToLndChannelId(f.InChannel)
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
-				forwardsIn[chIn] = append(forwardsIn[chIn], f)
-				forwardsOut[chOut] = append(forwardsOut[chOut], f)
-				// save for autofees
-				lastForwardTS[chOut] = int64(f.ResolvedTime)
+				if f.Status == "settled" {
+					chIn := ConvertClnToLndChannelId(f.InChannel)
+					forwardsIn[chIn] = append(forwardsIn[chIn], f)
+					forwardsOut[chOut] = append(forwardsOut[chOut], f)
+					// save for autofees
+					lastForwardTS[chOut] = int64(f.ResolvedTime)
+				} else {
+					// catch not enough balance error
+					if f.FailCode == 4103 {
+						failedForwardTS[chOut] = int64(f.ReceivedTime)
+					}
+				}
 			}
 			totalForwards += uint64(n)
 		} else {
@@ -745,8 +754,8 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 		for _, channel := range clnPeer.Channels {
 			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
 				ChannelId:     ConvertClnToLndChannelId(channel.ShortChannelId),
-				LocalBalance:  channel.SpendableMilliSatoshi / 1000,
-				RemoteBalance: channel.ReceivableMilliSatoshi / 1000,
+				LocalBalance:  channel.ToUsMsat.MSat() / 1000,
+				RemoteBalance: (channel.TotalMsat.MSat() - channel.ToUsMsat.MSat()) / 1000,
 				Active:        clnPeer.Connected && channel.State == "CHANNELD_NORMAL",
 			})
 		}
@@ -844,7 +853,7 @@ func GetMyAlias() string {
 // scans all channels to get peerswap lightning fees cached
 func SubscribeAll() {
 	if downloadComplete {
-		// only run once if successful
+		// only run once
 		return
 	}
 
@@ -864,8 +873,10 @@ func SubscribeAll() {
 
 	for _, peer := range peers.Peers {
 		for _, channel := range peer.Channels {
-			channelId := ConvertLndToClnChannelId(channel.ChannelId)
-			fetchPaymentsStats(client, timestamp, channelId)
+			if channel.ChannelId > 0 {
+				channelId := ConvertLndToClnChannelId(channel.ChannelId)
+				fetchPaymentsStats(client, timestamp, channelId)
+			}
 		}
 	}
 
@@ -1000,10 +1011,11 @@ func FeeReport(client *glightning.Lightning, outboundFeeRates map[uint64]int64, 
 	channels := response["channels"].([]interface{})
 	for _, channel := range channels {
 		channelMap := channel.(map[string]interface{})
-		channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
-		outboundFeeRates[channelId] = int64(channelMap["fee_proportional_millionths"].(float64))
+		if channelMap["short_channel_id"] != nil {
+			channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
+			outboundFeeRates[channelId] = int64(channelMap["fee_proportional_millionths"].(float64))
+		}
 	}
-
 	return nil
 }
 
@@ -1086,6 +1098,10 @@ func SetHtlcSize(peerNodeId string,
 	}
 
 	return nil
+}
+
+func HasInboundFees() bool {
+	return false
 }
 
 // not implemented:

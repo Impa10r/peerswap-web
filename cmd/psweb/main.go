@@ -39,6 +39,7 @@ const (
 
 type SwapParams struct {
 	PeerAlias string
+	PeerId    string
 	ChannelId uint64
 	Amount    uint64
 	PPM       uint64
@@ -346,7 +347,7 @@ func onTimer() {
 	// CLN: fetch swap fees paid and received via LN
 	go ln.SubscribeAll()
 
-	// LND: execute auto fee reduction for non-performing channels
+	// execute auto fee
 	ln.ApplyAutoFeeAll()
 }
 
@@ -1187,19 +1188,18 @@ func findSwapInCandidate(candidate *SwapParams) error {
 
 			swapAmount := targetBalance - channel.LocalBalance
 
-			// limit to max HTLC setting
+			// limit to peer's max HTLC setting
 			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc)
-			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
 				// use timestamp of the last swap or 6 months horizon
-				lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
-				if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
-					lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+				lastTimestamp := time.Now().AddDate(0, -6, 0).Unix()
+				if swapTimestamps[channel.ChannelId] > lastTimestamp {
+					lastTimestamp = swapTimestamps[channel.ChannelId]
 				}
 
-				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
+				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastTimestamp))
 
 				ppm := uint64(0)
 				if stats.RoutedOut > 0 {
@@ -1213,6 +1213,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					minPPM = ppm
 					// save the candidate
 					candidate.ChannelId = channel.ChannelId
+					candidate.PeerId = peer.NodeId
 					candidate.PeerAlias = getNodeAlias(peer.NodeId)
 					// set maximum possible amount
 					candidate.Amount = swapAmount
@@ -1262,6 +1263,14 @@ func executeAutoSwap() {
 	}
 
 	amount := candidate.Amount
+
+	if af, _ := ln.AutoFeeRule(candidate.ChannelId); af.MaxHtlcPct > 0 {
+		// increase max HTCL so as to not interfere with SwapIn
+		if ln.SetHtlcSize(candidate.PeerId, candidate.ChannelId, int64(amount)*1000, true) != nil {
+			// failed to increase max HTLC
+			return
+		}
+	}
 
 	// no suitable candidates were found
 	if amount == 0 {
@@ -1458,8 +1467,8 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 		feeLog := ln.AutoFeeLog[channelId]
 		if feeLog != nil {
 			rates += "\nLast update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
-			rates += "\nFrom: " + formatWithThousandSeparators(uint64(feeLog.OldRate))
-			rates += "\nTo: " + formatWithThousandSeparators(uint64(feeLog.NewRate))
+			rates += "\nFrom " + formatWithThousandSeparators(uint64(feeLog.OldRate))
+			rates += " to " + formatWithThousandSeparators(uint64(feeLog.NewRate))
 		}
 
 		t += "<a title=\"Auto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
