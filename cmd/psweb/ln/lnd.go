@@ -1724,9 +1724,9 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 			}
 		}
 
-		if params.MaxHtlcPct == 0 && int64(policy.MaxHtlcMsat) < 1000*r.Capacity {
+		if params.MaxHtlcPct == 0 && int64(policy.MaxHtlcMsat) < 990*r.Capacity {
 			// reset to maximum when disabled
-			SetHtlcSize(peerId, channelId, 1000*r.Capacity, true)
+			SetHtlcSize(peerId, channelId, 990*r.Capacity, true)
 		}
 
 		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
