@@ -1414,7 +1414,7 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 			if channel.RemotePubkey == lndPeer.PubKey {
 				peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
 					ChannelId:     channel.ChanId,
-					LocalBalance:  uint64(channel.LocalBalance),
+					LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
 					RemoteBalance: uint64(channel.RemoteBalance),
 					Active:        channel.Active,
 				})
@@ -1708,26 +1708,12 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		localBalance := int64(0)
 		for _, ch := range res.Channels {
 			if ch.ChanId == channelId {
-				localBalance = ch.LocalBalance
+				localBalance = ch.LocalBalance + ch.UnsettledBalance
 				break
 			}
 		}
 
 		liqPct := int(localBalance * 100 / r.Capacity)
-
-		if params.MaxHtlcPct > 0 && params.MaxHtlcPct < 100 {
-			// do not decrease when localBalance < r.Capacity / 2
-			maxHTLC := int64(params.MaxHtlcPct) * 10 * max(localBalance, r.Capacity/2)
-			if int64(policy.MaxHtlcMsat) != maxHTLC {
-				// set max htlc
-				SetHtlcSize(peerId, channelId, maxHTLC, true)
-			}
-		}
-
-		if params.MaxHtlcPct == 0 && int64(policy.MaxHtlcMsat) < 990*r.Capacity {
-			// reset to maximum when disabled
-			SetHtlcSize(peerId, channelId, 990*r.Capacity, true)
-		}
 
 		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
 			// set discount

@@ -105,8 +105,6 @@ type AutoFeeParams struct {
 	InactivityDropPct int
 	// hours to wait before reducing the fee rate again
 	CoolOffHours int
-	// set Max HTLC size as percentage of Local Balance (0 = off)
-	MaxHtlcPct int
 	// inbound fee (<0 = discount) when liquidity is below LowLiqPct
 	LowLiqDiscount int
 }
@@ -131,7 +129,7 @@ var (
 	AutoFeeDefaults = AutoFeeParams{
 		FailedBumpPPM:     10,
 		LowLiqPct:         10,
-		LowLiqRate:        999,
+		LowLiqRate:        1000,
 		NormalRate:        300,
 		ExcessPct:         75,
 		ExcessRate:        50,
@@ -139,7 +137,6 @@ var (
 		InactivityDropPPM: 10,
 		InactivityDropPct: 5,
 		CoolOffHours:      12,
-		MaxHtlcPct:        0,
 		LowLiqDiscount:    0,
 	}
 

@@ -382,7 +382,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 				rates += " to " + formatWithThousandSeparators(uint64(feeLog.NewRate))
 			}
 
-			info.AutoFeeLog = "<a href=\"/af?id=" + strconv.FormatUint(ch.ChannelId, 10) + "\">AF rates</a>: " + rates
+			info.AutoFeeLog = "<a href=\"/af?id=" + strconv.FormatUint(ch.ChannelId, 10) + "\">AF rule</a>: " + rates
 		}
 	}
 
@@ -819,7 +819,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	var channelList []*ln.AutoFeeStatus
-	hasEnabled := false
+	anyEnabled := false
 	peerId := ""
 
 	// Get all public Lightning channels
@@ -849,7 +849,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 				peerId = peer.NodeId
 			}
 			if ln.AutoFeeEnabled[ch.ChannelId] {
-				hasEnabled = true
+				anyEnabled = true
 			}
 		}
 	}
@@ -886,7 +886,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Params         *ln.AutoFeeParams
 		CustomRule     bool
 		Enabled        bool // for the displayed channel
-		HasEnabled     bool // for any channel
+		AnyEnabled     bool // for any channel
+		HasInboundFees bool
 	}
 
 	data := Page{
@@ -903,7 +904,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Params:         rule,
 		CustomRule:     isCustom,
 		Enabled:        ln.AutoFeeEnabled[channelId],
-		HasEnabled:     hasEnabled,
+		AnyEnabled:     anyEnabled,
+		HasInboundFees: ln.HasInboundFees(),
 	}
 
 	// executing template named "af"
@@ -1456,7 +1458,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				maxHtlcPct, err := strconv.Atoi(r.FormValue("maxHtlcPct"))
+				lowLiqDiscount, err := strconv.Atoi(r.FormValue("lowLiqDiscount"))
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
@@ -1486,7 +1488,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				rule.InactivityDropPPM = inactivityDropPPM
 				rule.InactivityDropPct = inactivityDropPct
 				rule.CoolOffHours = coolOffHours
-				rule.MaxHtlcPct = maxHtlcPct
+				rule.LowLiqDiscount = lowLiqDiscount
 
 				// persist to db
 				if channelId > 0 {

@@ -1188,8 +1188,8 @@ func findSwapInCandidate(candidate *SwapParams) error {
 
 			swapAmount := targetBalance - channel.LocalBalance
 
-			// limit to peer's max HTLC setting
-			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc)
+			// limit to own and peer's max HTLC setting
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc, chanInfo.PeerMaxHtlc)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
@@ -1263,14 +1263,6 @@ func executeAutoSwap() {
 	}
 
 	amount := candidate.Amount
-
-	if af, _ := ln.AutoFeeRule(candidate.ChannelId); af.MaxHtlcPct > 0 {
-		// increase max HTCL so as to not interfere with SwapIn
-		if ln.SetHtlcSize(candidate.PeerId, candidate.ChannelId, int64(amount)*1000, true) != nil {
-			// failed to increase max HTLC
-			return
-		}
-	}
 
 	// no suitable candidates were found
 	if amount == 0 {
