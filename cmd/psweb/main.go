@@ -1437,7 +1437,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 	align := "margin-left: 1px"
 	if direction == "inbound" {
 		if !ln.HasInboundFees() {
-			return "<td></td>"
+			return `<td style="width: 1ch; padding: 0px;""></td>`
 		}
 		align = "text-align: right"
 	}
