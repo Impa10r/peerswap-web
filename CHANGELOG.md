@@ -2,8 +2,10 @@
 
 ## 1.5.3
 
+- Add automatic channel fees management
 - Randomize serial number of CA to let install in Ubuntu/Firefox
 - Increase Web UI password cookie expiry to 7 days
+- Add NO_HTTPS env variable for Umbrel update
 
 ## 1.5.2
 
