@@ -1202,7 +1202,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastTimestamp))
 
 				ppm := uint64(0)
-				if stats.RoutedOut > 0 {
+				if stats.RoutedOut > 1_000_000 { // ignore small results
 					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
 				}
 
@@ -1436,11 +1436,14 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 	fieldId := strconv.FormatUint(channelId, 10) + "_" + direction
 	align := "margin-left: 1px"
 	if direction == "inbound" {
-		align = "text-align: right"
-	} else {
-		if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
-			align = "text-align: center"
+		if !ln.HasInboundFees() {
+			return "<td></td>"
 		}
+		align = "text-align: right"
+	}
+
+	if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
+		align = "text-align: center"
 	}
 
 	nextPage := "/?"
@@ -1448,9 +1451,9 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 		nextPage += "showall&"
 	}
 
-	t := `<td class="corner-mark" title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
+	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
 	// for autofees show link
-	if direction == "outbound" && ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
+	if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
 		rates, custom := ln.AutoFeeRatesSummary(channelId)
 		if custom {
 			rates = "*" + rates

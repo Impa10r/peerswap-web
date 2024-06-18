@@ -185,8 +185,3 @@ input[type=checkbox] {
         padding: 0.5em; /* reduce padding inside input cells */
     }
 }
-
-.corner-mark::after {border: 1px solid grey;
-    border: 1px solid grey;
-    background-image: linear-gradient(225deg, red, red 10px, transparent 10px, transparent);
-}

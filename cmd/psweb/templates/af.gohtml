@@ -73,7 +73,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is high" class="label">High Liq Floor</label>
+                      <label title="Fee rate PPM floor when liquidity is high" class="label">High Liq Rate</label>
                     </div>
                   </td>
                   <td>
@@ -95,7 +95,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label">Normal Floor</label>
+                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label">Normal Rate</label>
                     </div>
                   </td>
                   <td>
@@ -117,7 +117,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Floor</label>
+                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
                     </div>
                   </td>
                   <td>
@@ -235,8 +235,8 @@
                   <th style="width: 7ch; text-align: center;">Local</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: center;">%</th>
                   <th style="width: 7ch; text-align: center;">Remote</th>
-                  <th title="Excess/Normal/LowLiq floor PPM levels
-* indicates custom rule" style="text-align: center;">Rates</th>
+                  <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
+* indicates custom rule" style="text-align: center;">Rules</th>
                   <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>

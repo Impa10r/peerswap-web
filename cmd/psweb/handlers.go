@@ -1505,6 +1505,10 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					db.Save("AutoFees", "AutoFee", ln.AutoFee)
 				}
 			}
+
+			// apply the new fees
+			ln.ApplyAutoFeeAll()
+
 			// all done, display confirmation
 			http.Redirect(w, r, "/af?id="+r.FormValue("channelId")+"&msg="+msg, http.StatusSeeOther)
 			return
@@ -1517,10 +1521,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			isEnabled := r.FormValue("enabled") == "on"
-			msg := "Disabled"
-			if isEnabled {
-				msg = "Enabled"
-			}
 
 			cl, clean, er := ln.GetClient()
 			if er != nil {
@@ -1536,11 +1536,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			msg := ""
 			if channelId == 0 {
 				// global setting
 				ln.AutoFeeEnabledAll = isEnabled
 				db.Save("AutoFees", "AutoFeeEnabledAll", ln.AutoFeeEnabledAll)
-				msg = "Global AutoFees " + msg
+				msg = "Global AutoFees "
 			} else if channelId == -1 {
 				// toggle for all channels
 				for _, peer := range res.GetPeers() {
@@ -1549,7 +1550,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				db.Save("AutoFees", "AutoFeeEnabled", ln.AutoFeeEnabled)
-				msg = "All per-channel AutoFees " + msg
+				msg = "All per-channel AutoFees "
 
 			} else {
 				// toggle for a single channel
@@ -1560,11 +1561,19 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				for _, peer := range res.GetPeers() {
 					for _, ch := range peer.Channels {
 						if ch.ChannelId == uint64(channelId) {
-							msg = "AutoFees for " + getNodeAlias(peer.NodeId) + " " + msg
+							msg = "AutoFees for " + getNodeAlias(peer.NodeId) + " "
 							break outerLoop
 						}
 					}
 				}
+			}
+
+			if isEnabled {
+				msg += "Enabled"
+				// apply the new fees
+				ln.ApplyAutoFeeAll()
+			} else {
+				msg += "Disabled"
 			}
 
 			// all done, display confirmation

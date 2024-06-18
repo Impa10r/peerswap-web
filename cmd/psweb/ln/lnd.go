@@ -1648,10 +1648,10 @@ func SetHtlcSize(peerNodeId string,
 	return nil
 }
 
-func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) bool {
+func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) {
 
 	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
-		return false
+		return
 	}
 
 	params := &AutoFeeDefaults
@@ -1665,7 +1665,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
-			return false
+			return
 		}
 		myNodeId = res.GetIdentityPubkey()
 	}
@@ -1673,7 +1673,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		ChanId: channelId,
 	})
 	if err != nil {
-		return false
+		return
 	}
 
 	policy := r.Node1Policy
@@ -1694,7 +1694,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		// get balances
 		bytePeer, err := hex.DecodeString(peerId)
 		if err != nil {
-			return false
+			return
 		}
 
 		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
@@ -1702,13 +1702,17 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 			Peer:       bytePeer,
 		})
 		if err != nil {
-			return false
+			return
 		}
 
 		localBalance := int64(0)
 		for _, ch := range res.Channels {
 			if ch.ChanId == channelId {
-				localBalance = ch.LocalBalance + ch.UnsettledBalance
+				if ch.UnsettledBalance != 0 {
+					// skip af while htlcs are pending
+					return
+				}
+				localBalance = ch.LocalBalance
 				break
 			}
 		}
@@ -1736,8 +1740,6 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 			db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
 		}
 	}
-
-	return false
 }
 
 func ApplyAutoFeeAll() {

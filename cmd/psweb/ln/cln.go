@@ -1104,6 +1104,10 @@ func HasInboundFees() bool {
 	return false
 }
 
-// not implemented:
-func ApplyAutoFeeAll() {}
-func ApplyAutoFee()    {}
+func ApplyAutoFeeAll() {
+	if !AutoFeeEnabledAll {
+		return
+	}
+
+}
+func ApplyAutoFee() {}
