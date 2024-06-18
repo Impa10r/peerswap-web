@@ -1399,16 +1399,10 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			if r.FormValue("update_button") != "" {
 
-				log.Println(r.Form)
-
 				s := r.FormValue("failBump")
-
-				log.Println(s)
-
-				log.Println(r.Form["failBump"][0])
-
 				failedBumpPPM, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1416,6 +1410,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("lowLiqPct")
 				lowLiqPct, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1423,6 +1418,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("lowLiqRate")
 				lowLiqRate, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1430,6 +1426,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("normalRate")
 				normalRate, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1437,6 +1434,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("excessPct")
 				excessPct, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1444,6 +1442,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("excessRate")
 				excessRate, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1451,6 +1450,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("inactivityDays")
 				inactivityDays, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1458,6 +1458,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("inactivityDropPPM")
 				inactivityDropPPM, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1465,6 +1466,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("inactivityDropPct")
 				inactivityDropPct, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
@@ -1472,6 +1474,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				s = r.FormValue("coolOffHours")
 				coolOffHours, err := strconv.Atoi(s)
 				if err != nil {
+					log.Println(err)
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
