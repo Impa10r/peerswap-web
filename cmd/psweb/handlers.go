@@ -1398,6 +1398,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			msg := ""
 
 			if r.FormValue("update_button") != "" {
+
+				log.Println(r.Form)
+
 				failedBumpPPM, err := strconv.Atoi(r.FormValue("failBump"))
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
@@ -1926,7 +1929,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		default:
 			// Redirect to index page on any other input
-			log.Println("unknonw action: ", action)
+			log.Println("unknown action: ", action)
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		}
 	} else {
