@@ -8,21 +8,17 @@
             <form autocomplete="off" action="/save" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <div class="columns">
-                <div class="column has-text-left"> 
+                <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">Swap Requests</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <div class="control">
-                          <div class="select is-medium is-fullwidth">
-                            <select name="allowSwapRequests">
-                              <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
-                              <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
-                            </select>
-                          </div>
-                        </div>
+                      <div class="select is-medium is-fullwidth">
+                        <select name="allowSwapRequests">
+                          <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
+                          <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -59,7 +55,7 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin Transactions</label>
+                      <label class="label">Bitcoin Tx</label>
                     </div>
                     <div class="field-body">
                       <div class="select is-medium is-fullwidth">
@@ -77,19 +73,15 @@
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Local Mempool URL</label>
+                      <label class="label">Local Mempool</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
                     </div>
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Liquid Transactions</label>
+                      <label class="label">Liquid Tx</label>
                     </div>
                     <div class="field-body">
                       <div class="select is-medium is-fullwidth">
@@ -107,11 +99,7 @@
                       <label class="label">Swaps History Limit</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="number" value="{{.Config.MaxHistory}}" name="maxHistory" placeholder="100">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="number" value="{{.Config.MaxHistory}}" name="maxHistory" placeholder="100">
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -119,11 +107,7 @@
                       <label class="label">Telegram Bot Token</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -131,11 +115,7 @@
                       <label class="label">Tor Proxy</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.ProxyURL}}" name="proxyURL" placeholder="socks5://127.0.0.1:9050">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.ProxyURL}}" name="proxyURL" placeholder="socks5://127.0.0.1:9050">
                     </div>
                   </div> 
                   <div class="field is-horizontal">
@@ -143,20 +123,16 @@
                       <label class="label">Color Theme</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <div class="control">
-                          <div class="select is-medium is-fullwidth">
-                            <select name="colorScheme">
-                              <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
-                              <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
-                            </select>
-                          </div>
-                        </div>
+                      <div class="select is-medium is-fullwidth">
+                        <select name="colorScheme">
+                          <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
+                          <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                        </select>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div class="column has-text-left"> 
+                <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
                       <label class="label">
@@ -168,35 +144,23 @@
                       </label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
                     </div>
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Username *</label>
+                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements User *</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
                     </div>
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Password *</label>
+                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Pass *</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -204,11 +168,7 @@
                       <label class="label">Elements Own Folder</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -216,11 +176,7 @@
                       <label class="label">Elements Mapped Folder</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -228,35 +184,23 @@
                       <label class="label">Bitcoin Host</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host" required>
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host" required>
                     </div>
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin Username</label>
+                      <label class="label">Bitcoin User</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.BitcoinUser}}" name="bitcoinUser" placeholder="Bitcoin Core RPC User">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.BitcoinUser}}" name="bitcoinUser" placeholder="Bitcoin Core RPC User">
                     </div>
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label class="label">Bitcoin Password</label>
+                      <label class="label">Bitcoin Pass</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="password" value="{{.Config.BitcoinPass}}" name="bitcoinPass" placeholder="Bitcoin Core RPC Password">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="password" value="{{.Config.BitcoinPass}}" name="bitcoinPass" placeholder="Bitcoin Core RPC Password">
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -264,28 +208,20 @@
                       <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS **</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <div class="control">
-                          <div class="select is-medium is-fullwidth">
-                            <select id="secureConnection" name="secureConnection">
-                              <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enabled</option>
-                              <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disabled</option>
-                            </select>
-                          </div>
-                        </div>
+                      <div class="select is-medium is-fullwidth">
+                        <select id="secureConnection" name="secureConnection"{{if not .IsPossibleHTTPS}} disabled{{end}}>
+                          <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enable</option>
+                          <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disable</option>
+                        </select>
                       </div>
                     </div>
                   </div>
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                      <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale)" class="label">PSWeb IPs **</label>
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs **</label>
                     </div>
                     <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
-                        </p>
-                      </div>
+                      <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1"{{if not .IsPossibleHTTPS}} disabled{{end}}>
                     </div>
                   </div>
                 </div>

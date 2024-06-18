@@ -20,7 +20,7 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 )
 
-// generates Certificate Autonrity CA.crt
+// generates Root Certificate Autority CA.crt
 func GenerateCA() error {
 	crtPath := filepath.Join(Config.DataDir, "CA.crt")
 	keyPath := filepath.Join(Config.DataDir, "CA.key")
@@ -42,7 +42,7 @@ func GenerateCA() error {
 	// Create a certificate signing request (CSR)
 	csrTemplate := x509.CertificateRequest{
 		Subject: pkix.Name{
-			Organization: []string{"PeerSwap Web UI"},
+			Organization: []string{"PeerSwap Web UI Local Root CA"},
 		},
 		SignatureAlgorithm: x509.SHA256WithRSA,
 	}
@@ -60,9 +60,15 @@ func GenerateCA() error {
 		return err
 	}
 
+	// Generate a random serial number
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return err
+	}
+
 	// Create a certificate based on the CSR
 	certTemplate := x509.Certificate{
-		SerialNumber:          big.NewInt(1),
+		SerialNumber:          serialNumber,
 		Subject:               certFromCSR.Subject,
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(10, 0, 0), // Valid for 10 years
@@ -258,12 +264,12 @@ func GenerateClientCertificate(password string) error {
 		return err
 	}
 
-	log.Println("Generated new client.crt and client.key")
+	log.Println("Generated new client.p12")
 
 	return nil
 }
 
-const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ23456789"
+const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 // GeneratePassword generates a random password of a given length
 func GeneratePassword(length int) (string, error) {

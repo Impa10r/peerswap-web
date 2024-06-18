@@ -135,6 +135,7 @@ input[type="number"] {
 }
 
 .transparent-input {
+    display: inline; 
     background-color: transparent; /* Transparent background */
     padding: 0px; /* Add padding */
     color: white; /* Text color */
@@ -162,12 +163,25 @@ input[type="number"] {
     font-size: 2em;
 }
 
+input[type=checkbox] {
+    transform: scale(1.5);
+    cursor: pointer;
+}
+
 /* Custom styles for mobile */
 @media (max-width: 768px) {
     /* Remove padding for columns on mobile */
     .column {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+        padding-left: 0;
+        padding-right: 0;
         text-align: center; /* For text centering */
+    }
+
+    input[type=checkbox] {
+        transform: scale(1.1);
+    }
+
+    .input { 
+        padding: 0.5em; /* reduce padding inside input cells */
     }
 }

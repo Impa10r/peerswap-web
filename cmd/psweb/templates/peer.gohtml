@@ -5,14 +5,16 @@
         <div class="column">
           {{if .PeerSwapPeer}}
             <div class="box">
-              <div style="display: grid; grid-template-columns: auto auto;">
-                <div style="text-align: center;">
-                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
-                </div>
-                <div style="text-align: center;">
-                  <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
-                </div>
-              </div>
+              <table style="width:100%; table-layout:fixed;">
+                <tr>
+                  <td style="padding: 0px; text-align: left;">
+                    <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
+                  </td>
+                  <td style="padding: 0px; text-align: left;">
+                    <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
+                  </td>
+                </tr> 
+              </table>
             </div>
           {{end}}
           <div class="box has-text-left">
@@ -40,16 +42,12 @@
                           <label class="label">Channel</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <div class="select is-medium is-fullwidth">
-                                <select name="channelId">
-                                {{range .Peer.Channels}}
-                                  <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
-                                {{end}}
-                                </select>
-                              </div>
-                            </div>
+                          <div class="select is-medium is-fullwidth">
+                            <select name="channelId">
+                              {{range .Peer.Channels}}
+                                <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
+                              {{end}}
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -58,15 +56,11 @@
                           <label class="label">Direction</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <div class="select is-medium is-fullwidth">
-                                <select id="direction" name="direction" onchange="calculateTransactionFee()">
-                                  <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
-                                  <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
-                                </select>
-                              </div>
-                            </div>
+                          <div class="select is-medium is-fullwidth">
+                            <select id="direction" name="direction" onchange="calculateTransactionFee()">
+                              <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
+                              <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -75,15 +69,11 @@
                           <label class="label">Asset</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <div class="control">
-                              <div class="select is-medium is-fullwidth">
-                                <select id="asset" name="asset" onchange="calculateTransactionFee()">
-                                  <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
-                                  <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
-                                </select>
-                              </div>
-                            </div>
+                          <div class="select is-medium is-fullwidth">
+                            <select id="asset" name="asset" onchange="calculateTransactionFee()">
+                              <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
+                              <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -92,11 +82,7 @@
                           <label class="label">Amount</label>
                         </div>
                         <div class="field-body">
-                          <div class="field">
-                            <p>
-                              <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
-                            </p>
-                          </div>
+                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="10000" placeholder="⚡ Swap Amount (sats)">
                         </div>
                       </div>
                       <div class="field is-horizontal">
@@ -332,11 +318,7 @@ Sincerely,
                     <label class="label">Keysend Sats</label>
                   </div>
                   <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
-                      </p>
-                    </div>
+                    <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
                   </div>
                 </div> 
                 <br>
@@ -357,7 +339,7 @@ Sincerely,
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 {{if .PeerSwapPeer}}
-                  <h4><a title="Display successful swaps with this peer" href="/?id={{.Peer.NodeId}}&state=success">🔍</a></h4>
+                  <h4 style="transform: scale(1.5)"><a title="Display successful swaps with this peer" href="/?id={{.Peer.NodeId}}&state=success">🔍</a></h4>
                 {{end}}
               </div>
             </div>
@@ -420,7 +402,8 @@ Sincerely,
             </table>  
             <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
               <tr>
-                <th title="Channel Capacity" style="text-align: center">Capacity</th>
+                <th title="Channel capacity" style="text-align: center">Capacity</th>
+                <th title="Local balance as % of capacity" style="text-align: center">Local</th>
                 <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
                 <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
                 <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
@@ -428,7 +411,10 @@ Sincerely,
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="Channel Id: {{.ChannelId}}, Capacity: {{fmt .Capacity}} sats" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+                  <td title="Channel Id: {{.ChannelId}}
+Capacity: {{fmt .Capacity}}" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+<td title="Local: {{fmt .LocalBalance}}
+Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.LocalPct}}%</td>
                   {{if .Active}}
                     <td style="padding: 0px; text-align: center">
                       <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
@@ -438,7 +424,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="outbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_outbound')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -449,7 +435,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="outbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_outboundbase')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -460,7 +446,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="feeSubmitForm('{{.ChannelId}}_inbound')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -471,9 +457,16 @@ Sincerely,
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="feeSubmitForm('{{.ChannelId}}_inboundbase')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
+                    {{if ne .AutoFeeLog ""}}
+                      <tr style="border: 1px dotted">
+                        <td colspan="6" style="text-align: center; padding: 0px;">
+                          {{.AutoFeeLog}}
+                        </td>
+                      </tr>
+                    {{end}}
                   {{else}}
                     <td style="text-align: right"></td>
                     <td style="text-align: right">INACTIVE</td>
@@ -484,8 +477,7 @@ Sincerely,
               {{end}}
             </table>
             <script>
-              // submits new fee rate 
-              function feeSubmitForm(formId) {
+              function submitForm(formId) {
                 document.getElementById(formId).submit();
               }
             </script>
@@ -494,18 +486,16 @@ Sincerely,
                 <div class="column">
                   <center>            
                     {{if .Suspicious}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">🕵 This peer is suspicious</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('unsuspectPeer')">🕵 This peer is suspicious</p>
+                      <form id="unsuspectPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="unsuspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Unsuspect This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is not suspicious</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('suspectPeer')">✅ This peer is not suspicious</p>
+                      <form id="suspectPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="suspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Suspect This Peer">
                       </form>
                     {{end}}
                   </center>
@@ -513,18 +503,16 @@ Sincerely,
                 <div class="column">
                   <center>
                     {{if .Allowed}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">✅ This peer is whitelisted</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('removePeer')">✅ This peer is whitelisted</p>
+                      <form id="removePeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="removePeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Blacklist This Peer">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em;" style="white-space: nowrap">⛔ This peer is blacklisted</p>
-                      <form action="/submit" method="post">
+                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is not whitelisted</p>
+                      <form id="addPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="addPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                        <input class="button is-large" type="submit" value="Whitelist This Peer">
                       </form>
                     {{end}}
                   </center>

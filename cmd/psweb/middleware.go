@@ -26,14 +26,13 @@ func (rw *responseWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// Middleware to retry on broken pipe and check auth
-func retryMiddleware(next http.Handler) http.Handler {
+// Middleware to check auth and retry on broken pipe
+func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Config.SecureConnection {
+		if config.Config.SecureConnection && !strings.HasPrefix(r.RequestURI, "/downloadca") {
 			if r.TLS != nil {
 				// Check client certificate
-				cert := r.TLS.PeerCertificates
-				if len(cert) == 0 {
+				if len(r.TLS.PeerCertificates) == 0 {
 					if config.Config.Password != "" {
 						if !isAuthenticated(r) {
 							if !strings.HasPrefix(r.RequestURI, "/static/") && !strings.HasPrefix(r.RequestURI, "/login") {
@@ -58,11 +57,9 @@ func retryMiddleware(next http.Handler) http.Handler {
 			if !rw.brokenPipe {
 				return
 			}
-			log.Println("Retrying due to broken pipe...")
 			time.Sleep(1 * time.Second) // Wait before retrying
 		}
 
-		log.Println("Failed to handle request after 3 attempts due to broken pipe")
 		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 	})
 }

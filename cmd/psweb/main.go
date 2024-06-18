@@ -4,13 +4,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,11 +34,12 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.2"
+	version = "v1.5.3"
 )
 
 type SwapParams struct {
 	PeerAlias string
+	PeerId    string
 	ChannelId uint64
 	Amount    uint64
 	PPM       uint64
@@ -167,6 +165,8 @@ func main() {
 	r.HandleFunc("/ca", caHandler)
 	r.HandleFunc("/login", loginHandler)
 	r.HandleFunc("/logout", logoutHandler)
+	r.HandleFunc("/downloadca", downloadCaHandler)
+	r.HandleFunc("/af", afHandler)
 
 	if config.Config.SecureConnection {
 		// HTTP redirection
@@ -179,11 +179,11 @@ func main() {
 			}
 		}()
 
-		go serveHTTPS(retryMiddleware(r))
+		go serveHTTPS(authMiddleware(r))
 		log.Println("Listening HTTPS on port " + config.Config.SecurePort)
 	} else {
 		// Start HTTP server
-		http.Handle("/", retryMiddleware(r))
+		http.Handle("/", authMiddleware(r))
 		go func() {
 			if err := http.ListenAndServe(":"+config.Config.ListenPort, nil); err != nil {
 				log.Fatal(err)
@@ -198,8 +198,11 @@ func main() {
 	// to speed up first load of home page
 	go cacheAliases()
 
-	// CLN: cache forwarding stats
+	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
+
+	// Load persisted AutoFee data from database
+	go ln.LoadAutoFees()
 
 	// fetch all chain costs (synchronous to protect map writes)
 	cacheSwapCosts()
@@ -277,1605 +280,14 @@ func serveHTTPS(handler http.Handler) {
 	}
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-
-	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
-		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
-		return
-	}
-
-	// PeerSwap RPC client
-	// this method will fail if peerswap is not running or misconfigured
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	defer cleanup()
-
-	res, err := ps.ListSwaps(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	swaps := res.GetSwaps()
-
-	res2, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	satAmount := res2.GetSatAmount()
-
-	// Lightning RPC client
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		redirectWithError(w, r, "/config?", er)
-		return
-	}
-	defer clean()
-
-	btcBalance := ln.ConfirmedWalletBalance(cl)
-
-	//check for error message to display
-	errorMessage := ""
-	keys, ok := r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		errorMessage = keys[0]
-	}
-
-	//check for pop-up message to display
-	popupMessage := ""
-	keys, ok = r.URL.Query()["msg"]
-	if ok && len(keys[0]) > 0 {
-		popupMessage = keys[0]
-	}
-
-	//check for node Id to filter swaps
-	nodeId := ""
-	keys, ok = r.URL.Query()["id"]
-	if ok && len(keys[0]) > 0 {
-		nodeId = keys[0]
-	}
-
-	//check for swaps state to filter
-	state := ""
-	keys, ok = r.URL.Query()["state"]
-	if ok && len(keys[0]) > 0 {
-		state = keys[0]
-	}
-
-	//check for swaps role to filter
-	role := ""
-	keys, ok = r.URL.Query()["role"]
-	if ok && len(keys[0]) > 0 {
-		role = keys[0]
-	}
-
-	var peers []*peerswaprpc.PeerSwapPeer
-
-	res3, err := ps.ReloadPolicyFile(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	allowlistedPeers := res3.GetAllowlistedPeers()
-	suspiciousPeers := res3.GetSuspiciousPeerList()
-
-	res4, err := ps.ListPeers(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	peers = res4.GetPeers()
-
-	// refresh forwarding stats
-	ln.CacheForwards()
-
-	// get fee rates for all channels
-	outboundFeeRates := make(map[uint64]int64)
-	inboundFeeRates := make(map[uint64]int64)
-
-	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
-
-	_, showAll := r.URL.Query()["showall"]
-
-	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates, showAll)
-
-	//check whether to display non-PS channels or swaps
-	listSwaps := ""
-	nonPeerTable := ""
-
-	if showAll {
-		// make a list of peerswap peers
-		var psIds []string
-
-		for _, peer := range peers {
-			psIds = append(psIds, peer.NodeId)
-		}
-
-		// Get the remaining Lightning peers
-		res5, err := ln.ListPeers(cl, "", &psIds)
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-		otherPeers := res5.GetPeers()
-		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates, showAll)
-
-		if nonPeerTable == "" && popupMessage == "" {
-			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
-			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
-		}
-	} else {
-		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
-	}
-
-	type Page struct {
-		Authenticated     bool
-		AllowSwapRequests bool
-		BitcoinSwaps      bool
-		ErrorMessage      string
-		PopUpMessage      string
-		ColorScheme       string
-		LiquidBalance     uint64
-		ListPeers         string
-		OtherPeers        string
-		ListSwaps         string
-		BitcoinBalance    uint64
-		Filter            bool
-		MempoolFeeRate    float64
-		AutoSwapEnabled   bool
-		PeginPending      bool
-	}
-
-	data := Page{
-		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
-		AllowSwapRequests: config.Config.AllowSwapRequests,
-		BitcoinSwaps:      config.Config.BitcoinSwaps,
-		ErrorMessage:      errorMessage,
-		PopUpMessage:      popupMessage,
-		MempoolFeeRate:    mempoolFeeRate,
-		ColorScheme:       config.Config.ColorScheme,
-		LiquidBalance:     satAmount,
-		ListPeers:         peerTable,
-		OtherPeers:        nonPeerTable,
-		ListSwaps:         listSwaps,
-		BitcoinBalance:    uint64(btcBalance),
-		Filter:            nodeId != "" || state != "" || role != "",
-		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
-		PeginPending:      config.Config.PeginTxId != "",
-	}
-
-	// executing template named "homepage" with retries
-	for i := 0; i < 3; i++ {
-		err := templates.ExecuteTemplate(w, "homepage", data)
-		if err != nil {
-			if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
-				log.Printf("Detected error '%v' while executing template, retrying...", err.Error())
-				time.Sleep(1 * time.Second)
-				continue
-			} else {
-				log.Printf("Template execution error: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-		}
-		return
-	}
-
-	log.Println("Failed to execute template after 3 attempts due to broken pipe")
-	http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
-}
-
-func peerHandler(w http.ResponseWriter, r *http.Request) {
-	keys, ok := r.URL.Query()["id"]
-	if !ok || len(keys[0]) < 1 {
-		http.Error(w, http.StatusText(500), 500)
-		return
-	}
-
-	id := keys[0]
-
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	defer cleanup()
-
-	res, err := ps.ListPeers(client)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	peers := res.GetPeers()
-	peer := findPeerById(peers, id)
-
-	res2, err := ps.ReloadPolicyFile(client)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	allowlistedPeers := res2.GetAllowlistedPeers()
-	suspiciousPeers := res2.GetSuspiciousPeerList()
-
-	res3, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	satAmount := res3.GetSatAmount()
-
-	res4, err := ps.ListActiveSwaps(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	activeSwaps := res4.GetSwaps()
-
-	res5, err := ps.ListSwaps(client)
-	if err != nil {
-		return
-	}
-	swaps := res5.GetSwaps()
-
-	senderInFee := int64(0)
-	receiverInFee := int64(0)
-	receiverOutFee := int64(0)
-
-	for _, swap := range swaps {
-		switch swap.Type + swap.Role {
-		case "swap-insender":
-			if swap.PeerNodeId == id {
-				senderInFee += swapCost(swap)
-			}
-		case "swap-outreceiver":
-			if swap.InitiatorNodeId == id {
-				receiverOutFee += swapCost(swap)
-			}
-		case "swap-inreceiver":
-			if swap.InitiatorNodeId == id {
-				receiverInFee += swapCost(swap)
-			}
-		}
-	}
-
-	senderInFeePPM := int64(0)
-	receiverInFeePPM := int64(0)
-	receiverOutFeePPM := int64(0)
-	senderOutFeePPM := int64(0)
-
-	// Get Lightning client
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		redirectWithError(w, r, "/config?", er)
-		return
-	}
-	defer clean()
-
-	btcBalance := ln.ConfirmedWalletBalance(cl)
-
-	psPeer := true
-	if peer == nil {
-		// Search amoung all Lighting peers
-		res, err := ln.ListPeers(cl, id, nil)
-		if err != nil {
-			redirectWithError(w, r, "/?", err)
-			return
-		}
-		peer = res.GetPeers()[0]
-		psPeer = false
-	} else {
-		if peer.AsSender.SatsOut > 0 {
-			senderOutFeePPM = int64(peer.PaidFee) * 1_000_000 / int64(peer.AsSender.SatsOut)
-		}
-		if peer.AsSender.SatsIn > 0 {
-			senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
-		}
-		if peer.AsReceiver.SatsOut > 0 {
-			receiverOutFeePPM = receiverOutFee * 1_000_000 / int64(peer.AsReceiver.SatsOut)
-		}
-		if peer.AsReceiver.SatsIn > 0 {
-			receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
-		}
-	}
-
-	var sumLocal uint64
-	var sumRemote uint64
-	var stats []*ln.ForwardingStats
-	var channelInfo []*ln.ChanneInfo
-	var keysendSats = uint64(1)
-
-	var utxosBTC []ln.UTXO
-	ln.ListUnspent(cl, &utxosBTC, 1)
-
-	var utxosLBTC []liquid.UTXO
-	liquid.ListUnspent(&utxosLBTC)
-
-	// get routing stats
-	for _, ch := range peer.Channels {
-		stat := ln.GetForwardingStats(ch.ChannelId)
-		stats = append(stats, stat)
-
-		info := ln.GetChannelInfo(cl, ch.ChannelId, peer.NodeId)
-		info.LocalBalance = ch.GetLocalBalance()
-		info.RemoteBalance = ch.GetRemoteBalance()
-		info.Active = ch.GetActive()
-		channelInfo = append(channelInfo, info)
-
-		sumLocal += ch.GetLocalBalance()
-		sumRemote += ch.GetRemoteBalance()
-
-		// should not be less than both Min HTLC setting
-		keysendSats = max(keysendSats, msatToSatUp(info.PeerMinHtlcMsat))
-		keysendSats = max(keysendSats, msatToSatUp(info.OurMinHtlcMsat))
-	}
-
-	//check for error errorMessage to display
-	errorMessage := ""
-	keys, ok = r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		errorMessage = keys[0]
-	}
-
-	//check for pop-up message to display
-	popupMessage := ""
-	keys, ok = r.URL.Query()["msg"]
-	if ok && len(keys[0]) > 0 {
-		popupMessage = keys[0]
-	}
-
-	type Page struct {
-		Authenticated     bool
-		ErrorMessage      string
-		PopUpMessage      string
-		MempoolFeeRate    float64
-		BtcFeeRate        float64
-		ColorScheme       string
-		Peer              *peerswaprpc.PeerSwapPeer
-		PeerAlias         string
-		NodeUrl           string
-		Allowed           bool
-		Suspicious        bool
-		LBTC              bool
-		BTC               bool
-		LiquidBalance     uint64
-		BitcoinBalance    uint64
-		ActiveSwaps       string
-		DirectionIn       bool
-		Stats             []*ln.ForwardingStats
-		ChannelInfo       []*ln.ChanneInfo
-		PeerSwapPeer      bool
-		MyAlias           string
-		SenderOutFeePPM   int64
-		SenderInFee       int64
-		ReceiverInFee     int64
-		ReceiverOutFee    int64
-		SenderInFeePPM    int64
-		ReceiverInFeePPM  int64
-		ReceiverOutFeePPM int64
-		KeysendSats       uint64
-		OutputsBTC        *[]ln.UTXO
-		OutputsLBTC       *[]liquid.UTXO
-		ReserveLBTC       uint64
-		ReserveBTC        uint64
-	}
-
-	feeRate := liquid.EstimateFee()
-	if !psPeer {
-		feeRate = mempoolFeeRate
-	}
-
-	// to be conservative
-	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
-
-	data := Page{
-		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:      errorMessage,
-		PopUpMessage:      popupMessage,
-		BtcFeeRate:        bitcoinFeeRate,
-		MempoolFeeRate:    feeRate,
-		ColorScheme:       config.Config.ColorScheme,
-		Peer:              peer,
-		PeerAlias:         getNodeAlias(peer.NodeId),
-		NodeUrl:           config.Config.NodeApi,
-		Allowed:           stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:        stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:               stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:              stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance:     satAmount,
-		BitcoinBalance:    uint64(btcBalance),
-		ActiveSwaps:       convertSwapsToHTMLTable(activeSwaps, "", "", ""),
-		DirectionIn:       sumLocal < sumRemote,
-		Stats:             stats,
-		ChannelInfo:       channelInfo,
-		PeerSwapPeer:      psPeer,
-		MyAlias:           ln.GetMyAlias(),
-		SenderOutFeePPM:   senderOutFeePPM,
-		SenderInFee:       senderInFee,
-		ReceiverInFee:     receiverInFee,
-		ReceiverOutFee:    receiverOutFee,
-		SenderInFeePPM:    senderInFeePPM,
-		ReceiverInFeePPM:  receiverInFeePPM,
-		ReceiverOutFeePPM: receiverOutFeePPM,
-		KeysendSats:       keysendSats,
-		OutputsBTC:        &utxosBTC,
-		OutputsLBTC:       &utxosLBTC,
-		ReserveLBTC:       ln.SwapFeeReserveLBTC,
-		ReserveBTC:        ln.SwapFeeReserveBTC,
-	}
-
-	// executing template named "peer"
-	err = templates.ExecuteTemplate(w, "peer", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func swapHandler(w http.ResponseWriter, r *http.Request) {
-	keys, ok := r.URL.Query()["id"]
-	if !ok || len(keys[0]) < 1 {
-		http.Error(w, http.StatusText(500), 500)
-		return
-	}
-	id := keys[0]
-
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	defer cleanup()
-
-	res, err := ps.GetSwap(client, id)
-	if err != nil {
-		redirectWithError(w, r, "/swap?id="+id+"&", err)
-		return
-	}
-
-	swap := res.GetSwap()
-
-	isPending := true
-
-	switch swap.State {
-	case "State_ClaimedCoop",
-		"State_ClaimedCsv",
-		"State_SwapCanceled",
-		"State_SendCancel",
-		"State_ClaimedPreimage":
-		isPending = false
-	}
-
-	type Page struct {
-		Authenticated  bool
-		ColorScheme    string
-		Id             string
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		IsPending      bool
-	}
-
-	data := Page{
-		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-		ColorScheme:    config.Config.ColorScheme,
-		Id:             id,
-		ErrorMessage:   "",
-		PopUpMessage:   "",
-		MempoolFeeRate: mempoolFeeRate,
-		IsPending:      isPending,
-	}
-
-	// executing template named "swap"
-	err = templates.ExecuteTemplate(w, "swap", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-// Updates swap page live
-func updateHandler(w http.ResponseWriter, r *http.Request) {
-	keys, ok := r.URL.Query()["id"]
-	if !ok || len(keys[0]) < 1 {
-		http.Error(w, http.StatusText(500), 500)
-		return
-	}
-
-	id := keys[0]
-
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	defer cleanup()
-
-	res, err := ps.GetSwap(client, id)
-	if err != nil {
-		log.Printf("onSwap: %v", err)
-		redirectWithError(w, r, "/swap?id="+id+"&", err)
-		return
-	}
-
-	swap := res.GetSwap()
-
-	url := config.Config.BitcoinApi + "/tx/"
-	if swap.Asset == "lbtc" {
-		url = config.Config.LiquidApi + "/tx/"
-	}
-	swapData := `<div class="container">
-	<div class="columns">
-	  <div class="column">
-		<div class="box has-text-left">
-		  <table style="table-layout:fixed; width: 100%;">
-				<tr>
-			  <td style="float: left; text-align: left; width: 80%;">
-				<h4 class="title is-4">Swap Details</h4>
-			  </td>
-			  </td><td style="float: right; text-align: right; width:20%;">
-				<h4 class="title is-4">`
-	swapData += visualiseSwapState(swap.State, true)
-	swapData += `</h4>
-			  </td>
-			</tr>
-		  <table>
-		  <table style="table-layout:fixed; width: 100%">
-			<tr><td style="width:30%; text-align: right">ID:</td><td style="overflow-wrap: break-word;">`
-	swapData += swap.Id
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">Created At:</td><td >`
-	swapData += time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05")
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">Asset:</td><td>`
-	swapData += swap.Asset
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">Type:</td><td>`
-	swapData += swap.Type
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">Role:</td><td>`
-	swapData += swap.Role
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">State:</td><td style="overflow-wrap: break-word;">`
-	swapData += swap.State
-	swapData += `</td></tr>
-			<tr><td style="text-align: right">Initiator:</td><td style="overflow-wrap: break-word;">`
-	swapData += `&nbsp<a href="`
-	swapData += config.Config.NodeApi + "/" + swap.InitiatorNodeId
-	swapData += `" target="_blank">`
-	swapData += getNodeAlias(swap.InitiatorNodeId)
-	swapData += `</a></td></tr>
-			<tr><td style="text-align: right">Peer:</td><td style="overflow-wrap: break-word;">`
-	swapData += `&nbsp<a href="`
-	swapData += config.Config.NodeApi + "/" + swap.PeerNodeId
-	swapData += `" target="_blank">`
-	swapData += getNodeAlias(swap.PeerNodeId)
-	swapData += `</a></td></tr>
-			<tr><td style="text-align: right">Amount:</td><td>`
-	swapData += formatWithThousandSeparators(swap.Amount)
-	swapData += ` sats</td></tr>
-			<tr><td style="text-align: right">ChannelId:</td><td>`
-	swapData += swap.ChannelId
-	swapData += `</td></tr>`
-	if swap.OpeningTxId != "" {
-		swapData += `<tr><td style="text-align: right">OpeningTxId:</td><td style="overflow-wrap: break-word;">`
-		swapData += `&nbsp<a href="`
-		swapData += url + swap.OpeningTxId
-		swapData += `" target="_blank">`
-		swapData += swap.OpeningTxId
-		swapData += `</a>`
-	}
-	if swap.ClaimTxId != "" {
-		swapData += `</td></tr>
-			<tr><td style="text-align: right">ClaimTxId:</td><td style="overflow-wrap: break-word;">`
-		swapData += `&nbsp<a href="`
-		swapData += url + swap.ClaimTxId
-		swapData += `" target="_blank">`
-		swapData += swap.ClaimTxId
-		swapData += `</a></td></tr>`
-	}
-	if swap.CancelMessage != "" {
-		swapData += `<tr><td style="text-align: right">CancelMsg:</td><td>`
-		swapData += swap.CancelMessage
-		swapData += `</td></tr>`
-	}
-	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
-	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
-
-	cost := swapCost(swap)
-	if cost != 0 {
-		ppm := cost * 1_000_000 / int64(swap.Amount)
-
-		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += formatSigned(cost) + " sats"
-		swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
-		swapData += formatSigned(ppm)
-	}
-
-	swapData += `</td></tr>
-		  </table>
-		</div>
-	  </div>
-	</div>
-  </div>`
-
-	// Send the updated data as the response
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(swapData))
-}
-
-func configHandler(w http.ResponseWriter, r *http.Request) {
-	//check for error message to display
-	errorMessage := ""
-	keys, ok := r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		errorMessage = keys[0]
-	}
-
-	// Get the hostname of the machine
-	hostname := config.GetHostname()
-
-	// populate server IP if empty
-	if config.Config.ServerIPs == "" {
-		ip := strings.Split(r.Host, ":")[0]
-		if net.ParseIP(ip) != nil && ip != "127.0.0.1" {
-			config.Config.ServerIPs = ip
-		}
-	}
-
-	type Page struct {
-		Authenticated  bool
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		ColorScheme    string
-		Config         config.Configuration
-		Version        string
-		Latest         string
-		Implementation string
-		HTTPS          string
-	}
-
-	data := Page{
-		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:   errorMessage,
-		PopUpMessage:   "",
-		MempoolFeeRate: mempoolFeeRate,
-		ColorScheme:    config.Config.ColorScheme,
-		Config:         config.Config,
-		Version:        version,
-		Latest:         latestVersion,
-		Implementation: ln.Implementation,
-		HTTPS:          "https://" + hostname + ".local:" + config.Config.SecurePort,
-	}
-
-	// executing template named "config"
-	err := templates.ExecuteTemplate(w, "config", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func caHandler(w http.ResponseWriter, r *http.Request) {
-	//check for error message to display
-	errorMessage := ""
-	keys, ok := r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		errorMessage = keys[0]
-	}
-
-	hostname := config.GetHostname()
-
-	urls := []string{
-		"https://localhost:" + config.Config.SecurePort,
-		"https://" + hostname + ".local:" + config.Config.SecurePort,
-	}
-
-	if config.Config.ServerIPs != "" {
-		for _, ip := range strings.Split(config.Config.ServerIPs, " ") {
-			urls = append(urls, "https://"+ip+":"+config.Config.SecurePort)
-		}
-	}
-
-	password, err := config.GeneratePassword(10)
-	if err != nil {
-		log.Println("GeneratePassword:", err)
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	type Page struct {
-		Authenticated  bool
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		ColorScheme    string
-		Config         config.Configuration
-		URLs           []string
-		Password       string
-	}
-
-	data := Page{
-		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:   errorMessage,
-		PopUpMessage:   "",
-		MempoolFeeRate: mempoolFeeRate,
-		ColorScheme:    config.Config.ColorScheme,
-		Config:         config.Config,
-		URLs:           urls,
-		Password:       password,
-	}
-
-	if !fileExists(filepath.Join(config.Config.DataDir, "CA.crt")) {
-		err := config.GenerateCA()
-		if err != nil {
-			log.Println("Error generating CA.crt:", err)
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-	}
-
-	err = config.GenerateClientCertificate(password)
-	if err != nil {
-		log.Println("Error generating client.p12:", err)
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	// executing template named "ca"
-	err = templates.ExecuteTemplate(w, "ca", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		r.ParseForm()
-		if r.FormValue("password") == config.Config.Password {
-			session, _ := store.Get(r, "session")
-			session.Options = &sessions.Options{
-				Path:   "/",
-				MaxAge: 0, // MaxAge 0 means no 'Expires' attribute and the cookie is deleted when the browser closes.
-			}
-			session.Values["authenticated"] = true
-			session.Save(r, w)
-			http.Redirect(w, r, "/", http.StatusFound)
-		} else {
-			// delay brute force
-			time.Sleep(5 * time.Second)
-			redirectWithError(w, r, "/login?", errors.New("invalid password"))
-		}
-	} else {
-		//check for error message to display
-		errorMessage := ""
-		keys, ok := r.URL.Query()["err"]
-		if ok && len(keys[0]) > 0 {
-			errorMessage = keys[0]
-		}
-
-		type Page struct {
-			Authenticated  bool
-			ErrorMessage   string
-			PopUpMessage   string
-			MempoolFeeRate float64
-			ColorScheme    string
-			Config         config.Configuration
-		}
-
-		data := Page{
-			Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-			ErrorMessage:   errorMessage,
-			PopUpMessage:   "",
-			MempoolFeeRate: mempoolFeeRate,
-			ColorScheme:    config.Config.ColorScheme,
-			Config:         config.Config,
-		}
-
-		// executing template named "login"
-		err := templates.ExecuteTemplate(w, "login", data)
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-}
-
-func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "session")
-	session.Values["authenticated"] = false
-	session.Options.MaxAge = -1 // MaxAge < 0 means delete the cookie immediately.
-	session.Save(r, w)
-	http.Redirect(w, r, "/login", http.StatusFound)
-}
-
-func liquidHandler(w http.ResponseWriter, r *http.Request) {
-	//check for error message to display
-	errorMessage := ""
-	keys, ok := r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		errorMessage = keys[0]
-	}
-
-	//check for pop-up message to display
-	popupMessage := ""
-	keys, ok = r.URL.Query()["msg"]
-	if ok && len(keys[0]) > 0 {
-		popupMessage = keys[0]
-	}
-
-	txid := ""
-	keys, ok = r.URL.Query()["txid"]
-	if ok && len(keys[0]) > 0 {
-		txid = keys[0]
-	}
-
-	addr := ""
-	keys, ok = r.URL.Query()["addr"]
-	if ok && len(keys[0]) > 0 {
-		addr = keys[0]
-	}
-
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	defer cleanup()
-
-	res2, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/?", err)
-		return
-	}
-
-	satAmount := res2.GetSatAmount()
-
-	var candidate SwapParams
-
-	if err := findSwapInCandidate(&candidate); err != nil {
-		log.Printf("unable findSwapInCandidate: %v", err)
-		redirectWithError(w, r, "/liquid?", err)
-		return
-	}
-
-	type Page struct {
-		Authenticated           bool
-		ErrorMessage            string
-		PopUpMessage            string
-		MempoolFeeRate          float64
-		ColorScheme             string
-		LiquidAddress           string
-		LiquidBalance           uint64
-		TxId                    string
-		LiquidUrl               string
-		LiquidApi               string
-		AutoSwapEnabled         bool
-		AutoSwapThresholdAmount uint64
-		AutoSwapThresholdPPM    uint64
-		AutoSwapCandidate       *SwapParams
-		AutoSwapTargetPct       uint64
-	}
-
-	data := Page{
-		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:            errorMessage,
-		PopUpMessage:            popupMessage,
-		MempoolFeeRate:          liquid.EstimateFee(),
-		ColorScheme:             config.Config.ColorScheme,
-		LiquidAddress:           addr,
-		LiquidBalance:           satAmount,
-		TxId:                    txid,
-		LiquidUrl:               config.Config.LiquidApi + "/tx/" + txid,
-		LiquidApi:               config.Config.LiquidApi,
-		AutoSwapEnabled:         config.Config.AutoSwapEnabled,
-		AutoSwapThresholdAmount: config.Config.AutoSwapThresholdAmount,
-		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
-		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
-		AutoSwapCandidate:       &candidate,
-	}
-
-	// executing template named "liquid"
-	err = templates.ExecuteTemplate(w, "liquid", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func submitHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// Parse the form data
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Error parsing form data", http.StatusBadRequest)
-			return
-		}
-
-		action := r.FormValue("action")
-
-		client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-		defer cleanup()
-
-		switch action {
-		case "setFee":
-			nextPage := r.FormValue("nextPage")
-
-			feeRate, err := strconv.ParseInt(r.FormValue("feeRate"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			inbound := r.FormValue("direction") == "inbound"
-
-			if inbound {
-				if ln.Implementation == "CLN" || !ln.CanRBF() {
-					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
-					return
-				}
-
-				if feeRate > 0 {
-					// Only discounts are allowed for now
-					redirectWithError(w, r, nextPage, errors.New("inbound fee rate cannot be positive"))
-					return
-				}
-			} else {
-				if feeRate < 0 {
-					redirectWithError(w, r, nextPage, errors.New("outbound fee rate cannot be negative"))
-					return
-				}
-			}
-
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound, false)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			// all good, display confirmation
-			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
-			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
-
-		case "setBase":
-			nextPage := r.FormValue("nextPage")
-
-			feeBase, err := strconv.ParseInt(r.FormValue("feeBase"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			inbound := r.FormValue("direction") == "inbound"
-
-			if inbound {
-				if ln.Implementation == "CLN" || !ln.CanRBF() {
-					// CLN and LND < 0.18 cannot set inbound fees
-					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
-					return
-				}
-
-				if feeBase > 0 {
-					// Only discounts are allowed for now
-					redirectWithError(w, r, nextPage, errors.New("inbound fee base cannot be positive"))
-					return
-				}
-			} else {
-				if feeBase < 0 {
-					redirectWithError(w, r, nextPage, errors.New("outbound fee base cannot be negative"))
-					return
-				}
-			}
-
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeBase, inbound, true)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			// all good, display confirmation
-			msg := strings.Title(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
-			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
-
-		case "enableHTTPS":
-			if err := config.GenerateServerCertificate(); err == nil {
-				// opt-in for a single password auth
-				password := ""
-				if r.FormValue("enablePassword") == "on" {
-					password = r.FormValue("password")
-				}
-				// restart with HTTPS listener
-				restart(w, r, true, password)
-			} else {
-				redirectWithError(w, r, "/ca?", err)
-				return
-			}
-		case "keySend":
-			dest := r.FormValue("nodeId")
-			message := r.FormValue("keysendMessage")
-
-			amount, err := strconv.ParseInt(r.FormValue("keysendAmount"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+dest+"&", err)
-				return
-			}
-
-			err = ln.SendKeysendMessage(dest, amount, message)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+dest+"&", err)
-				return
-			}
-
-			msg := "Keysend invitation sent to " + getNodeAlias(dest)
-
-			log.Println(msg)
-
-			// Load main page with all pees and a pop-up message
-			http.Redirect(w, r, "/?showall&msg="+msg, http.StatusSeeOther)
-			return
-		case "setAutoSwap":
-			newAmount, err := strconv.ParseUint(r.FormValue("thresholdAmount"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			newPPM, err := strconv.ParseUint(r.FormValue("thresholdPPM"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			newPct, err := strconv.ParseUint(r.FormValue("targetPct"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			nowEnabled := r.FormValue("autoSwapEnabled") == "on"
-			t := "Automatic swap-ins "
-			msg := ""
-
-			// Log only if something changed
-			if nowEnabled && (!config.Config.AutoSwapEnabled ||
-				config.Config.AutoSwapThresholdAmount != newAmount ||
-				config.Config.AutoSwapThresholdPPM != newPPM ||
-				config.Config.AutoSwapTargetPct != newPct) {
-				t += "Enabled"
-				msg = t
-				log.Println(t)
-			}
-
-			if config.Config.AutoSwapEnabled && !nowEnabled {
-				t += "Disabled"
-				msg = t
-				log.Println(t)
-			}
-
-			config.Config.AutoSwapThresholdPPM = newPPM
-			config.Config.AutoSwapThresholdAmount = newAmount
-			config.Config.AutoSwapTargetPct = newPct
-			config.Config.AutoSwapEnabled = nowEnabled
-
-			// Save config
-			if err := config.Save(); err != nil {
-				log.Println("Error saving config file:", err)
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			if msg == "" {
-				// Reload liquid page
-				http.Redirect(w, r, "/liquid", http.StatusSeeOther)
-			} else {
-				// Go to home page with pop-up
-				http.Redirect(w, r, "/?msg="+msg, http.StatusSeeOther)
-			}
-			return
-
-		case "newAddress":
-			res, err := ps.LiquidGetAddress(client)
-			if err != nil {
-				log.Printf("unable to connect to RPC server: %v", err)
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			// Redirect to liquid page with new address
-			http.Redirect(w, r, "/liquid?addr="+res.Address, http.StatusSeeOther)
-			return
-
-		case "sendLiquid":
-			amt, err := strconv.ParseUint(r.FormValue("sendAmount"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			txid, err := liquid.SendToAddress(
-				r.FormValue("sendAddress"),
-				amt,
-				r.FormValue("comment"),
-				r.FormValue("subtractfee") == "on",
-				true,
-				r.FormValue("ignoreblindfail") == "on")
-			if err != nil {
-				redirectWithError(w, r, "/liquid?", err)
-				return
-			}
-
-			// Redirect to liquid page with TxId
-			http.Redirect(w, r, "/liquid?txid="+txid, http.StatusSeeOther)
-			return
-		case "addPeer":
-			nodeId := r.FormValue("nodeId")
-			_, err := ps.AddPeer(client, nodeId)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-				return
-			}
-			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
-			return
-
-		case "removePeer":
-			nodeId := r.FormValue("nodeId")
-			_, err := ps.RemovePeer(client, nodeId)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-				return
-			}
-			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
-			return
-
-		case "suspectPeer":
-			nodeId := r.FormValue("nodeId")
-			_, err := ps.AddSusPeer(client, nodeId)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-				return
-			}
-			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
-			return
-
-		case "unsuspectPeer":
-			nodeId := r.FormValue("nodeId")
-			_, err := ps.RemoveSusPeer(client, nodeId)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-				return
-			}
-			// Redirect to peer page
-			http.Redirect(w, r, "/peer?id="+nodeId, http.StatusSeeOther)
-			return
-
-		case "doSwap":
-			nodeId := r.FormValue("nodeId")
-			swapAmount, err := strconv.ParseUint(r.FormValue("swapAmount"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-				return
-			}
-
-			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-				return
-			}
-
-			var id string
-			switch r.FormValue("direction") {
-			case "swapIn":
-				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
-			case "swapOut":
-				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
-			}
-
-			if err != nil {
-				e := err.Error()
-				if e == "Request timed out" || strings.HasPrefix(e, "rpc error: code = Unavailable desc = rpc timeout reached") {
-					// sometimes the swap is pending anyway
-					res, er := ps.ListActiveSwaps(client)
-					if er != nil {
-						log.Println("ListActiveSwaps:", er)
-						redirectWithError(w, r, "/peer?id="+nodeId+"&", er)
-						return
-					}
-					activeSwaps := res.GetSwaps()
-					if len(activeSwaps) == 1 {
-						// follow this id
-						id = activeSwaps[0].Id
-					} else {
-						// display the original error
-						log.Println("doSwap:", err)
-						redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-						return
-					}
-				} else {
-					log.Println("doSwap:", err)
-					redirectWithError(w, r, "/peer?id="+nodeId+"&", err)
-					return
-				}
-			}
-			// Redirect to swap page to follow the swap
-			http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
-
-		default:
-			// Redirect to index page on any other input
-			log.Println("unknonw action: ", action)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-		}
-	} else {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// saves config
-func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// Parse the form data
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Error parsing form data", http.StatusBadRequest)
-			return
-		}
-
-		secureConnection, err := strconv.ParseBool(r.FormValue("secureConnection"))
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-
-		// display CA certificate installation instructions
-		if secureConnection && !config.Config.SecureConnection {
-			config.Config.ServerIPs = r.FormValue("serverIPs")
-			config.Save()
-			http.Redirect(w, r, "/ca", http.StatusSeeOther)
-			return
-		}
-
-		if r.FormValue("serverIPs") != config.Config.ServerIPs {
-			config.Config.ServerIPs = r.FormValue("serverIPs")
-			if secureConnection {
-				if err := config.GenerateServerCertificate(); err == nil {
-					restart(w, r, true, config.Config.Password)
-				} else {
-					log.Println("GenereateServerCertificate:", err)
-					redirectWithError(w, r, "/config?", err)
-					return
-				}
-			}
-		}
-
-		if !secureConnection && config.Config.SecureConnection {
-			// restart to listen on HTTP only
-			restart(w, r, false, "")
-		}
-
-		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-
-		config.Config.ColorScheme = r.FormValue("colorScheme")
-		config.Config.NodeApi = r.FormValue("nodeApi")
-		config.Config.BitcoinApi = r.FormValue("bitcoinApi")
-		config.Config.LiquidApi = r.FormValue("liquidApi")
-
-		if config.Config.TelegramToken != r.FormValue("telegramToken") {
-			config.Config.TelegramToken = r.FormValue("telegramToken")
-			go telegramStart()
-		}
-
-		if config.Config.LocalMempool != r.FormValue("localMempool") && r.FormValue("localMempool") != "" {
-			// update bitcoinApi link
-			config.Config.BitcoinApi = r.FormValue("localMempool")
-		}
-
-		config.Config.LocalMempool = r.FormValue("localMempool")
-
-		bitcoinSwaps, err := strconv.ParseBool(r.FormValue("bitcoinSwaps"))
-		if err != nil {
-			bitcoinSwaps = false
-		}
-
-		mustRestart := false
-		if config.Config.BitcoinSwaps != bitcoinSwaps || config.Config.ElementsUser != r.FormValue("elementsUser") || config.Config.ElementsPass != r.FormValue("elementsPass") {
-			mustRestart = true
-		}
-
-		config.Config.BitcoinSwaps = bitcoinSwaps
-		config.Config.ElementsUser = r.FormValue("elementsUser")
-		config.Config.ElementsPass = r.FormValue("elementsPass")
-		config.Config.ElementsDir = r.FormValue("elementsDir")
-		config.Config.ElementsDirMapped = r.FormValue("elementsDirMapped")
-		config.Config.BitcoinHost = r.FormValue("bitcoinHost")
-		config.Config.BitcoinUser = r.FormValue("bitcoinUser")
-		config.Config.BitcoinPass = r.FormValue("bitcoinPass")
-		config.Config.ProxyURL = r.FormValue("proxyURL")
-
-		mh, err := strconv.ParseUint(r.FormValue("maxHistory"), 10, 16)
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-		config.Config.MaxHistory = uint(mh)
-
-		rpcHost := r.FormValue("rpcHost")
-		clientIsDown := false
-
-		client, cleanup, err := ps.GetClient(rpcHost)
-		if err != nil {
-			clientIsDown = true
-		} else {
-			defer cleanup()
-			_, err = ps.AllowSwapRequests(client, allowSwapRequests)
-			if err != nil {
-				// RPC Host entered is bad
-				clientIsDown = true
-			} else { // values are good, save them
-				config.Config.RpcHost = rpcHost
-				config.Config.AllowSwapRequests = allowSwapRequests
-			}
-		}
-
-		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-
-		if mustRestart {
-			// show progress bar and log
-			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
-			config.SavePS()
-			ps.Stop()
-		} else if clientIsDown { // configs did not work, try again
-			redirectWithError(w, r, "/config?", err)
-		} else { // configs are good
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-		}
-	} else {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func stopHandler(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Stopping PeerSwap...", http.StatusBadGateway)
-	log.Println("Stop requested")
-	go func() {
-		ps.Stop()
-		os.Exit(0) // Exit the program
-	}()
-}
-
-func loadingHandler(w http.ResponseWriter, r *http.Request) {
-	type Page struct {
-		Authenticated  bool
-		ColorScheme    string
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		LogPosition    int
-		LogFile        string
-		SearchText     string
-	}
-
-	logFile := "log" // peerswapd log
-	searchText := "peerswapd grpc listening on"
-	if ln.Implementation == "CLN" {
-		logFile = "cln.log"
-		searchText = "plugin-peerswap: peerswap initialized"
-	}
-
-	data := Page{
-		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-		ColorScheme:    config.Config.ColorScheme,
-		ErrorMessage:   "",
-		PopUpMessage:   "",
-		MempoolFeeRate: mempoolFeeRate,
-		LogPosition:    0, // new content and wait for connection
-		LogFile:        logFile,
-		SearchText:     searchText,
-	}
-
-	// executing template named "loading"
-	err := templates.ExecuteTemplate(w, "loading", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
-}
-
-func backupHandler(w http.ResponseWriter, r *http.Request) {
-	wallet := config.Config.ElementsWallet
-	// returns .bak with the name of the wallet
-	if fileName, err := liquid.BackupAndZip(wallet); err == nil {
-		// Set the Content-Disposition header to suggest a filename
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
-		// Serve the file for download
-		http.ServeFile(w, r, filepath.Join(config.Config.DataDir, fileName))
-		// Delete zip archive
-		err = os.Remove(filepath.Join(config.Config.DataDir, fileName))
-		if err != nil {
-			log.Println("Error deleting zip file:", err)
-		}
-	} else {
-		redirectWithError(w, r, "/liquid?", err)
-	}
-}
-
-// shows peerswapd log
-func logHandler(w http.ResponseWriter, r *http.Request) {
-	type Page struct {
-		Authenticated  bool
-		ColorScheme    string
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		LogPosition    int
-		LogFile        string
-		Implementation string
-	}
-
-	logFile := "log"
-
-	keys, ok := r.URL.Query()["log"]
-	if ok && len(keys[0]) > 0 {
-		logFile = keys[0]
-	}
-
-	data := Page{
-		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-		ColorScheme:    config.Config.ColorScheme,
-		ErrorMessage:   "",
-		PopUpMessage:   "",
-		MempoolFeeRate: mempoolFeeRate,
-		LogPosition:    1, // from first line
-		LogFile:        logFile,
-		Implementation: ln.Implementation,
-	}
-
-	// executing template named "logpage"
-	err := templates.ExecuteTemplate(w, "logpage", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
-}
-
-// returns log as JSON
-func logApiHandler(w http.ResponseWriter, r *http.Request) {
-
-	logText := ""
-
-	keys, ok := r.URL.Query()["pos"]
-	if !ok || len(keys[0]) < 1 {
-		log.Println("URL parameter 'pos' is missing")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	startPosition, err := strconv.ParseInt(keys[0], 10, 64)
-	if err != nil {
-		log.Println("Error:", err)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	logFile := "log"
-
-	keys, ok = r.URL.Query()["log"]
-	if ok && len(keys[0]) > 0 {
-		logFile = keys[0]
-	}
-
-	filename := filepath.Join(config.Config.DataDir, logFile)
-
-	if logFile == "cln.log" {
-		filename = filepath.Join(config.Config.LightningDir, logFile)
-	} else if logFile == "lnd.log" {
-		filename = filepath.Join(config.Config.LightningDir, "logs", "bitcoin", config.Config.Chain, logFile)
-	}
-
-	file, err := os.Open(filename)
-	if err != nil {
-		log.Println("Error opening file:", err)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	defer file.Close()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		log.Println("Error getting file info:", err)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	fileSize := fileInfo.Size()
-
-	if startPosition > 0 && fileSize > startPosition {
-		// Seek to the desired starting position
-		_, err = file.Seek(startPosition, 0)
-		if err != nil {
-			log.Println("Error seeking:", err)
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Read from the current position till EOF
-		content, err := io.ReadAll(file)
-		if err != nil {
-			log.Println("Error reading file:", err)
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		logText = (string(content))
-		length := len(logText)
-
-		if startPosition == 1 && length > 10000 {
-			// limit to 10000 characters
-			logText = logText[length-10000:]
-		}
-	}
-
-	// Create a response struct
-	type ResponseData struct {
-		NextPosition int64
-		LogText      string
-	}
-
-	responseData := ResponseData{
-		NextPosition: fileSize,
-		LogText:      logText,
-	}
-
-	// Marshal the response struct to JSON
-	responseJSON, err := json.Marshal(responseData)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Send the next chunk of the log as the response
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(responseJSON))
-}
-
 func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl string, err error) {
 	t := fmt.Sprint(err)
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Cannot connect to peerswapd. It either has not started listening yet or PeerSwap Host parameter is wrong. Check logs."
+		t = "Peerswapd has not started listening yet or PeerSwap Host parameter is wrong. <a href='/log'>Check log</a>."
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Cannot connect to lightningd. It either failed to start or has wrong configuration. Check logs."
+		t = "Lightningd failed to start or has wrong configuration. <a href='/log?log=cln.log'>Check log</a>."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
 		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
 	case strings.HasPrefix(t, "rpc error: code = "):
@@ -1885,7 +297,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 		}
 	}
 	// display the error to the web page header
-	msg := url.QueryEscape(t)
+	msg := url.QueryEscape(strings.ReplaceAll(t, `"`, `'`))
 	http.Redirect(w, r, redirectUrl+"err="+msg, http.StatusSeeOther)
 }
 
@@ -1905,31 +317,38 @@ func onTimer() {
 	go telegramStart()
 
 	// Back up to Telegram if Liquid balance changed
-	go liquidBackup(false)
+	liquidBackup(false)
 
 	// Check if pegin can be claimed
-	go checkPegin()
+	checkPegin()
 
 	// check for updates
-	t := internet.GetLatestTag()
-	if t != "" {
-		latestVersion = t
-	}
+	go func() {
+		t := internet.GetLatestTag()
+		if t != "" {
+			latestVersion = t
+		}
+	}()
 
 	// refresh fee rate
-	r := internet.GetFeeRate()
-	if r > 0 {
-		mempoolFeeRate = r
-	}
+	go func() {
+		r := internet.GetFeeRate()
+		if r > 0 {
+			mempoolFeeRate = r
+		}
+	}()
 
 	// execute Automatic Swap In
 	if config.Config.AutoSwapEnabled {
-		go executeAutoSwap()
+		executeAutoSwap()
 	}
 
 	// LND: download and subscribe to invoices, forwards and payments
 	// CLN: fetch swap fees paid and received via LN
 	go ln.SubscribeAll()
+
+	// execute auto fee
+	ln.ApplyAutoFeeAll()
 }
 
 func liquidBackup(force bool) {
@@ -1991,315 +410,6 @@ func liquidBackup(force bool) {
 	if err := config.Save(); err != nil {
 		log.Println("Error saving config file:", err)
 		return
-	}
-}
-
-func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
-	//check for error message to display
-	errorMessage := ""
-	keys, ok := r.URL.Query()["err"]
-	if ok && len(keys[0]) > 0 {
-		errorMessage = keys[0]
-	}
-
-	//check for pop-up message to display
-	popupMessage := ""
-	keys, ok = r.URL.Query()["msg"]
-	if ok && len(keys[0]) > 0 {
-		popupMessage = keys[0]
-	}
-
-	var utxos []ln.UTXO
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		redirectWithError(w, r, "/config?", er)
-		return
-	}
-	defer clean()
-
-	type Page struct {
-		Authenticated    bool
-		ErrorMessage     string
-		PopUpMessage     string
-		ColorScheme      string
-		BitcoinBalance   uint64
-		Outputs          *[]ln.UTXO
-		PeginTxId        string
-		PeginAmount      uint64
-		BitcoinApi       string
-		Confirmations    int32
-		Progress         int32
-		Duration         string
-		FeeRate          uint32
-		LiquidFeeRate    float64
-		MempoolFeeRate   float64
-		SuggestedFeeRate uint32
-		MinBumpFeeRate   uint32
-		CanBump          bool
-		CanRBF           bool
-		IsCLN            bool
-	}
-
-	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := uint32(mempoolFeeRate)
-	confs := int32(0)
-	minConfs := int32(1)
-	canBump := false
-	canCPFP := false
-
-	if config.Config.PeginTxId != "" {
-		confs, canCPFP = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
-		if confs == 0 {
-			canBump = true
-			if !ln.CanRBF() {
-				// can bump only if there is a change output
-				canBump = canCPFP
-				if fee > 0 {
-					// for CPFP the fee must be 1.5x the market
-					fee = fee + fee/2
-				}
-			}
-			if fee < config.Config.PeginFeeRate+1 {
-				fee = config.Config.PeginFeeRate + 1 // min increment
-			}
-		}
-	}
-
-	duration := time.Duration(10*(102-confs)) * time.Minute
-	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-	ln.ListUnspent(cl, &utxos, minConfs)
-
-	data := Page{
-		Authenticated:    config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:     errorMessage,
-		PopUpMessage:     popupMessage,
-		ColorScheme:      config.Config.ColorScheme,
-		BitcoinBalance:   uint64(btcBalance),
-		Outputs:          &utxos,
-		PeginTxId:        config.Config.PeginTxId,
-		PeginAmount:      uint64(config.Config.PeginAmount),
-		BitcoinApi:       config.Config.BitcoinApi,
-		Confirmations:    confs,
-		Progress:         int32(confs * 100 / 102),
-		Duration:         formattedDuration,
-		FeeRate:          config.Config.PeginFeeRate,
-		MempoolFeeRate:   mempoolFeeRate,
-		LiquidFeeRate:    liquid.EstimateFee(),
-		SuggestedFeeRate: fee,
-		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
-		CanBump:          canBump,
-		CanRBF:           ln.CanRBF(),
-		IsCLN:            ln.Implementation == "CLN",
-	}
-
-	// executing template named "bitcoin"
-	err := templates.ExecuteTemplate(w, "bitcoin", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
-}
-
-func peginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// Parse the form data
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Error parsing form data", http.StatusBadRequest)
-			return
-		}
-
-		amount, err := strconv.ParseInt(r.FormValue("peginAmount"), 10, 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		selectedOutputs := r.Form["selected_outputs[]"]
-		subtractFeeFromAmount := r.FormValue("subtractfee") == "on"
-
-		totalAmount := int64(0)
-
-		if len(selectedOutputs) > 0 {
-			// check that outputs add up
-
-			cl, clean, er := ln.GetClient()
-			if er != nil {
-				redirectWithError(w, r, "/config?", er)
-				return
-			}
-			defer clean()
-
-			var utxos []ln.UTXO
-			ln.ListUnspent(cl, &utxos, int32(1))
-
-			for _, utxo := range utxos {
-				for _, output := range selectedOutputs {
-					vin := utxo.TxidStr + ":" + strconv.FormatUint(uint64(utxo.OutputIndex), 10)
-					if vin == output {
-						totalAmount += utxo.AmountSat
-					}
-				}
-			}
-
-			if amount > totalAmount {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot exceed the sum of the selected outputs"))
-				return
-			}
-		}
-
-		if subtractFeeFromAmount {
-			if amount != totalAmount {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
-				return
-			}
-		}
-
-		if !subtractFeeFromAmount && amount == totalAmount {
-			redirectWithError(w, r, "/bitcoin?", errors.New("'subtract fee' option should be used when amount adds up to the selected outputs"))
-			return
-		}
-
-		// test on pre-existing tx that bitcon core can complete the peg
-		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
-		if config.Config.Chain == "testnet" {
-			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
-		}
-
-		_, err = bitcoin.GetTxOutProof(tx)
-		if err != nil {
-			// automatic fallback to getblock.io
-			config.Config.BitcoinHost = config.GetBlockIoHost()
-			config.Config.BitcoinUser = ""
-			config.Config.BitcoinPass = ""
-			_, err = bitcoin.GetTxOutProof(tx)
-			if err != nil {
-				redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
-				return
-			} else {
-				// use getblock.io endpoint going forward
-				log.Println("Switching to getblock.io bitcoin host endpoint")
-				if err := config.Save(); err != nil {
-					log.Println("Error saving config file:", err)
-					redirectWithError(w, r, "/bitcoin?", err)
-					return
-				}
-			}
-		}
-
-		var addr liquid.PeginAddress
-
-		err = liquid.GetPeginAddress(&addr)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, addr.MainChainAddress, amount, fee, subtractFeeFromAmount)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		// to speed things up, also broadcast it to mempool.space
-		internet.SendRawTransaction(res.RawHex)
-
-		log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", addr.ClaimScript)
-		duration := time.Duration(1020) * time.Minute
-		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-
-		config.Config.PeginClaimScript = addr.ClaimScript
-		config.Config.PeginAddress = addr.MainChainAddress
-		config.Config.PeginAmount = res.AmountSat
-		config.Config.PeginTxId = res.TxId
-		config.Config.PeginReplacedTxId = ""
-		config.Config.PeginFeeRate = uint32(fee)
-
-		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration)
-
-		// Redirect to bitcoin page to follow the pegin progress
-		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
-	} else {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// Parse the form data
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Error parsing form data", http.StatusBadRequest)
-			return
-		}
-
-		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		if config.Config.PeginTxId == "" {
-			redirectWithError(w, r, "/bitcoin?", errors.New("no pending peg-in"))
-			return
-		}
-
-		cl, clean, er := ln.GetClient()
-		if er != nil {
-			redirectWithError(w, r, "/config?", er)
-			return
-		}
-		defer clean()
-
-		confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
-		if confs > 0 {
-			// transaction has been confirmed already
-			http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
-			return
-		}
-
-		res, err := ln.BumpPeginFee(fee)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		if ln.CanRBF() {
-			// to speed things up, also broadcast it to mempool.space
-			internet.SendRawTransaction(res.RawHex)
-
-			log.Println("RBF TxId:", res.TxId)
-			config.Config.PeginReplacedTxId = config.Config.PeginTxId
-			config.Config.PeginAmount = res.AmountSat
-			config.Config.PeginTxId = res.TxId
-		} else {
-			// txid not available, let's hope LND broadcasted it fine
-			log.Println("CPFP initiated")
-		}
-
-		// save the new rate, so the next bump cannot be lower
-		config.Config.PeginFeeRate = uint32(fee)
-
-		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		// Redirect to bitcoin page to follow the pegin progress
-		http.Redirect(w, r, "/bitcoin?msg=New transaction broadcasted", http.StatusSeeOther)
-	} else {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -2479,14 +589,14 @@ func convertPeersToHTMLTable(
 			if stats.AssistedFeeSat > 0 {
 				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
 				if stats.RoutedIn > 0 {
-					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+					flowText += "\nAssisted PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
 			if stats.PaidCost > 0 {
-				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+				flowText += "\nLightning Costs: -" + formatWithThousandSeparators(stats.PaidCost)
 				if stats.PaidOut > 0 {
-					flowText += "\nCosts PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+					flowText += "\nLightning Costs PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
 				}
 			}
 
@@ -2541,7 +651,7 @@ func convertPeersToHTMLTable(
 
 		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lighting costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -2698,14 +808,14 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			if stats.AssistedFeeSat > 0 {
 				flowText += "\nAssisted Revenue: +" + formatWithThousandSeparators(stats.AssistedFeeSat)
 				if stats.RoutedIn > 0 {
-					flowText += "\nnAssisted Revenue PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
+					flowText += "\nAssisted PPM: " + formatWithThousandSeparators(stats.AssistedFeeSat*1_000_000/stats.RoutedIn)
 				}
 			}
 
 			if stats.PaidCost > 0 {
-				flowText += "\nCosts: -" + formatWithThousandSeparators(stats.PaidCost)
+				flowText += "\nLightning Costs: -" + formatWithThousandSeparators(stats.PaidCost)
 				if stats.PaidOut > 0 {
-					flowText += "\nCosts PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+					flowText += "\nLightning Costs PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
 				}
 			}
 
@@ -2750,7 +860,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lighting costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
@@ -3078,22 +1188,21 @@ func findSwapInCandidate(candidate *SwapParams) error {
 
 			swapAmount := targetBalance - channel.LocalBalance
 
-			// limit to max HTLC setting
-			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlcMsat/1000)
-			swapAmount = min(swapAmount, chanInfo.OurMaxHtlcMsat/1000)
+			// limit to own and peer's max HTLC setting
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc, chanInfo.PeerMaxHtlc)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
 				// use timestamp of the last swap or 6 months horizon
-				lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
-				if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
-					lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+				lastTimestamp := time.Now().AddDate(0, -6, 0).Unix()
+				if swapTimestamps[channel.ChannelId] > lastTimestamp {
+					lastTimestamp = swapTimestamps[channel.ChannelId]
 				}
 
-				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
+				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastTimestamp))
 
 				ppm := uint64(0)
-				if stats.RoutedOut > 0 {
+				if stats.RoutedOut > 1_000_000 { // ignore small results
 					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
 				}
 
@@ -3104,6 +1213,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					minPPM = ppm
 					// save the candidate
 					candidate.ChannelId = channel.ChannelId
+					candidate.PeerId = peer.NodeId
 					candidate.PeerAlias = getNodeAlias(peer.NodeId)
 					// set maximum possible amount
 					candidate.Amount = swapAmount
@@ -3239,4 +1349,137 @@ func cacheSwapCosts() {
 	for _, swap := range swaps {
 		swapCost(swap)
 	}
+}
+
+func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string) {
+	w.Header().Set("Content-Type", "text/html")
+	host := strings.Split(r.Host, ":")[0]
+	url := fmt.Sprintf("http://%s:%s", host, config.Config.ListenPort)
+
+	html := fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html lang="en">
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Restarting...</title>
+			<link rel="stylesheet" href="/static/bulma-%s.min.css">
+			<link rel="stylesheet" href="/static/styles.css">
+		</head>
+		<body>
+			<section class="section">
+				<div class="container">
+					<div class="columns is-centered">
+						<div class="column is-4-desktop is-6-tablet is-12-mobile">
+							<div class="box has-text-left">
+								<p>PeerSwap Web UI is restarting...</p>
+								<br>
+								<p>Please navigate to <a href="%s">%s</a> to continue.</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</body>
+		</html>`, config.Config.ColorScheme, url, url)
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, html)
+
+	if !enableHTTPS && config.Config.Password != "" {
+		// delete cookie
+		session, _ := store.Get(r, "session")
+		session.Values["authenticated"] = false
+		session.Options.MaxAge = -1 // MaxAge < 0 means delete the cookie immediately.
+		session.Save(r, w)
+	}
+
+	// Flush the response writer to ensure the message is sent before shutdown
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Delay to ensure the message is displayed
+	go func() {
+		time.Sleep(1 * time.Second)
+
+		config.Config.Password = password
+		config.Config.SecureConnection = enableHTTPS
+		config.Save()
+
+		log.Println("Restart requested, stopping PSWeb.")
+		// assume systemd will restart it
+		os.Exit(0)
+	}()
+}
+
+// NoOpWriter is an io.Writer that does nothing.
+type NoOpWriter struct{}
+
+// Write discards the data and returns success.
+func (NoOpWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+// NewMuteLogger creates a logger that discards all log output.
+func NewMuteLogger() *log.Logger {
+	return log.New(NoOpWriter{}, "", 0)
+}
+
+// html snippet to display and update fee PPM
+func feeInputField(peerNodeId string, channelId uint64, direction string, feePerMil int64, backgroundColor string, fontColor string, showAll bool) string {
+
+	channelIdStr := strconv.FormatUint(channelId, 10)
+	ppm := strconv.FormatInt(feePerMil, 10)
+
+	// direction: inbound or outbound
+	fieldId := strconv.FormatUint(channelId, 10) + "_" + direction
+	align := "margin-left: 1px"
+	if direction == "inbound" {
+		if !ln.HasInboundFees() {
+			return `<td style="width: 1ch; padding: 0px;""></td>`
+		}
+		align = "text-align: right"
+	}
+
+	if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
+		align = "text-align: center"
+	}
+
+	nextPage := "/?"
+	if showAll {
+		nextPage += "showall&"
+	}
+
+	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
+	// for autofees show link
+	if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
+		rates, custom := ln.AutoFeeRatesSummary(channelId)
+		if custom {
+			rates = "*" + rates
+		}
+
+		feeLog := ln.AutoFeeLog[channelId]
+		if feeLog != nil {
+			rates += "\nLast update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
+			rates += "\nFrom " + formatWithThousandSeparators(uint64(feeLog.OldRate))
+			rates += " to " + formatWithThousandSeparators(uint64(feeLog.NewRate))
+		}
+
+		t += "<a title=\"" + strings.Title(direction) + " fee PPM\nAuto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
+	} else {
+		t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
+		t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
+		t += `<input type="hidden" name="action" value="setFee">`
+		t += `<input type="hidden" name="peerNodeId" value="` + peerNodeId + `">`
+		t += `<input type="hidden" name="direction" value="` + direction + `">`
+		t += `<input type="hidden" name="nextPage" value="` + nextPage + `">`
+		t += `<input type="hidden" name="channelId" value="` + channelIdStr + `">`
+		t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + ppm + `" onchange="feeSubmitForm('` + fieldId + `')">`
+		t += `</form>`
+	}
+
+	t += `</td>`
+
+	return t
 }

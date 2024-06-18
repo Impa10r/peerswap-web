@@ -7,7 +7,7 @@
       <div class="columns">
         <div class="column">
           <div class="box has-text-left">
-            <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbspBitcoin:&nbsp{{fmt .BitcoinBalance}}</h4>
+            <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box has-text-left">
@@ -37,11 +37,7 @@
                   <label class="label">Amount</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -49,11 +45,7 @@
                   <label class="label">Fee Rate</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -69,13 +61,11 @@
                 <div class="field-label is-normal">
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <div class="control">
-                      <label class="checkbox is-large">
-                        <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
-                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                      </label>
-                    </div>
+                  <div class="control">
+                    <label class="checkbox is-large">
+                      <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
+                      <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                    </label>
                   </div>
                 </div>
               </div>     
@@ -200,14 +190,14 @@
                 </div>
               </div>
             </div>
-            <table id="utxoTable" style="width:100%; table-layout:fixed;">
+            <table class="table" id="utxoTable" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
                   <th>Address</th>
                   <th style="width: 9ch; text-align: right;">Confs</th>
                   <th style="width: 10ch; text-align: right;">Amount</th>
                   {{if eq .PeginTxId ""}}
-                    <th style="width: 2ch;"><a title="Select all" href="javascript:void(0);" onclick="setMax()">☑</a></th>
+                    <th style="width: 2ch; transform: scale(1.5)"><a title="Select all" href="javascript:void(0);" onclick="setMax()">☑</a></th>
                   {{end}}
                 </tr>
               </thead>
@@ -275,8 +265,6 @@
             const amount = Number(document.getElementById("peginAmount").value);
             const payall = document.getElementById("subtractfee").checked;
 
-            console.log(fee, amount);
-            
             if (payall && fee >= amount / 4) {
               alert("Total fee exceeding 25% of the amount is not allowed");
               return false;

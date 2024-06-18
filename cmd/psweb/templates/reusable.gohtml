@@ -33,6 +33,7 @@
                                 <a href="/" class="dropdown-item"> Peer List </a>
                                 <a href="/bitcoin" class="dropdown-item"> Liquid Peg-in </a>
                                 <a href="/liquid" class="dropdown-item"> Liquid Auto Swap </a>
+                                <a href="/af" class="dropdown-item"> Auto Fees </a>
                                 <hr class="dropdown-divider" />
                                 <a href="/config" class="dropdown-item"> Configuration </a>
                                 <a href="/log?log=psweb.log" class="dropdown-item"> Logs </a>
@@ -84,6 +85,14 @@
                 event.stopPropagation();
                 dropdown.classList.toggle('is-active');
                 });
+
+                // Close the dropdown if the user clicks outside of it
+                window.onclick = function(event) {
+                    if (!event.target.matches('.dropdown-content')) {
+                        var dropdown = document.querySelector('.dropdown');
+                        dropdown.classList.remove('is-active');
+                    }
+                }
             </script>  
         </header>
         <section class="section">
@@ -124,23 +133,10 @@
     </html>
 {{end}}
 
-{{define "log"}}  
-    <h4 class="title is-4">{{if eq .LogFile "psweb.log"}}
-            PeerSwap Web
-        {{else}}
-            {{if eq .LogFile "cln.log"}}
-                Lightningd
-            {{else}}
-                {{if eq .LogFile "lnd.log"}}
-                    LND
-                {{else}}
-                    Peerswapd
-                {{end}}
-            {{end}}
-        {{end}} Log</h4>
+{{define "log"}}
     <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
     <tr>
-        <td style="max-width: 100%; overflow: hidden;">
+        <td style="max-width: 100%; overflow: hidden; padding: 0">
         <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
         </td>
     </tr>

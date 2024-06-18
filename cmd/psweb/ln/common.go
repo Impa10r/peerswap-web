@@ -3,9 +3,10 @@ package ln
 import (
 	"strconv"
 	"strings"
-)
+	"time"
 
-var myNodeAlias string
+	"peerswap-web/cmd/psweb/db"
+)
 
 type UTXO struct {
 	Address       string
@@ -55,23 +56,93 @@ type ChannelStats struct {
 }
 
 type ChanneInfo struct {
-	ChannelId       uint64
-	LocalBalance    uint64
-	RemoteBalance   uint64
-	FeeRate         int64 // PPM
-	FeeBase         int64 // mSat
-	InboundFeeRate  int64 // PPM
-	InboundFeeBase  int64 // mSat
-	Active          bool
-	OurMaxHtlcMsat  uint64
-	OurMinHtlcMsat  uint64
-	PeerMaxHtlcMsat uint64
-	PeerMinHtlcMsat uint64
-	Capacity        uint64
+	ChannelId      uint64
+	LocalBalance   uint64
+	RemoteBalance  uint64
+	FeeRate        int64 // PPM
+	FeeBase        int64 // mSat
+	InboundFeeRate int64 // PPM
+	InboundFeeBase int64 // mSat
+	Active         bool
+	OurMaxHtlc     uint64
+	OurMinHtlc     uint64
+	PeerMaxHtlc    uint64
+	PeerMinHtlc    uint64
+	Capacity       uint64
+	LocalPct       uint64
+	AutoFeeLog     string
 }
 
-// lighting payments from swap out initiator to receiver
-var SwapRebates = make(map[string]int64)
+type AutoFeeStatus struct {
+	Alias         string
+	ChannelId     uint64
+	LocalBalance  uint64
+	LocalPct      uint64
+	RemoteBalance uint64
+	Enabled       bool
+	Rates         string
+	Custom        bool
+}
+
+type AutoFeeParams struct {
+	// fee rate ppm increase after each "Insufficient Balance" HTLC failure
+	FailedBumpPPM int
+	// low local balance threshold where fee rates stay high
+	LowLiqPct int
+	// ppm rate when liquidity is below LowLiqPct
+	LowLiqRate int
+	// high local balance threshold
+	ExcessPct int
+	// ppm rate when liquidity is at or below ExcessPct
+	NormalRate int
+	// ppm rate when liquidity is above ExcessPct
+	ExcessRate int
+	// days of outbound inactivity to start lowering rates
+	InactivityDays int
+	// reduce ppm by absolute number
+	InactivityDropPPM int
+	// and then by a percentage
+	InactivityDropPct int
+	// hours to wait before reducing the fee rate again
+	CoolOffHours int
+	// inbound fee (<0 = discount) when liquidity is below LowLiqPct
+	LowLiqDiscount int
+}
+
+type AutoFeeEvent struct {
+	TimeStamp int64
+	OldRate   int
+	NewRate   int
+}
+
+var (
+	// lightning payments from swap out initiator to receiver
+	SwapRebates = make(map[string]int64)
+	myNodeAlias string
+	myNodeId    string
+
+	AutoFeeEnabledAll bool
+	// maps to LND channel Id
+	AutoFee         = make(map[uint64]*AutoFeeParams)
+	AutoFeeLog      = make(map[uint64]*AutoFeeEvent)
+	AutoFeeEnabled  = make(map[uint64]bool)
+	AutoFeeDefaults = AutoFeeParams{
+		FailedBumpPPM:     10,
+		LowLiqPct:         10,
+		LowLiqRate:        1000,
+		NormalRate:        300,
+		ExcessPct:         75,
+		ExcessRate:        50,
+		InactivityDays:    7,
+		InactivityDropPPM: 5,
+		InactivityDropPct: 5,
+		CoolOffHours:      12,
+		LowLiqDiscount:    0,
+	}
+
+	// track timestamp of the last outbound forward per channel
+	lastForwardTS = make(map[uint64]int64)
+)
 
 func toSats(amount float64) int64 {
 	return int64(float64(100000000) * amount)
@@ -118,4 +189,81 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 		}
 	}
 	return false
+}
+
+// returns the rule and whether it is custom
+func AutoFeeRule(channelId uint64) (*AutoFeeParams, bool) {
+	params := &AutoFeeDefaults
+	isCustom := false
+	if AutoFee[channelId] != nil {
+		// channel has custom parameters
+		params = AutoFee[channelId]
+		isCustom = true
+	}
+	return params, isCustom
+}
+
+// returns a string representation for the rule and whether it is not default
+func AutoFeeRatesSummary(channelId uint64) (string, bool) {
+	params, isCustom := AutoFeeRule(channelId)
+
+	excess := strconv.Itoa(params.ExcessRate)
+	normal := strconv.Itoa(params.NormalRate)
+	low := strconv.Itoa(params.LowLiqRate)
+	disc := strconv.Itoa(params.LowLiqDiscount)
+
+	summary := excess + "/" + normal + "/" + low
+	if HasInboundFees() {
+		summary += "/" + disc
+	}
+	return summary, isCustom
+}
+
+func LoadAutoFees() {
+	db.Load("AutoFees", "AutoFeeEnabledAll", &AutoFeeEnabledAll)
+	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
+	db.Load("AutoFees", "AutoFee", &AutoFee)
+	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
+	db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
+}
+
+func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {
+	newFee := oldFee
+	if liqPct > params.LowLiqPct {
+		// normal or high liquidity regime, check if fee can be dropped
+		lastUpdate := int64(0)
+		if AutoFeeLog[channelId] != nil {
+			lastUpdate = AutoFeeLog[channelId].TimeStamp
+		}
+		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
+			// check the last outbound timestamp
+			if lastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
+				// decrease the fee
+				newFee -= params.InactivityDropPPM
+				newFee = newFee * (100 - params.InactivityDropPct) / 100
+			}
+		}
+
+		// check the floors
+		if liqPct < params.ExcessPct {
+			newFee = max(newFee, params.NormalRate)
+		} else {
+			newFee = max(newFee, params.ExcessRate)
+		}
+	} else {
+		// liquidity is low, keep the rate at high value
+		newFee = max(newFee, params.LowLiqRate)
+	}
+
+	return newFee
+}
+
+// msatToSatUp converts millisatoshis to satoshis, rounding up.
+func msatToSatUp(msat uint64) uint64 {
+	// Divide msat by 1000 and round up if there's any remainder.
+	sat := msat / 1000
+	if msat%1000 != 0 {
+		sat++
+	}
+	return sat
 }
