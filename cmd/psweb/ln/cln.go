@@ -14,6 +14,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -38,7 +39,10 @@ type Forwarding struct {
 	OutChannel   string  `json:"out_channel"`
 	OutMsat      uint64  `json:"out_msat"`
 	FeeMsat      uint64  `json:"fee_msat"`
+	ReceivedTime float64 `json:"received_time"`
 	ResolvedTime float64 `json:"resolved_time"`
+	Status       string  `json:"status"`
+	FailCode     uint64  `json:"failcode,omitempty"`
 }
 
 var (
@@ -47,6 +51,8 @@ var (
 	forwardsOut       = make(map[uint64][]Forwarding)
 	forwardsLastIndex uint64
 	downloadComplete  bool
+	// track timestamp of the last failed forward
+	failedForwardTS = make(map[uint64]int64)
 )
 
 func GetClient() (*glightning.Lightning, func(), error) {
@@ -401,20 +407,28 @@ func CacheForwards() {
 	for {
 		// get incremental history
 		client.Request(&ListForwardsRequest{
-			Status: "settled",
-			Index:  "created",
-			Start:  forwardsLastIndex,
-			Limit:  1000,
+			Index: "created",
+			Start: forwardsLastIndex,
+			Limit: 1000,
 		}, &newForwards)
 
 		n := len(newForwards.Forwards)
 		if n > 0 {
 			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
 			for _, f := range newForwards.Forwards {
-				chIn := ConvertClnToLndChannelId(f.InChannel)
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
-				forwardsIn[chIn] = append(forwardsIn[chIn], f)
-				forwardsOut[chOut] = append(forwardsOut[chOut], f)
+				if f.Status == "settled" {
+					chIn := ConvertClnToLndChannelId(f.InChannel)
+					forwardsIn[chIn] = append(forwardsIn[chIn], f)
+					forwardsOut[chOut] = append(forwardsOut[chOut], f)
+					// save for autofees
+					lastForwardTS[chOut] = int64(f.ResolvedTime)
+				} else {
+					// catch not enough balance error
+					if f.FailCode == 4103 {
+						failedForwardTS[chOut] = int64(f.ReceivedTime)
+					}
+				}
 			}
 			totalForwards += uint64(n)
 		} else {
@@ -666,10 +680,10 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 			updates := channelMap["updates"].(map[string]interface{})
 			local := updates["local"].(map[string]interface{})
 			remote := updates["remote"].(map[string]interface{})
-			info.PeerMinHtlcMsat = uint64(remote["htlc_minimum_msat"].(float64))
-			info.PeerMaxHtlcMsat = uint64(remote["htlc_maximum_msat"].(float64))
-			info.OurMaxHtlcMsat = uint64(local["htlc_maximum_msat"].(float64))
-			info.OurMinHtlcMsat = uint64(local["htlc_minimum_msat"].(float64))
+			info.PeerMinHtlc = msatToSatUp(uint64(remote["htlc_minimum_msat"].(float64)))
+			info.PeerMaxHtlc = uint64(remote["htlc_maximum_msat"].(float64)) / 1000
+			info.OurMaxHtlc = uint64(local["htlc_maximum_msat"].(float64)) / 1000
+			info.OurMinHtlc = msatToSatUp(uint64(local["htlc_minimum_msat"].(float64)))
 			info.Capacity = uint64(channelMap["total_msat"].(float64) / 1000)
 			break
 		}
@@ -741,8 +755,8 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 		for _, channel := range clnPeer.Channels {
 			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
 				ChannelId:     ConvertClnToLndChannelId(channel.ShortChannelId),
-				LocalBalance:  channel.SpendableMilliSatoshi / 1000,
-				RemoteBalance: channel.ReceivableMilliSatoshi / 1000,
+				LocalBalance:  channel.ToUsMsat.MSat() / 1000,
+				RemoteBalance: (channel.TotalMsat.MSat() - channel.ToUsMsat.MSat()) / 1000,
 				Active:        clnPeer.Connected && channel.State == "CHANNELD_NORMAL",
 			})
 		}
@@ -840,7 +854,7 @@ func GetMyAlias() string {
 // scans all channels to get peerswap lightning fees cached
 func SubscribeAll() {
 	if downloadComplete {
-		// only run once if successful
+		// only run once
 		return
 	}
 
@@ -860,8 +874,10 @@ func SubscribeAll() {
 
 	for _, peer := range peers.Peers {
 		for _, channel := range peer.Channels {
-			channelId := ConvertLndToClnChannelId(channel.ChannelId)
-			fetchPaymentsStats(client, timestamp, channelId)
+			if channel.ChannelId > 0 {
+				channelId := ConvertLndToClnChannelId(channel.ChannelId)
+				fetchPaymentsStats(client, timestamp, channelId)
+			}
 		}
 	}
 
@@ -996,17 +1012,20 @@ func FeeReport(client *glightning.Lightning, outboundFeeRates map[uint64]int64, 
 	channels := response["channels"].([]interface{})
 	for _, channel := range channels {
 		channelMap := channel.(map[string]interface{})
-		channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
-		outboundFeeRates[channelId] = int64(channelMap["fee_proportional_millionths"].(float64))
+		if channelMap["short_channel_id"] != nil {
+			channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
+			outboundFeeRates[channelId] = int64(channelMap["fee_proportional_millionths"].(float64))
+		}
 	}
-
 	return nil
 }
 
 type SetChannelRequest struct {
-	Id                string `json:"id"`
-	BaseMilliSatoshis int64  `json:"feebase,omitempty"`
-	PartPerMillion    int64  `json:"feeppm,omitempty"`
+	Id          string `json:"id"`
+	BaseMsat    int64  `json:"feebase,omitempty"`
+	FeePPM      int64  `json:"feeppm,omitempty"`
+	HtlcMinMsat int64  `json:"htlcmin,omitempty"`
+	HtlcMaxMsat int64  `json:"htlcmax,omitempty"`
 }
 
 func (r *SetChannelRequest) Name() string {
@@ -1036,9 +1055,9 @@ func SetFeeRate(peerNodeId string,
 
 	req.Id = ConvertLndToClnChannelId(channelId)
 	if isBase {
-		req.BaseMilliSatoshis = feeRate
+		req.BaseMsat = feeRate
 	} else {
-		req.PartPerMillion = feeRate
+		req.FeePPM = feeRate
 	}
 
 	err = client.Request(&req, &res)
@@ -1048,4 +1067,122 @@ func SetFeeRate(peerNodeId string,
 	}
 
 	return nil
+}
+
+// set min or max HTLC size (Msat!!!) for a channel
+func SetHtlcSize(peerNodeId string,
+	channelId uint64,
+	htlcMsat int64,
+	isMax bool) error {
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+	defer cleanup()
+
+	var req SetChannelRequest
+	var res map[string]interface{}
+
+	req.Id = ConvertLndToClnChannelId(channelId)
+	if isMax {
+		req.HtlcMaxMsat = htlcMsat
+	} else {
+		req.HtlcMinMsat = htlcMsat
+	}
+
+	err = client.Request(&req, &res)
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	return nil
+}
+
+func HasInboundFees() bool {
+	return false
+}
+
+func ApplyAutoFeeAll() {
+	if !AutoFeeEnabledAll {
+		return
+	}
+
+	CacheForwards()
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	var response map[string]interface{}
+
+	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
+		return
+	}
+
+	// Iterate over channels to set fees
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+
+		if channelMap["state"].(string) != "CHANNELD_NORMAL" ||
+			channelMap["peer_connected"].(bool) == false ||
+			channelMap["short_channel_id"] == nil {
+			continue
+		}
+
+		channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
+
+		if !AutoFeeEnabled[channelId] {
+			// not enabled
+			continue
+		}
+
+		params := &AutoFeeDefaults
+		if AutoFee[channelId] != nil {
+			// channel has custom parameters
+			params = AutoFee[channelId]
+		}
+
+		oldFee := int(channelMap["fee_proportional_millionths"].(float64))
+		newFee := oldFee
+
+		// check 10 minutes back to be sure
+		if params.FailedBumpPPM > 0 {
+			if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+				// bump fee
+				newFee += params.FailedBumpPPM
+				// forget failed HTLC
+				failedForwardTS[channelId] = 0
+			}
+		}
+
+		if newFee == oldFee {
+			liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
+			newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
+		}
+
+		// set the new rate
+		if newFee != oldFee {
+			peerId := channelMap["peer_id"].(string)
+			if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+				// log the last change
+				AutoFeeLog[channelId] = &AutoFeeEvent{
+					TimeStamp: time.Now().Unix(),
+					OldRate:   oldFee,
+					NewRate:   newFee,
+				}
+				// persist to db
+				db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+			}
+		}
+	}
+}
+
+func ApplyAutoFee() {
+	// not implemented
 }

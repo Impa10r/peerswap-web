@@ -2,14 +2,9 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
-
-	"peerswap-web/cmd/psweb/config"
 )
 
 // returns time passed as a string
@@ -158,16 +153,6 @@ func formatSigned(num int64) string {
 	return formatWithThousandSeparators(uint64(num))
 }
 
-// msatToSatUp converts millisatoshis to satoshis, rounding up.
-func msatToSatUp(msat uint64) uint64 {
-	// Divide msat by 1000 and round up if there's any remainder.
-	sat := msat / 1000
-	if msat%1000 != 0 {
-		sat++
-	}
-	return sat
-}
-
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	if err == nil {
@@ -177,108 +162,4 @@ func fileExists(filename string) bool {
 		return false
 	}
 	return false
-}
-
-func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string) {
-	w.Header().Set("Content-Type", "text/html")
-	host := strings.Split(r.Host, ":")[0]
-	url := fmt.Sprintf("http://%s:%s", host, config.Config.ListenPort)
-
-	html := fmt.Sprintf(`
-		<!DOCTYPE html>
-		<html lang="en">
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Restarting...</title>
-			<link rel="stylesheet" href="/static/bulma-%s.min.css">
-			<link rel="stylesheet" href="/static/styles.css">
-		</head>
-		<body>
-			<section class="section">
-				<div class="container">
-					<div class="columns is-centered">
-						<div class="column is-4-desktop is-6-tablet is-12-mobile">
-							<div class="box has-text-left">
-								<p>PeerSwap Web UI is restarting...</p>
-								<br>
-								<p>Please navigate to <a href="%s">%s</a> to continue.</p>
-							</div>
-						</div>
-					</div>
-				</div>
-			</section>
-		</body>
-		</html>`, config.Config.ColorScheme, url, url)
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, html)
-
-	if !enableHTTPS && config.Config.Password != "" {
-		// delete cookie
-		session, _ := store.Get(r, "session")
-		session.Values["authenticated"] = false
-		session.Options.MaxAge = -1 // MaxAge < 0 means delete the cookie immediately.
-		session.Save(r, w)
-	}
-
-	// Flush the response writer to ensure the message is sent before shutdown
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
-	// Delay to ensure the message is displayed
-	go func() {
-		time.Sleep(1 * time.Second)
-
-		config.Config.Password = password
-		config.Config.SecureConnection = enableHTTPS
-		config.Save()
-
-		log.Println("Restart requested, stopping PSWeb.")
-		// assume systemd will restart it
-		os.Exit(0)
-	}()
-}
-
-// NoOpWriter is an io.Writer that does nothing.
-type NoOpWriter struct{}
-
-// Write discards the data and returns success.
-func (NoOpWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-// NewMuteLogger creates a logger that discards all log output.
-func NewMuteLogger() *log.Logger {
-	return log.New(NoOpWriter{}, "", 0)
-}
-
-// html snippet to display and update fee PPM
-func feeInputField(peerNodeId string, channelId uint64, direction string, feePerMil int64, backgroundColor string, fontColor string, showAll bool) string {
-	// direction: inbound or outbound
-	fieldId := strconv.FormatUint(channelId, 10) + "_" + direction
-	align := "margin-left: 1px"
-	if direction == "inbound" {
-		align = "text-align: right"
-	}
-
-	nextPage := "/?"
-	if showAll {
-		nextPage += "showall&"
-	}
-
-	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
-	t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
-	t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`
-	t += `<input type="hidden" name="action" value="setFee">`
-	t += `<input type="hidden" name="peerNodeId" value="` + peerNodeId + `">`
-	t += `<input type="hidden" name="direction" value="` + direction + `">`
-	t += `<input type="hidden" name="nextPage" value="` + nextPage + `">`
-	t += `<input type="hidden" name="channelId" value="` + strconv.FormatUint(channelId, 10) + `">`
-	t += `<input type="number" style="width: 6ch; text-align: center; background-color: ` + backgroundColor + `; color: ` + fontColor + `" name="feeRate" value="` + strconv.FormatInt(feePerMil, 10) + `" onchange="feeSubmitForm('` + fieldId + `')">`
-	t += `</form>`
-	t += `</td>`
-
-	return t
 }

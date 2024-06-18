@@ -19,6 +19,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
@@ -45,6 +46,9 @@ const (
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
 	SwapFeeReserveLBTC = uint64(1000)
 	SwapFeeReserveBTC  = uint64(2000)
+
+	// used in outbound forwards tracking for auto fees
+	forwardAmountThreshold = uint64(1000)
 )
 
 type InflightHTLC struct {
@@ -631,38 +635,46 @@ func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeR
 }
 
 func CanRBF() bool {
-	if LndVerson == 0 {
+	return getLndVersion() >= 0.18
+}
 
+func HasInboundFees() bool {
+	return getLndVersion() >= 0.18
+}
+
+func getLndVersion() float64 {
+	if LndVerson == 0 {
 		// get lnd server version
 		client, cleanup, err := GetClient()
 		if err != nil {
-			return false
+			return 0
 		}
 		defer cleanup()
 
 		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
 		if err != nil {
-			return false
+			return 0
 		}
+
 		version := res.GetVersion()
 		parts := strings.Split(version, ".")
 
 		a, err := strconv.ParseFloat(parts[0], 64)
 		if err != nil {
-			return false
+			return 0
 		}
 
 		LndVerson = a
 
 		b, err := strconv.ParseFloat(parts[1], 64)
 		if err != nil {
-			return false
+			return 0
 		}
 
 		LndVerson += b / 100
 	}
 
-	return LndVerson >= 0.18
+	return LndVerson
 }
 
 func GetMyAlias() string {
@@ -711,6 +723,10 @@ func downloadForwards(client lnrpc.LightningClient) {
 		for _, event := range res.ForwardingEvents {
 			forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 			forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
+			// record for autofees
+			if event.AmtOut >= forwardAmountThreshold {
+				lastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
+			}
 		}
 
 		n := len(res.ForwardingEvents)
@@ -839,7 +855,6 @@ func subscribePayments(ctx context.Context, client routerrpc.RouterClient) error
 		if err != nil {
 			return err
 		}
-
 		appendPayment(payment)
 	}
 }
@@ -892,6 +907,22 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 			// delete from queue
 			removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
+		case *routerrpc.HtlcEvent_LinkFailEvent:
+			// delete from queue
+			removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+
+			// check reason
+			if event.LinkFailEvent.FailureDetail == routerrpc.FailureDetail_INSUFFICIENT_BALANCE {
+				// execute autofee
+				client, cleanup, err := GetClient()
+				if err != nil {
+					return err
+				}
+				defer cleanup()
+
+				ApplyAutoFee(client, htlcEvent.OutgoingChannelId, true)
+			}
+
 		case *routerrpc.HtlcEvent_SettleEvent:
 			// find HTLC in queue
 			for _, htlc := range inflightHTLCs[htlcEvent.IncomingChannelId] {
@@ -904,6 +935,20 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					lastforwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
 					// delete from queue
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+
+					// record for autofees
+					if htlc.forwardingEvent.AmtOut >= forwardAmountThreshold {
+						lastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
+					}
+
+					// execute autofee
+					client, cleanup, err := GetClient()
+					if err != nil {
+						return err
+					}
+					defer cleanup()
+
+					ApplyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
 					break
 				}
 			}
@@ -1178,15 +1223,15 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
-		info.PeerMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
-		info.PeerMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
-		info.OurMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
-		info.OurMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
+		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
+		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
+		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
+		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
 	} else {
-		info.PeerMaxHtlcMsat = r.GetNode2Policy().GetMaxHtlcMsat()
-		info.PeerMinHtlcMsat = uint64(r.GetNode2Policy().GetMinHtlc())
-		info.OurMaxHtlcMsat = r.GetNode1Policy().GetMaxHtlcMsat()
-		info.OurMinHtlcMsat = uint64(r.GetNode1Policy().GetMinHtlc())
+		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
+		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
+		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
+		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
 	}
 
 	info.FeeRate = policy.GetFeeRateMilliMsat()
@@ -1333,11 +1378,18 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 	return nil
 }
 
-// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes
+// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding certain nodes
 func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	ctx := context.Background()
 
 	res, err := client.ListPeers(ctx, &lnrpc.ListPeersRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	res2, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+		// PublicOnly: true,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1350,44 +1402,31 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 			continue
 		}
 
-		// skip if not the signle one requested
+		// skip if not the single one requested
 		if peerId != "" && lndPeer.PubKey != peerId {
-			continue
-		}
-
-		bytePeer, err := hex.DecodeString(lndPeer.PubKey)
-		if err != nil {
-			return nil, err
-		}
-
-		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
-			PublicOnly: true,
-			Peer:       bytePeer,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		// skip peers with no channels
-		if len(res.Channels) == 0 {
 			continue
 		}
 
 		peer := peerswaprpc.PeerSwapPeer{}
 		peer.NodeId = lndPeer.PubKey
 
-		for _, channel := range res.Channels {
-			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-				ChannelId:     channel.ChanId,
-				LocalBalance:  uint64(channel.LocalBalance),
-				RemoteBalance: uint64(channel.RemoteBalance),
-				Active:        channel.Active,
-			})
+		for _, channel := range res2.Channels {
+			if channel.RemotePubkey == lndPeer.PubKey {
+				peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+					ChannelId:     channel.ChanId,
+					LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
+					RemoteBalance: uint64(channel.RemoteBalance),
+					Active:        channel.Active,
+				})
+			}
 		}
 
 		peer.AsSender = &peerswaprpc.SwapStats{}
 		peer.AsReceiver = &peerswaprpc.SwapStats{}
-		peers = append(peers, &peer)
+
+		if len(peer.Channels) > 0 {
+			peers = append(peers, &peer)
+		}
 
 		if peer.NodeId == peerId {
 			// skip the rest
@@ -1452,6 +1491,7 @@ func SetFeeRate(peerNodeId string,
 	feeRate int64,
 	inbound bool,
 	isBase bool) error {
+
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1525,4 +1565,204 @@ func SetFeeRate(peerNodeId string,
 	}
 
 	return nil
+}
+
+// set min or max HTLC size (Msat!!!) for a channel
+func SetHtlcSize(peerNodeId string,
+	channelId uint64,
+	htlcMsat int64,
+	isMax bool) error {
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+	defer cleanup()
+
+	// get channel point first
+	r, err := client.GetChanInfo(context.Background(), &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	policy := r.Node1Policy
+	if r.Node1Pub == peerNodeId {
+		// the first policy is not ours, use the second
+		policy = r.Node2Policy
+	}
+
+	parts := strings.Split(r.ChanPoint, ":")
+	outputIndex, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	var req lnrpc.PolicyUpdateRequest
+
+	req.Scope = &lnrpc.PolicyUpdateRequest_ChanPoint{
+		ChanPoint: &lnrpc.ChannelPoint{
+			FundingTxid: &lnrpc.ChannelPoint_FundingTxidStr{
+				FundingTxidStr: parts[0],
+			},
+			OutputIndex: uint32(outputIndex),
+		},
+	}
+
+	// preserve policy values
+	req.BaseFeeMsat = policy.FeeBaseMsat
+	req.FeeRatePpm = uint32(policy.FeeRateMilliMsat)
+	req.TimeLockDelta = policy.TimeLockDelta
+	req.MinHtlcMsatSpecified = !isMax
+	req.MaxHtlcMsat = policy.MaxHtlcMsat
+	req.InboundFee = &lnrpc.InboundFee{
+		FeeRatePpm:  policy.InboundFeeRateMilliMsat,
+		BaseFeeMsat: policy.InboundFeeBaseMsat,
+	}
+
+	// change what's new
+	if isMax {
+		if uint64(htlcMsat) == policy.MaxHtlcMsat {
+			// nothing to do
+			return nil
+		}
+		req.MaxHtlcMsat = uint64(htlcMsat)
+	} else {
+		if htlcMsat == policy.MinHtlc {
+			// nothing to do
+			return nil
+		}
+		req.MinHtlcMsat = uint64(htlcMsat)
+	}
+
+	_, err = client.UpdateChannelPolicy(context.Background(), &req)
+	if err != nil {
+		log.Println("SetHtlcSize:", err)
+		return err
+	}
+
+	return nil
+}
+
+func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) {
+
+	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
+		return
+	}
+
+	params := &AutoFeeDefaults
+	if AutoFee[channelId] != nil {
+		// channel has custom parameters
+		params = AutoFee[channelId]
+	}
+
+	ctx := context.Background()
+	if myNodeId == "" {
+		// get my node id
+		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
+		if err != nil {
+			return
+		}
+		myNodeId = res.GetIdentityPubkey()
+	}
+	r, err := client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
+		ChanId: channelId,
+	})
+	if err != nil {
+		return
+	}
+
+	policy := r.Node1Policy
+	peerId := r.Node2Pub
+	if r.Node1Pub != myNodeId {
+		// the first policy is not ours, use the second
+		policy = r.Node2Policy
+		peerId = r.Node1Pub
+	}
+
+	oldFee := int(policy.FeeRateMilliMsat)
+	newFee := oldFee
+
+	if failedHTLC {
+		// increase fee to help prevent further failed HTLCs
+		newFee += params.FailedBumpPPM
+	} else {
+		// get balances
+		bytePeer, err := hex.DecodeString(peerId)
+		if err != nil {
+			return
+		}
+
+		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+			PublicOnly: true,
+			Peer:       bytePeer,
+		})
+		if err != nil {
+			return
+		}
+
+		localBalance := int64(0)
+		for _, ch := range res.Channels {
+			if ch.ChanId == channelId {
+				if ch.UnsettledBalance != 0 {
+					// skip af while htlcs are pending
+					return
+				}
+				localBalance = ch.LocalBalance
+				break
+			}
+		}
+
+		liqPct := int(localBalance * 100 / r.Capacity)
+
+		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+			// set discount
+			SetFeeRate(peerId, channelId, int64(params.LowLiqDiscount), true, false)
+		}
+
+		newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
+	}
+
+	// set the new rate
+	if newFee != oldFee {
+		if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+			// log the last change
+			AutoFeeLog[channelId] = &AutoFeeEvent{
+				TimeStamp: time.Now().Unix(),
+				OldRate:   oldFee,
+				NewRate:   newFee,
+			}
+			// persist to db
+			db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+		}
+	}
+}
+
+func ApplyAutoFeeAll() {
+
+	if !AutoFeeEnabledAll {
+		return
+	}
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+		ActiveOnly: true,
+	})
+	if err != nil {
+		return
+	}
+
+	for _, ch := range res.Channels {
+		ApplyAutoFee(client, ch.ChanId, false)
+	}
 }

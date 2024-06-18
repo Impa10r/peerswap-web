@@ -4,27 +4,29 @@
       <div class="columns">
         <div class="column">
           <div class="box">
-            <div class="columns">
-              <div class="column">
-                <h4 class="title is-4" style="white-space: nowrap">
-                  <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a href="/bitcoin">Bitcoin:</a>&nbsp<span id="scramble">{{fmt .BitcoinBalance}}</span>
-                  <small><small><small><span title="Bitcoin swaps {{if and .AllowSwapRequests .BitcoinSwaps}}enabled">✔️{{else}}disabled">❌{{end}}</span></small></small></small>
-                </h4>
-              </div>
-              <div class="column">
-                <h4 class="title is-4" style="white-space: nowrap">
-                  🌊&nbsp<a href="/liquid">Liquid:</a>&nbsp<span id="scramble">{{fmt .LiquidBalance}}</span>
-                  {{if .PeginPending}}
-                    <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
-                  {{else}}
-                    <small><small><small><span title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span></small></small></small>
-                  {{end}}
-                  {{if .AutoSwapEnabled}}
-                    <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
-                  {{end}}
-                </h4> 
-              </div> 
-            </div>
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <td style="padding: 0px; text-align: left;">
+                  <h4 class="title is-4" style="white-space: nowrap">
+                    <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
+                    <span style="font-size: 0.7em;" title="Bitcoin swaps {{if and .AllowSwapRequests .BitcoinSwaps}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                  </h4>
+                </td>
+                <td style="padding: 0px; text-align: left;">
+                  <h4 class="title is-4" style="white-space: nowrap">
+                    🌊&nbsp<a title="On-chain L-BTC balance" href="/liquid" id="scramble">{{fmt .LiquidBalance}}</a>
+                    {{if .PeginPending}}
+                      <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
+                    {{else}}
+                      <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                    {{end}}
+                    {{if .AutoSwapEnabled}}
+                      <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
+                    {{end}}
+                  </h4> 
+                </td>
+              </tr> 
+            </table>
           </div>          
           <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
@@ -52,7 +54,7 @@
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
                   {{if .Filter}}
-                    <h4><a title="Clear filters" href="/">🔍</a></h4>
+                    <h4 style="transform: scale(1.5)"><a title="Clear filters" href="/">🔍</a></h4>
                   {{end}}
                 </div>
               </div>

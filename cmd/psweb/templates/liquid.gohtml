@@ -6,7 +6,7 @@
           <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto;">
               <div style="text-align: left;">
-                <h4 class="title is-4" style="white-space: nowrap">🌊&nbspLiquid:&nbsp{{fmt .LiquidBalance}}</h4>
+                <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 <button title="Backup Elements wallet" class="button is-small" onclick="window.location.href = '/backup';">Backup</button>
@@ -14,19 +14,30 @@
             </div>
           </div>       
           <div class="box has-text-left">
-             <h4 class="title is-4">Automatic Swap-Ins</h4> 
-             <form autocomplete="off" action="/submit" method="post">
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: .5em;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Liquid Auto Swap-In</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                {{if .AutoSwapEnabled}}
+                  <p style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                    ON
+                  </p>
+                {{else}}
+                  <p style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                    OFF
+                  </p>
+                {{end}}
+              </div>
+            </div>
+            <form autocomplete="off" action="/submit" method="post">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
                   <label title="Wait for the accumulated Liquid balance to reach this amount" class="label">Threshold Amount</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" name="thresholdAmount" min="100000" value={{.AutoSwapThresholdAmount}} required placeholder="🌊 Liquid Amount (sats)">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" name="thresholdAmount" min="100000" value={{.AutoSwapThresholdAmount}} required placeholder="🌊 Liquid Amount (sats)">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -34,11 +45,7 @@
                   <label title="Minimum required channel's historic revenue PPM" class="label">Threshold PPM</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" name="thresholdPPM" min="0" value={{.AutoSwapThresholdPPM}} required placeholder="Historic PPM Revenue (sats)">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" name="thresholdPPM" min="0" value={{.AutoSwapThresholdPPM}} required placeholder="Historic PPM Revenue (sats)">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -46,11 +53,7 @@
                   <label title="Target local balance as % of capacity" class="label">Target Balance Pct</label>
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <p>
-                      <input class="input is-medium" type="number" name="targetPct" min="1" max="99" step="1" value={{.AutoSwapTargetPct}} required placeholder="50 percent">
-                    </p>
-                  </div>
+                  <input class="input is-medium" type="number" name="targetPct" min="1" max="99" step="1" value={{.AutoSwapTargetPct}} required placeholder="50 percent">
                 </div>
               </div>
               <div class="field is-horizontal">
@@ -69,13 +72,11 @@
                 <div class="field-label is-normal">
                 </div>
                 <div class="field-body">
-                  <div class="field">
-                    <div class="control">
-                      <label class="checkbox is-large">
-                        <input type="checkbox" name="autoSwapEnabled" {{if .AutoSwapEnabled}}checked{{end}}>
-                        <strong>&nbsp&nbspEnable Automatic Liquid Swap-Ins 🤖</strong>
-                      </label>
-                    </div>
+                  <div class="control">
+                    <label class="checkbox is-large">
+                      <input type="checkbox" name="autoSwapEnabled" {{if .AutoSwapEnabled}}checked{{end}}>
+                      <strong>&nbsp&nbspEnable Liquid Auto Swap-In</strong>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -97,11 +98,7 @@
                     <label class="label">Address</label>
                   </div>
                   <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
-                      </p>
-                    </div>
+                    <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
                   </div>
                 </div>
                 <div class="field is-horizontal">
@@ -109,11 +106,7 @@
                     <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
                   </div>
                   <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
-                      </p>
-                    </div>
+                    <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
                   </div>
                 </div>
                 <div class="field is-horizontal">
@@ -121,10 +114,18 @@
                     <label title="Internal comment" class="label">Comment</label>
                   </div>
                   <div class="field-body">
-                    <div class="field">
-                      <p>
-                        <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
-                      </p>
+                    <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                  </div>
+                  <div class="field-body">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" id="subtractfee" name="subtractfee">
+                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -132,27 +133,11 @@
                   <div class="field-label is-normal">
                   </div>
                   <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" id="subtractfee" name="subtractfee">
-                          <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                  </div>
-                  <div class="field-body">
-                    <div class="field">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
-                          <strong>&nbsp&nbspIgnore Blind Fail</strong>
-                        </label>
-                      </div>
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
+                        <strong>&nbsp&nbspIgnore Blind Fail</strong>
+                      </label>
                     </div>
                   </div>
                 </div>

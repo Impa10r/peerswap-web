@@ -190,7 +190,11 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 	// Search section
 	if sectionIndex := strings.Index(fileContent, "["+section+"]"); sectionIndex > -1 {
 		lines := strings.Split(string(fileContent[sectionIndex:]), "\n")
-		for _, line := range lines {
+		for i, line := range lines {
+			if i > 0 && strings.HasPrefix(line, "[") {
+				// end of section reached
+				break
+			}
 			if parts := strings.Split(line, "="); len(parts) > 1 {
 				if parts[0] == searchVariable {
 					// Remove double quotes
