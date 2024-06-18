@@ -1050,8 +1050,7 @@ func SubscribeAll() {
 		downloadForwards(client)
 		// subscribe to Forwards
 		for {
-			if err := subscribeForwards(ctx, routerClient); err != nil {
-				log.Println("Forwards subscription error:", err)
+			if subscribeForwards(ctx, routerClient) != nil {
 				time.Sleep(60 * time.Second)
 			}
 		}
@@ -1063,8 +1062,7 @@ func SubscribeAll() {
 
 		// subscribe to Payments
 		for {
-			if err := subscribePayments(ctx, routerClient); err != nil {
-				log.Println("Payments subscription error:", err)
+			if subscribePayments(ctx, routerClient) != nil {
 				time.Sleep(60 * time.Second)
 			}
 		}
@@ -1074,8 +1072,7 @@ func SubscribeAll() {
 
 	// subscribe to Invoices
 	for {
-		if err := subscribeInvoices(ctx, client); err != nil {
-			log.Println("Invoices subscription error:", err)
+		if subscribeInvoices(ctx, client) != nil {
 			time.Sleep(60 * time.Second)
 		}
 	}

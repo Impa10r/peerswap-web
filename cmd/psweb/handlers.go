@@ -1155,8 +1155,6 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		IsPossibleHTTPS: os.Getenv("NO_HTTPS") == "",
 	}
 
-	log.Println(os.Getenv("NO_HTTPS"))
-
 	// executing template named "config"
 	err := templates.ExecuteTemplate(w, "config", data)
 	if err != nil {
@@ -1502,9 +1500,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			// apply the new fees
-			ln.ApplyAutoFeeAll()
-
 			// all done, display confirmation
 			http.Redirect(w, r, "/af?id="+r.FormValue("channelId")+"&msg="+msg, http.StatusSeeOther)
 			return
@@ -1566,8 +1561,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			if isEnabled {
 				msg += "Enabled"
-				// apply the new fees
-				ln.ApplyAutoFeeAll()
 			} else {
 				msg += "Disabled"
 			}
@@ -1939,36 +1932,38 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		secureConnection, err := strconv.ParseBool(r.FormValue("secureConnection"))
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
+		if os.Getenv("NO_HTTPS") != "true" {
+			secureConnection, err := strconv.ParseBool(r.FormValue("secureConnection"))
+			if err != nil {
+				redirectWithError(w, r, "/config?", err)
+				return
+			}
 
-		// display CA certificate installation instructions
-		if secureConnection && !config.Config.SecureConnection {
-			config.Config.ServerIPs = r.FormValue("serverIPs")
-			config.Save()
-			http.Redirect(w, r, "/ca", http.StatusSeeOther)
-			return
-		}
+			// display CA certificate installation instructions
+			if secureConnection && !config.Config.SecureConnection {
+				config.Config.ServerIPs = r.FormValue("serverIPs")
+				config.Save()
+				http.Redirect(w, r, "/ca", http.StatusSeeOther)
+				return
+			}
 
-		if r.FormValue("serverIPs") != config.Config.ServerIPs {
-			config.Config.ServerIPs = r.FormValue("serverIPs")
-			if secureConnection {
-				if err := config.GenerateServerCertificate(); err == nil {
-					restart(w, r, true, config.Config.Password)
-				} else {
-					log.Println("GenereateServerCertificate:", err)
-					redirectWithError(w, r, "/config?", err)
-					return
+			if r.FormValue("serverIPs") != config.Config.ServerIPs {
+				config.Config.ServerIPs = r.FormValue("serverIPs")
+				if secureConnection {
+					if err := config.GenerateServerCertificate(); err == nil {
+						restart(w, r, true, config.Config.Password)
+					} else {
+						log.Println("GenereateServerCertificate:", err)
+						redirectWithError(w, r, "/config?", err)
+						return
+					}
 				}
 			}
-		}
 
-		if !secureConnection && config.Config.SecureConnection {
-			// restart to listen on HTTP only
-			restart(w, r, false, "")
+			if !secureConnection && config.Config.SecureConnection {
+				// restart to listen on HTTP only
+				restart(w, r, false, "")
+			}
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))

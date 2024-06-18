@@ -1,5 +1,10 @@
 # Versions
 
+## 1.5.4
+
+- Speedup saving Auto Fees settings
+- Hide HTTPS option for Umbrel
+
 ## 1.5.3
 
 - Add automatic channel fees management
