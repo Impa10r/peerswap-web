@@ -402,7 +402,7 @@ Sincerely,
             </table>  
             <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
               <tr>
-                <th title="Channel Capacity" style="text-align: center">Capacity</th>
+                <th title="Channel capacity / Local balance as % of capacity" style="text-align: center">Cap / Local</th>
                 <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
                 <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
                 <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
@@ -410,7 +410,10 @@ Sincerely,
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="Channel Id: {{.ChannelId}}, Capacity: {{fmt .Capacity}} sats" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+                  <td title="Channel Id: {{.ChannelId}}
+Capacity: {{fmt .Capacity}}
+Local: {{fmt .LocalBalance}}
+Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{m .Capacity}}/{{.LocalPct}}%</td>
                   {{if .Active}}
                     <td style="padding: 0px; text-align: center">
                       <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
@@ -442,7 +445,7 @@ Sincerely,
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -453,48 +456,9 @@ Sincerely,
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="submitForm('{{.ChannelId}}_inboundbase')">
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
-                    <tr style="border: 1px dotted">
-                      <td colspan="5" style="text-align: center; padding: 0px;">
-                        <table style="width:100%; table-layout:fixed; padding: 0px;">
-                          <tr>
-                            <td title="Local balance as % of capacity" style="text-align: center; padding: 0px;">
-                              {{.LocalPct}}% local
-                            </td>
-                            <td title="Min HTLC Size Sats" style="text-align: right; padding: 0px; padding-right: 1em;">
-                              Min HTLC:
-                            </td>
-                            <td style="padding: 0px;">
-                              <form id="{{.ChannelId}}_minhtlc" autocomplete="off" action="/submit" method="post">
-                                <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                                <input type="hidden" name="action" value="setHtlcSize">
-                                <input type="hidden" name="minMax" value="min">
-                                <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                                <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                                <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                                <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="size" value="{{.OurMinHtlc}}" onchange="submitForm('{{.ChannelId}}_minhtlc')">
-                              </form>
-                            </td>
-                            <td style="text-align: right; padding: 0px; padding-right: 1em;">
-                              Max HTLC:
-                            </td>
-                            <td title="Max HTLC Size Sats" style="padding: 0px;">
-                              <form id="{{.ChannelId}}_maxhtlc" autocomplete="off" action="/submit" method="post">
-                                <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                                <input type="hidden" name="action" value="setHtlcSize">
-                                <input type="hidden" name="minMax" value="max">
-                                <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                                <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                                <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                                <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="size" value="{{.OurMaxHtlc}}" onchange="submitForm('{{.ChannelId}}_maxhtlc')">
-                              </form>
-                            </td>
-                          </tr>
-                        </table>
-                      </td>
-                    </tr>
                     {{if ne .AutoFeeLog ""}}
                       <tr style="border: 1px dotted">
                         <td colspan="5" style="text-align: center; padding: 0px;">

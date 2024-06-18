@@ -434,6 +434,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OutputsLBTC       *[]liquid.UTXO
 		ReserveLBTC       uint64
 		ReserveBTC        uint64
+		HasInboundFees    bool
 	}
 
 	feeRate := liquid.EstimateFee()
@@ -478,6 +479,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OutputsLBTC:       &utxosLBTC,
 		ReserveLBTC:       ln.SwapFeeReserveLBTC,
 		ReserveBTC:        ln.SwapFeeReserveBTC,
+		HasInboundFees:    ln.HasInboundFees(),
 	}
 
 	// executing template named "peer"
@@ -1588,7 +1590,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			inbound := r.FormValue("direction") == "inbound"
 
 			if inbound {
-				if ln.Implementation == "CLN" || !ln.CanRBF() {
+				if !ln.HasInboundFees() {
 					// CLN and LND < 0.18 cannot set inbound fees
 					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
