@@ -297,7 +297,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 		}
 	}
 	// display the error to the web page header
-	msg := url.QueryEscape(t)
+	msg := url.QueryEscape(strings.ReplaceAll(t, `"`, `'`))
 	http.Redirect(w, r, redirectUrl+"err="+msg, http.StatusSeeOther)
 }
 
@@ -1466,7 +1466,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 			rates += " to " + formatWithThousandSeparators(uint64(feeLog.NewRate))
 		}
 
-		t += "<a title=\"Auto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
+		t += "<a title=\"" + strings.Title(direction) + " fee PPM\nAuto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
 	} else {
 		t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
 		t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`

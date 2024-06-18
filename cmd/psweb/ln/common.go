@@ -134,7 +134,7 @@ var (
 		ExcessPct:         75,
 		ExcessRate:        50,
 		InactivityDays:    7,
-		InactivityDropPPM: 10,
+		InactivityDropPPM: 5,
 		InactivityDropPct: 5,
 		CoolOffHours:      12,
 		LowLiqDiscount:    0,
