@@ -209,7 +209,7 @@
                     </div>
                     <div class="field-body">
                       <div class="select is-medium is-fullwidth">
-                        <select id="secureConnection" name="secureConnection">
+                        <select id="secureConnection" name="secureConnection"{{if not .IsPossibleHTTPS}} disabled{{end}}>
                           <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enable</option>
                           <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disable</option>
                         </select>
@@ -221,7 +221,7 @@
                       <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs **</label>
                     </div>
                     <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
+                      <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1"{{if not .IsPossibleHTTPS}} disabled{{end}}>
                     </div>
                   </div>
                 </div>

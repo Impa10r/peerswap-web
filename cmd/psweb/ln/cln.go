@@ -14,6 +14,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -1109,5 +1110,79 @@ func ApplyAutoFeeAll() {
 		return
 	}
 
+	CacheForwards()
+
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	var response map[string]interface{}
+
+	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
+		return
+	}
+
+	// Iterate over channels to set fees
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+
+		if channelMap["state"].(string) != "CHANNELD_NORMAL" ||
+			channelMap["peer_connected"].(bool) == false ||
+			channelMap["short_channel_id"] == nil {
+			continue
+		}
+
+		channelId := ConvertClnToLndChannelId(channelMap["short_channel_id"].(string))
+
+		if !AutoFeeEnabled[channelId] {
+			// not enabled
+			continue
+		}
+
+		params := &AutoFeeDefaults
+		if AutoFee[channelId] != nil {
+			// channel has custom parameters
+			params = AutoFee[channelId]
+		}
+
+		oldFee := int(channelMap["fee_proportional_millionths"].(float64))
+		newFee := oldFee
+
+		// check 10 minutes back to be sure
+		if params.FailedBumpPPM > 0 {
+			if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+				// bump fee
+				newFee += params.FailedBumpPPM
+				// forget failed HTLC
+				failedForwardTS[channelId] = 0
+			}
+		}
+
+		if newFee == oldFee {
+			liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
+			newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
+		}
+
+		// set the new rate
+		if newFee != oldFee {
+			peerId := channelMap["peer_id"].(string)
+			if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+				// log the last change
+				AutoFeeLog[channelId] = &AutoFeeEvent{
+					TimeStamp: time.Now().Unix(),
+					OldRate:   oldFee,
+					NewRate:   newFee,
+				}
+				// persist to db
+				db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+			}
+		}
+	}
 }
-func ApplyAutoFee() {}
+
+func ApplyAutoFee() {
+	// not implemented
+}

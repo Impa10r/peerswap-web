@@ -402,7 +402,8 @@ Sincerely,
             </table>  
             <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
               <tr>
-                <th title="Channel capacity / Local balance as % of capacity" style="text-align: center">Cap / Local</th>
+                <th title="Channel capacity" style="text-align: center">Capacity</th>
+                <th title="Local balance as % of capacity" style="text-align: center">Local</th>
                 <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
                 <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
                 <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
@@ -411,9 +412,9 @@ Sincerely,
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
                   <td title="Channel Id: {{.ChannelId}}
-Capacity: {{fmt .Capacity}}
-Local: {{fmt .LocalBalance}}
-Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{m .Capacity}}/{{.LocalPct}}%</td>
+Capacity: {{fmt .Capacity}}" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+<td title="Local: {{fmt .LocalBalance}}
+Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.LocalPct}}%</td>
                   {{if .Active}}
                     <td style="padding: 0px; text-align: center">
                       <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
@@ -445,7 +446,7 @@ Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{m .Ca
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
                     <td style="padding: 0px; text-align: center">
@@ -456,12 +457,12 @@ Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{m .Ca
                         <input type="hidden" name="direction" value="inbound">
                         <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
                         <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
+                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
                     {{if ne .AutoFeeLog ""}}
                       <tr style="border: 1px dotted">
-                        <td colspan="5" style="text-align: center; padding: 0px;">
+                        <td colspan="6" style="text-align: center; padding: 0px;">
                           {{.AutoFeeLog}}
                         </td>
                       </tr>

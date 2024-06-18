@@ -1128,30 +1128,34 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Authenticated  bool
-		ErrorMessage   string
-		PopUpMessage   string
-		MempoolFeeRate float64
-		ColorScheme    string
-		Config         config.Configuration
-		Version        string
-		Latest         string
-		Implementation string
-		HTTPS          string
+		Authenticated   bool
+		ErrorMessage    string
+		PopUpMessage    string
+		MempoolFeeRate  float64
+		ColorScheme     string
+		Config          config.Configuration
+		Version         string
+		Latest          string
+		Implementation  string
+		HTTPS           string
+		IsPossibleHTTPS bool // disabled on Umbrel
 	}
 
 	data := Page{
-		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:   errorMessage,
-		PopUpMessage:   "",
-		MempoolFeeRate: mempoolFeeRate,
-		ColorScheme:    config.Config.ColorScheme,
-		Config:         config.Config,
-		Version:        version,
-		Latest:         latestVersion,
-		Implementation: ln.Implementation,
-		HTTPS:          "https://" + hostname + ".local:" + config.Config.SecurePort,
+		Authenticated:   config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:    errorMessage,
+		PopUpMessage:    "",
+		MempoolFeeRate:  mempoolFeeRate,
+		ColorScheme:     config.Config.ColorScheme,
+		Config:          config.Config,
+		Version:         version,
+		Latest:          latestVersion,
+		Implementation:  ln.Implementation,
+		HTTPS:           "https://" + hostname + ".local:" + config.Config.SecurePort,
+		IsPossibleHTTPS: os.Getenv("NO_HTTPS") == "",
 	}
+
+	log.Println(os.Getenv("NO_HTTPS"))
 
 	// executing template named "config"
 	err := templates.ExecuteTemplate(w, "config", data)
