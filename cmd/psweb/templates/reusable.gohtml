@@ -85,6 +85,14 @@
                 event.stopPropagation();
                 dropdown.classList.toggle('is-active');
                 });
+
+                // Close the dropdown if the user clicks outside of it
+                window.onclick = function(event) {
+                    if (!event.target.matches('.dropdown-content')) {
+                        var dropdown = document.querySelector('.dropdown');
+                        dropdown.classList.remove('is-active');
+                    }
+                }
             </script>  
         </header>
         <section class="section">
