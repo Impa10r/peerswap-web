@@ -1402,6 +1402,11 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println(r.Form)
 
 				s := r.FormValue("failBump")
+
+				log.Println(s)
+
+				log.Println(r.Form["failBump"][0])
+
 				failedBumpPPM, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
@@ -1477,8 +1482,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
-
-				log.Println(r.Form)
 
 				// channelId == 0 means default rule
 				msg = "Default rule updated"
