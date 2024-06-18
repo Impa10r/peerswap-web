@@ -1398,70 +1398,78 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			msg := ""
 
 			if r.FormValue("update_button") != "" {
-
-				log.Println(r.Form)
-
-				failedBumpPPM, err := strconv.Atoi(r.FormValue("failBump"))
+				s := r.FormValue("failBump")
+				failedBumpPPM, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				lowLiqPct, err := strconv.Atoi(r.FormValue("lowLiqPct"))
+				s = r.FormValue("lowLiqPct")
+				lowLiqPct, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				lowLiqRate, err := strconv.Atoi(r.FormValue("lowLiqRate"))
+				s = r.FormValue("lowLiqRate")
+				lowLiqRate, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				normalRate, err := strconv.Atoi(r.FormValue("normalRate"))
+				s = r.FormValue("normalRate")
+				normalRate, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				excessPct, err := strconv.Atoi(r.FormValue("excessPct"))
+				s = r.FormValue("excessPct")
+				excessPct, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				excessRate, err := strconv.Atoi(r.FormValue("excessRate"))
+				s = r.FormValue("excessRate")
+				excessRate, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				inactivityDays, err := strconv.Atoi(r.FormValue("inactivityDays"))
+				s = r.FormValue("inactivityDays")
+				inactivityDays, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				inactivityDropPPM, err := strconv.Atoi(r.FormValue("inactivityDropPPM"))
+				s = r.FormValue("inactivityDropPPM")
+				inactivityDropPPM, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				inactivityDropPct, err := strconv.Atoi(r.FormValue("inactivityDropPct"))
+				s = r.FormValue("inactivityDropPct")
+				inactivityDropPct, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				coolOffHours, err := strconv.Atoi(r.FormValue("coolOffHours"))
+				s = r.FormValue("coolOffHours")
+				coolOffHours, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
 				}
 
-				lowLiqDiscount, err := strconv.Atoi(r.FormValue("lowLiqDiscount"))
+				s = r.FormValue("lowLiqDiscount")
+				lowLiqDiscount, err := strconv.Atoi(s)
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
 					return
