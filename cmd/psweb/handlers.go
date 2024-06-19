@@ -375,7 +375,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 				rates = "*" + rates
 			}
 
-			feeLog := ln.AutoFeeLog[ch.ChannelId]
+			feeLog := ln.LastAutoFeeLog(ch.ChannelId, false)
 			if feeLog != nil {
 				rates += ", last update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
 				rates += " from " + formatWithThousandSeparators(uint64(feeLog.OldRate))

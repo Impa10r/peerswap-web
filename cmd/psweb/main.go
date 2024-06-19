@@ -348,7 +348,7 @@ func onTimer() {
 	go ln.SubscribeAll()
 
 	// execute auto fee
-	ln.ApplyAutoFeeAll()
+	go ln.ApplyAutoFeeAll()
 }
 
 func liquidBackup(force bool) {
@@ -1459,14 +1459,27 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 			rates = "*" + rates
 		}
 
-		feeLog := ln.AutoFeeLog[channelId]
+		change := "&nbsp"
+		feeLog := ln.LastAutoFeeLog(channelId, direction == "inbound")
 		if feeLog != nil {
 			rates += "\nLast update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
-			rates += "\nFrom " + formatWithThousandSeparators(uint64(feeLog.OldRate))
-			rates += " to " + formatWithThousandSeparators(uint64(feeLog.NewRate))
+			rates += "\nFrom " + formatSigned(int64(feeLog.OldRate))
+			rates += " to " + formatSigned(int64(feeLog.NewRate))
+			if feeLog.TimeStamp > time.Now().Add(-24*time.Hour).Unix() {
+				if feeLog.NewRate > feeLog.OldRate {
+					if config.Config.ColorScheme == "dark" {
+						change = `<span style="color: lightgreen">⬆</span>`
+					} else {
+						change = `<span style="color: green">⬆</span>`
+					}
+
+				} else {
+					change = `<span style="color: red">⬇</span>`
+				}
+			}
 		}
 
-		t += "<a title=\"" + strings.Title(direction) + " fee PPM\nAuto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>"
+		t += "<a title=\"" + strings.Title(direction) + " fee PPM\nAuto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>" + change
 	} else {
 		t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
 		t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`

@@ -19,7 +19,6 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/db"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
@@ -74,8 +73,9 @@ var (
 	lastInvoiceSettleIndex uint64
 
 	// last timestamps for downloads
-	lastforwardCreationTs uint64
+	lastForwardCreationTs uint64
 	lastPaymentCreationTs int64
+	lastInvoiceCreationTs int64
 
 	// default lock id used by LND
 	internalLockId = []byte{
@@ -694,14 +694,65 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
+func downloadInvoices(client lnrpc.LightningClient) {
+	// only go back 6 months for itinial download
+	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	offset := uint64(0)
+	totalInvoices := uint64(0)
+
+	// incremental download
+	if lastInvoiceCreationTs > 0 {
+		start = uint64(lastInvoiceCreationTs) + 1
+	}
+
+	for {
+		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
+			CreationDateStart: start,
+			Reversed:          false,
+			IndexOffset:       offset,
+			NumMaxInvoices:    100, // bolt11 fields can be long
+		})
+		if err != nil {
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") {
+				log.Println("ListInvoices:", err)
+			}
+			return
+		}
+
+		for _, invoice := range res.Invoices {
+			appendInvoice(invoice)
+		}
+
+		n := len(res.Invoices)
+		totalInvoices += uint64(n)
+
+		if n > 0 {
+			// settle index for subscription
+			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
+		}
+		if n < 100 {
+			// all invoices retrieved
+			break
+		}
+
+		// next pull start from the next index
+		offset = res.LastIndexOffset
+	}
+
+	if totalInvoices > 0 {
+		log.Printf("Cached %d invoices", totalInvoices)
+	}
+
+}
+
 func downloadForwards(client lnrpc.LightningClient) {
 	// only go back 6 months
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	// incremental download if substription was interrupted
-	if lastforwardCreationTs > 0 {
+	if lastForwardCreationTs > 0 {
 		// continue from the last timestamp in seconds
-		start = lastforwardCreationTs + 1
+		start = lastForwardCreationTs + 1
 	}
 
 	// download forwards
@@ -734,7 +785,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 		if n > 0 {
 			// store the last timestamp
-			lastforwardCreationTs = res.ForwardingEvents[n-1].TimestampNs / 1_000_000_000
+			lastForwardCreationTs = res.ForwardingEvents[n-1].TimestampNs / 1_000_000_000
 		}
 		if n < 50000 {
 			// all events retrieved
@@ -932,7 +983,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					// settled htlcEvent has no Outgoing info, take from queue
 					forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 					// store the last timestamp
-					lastforwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
+					lastForwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
 					// delete from queue
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
@@ -948,6 +999,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					}
 					defer cleanup()
 
+					// calculate with new balance
 					ApplyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
 					break
 				}
@@ -1000,70 +1052,34 @@ func SubscribeAll() {
 	client := lnrpc.NewLightningClient(conn)
 	ctx := context.Background()
 
-	// only go back 6 months for itinial download
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
-	offset := uint64(0)
-	totalInvoices := uint64(0)
-
-	for {
-		res, err := client.ListInvoices(ctx, &lnrpc.ListInvoiceRequest{
-			CreationDateStart: start,
-			Reversed:          false,
-			IndexOffset:       offset,
-			NumMaxInvoices:    100, // bolt11 fields can be long
-		})
-		if err != nil {
-			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") {
-				log.Println("ListInvoices:", err)
-			}
-			return
-		}
-
-		for _, invoice := range res.Invoices {
-			appendInvoice(invoice)
-		}
-
-		n := len(res.Invoices)
-		totalInvoices += uint64(n)
-
-		if n > 0 {
-			// settle index for subscription
-			lastInvoiceSettleIndex = res.Invoices[n-1].SettleIndex
-		}
-		if n < 100 {
-			// all invoices retrieved
-			break
-		}
-
-		// next pull start from the next index
-		offset = res.LastIndexOffset
-	}
-
-	if totalInvoices > 0 {
-		log.Printf("Cached %d invoices", totalInvoices)
-	}
+	// initial download
+	downloadInvoices(client)
 
 	routerClient := routerrpc.NewRouterClient(conn)
 
 	go func() {
-		// initial or incremental download forwards
+		// initial download forwards
 		downloadForwards(client)
 		// subscribe to Forwards
 		for {
 			if subscribeForwards(ctx, routerClient) != nil {
 				time.Sleep(60 * time.Second)
+				// incremental download after error
+				downloadForwards(client)
 			}
 		}
 	}()
 
 	go func() {
-		// initial or incremental download payments
+		// initial download payments
 		downloadPayments(client)
 
 		// subscribe to Payments
 		for {
 			if subscribePayments(ctx, routerClient) != nil {
 				time.Sleep(60 * time.Second)
+				// incremental download after error
+				downloadPayments(client)
 			}
 		}
 	}()
@@ -1074,6 +1090,8 @@ func SubscribeAll() {
 	for {
 		if subscribeInvoices(ctx, client) != nil {
 			time.Sleep(60 * time.Second)
+			// incremental download after error
+			downloadInvoices(client)
 		}
 	}
 }
@@ -1083,6 +1101,10 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 		// precaution
 		return
 	}
+
+	// save for incremental downloads
+	lastInvoiceCreationTs = invoice.CreationDate
+
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
 		if parts := strings.Split(invoice.Memo, " "); len(parts) > 4 {
@@ -1683,44 +1705,37 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 
 	oldFee := int(policy.FeeRateMilliMsat)
 	newFee := oldFee
+	// get balances
+	bytePeer, err := hex.DecodeString(peerId)
+	if err != nil {
+		return
+	}
 
-	if failedHTLC {
+	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+		Peer: bytePeer,
+	})
+	if err != nil {
+		return
+	}
+
+	localBalance := int64(0)
+	for _, ch := range res.Channels {
+		if ch.ChanId == channelId {
+			if ch.UnsettledBalance != 0 {
+				// skip af while htlcs are pending
+				return
+			}
+			localBalance = ch.LocalBalance
+			break
+		}
+	}
+
+	liqPct := int(localBalance * 100 / r.Capacity)
+
+	if failedHTLC && liqPct < params.LowLiqPct {
 		// increase fee to help prevent further failed HTLCs
 		newFee += params.FailedBumpPPM
 	} else {
-		// get balances
-		bytePeer, err := hex.DecodeString(peerId)
-		if err != nil {
-			return
-		}
-
-		res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
-			PublicOnly: true,
-			Peer:       bytePeer,
-		})
-		if err != nil {
-			return
-		}
-
-		localBalance := int64(0)
-		for _, ch := range res.Channels {
-			if ch.ChanId == channelId {
-				if ch.UnsettledBalance != 0 {
-					// skip af while htlcs are pending
-					return
-				}
-				localBalance = ch.LocalBalance
-				break
-			}
-		}
-
-		liqPct := int(localBalance * 100 / r.Capacity)
-
-		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
-			// set discount
-			SetFeeRate(peerId, channelId, int64(params.LowLiqDiscount), true, false)
-		}
-
 		newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
 	}
 
@@ -1728,22 +1743,26 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 	if newFee != oldFee {
 		if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
 			// log the last change
-			AutoFeeLog[channelId] = &AutoFeeEvent{
-				TimeStamp: time.Now().Unix(),
-				OldRate:   oldFee,
-				NewRate:   newFee,
-			}
-			// persist to db
-			db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+			LogAutoFee(channelId, oldFee, newFee, false)
 		}
+	}
+
+	// set inbound fee
+	if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+		// set discount
+		SetFeeRate(peerId, channelId, int64(params.LowLiqDiscount), true, false)
+		// log the last change
+		LogAutoFee(channelId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true)
 	}
 }
 
 func ApplyAutoFeeAll() {
 
-	if !AutoFeeEnabledAll {
+	if !AutoFeeEnabledAll || autoFeeApplyAllIsRunning {
 		return
 	}
+
+	autoFeeApplyAllIsRunning = true
 
 	client, cleanup, err := GetClient()
 	if err != nil {
@@ -1762,4 +1781,6 @@ func ApplyAutoFeeAll() {
 	for _, ch := range res.Channels {
 		ApplyAutoFee(client, ch.ChanId, false)
 	}
+
+	autoFeeApplyAllIsRunning = false
 }

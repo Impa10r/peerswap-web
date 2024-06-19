@@ -14,7 +14,6 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -1106,9 +1105,11 @@ func HasInboundFees() bool {
 }
 
 func ApplyAutoFeeAll() {
-	if !AutoFeeEnabledAll {
+	if !AutoFeeEnabledAll || autoFeeApplyAllIsRunning {
 		return
 	}
+
+	autoFeeApplyAllIsRunning = true
 
 	CacheForwards()
 
@@ -1150,9 +1151,10 @@ func ApplyAutoFeeAll() {
 
 		oldFee := int(channelMap["fee_proportional_millionths"].(float64))
 		newFee := oldFee
+		liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
 
 		// check 10 minutes back to be sure
-		if params.FailedBumpPPM > 0 {
+		if params.FailedBumpPPM > 0 && liqPct < params.LowLiqPct {
 			if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
 				// bump fee
 				newFee += params.FailedBumpPPM
@@ -1161,8 +1163,8 @@ func ApplyAutoFeeAll() {
 			}
 		}
 
+		// if no Fail Bump
 		if newFee == oldFee {
-			liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
 			newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
 		}
 
@@ -1171,16 +1173,12 @@ func ApplyAutoFeeAll() {
 			peerId := channelMap["peer_id"].(string)
 			if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
 				// log the last change
-				AutoFeeLog[channelId] = &AutoFeeEvent{
-					TimeStamp: time.Now().Unix(),
-					OldRate:   oldFee,
-					NewRate:   newFee,
-				}
-				// persist to db
-				db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+				LogAutoFee(channelId, oldFee, newFee, false)
 			}
 		}
 	}
+
+	autoFeeApplyAllIsRunning = false
 }
 
 func ApplyAutoFee() {

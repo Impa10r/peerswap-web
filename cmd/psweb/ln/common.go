@@ -1,6 +1,7 @@
 package ln
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -113,6 +114,7 @@ type AutoFeeEvent struct {
 	TimeStamp int64
 	OldRate   int
 	NewRate   int
+	IsInbound bool
 }
 
 var (
@@ -124,7 +126,7 @@ var (
 	AutoFeeEnabledAll bool
 	// maps to LND channel Id
 	AutoFee         = make(map[uint64]*AutoFeeParams)
-	AutoFeeLog      = make(map[uint64]*AutoFeeEvent)
+	AutoFeeLog      = make(map[uint64][]*AutoFeeEvent)
 	AutoFeeEnabled  = make(map[uint64]bool)
 	AutoFeeDefaults = AutoFeeParams{
 		FailedBumpPPM:     10,
@@ -142,6 +144,9 @@ var (
 
 	// track timestamp of the last outbound forward per channel
 	lastForwardTS = make(map[uint64]int64)
+
+	// prevents starting another fee update while the first still running
+	autoFeeApplyAllIsRunning = false
 )
 
 func toSats(amount float64) int64 {
@@ -224,7 +229,24 @@ func LoadAutoFees() {
 	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
 	db.Load("AutoFees", "AutoFee", &AutoFee)
 	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
-	db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
+
+	// drop non-array legacy log
+	var log map[uint64]interface{}
+	db.Load("AutoFees", "AutoFeeLog", &log)
+
+	if len(log) == 0 {
+		return
+	}
+
+	// Use reflection to determine the type
+	for _, data := range log {
+		v := reflect.ValueOf(data)
+		if v.Kind() == reflect.Slice {
+			// Type is map[uint64][]*AutoFeeEvent, load again
+			db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
+			return
+		}
+	}
 }
 
 func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {
@@ -232,8 +254,9 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 	if liqPct > params.LowLiqPct {
 		// normal or high liquidity regime, check if fee can be dropped
 		lastUpdate := int64(0)
-		if AutoFeeLog[channelId] != nil {
-			lastUpdate = AutoFeeLog[channelId].TimeStamp
+		lastLog := LastAutoFeeLog(channelId, false)
+		if lastLog != nil {
+			lastUpdate = lastLog.TimeStamp
 		}
 		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the last outbound timestamp
@@ -266,4 +289,27 @@ func msatToSatUp(msat uint64) uint64 {
 		sat++
 	}
 	return sat
+}
+
+// returns last log entry
+func LastAutoFeeLog(channelId uint64, isInbound bool) *AutoFeeEvent {
+	// Loop backwards through the array
+	for i := len(AutoFeeLog[channelId]) - 1; i >= 0; i-- {
+		if AutoFeeLog[channelId][i].IsInbound == isInbound {
+			return AutoFeeLog[channelId][i]
+		}
+	}
+
+	return nil
+}
+
+func LogAutoFee(channelId uint64, oldRate int, newRate int, isInbound bool) {
+	AutoFeeLog[channelId] = append(AutoFeeLog[channelId], &AutoFeeEvent{
+		TimeStamp: time.Now().Unix(),
+		OldRate:   oldRate,
+		NewRate:   newRate,
+		IsInbound: true,
+	})
+	// persist to db
+	db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
 }
