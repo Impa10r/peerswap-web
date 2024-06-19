@@ -1855,11 +1855,11 @@ func ApplyAutoFees() {
 			toSet := false
 			discountRate := int64(0)
 
-			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat > int32(params.LowLiqDiscount) {
-				// set inbound fee discount if larger than current
+			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+				// set inbound fee discount
 				discountRate = int64(params.LowLiqDiscount)
 				toSet = true
-			} else if liqPct >= params.LowLiqPct {
+			} else if liqPct >= params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
 				// remove discount unless it was manually set
 				if !LastAutoFeeLog(ch.ChanId, true).IsManual {
 					toSet = true
