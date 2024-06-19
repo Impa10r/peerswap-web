@@ -1803,7 +1803,7 @@ func ApplyAutoFees() {
 	}
 
 	for _, ch := range res.Channels {
-		if ch.UnsettledBalance != 0 {
+		if ch.UnsettledBalance != 0 || !AutoFeeEnabled[ch.ChanId] {
 			// skip af while htlcs are pending
 			continue
 		}

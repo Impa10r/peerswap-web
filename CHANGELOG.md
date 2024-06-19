@@ -2,11 +2,11 @@
 
 ## 1.5.4
 
-- Speedup saving Auto Fees settings
 - Hide HTTPS option for Umbrel
 - AF: apply HTLC Fail Bumps only when Local % <= Low Liq % 
 - AF: for HTLC Fails above Low Liq % allow increasing Low Liq % threshold
 - AF: log full fee changes history, including inbound
+- AF: reduce LND load when applying auto fees
 
 ## 1.5.3
 
