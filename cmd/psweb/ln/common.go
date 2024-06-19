@@ -88,6 +88,8 @@ type AutoFeeStatus struct {
 type AutoFeeParams struct {
 	// fee rate ppm increase after each "Insufficient Balance" HTLC failure
 	FailedBumpPPM int
+	// Move Low Liq % theshold after each 'Insufficient Balance' HTLC failure above it
+	FailedMoveThreshold int
 	// low local balance threshold where fee rates stay high
 	LowLiqPct int
 	// ppm rate when liquidity is below LowLiqPct
@@ -115,6 +117,7 @@ type AutoFeeEvent struct {
 	OldRate   int
 	NewRate   int
 	IsInbound bool
+	IsManual  bool
 }
 
 var (
@@ -303,13 +306,29 @@ func LastAutoFeeLog(channelId uint64, isInbound bool) *AutoFeeEvent {
 	return nil
 }
 
-func LogAutoFee(channelId uint64, oldRate int, newRate int, isInbound bool) {
+func LogFee(channelId uint64, oldRate int, newRate int, isInbound bool, isManual bool) {
 	AutoFeeLog[channelId] = append(AutoFeeLog[channelId], &AutoFeeEvent{
 		TimeStamp: time.Now().Unix(),
 		OldRate:   oldRate,
 		NewRate:   newRate,
 		IsInbound: isInbound,
+		IsManual:  isManual,
 	})
 	// persist to db
 	db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+}
+
+func moveLowLiqThreshold(channelId uint64, bump int) {
+	if bump == 0 {
+		return
+	}
+
+	if AutoFee[channelId] == nil {
+		// add custom parameters
+		AutoFee[channelId] = new(AutoFeeParams)
+	}
+
+	AutoFee[channelId].LowLiqPct += bump
+	// persist to db
+	db.Save("AutoFees", "AutoFee", AutoFee)
 }

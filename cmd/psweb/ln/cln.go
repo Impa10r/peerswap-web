@@ -1154,12 +1154,17 @@ func ApplyAutoFeeAll() {
 		liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
 
 		// check 10 minutes back to be sure
-		if params.FailedBumpPPM > 0 && liqPct < params.LowLiqPct {
-			if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+		if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+			// forget failed HTLC to prevent duplicate action
+			failedForwardTS[channelId] = 0
+
+			if liqPct <= params.LowLiqPct {
 				// bump fee
 				newFee += params.FailedBumpPPM
-				// forget failed HTLC
-				failedForwardTS[channelId] = 0
+			} else {
+				// move threshold or do nothing
+				moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
+				return
 			}
 		}
 
@@ -1173,7 +1178,7 @@ func ApplyAutoFeeAll() {
 			peerId := channelMap["peer_id"].(string)
 			if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
 				// log the last change
-				LogAutoFee(channelId, oldFee, newFee, false)
+				LogFee(channelId, oldFee, newFee, false, false)
 			}
 		}
 	}

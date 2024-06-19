@@ -1422,6 +1422,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
+				rule.FailedMoveThreshold, err = strconv.Atoi(r.FormValue("failedMoveThreshold"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
 				rule.LowLiqPct, err = strconv.Atoi(r.FormValue("lowLiqPct"))
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)

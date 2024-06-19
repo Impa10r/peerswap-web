@@ -127,12 +127,34 @@
                   </td>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure" class="label">Fail Bump</label>
+                      <label title="Inbound fee discount when liquidity is below Low Liq % (use negative value)" class="label">Low Liq Discount</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="lowLiqDiscount" max="0" required value="{{.Params.LowLiqDiscount}}" {{if not .HasInboundFees}}disabled{{end}}>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure below Low Liq threshold" class="label">Fail Bump</label>
                     </div>
                   </td>
                   <td>
                     <div class="field-body">
                       <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-label is-normal">
+                      <label title="Move Low Liq % theshold higher after each 'Insufficient Balance' HTLC failure above it" class="label">Fail % Move</label>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" name="failedMoveThreshold" min="0" required value="{{.Params.FailedMoveThreshold}}">
                     </div>
                   </td>
                 </tr>
@@ -180,20 +202,6 @@
                     </div>
                   </td>
                 </tr>
-                {{if .HasInboundFees}}
-                  <tr>
-                    <td>
-                      <div class="field-label is-normal">
-                        <label title="Inbound fee discount when liquidity is below Low Liq % (use negative value)" class="label">Low Liq Discount</label>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="field-body">
-                        <input class="input is-medium" type="number" name="lowLiqDiscount" max="0" required value="{{.Params.LowLiqDiscount}}">
-                      </div>
-                    </td> 
-                  </tr>
-                {{end}}
               </table>
               <div style="text-align: center;">
                 <input type="hidden" name="action" value="saveAutoFee">

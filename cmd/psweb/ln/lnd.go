@@ -1732,9 +1732,15 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 
 	liqPct := int(localBalance * 100 / r.Capacity)
 
-	if failedHTLC && liqPct < params.LowLiqPct {
-		// increase fee to help prevent further failed HTLCs
-		newFee += params.FailedBumpPPM
+	if failedHTLC {
+		if liqPct <= params.LowLiqPct {
+			// increase fee to help prevent further failed HTLCs
+			newFee += params.FailedBumpPPM
+		} else {
+			// move threshold or do nothing
+			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
+			return
+		}
 	} else {
 		newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
 	}
@@ -1743,7 +1749,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 	if newFee != oldFee {
 		if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
 			// log the last change
-			LogAutoFee(channelId, oldFee, newFee, false)
+			LogFee(channelId, oldFee, newFee, false, false)
 		}
 	}
 
@@ -1752,7 +1758,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		// set discount
 		SetFeeRate(peerId, channelId, int64(params.LowLiqDiscount), true, false)
 		// log the last change
-		LogAutoFee(channelId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true)
+		LogFee(channelId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true, false)
 	}
 }
 
