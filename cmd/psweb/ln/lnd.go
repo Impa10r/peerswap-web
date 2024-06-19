@@ -972,7 +972,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 				}
 				defer cleanup()
 
-				ApplyAutoFee(client, htlcEvent.OutgoingChannelId, true)
+				applyAutoFee(client, htlcEvent.OutgoingChannelId, true)
 			}
 
 		case *routerrpc.HtlcEvent_SettleEvent:
@@ -1001,7 +1001,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					defer cleanup()
 
 					// calculate with new balance
-					ApplyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
+					applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
 					break
 				}
 			}
@@ -1670,11 +1670,14 @@ func SetHtlcSize(peerNodeId string,
 	return nil
 }
 
-func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC bool) {
+// for failed HTLC only
+func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool) {
 
-	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
+	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] || autoFeeIsRunning {
 		return
 	}
+
+	autoFeeIsRunning = true
 
 	params := &AutoFeeDefaults
 	if AutoFee[channelId] != nil {
@@ -1687,6 +1690,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
+			autoFeeIsRunning = false
 			return
 		}
 		myNodeId = res.GetIdentityPubkey()
@@ -1695,6 +1699,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		ChanId: channelId,
 	})
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 
@@ -1708,9 +1713,11 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 
 	oldFee := int(policy.FeeRateMilliMsat)
 	newFee := oldFee
+
 	// get balances
 	bytePeer, err := hex.DecodeString(peerId)
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 
@@ -1718,6 +1725,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		Peer: bytePeer,
 	})
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 
@@ -1726,6 +1734,7 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		if ch.ChanId == channelId {
 			if ch.UnsettledBalance != 0 {
 				// skip af while htlcs are pending
+				autoFeeIsRunning = false
 				return
 			}
 			localBalance = ch.LocalBalance
@@ -1734,14 +1743,14 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 	}
 
 	liqPct := int(localBalance * 100 / r.Capacity)
-
-	if failedHTLC {
+	if htlcFail {
 		if liqPct <= params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
 			newFee += params.FailedBumpPPM
 		} else {
 			// move threshold or do nothing
 			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
+			autoFeeIsRunning = false
 			return
 		}
 	} else {
@@ -1756,40 +1765,93 @@ func ApplyAutoFee(client lnrpc.LightningClient, channelId uint64, failedHTLC boo
 		}
 	}
 
-	// set inbound fee
-	if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
-		// set discount
-		SetFeeRate(peerId, channelId, int64(params.LowLiqDiscount), true, false)
-		// log the last change
-		LogFee(channelId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true, false)
-	}
+	autoFeeIsRunning = false
 }
 
-func ApplyAutoFeeAll() {
+func ApplyAutoFees() {
 
-	if !AutoFeeEnabledAll || autoFeeApplyAllIsRunning {
+	if !AutoFeeEnabledAll || autoFeeIsRunning {
 		return
 	}
 
-	autoFeeApplyAllIsRunning = true
+	autoFeeIsRunning = true
 
 	client, cleanup, err := GetClient()
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 	defer cleanup()
 
 	ctx := context.Background()
+	if myNodeId == "" {
+		// get my node id
+		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
+		if err != nil {
+			autoFeeIsRunning = false
+			return
+		}
+		myNodeId = res.GetIdentityPubkey()
+	}
+
 	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
 		ActiveOnly: true,
 	})
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 
 	for _, ch := range res.Channels {
-		ApplyAutoFee(client, ch.ChanId, false)
+		if ch.UnsettledBalance != 0 {
+			// skip af while htlcs are pending
+			continue
+		}
+
+		params := &AutoFeeDefaults
+		if AutoFee[ch.ChanId] != nil {
+			// channel has custom parameters
+			params = AutoFee[ch.ChanId]
+		}
+
+		r, err := client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
+			ChanId: ch.ChanId,
+		})
+		if err != nil {
+			autoFeeIsRunning = false
+			return
+		}
+
+		policy := r.Node1Policy
+		peerId := r.Node2Pub
+		if r.Node1Pub != myNodeId {
+			// the first policy is not ours, use the second
+			policy = r.Node2Policy
+			peerId = r.Node1Pub
+		}
+
+		oldFee := int(policy.FeeRateMilliMsat)
+		newFee := oldFee
+		liqPct := int(ch.LocalBalance * 100 / r.Capacity)
+
+		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
+
+		// set the new rate
+		if newFee != oldFee {
+			if SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false) == nil {
+				// log the last change
+				LogFee(ch.ChanId, oldFee, newFee, false, false)
+			}
+		}
+
+		// set inbound fee
+		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+			// set discount
+			SetFeeRate(peerId, ch.ChanId, int64(params.LowLiqDiscount), true, false)
+			// log the last change
+			LogFee(ch.ChanId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true, false)
+		}
 	}
 
-	autoFeeApplyAllIsRunning = false
+	autoFeeIsRunning = false
 }

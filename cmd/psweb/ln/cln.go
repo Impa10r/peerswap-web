@@ -1104,17 +1104,18 @@ func HasInboundFees() bool {
 	return false
 }
 
-func ApplyAutoFeeAll() {
-	if !AutoFeeEnabledAll || autoFeeApplyAllIsRunning {
+func ApplyAutoFees() {
+	if !AutoFeeEnabledAll || autoFeeIsRunning {
 		return
 	}
 
-	autoFeeApplyAllIsRunning = true
+	autoFeeIsRunning = true
 
 	CacheForwards()
 
 	client, cleanup, err := GetClient()
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 	defer cleanup()
@@ -1122,6 +1123,7 @@ func ApplyAutoFeeAll() {
 	var response map[string]interface{}
 
 	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
+		autoFeeIsRunning = false
 		return
 	}
 
@@ -1164,6 +1166,7 @@ func ApplyAutoFeeAll() {
 			} else {
 				// move threshold or do nothing
 				moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
+				autoFeeIsRunning = false
 				return
 			}
 		}
@@ -1183,9 +1186,5 @@ func ApplyAutoFeeAll() {
 		}
 	}
 
-	autoFeeApplyAllIsRunning = false
-}
-
-func ApplyAutoFee() {
-	// not implemented
+	autoFeeIsRunning = false
 }

@@ -348,7 +348,7 @@ func onTimer() {
 	go ln.SubscribeAll()
 
 	// execute auto fee
-	go ln.ApplyAutoFeeAll()
+	go ln.ApplyAutoFees()
 }
 
 func liquidBackup(force bool) {

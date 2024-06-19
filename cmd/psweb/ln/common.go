@@ -151,7 +151,7 @@ var (
 	lastForwardTS = make(map[uint64]int64)
 
 	// prevents starting another fee update while the first still running
-	autoFeeApplyAllIsRunning = false
+	autoFeeIsRunning = false
 )
 
 func toSats(amount float64) int64 {
