@@ -831,19 +831,28 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// get fee rates for all channels
+	outboundFeeRates := make(map[uint64]int64)
+	inboundFeeRates := make(map[uint64]int64)
+
+	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
+
 	for _, peer := range res.GetPeers() {
 		alias := getNodeAlias(peer.NodeId)
 		for _, ch := range peer.Channels {
-			rates, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
+			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
+			af, _ := ln.AutoFeeRule(ch.ChannelId)
 			channelList = append(channelList, &ln.AutoFeeStatus{
-				Enabled:       ln.AutoFeeEnabled[ch.ChannelId],
-				LocalBalance:  ch.LocalBalance,
-				RemoteBalance: ch.RemoteBalance,
-				Alias:         alias,
-				LocalPct:      ch.LocalBalance * 100 / (ch.LocalBalance + ch.RemoteBalance),
-				Rates:         rates,
-				Custom:        custom,
-				ChannelId:     ch.ChannelId,
+				Enabled:     ln.AutoFeeEnabled[ch.ChannelId],
+				Capacity:    ch.LocalBalance + ch.RemoteBalance,
+				Alias:       alias,
+				LocalPct:    ch.LocalBalance * 100 / (ch.LocalBalance + ch.RemoteBalance),
+				Rule:        rule,
+				Custom:      custom,
+				AutoFee:     af,
+				FeeRate:     outboundFeeRates[ch.ChannelId],
+				InboundRate: inboundFeeRates[ch.ChannelId],
+				ChannelId:   ch.ChannelId,
 			})
 
 			if ch.ChannelId == channelId {

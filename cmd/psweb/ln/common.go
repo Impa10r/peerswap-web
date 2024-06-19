@@ -75,14 +75,16 @@ type ChanneInfo struct {
 }
 
 type AutoFeeStatus struct {
-	Alias         string
-	ChannelId     uint64
-	LocalBalance  uint64
-	LocalPct      uint64
-	RemoteBalance uint64
-	Enabled       bool
-	Rates         string
-	Custom        bool
+	Alias       string
+	ChannelId   uint64
+	Capacity    uint64
+	LocalPct    uint64
+	Enabled     bool
+	Rule        string
+	AutoFee     *AutoFeeParams
+	Custom      bool
+	FeeRate     int64
+	InboundRate int64
 }
 
 type AutoFeeParams struct {
@@ -328,7 +330,11 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 		AutoFee[channelId] = new(AutoFeeParams)
 	}
 
-	AutoFee[channelId].LowLiqPct += bump
-	// persist to db
-	db.Save("AutoFees", "AutoFee", AutoFee)
+	// do not alow exeeding high liquidity threshold
+	if AutoFee[channelId].LowLiqPct+bump < AutoFee[channelId].ExcessPct {
+		AutoFee[channelId].LowLiqPct += bump
+		// persist to db
+		db.Save("AutoFees", "AutoFee", AutoFee)
+	}
+
 }
