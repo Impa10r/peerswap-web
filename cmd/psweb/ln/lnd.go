@@ -1507,17 +1507,17 @@ func FeeReport(client lnrpc.LightningClient, outboundFeeRates map[uint64]int64, 
 	return nil
 }
 
-// set fee rate for a channel
+// set fee rate for a channel, return old rate
 func SetFeeRate(peerNodeId string,
 	channelId uint64,
 	feeRate int64,
 	inbound bool,
-	isBase bool) error {
+	isBase bool) (int, error) {
 
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return 0, err
 	}
 	defer cleanup()
 
@@ -1527,7 +1527,7 @@ func SetFeeRate(peerNodeId string,
 	})
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return 0, err
 	}
 
 	policy := r.Node1Policy
@@ -1540,7 +1540,7 @@ func SetFeeRate(peerNodeId string,
 	outputIndex, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return 0, err
 	}
 
 	var req lnrpc.PolicyUpdateRequest
@@ -1565,17 +1565,23 @@ func SetFeeRate(peerNodeId string,
 		BaseFeeMsat: policy.InboundFeeBaseMsat,
 	}
 
+	oldRate := 0
+
 	// change what's new
 	if isBase {
 		if inbound {
+			oldRate = int(policy.InboundFeeBaseMsat)
 			req.InboundFee.BaseFeeMsat = int32(feeRate)
 		} else {
+			oldRate = int(policy.FeeBaseMsat)
 			req.BaseFeeMsat = feeRate
 		}
 	} else {
 		if inbound {
+			oldRate = int(policy.InboundFeeRateMilliMsat)
 			req.InboundFee.FeeRatePpm = int32(feeRate)
 		} else {
+			oldRate = int(policy.FeeRateMilliMsat)
 			req.FeeRatePpm = uint32(feeRate)
 		}
 	}
@@ -1583,10 +1589,10 @@ func SetFeeRate(peerNodeId string,
 	_, err = client.UpdateChannelPolicy(context.Background(), &req)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return oldRate, err
 	}
 
-	return nil
+	return oldRate, nil
 }
 
 // set min or max HTLC size (Msat!!!) for a channel
@@ -1759,9 +1765,9 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	// set the new rate
 	if newFee != oldFee {
-		if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 			// log the last change
-			LogFee(channelId, oldFee, newFee, false, false)
+			LogFee(channelId, old, newFee, false, false)
 		}
 	}
 
@@ -1838,7 +1844,8 @@ func ApplyAutoFees() {
 
 		// set the new rate
 		if newFee != oldFee {
-			if SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false) == nil {
+			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
+			if err == nil {
 				// log the last change
 				LogFee(ch.ChanId, oldFee, newFee, false, false)
 			}
@@ -1847,9 +1854,11 @@ func ApplyAutoFees() {
 		// set inbound fee
 		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
 			// set discount
-			SetFeeRate(peerId, ch.ChanId, int64(params.LowLiqDiscount), true, false)
-			// log the last change
-			LogFee(ch.ChanId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true, false)
+			_, err := SetFeeRate(peerId, ch.ChanId, int64(params.LowLiqDiscount), true, false)
+			if err == nil {
+				// log the last change
+				LogFee(ch.ChanId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true, false)
+			}
 		}
 	}
 

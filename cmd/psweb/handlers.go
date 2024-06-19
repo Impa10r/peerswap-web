@@ -1620,11 +1620,14 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound, false)
+			oldRate, err := ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound, false)
 			if err != nil {
 				redirectWithError(w, r, nextPage, err)
 				return
 			}
+
+			// log change
+			ln.LogFee(channelId, oldRate, int(feeRate), inbound, true)
 
 			// all good, display confirmation
 			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
@@ -1667,7 +1670,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeBase, inbound, true)
+			_, err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeBase, inbound, true)
 			if err != nil {
 				redirectWithError(w, r, nextPage, err)
 				return

@@ -1036,23 +1036,45 @@ func SetFeeRate(peerNodeId string,
 	channelId uint64,
 	feeRate int64,
 	inbound bool,
-	isBase bool) error {
+	isBase bool) (int, error) {
 
 	if inbound {
-		return errors.New("inbound rates are not implemented")
+		return 0, errors.New("inbound rates are not implemented")
 	}
 
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return 0, err
 	}
 	defer cleanup()
+
+	clnChId := ConvertLndToClnChannelId(channelId)
+
+	var response map[string]interface{}
+	err = client.Request(&ListPeerChannelsRequest{}, &response)
+	if err != nil {
+		return 0, err
+	}
+
+	oldRate := 0
+
+	// Iterate over channels to get old fee
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+		if channelMap["short_channel_id"] != nil {
+			if clnChId == channelMap["short_channel_id"].(string) {
+				oldRate = int(channelMap["fee_proportional_millionths"].(float64))
+				break
+			}
+		}
+	}
 
 	var req SetChannelRequest
 	var res map[string]interface{}
 
-	req.Id = ConvertLndToClnChannelId(channelId)
+	req.Id = clnChId
 	if isBase {
 		req.BaseMsat = feeRate
 	} else {
@@ -1062,10 +1084,10 @@ func SetFeeRate(peerNodeId string,
 	err = client.Request(&req, &res)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return oldRate, err
 	}
 
-	return nil
+	return oldRate, nil
 }
 
 // set min or max HTLC size (Msat!!!) for a channel
@@ -1179,7 +1201,7 @@ func ApplyAutoFees() {
 		// set the new rate
 		if newFee != oldFee {
 			peerId := channelMap["peer_id"].(string)
-			if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+			if _, err = SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 				// log the last change
 				LogFee(channelId, oldFee, newFee, false, false)
 			}

@@ -143,7 +143,7 @@ var (
 		InactivityDays:    7,
 		InactivityDropPPM: 5,
 		InactivityDropPct: 5,
-		CoolOffHours:      12,
+		CoolOffHours:      24,
 		LowLiqDiscount:    0,
 	}
 
