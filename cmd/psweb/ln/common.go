@@ -328,6 +328,8 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 	if AutoFee[channelId] == nil {
 		// add custom parameters
 		AutoFee[channelId] = new(AutoFeeParams)
+		// clone default values
+		*AutoFee[channelId] = AutoFeeDefaults
 	}
 
 	// do not alow exeeding high liquidity threshold

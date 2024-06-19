@@ -240,12 +240,12 @@
               <thead>
                 <tr>
                   <th>Alias</th>
-                  <th title="Channel's capacity" style="width: 5ch; text-align: center;">Cap</th>
+                  <th title="Channel's capacity" style="width: 7ch; text-align: center;">Cap</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: center;">%</th>
-                  <th title="Outbound Fee Rate" style="width: 5ch; text-align: center;">Rate</th>
+                  <th title="Outbound Fee Rate" style="width: 5ch; text-align: right;">Rate</th>
                   <th title="Inbound Fee Rate" style="width: 3ch; text-align: right;">In</th>
                   <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
-* indicates custom rule" style="text-align: center;">Rules</th>
+* indicates custom rule" style="text-align: center;">AF Rules</th>
                   <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>
@@ -255,9 +255,9 @@
                   <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
                   <td style="text-align: center;">{{m .Capacity}}</td>
                   <td style="text-align: center;{{if gt .LocalPct .AutoFee.ExcessPct}} color:lightgreen{{end}}{{if gt .AutoFee.LowLiqPct .LocalPct}} color:red{{end}}">{{fmt .LocalPct}}</td>
-                  <td style="text-align: center;">{{fs .FeeRate}}</td>
+                  <td style="text-align: right;">{{fs .FeeRate}}</td>
                   <td style="text-align: right;">{{fs .InboundRate}}</td>
-                  <td class="truncate" style="text-align: center;">{{if .Custom}}*{{end}}{{.Rule}}</td>
+                  <td class="truncate" style="text-align: center;">{{if .Enabled}}{{if .Custom}}*{{end}}{{.Rule}}{{end}}</td>
                   <td>
                     <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">
                       <input type="hidden" name="action" value="toggleAutoFee">
