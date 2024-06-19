@@ -1851,8 +1851,8 @@ func ApplyAutoFees() {
 			}
 		}
 
-		// set inbound fee
-		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+		// set inbound fee discount if larger than current
+		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat > int32(params.LowLiqDiscount) {
 			// set discount
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(params.LowLiqDiscount), true, false)
 			if err == nil {
