@@ -694,7 +694,7 @@ func GetMyAlias() string {
 	return myNodeAlias
 }
 
-func downloadInvoices(client lnrpc.LightningClient) {
+func downloadInvoices(client lnrpc.LightningClient) error {
 	// only go back 6 months for itinial download
 	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
 	offset := uint64(0)
@@ -716,7 +716,7 @@ func downloadInvoices(client lnrpc.LightningClient) {
 			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") {
 				log.Println("ListInvoices:", err)
 			}
-			return
+			return err
 		}
 
 		for _, invoice := range res.Invoices {
@@ -743,6 +743,7 @@ func downloadInvoices(client lnrpc.LightningClient) {
 		log.Printf("Cached %d invoices", totalInvoices)
 	}
 
+	return nil
 }
 
 func downloadForwards(client lnrpc.LightningClient) {
@@ -1053,7 +1054,9 @@ func SubscribeAll() {
 	ctx := context.Background()
 
 	// initial download
-	downloadInvoices(client)
+	if downloadInvoices(client) != nil {
+		return
+	}
 
 	routerClient := routerrpc.NewRouterClient(conn)
 

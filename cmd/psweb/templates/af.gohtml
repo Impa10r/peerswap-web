@@ -254,7 +254,13 @@
                 <tr{{if .Enabled}} class="is-selected"{{end}}>
                   <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
                   <td style="text-align: center;">{{m .Capacity}}</td>
-                  <td style="text-align: center;{{if gt .LocalPct .AutoFee.ExcessPct}} color:lightgreen{{end}}{{if gt .AutoFee.LowLiqPct .LocalPct}} color:red{{end}}">{{fmt .LocalPct}}</td>
+                  <td style="text-align: center; {{if .Enabled}}
+                    {{if gt .LocalPct .AutoFee.ExcessPct}}
+                      color:lightgreen
+                    {{end}}
+                    {{if gt .AutoFee.LowLiqPct .LocalPct}}
+                      color:red
+                    {{end}}{{end}}">{{fmt .LocalPct}}</td>
                   <td style="text-align: right;">{{fs .FeeRate}}</td>
                   <td style="text-align: right;">{{fs .InboundRate}}</td>
                   <td class="truncate" style="text-align: center;">{{if .Enabled}}{{if .Custom}}*{{end}}{{.Rule}}{{end}}</td>
