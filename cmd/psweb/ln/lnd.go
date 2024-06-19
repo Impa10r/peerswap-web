@@ -1851,13 +1851,27 @@ func ApplyAutoFees() {
 			}
 		}
 
-		// set inbound fee discount if larger than current
-		if HasInboundFees() && liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat > int32(params.LowLiqDiscount) {
-			// set discount
-			_, err := SetFeeRate(peerId, ch.ChanId, int64(params.LowLiqDiscount), true, false)
-			if err == nil {
-				// log the last change
-				LogFee(ch.ChanId, int(policy.InboundFeeRateMilliMsat), params.LowLiqDiscount, true, false)
+		if HasInboundFees() {
+			toSet := false
+			discountRate := int64(0)
+
+			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat > int32(params.LowLiqDiscount) {
+				// set inbound fee discount if larger than current
+				discountRate = int64(params.LowLiqDiscount)
+				toSet = true
+			} else if liqPct >= params.LowLiqPct {
+				// remove discount unless it was manually set
+				if !LastAutoFeeLog(ch.ChanId, true).IsManual {
+					toSet = true
+				}
+			}
+
+			if toSet {
+				oldRate, err := SetFeeRate(peerId, ch.ChanId, discountRate, true, false)
+				if err == nil {
+					// log the last change
+					LogFee(ch.ChanId, oldRate, int(discountRate), true, false)
+				}
 			}
 		}
 	}
