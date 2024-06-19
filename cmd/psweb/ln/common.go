@@ -308,7 +308,7 @@ func LogAutoFee(channelId uint64, oldRate int, newRate int, isInbound bool) {
 		TimeStamp: time.Now().Unix(),
 		OldRate:   oldRate,
 		NewRate:   newRate,
-		IsInbound: true,
+		IsInbound: isInbound,
 	})
 	// persist to db
 	db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)

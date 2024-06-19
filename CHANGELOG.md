@@ -5,7 +5,7 @@
 - Speedup saving Auto Fees settings
 - Hide HTTPS option for Umbrel
 - AF: apply HTLC Fail Bumps only when Balance % < Low Liq % 
-- AF: log full fee change history, including inbound
+- AF: log full fee changes history, including inbound
 
 ## 1.5.3
 
