@@ -889,11 +889,9 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		// max R = 20
 		for i, p := range *chart {
 			(*chart)[i].R = 20 * p.Amount / maxAmount
-			(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
+			(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "<br>Fee: " + formatWithThousandSeparators(p.Fee) + "<br>PPM: " + formatWithThousandSeparators(p.PPM)
 		}
 	}
-
-	log.Println(*chart)
 
 	type Page struct {
 		Authenticated  bool
