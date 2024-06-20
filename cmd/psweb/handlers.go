@@ -889,7 +889,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		// max R = 20
 		for i, p := range *chart {
 			(*chart)[i].R = 20 * p.Amount / maxAmount
-			(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
+			(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "<br>Fee: " + formatWithThousandSeparators(p.Fee) + "<br>PPM: " + formatWithThousandSeparators(p.PPM)
 		}
 	}
 

@@ -358,6 +358,7 @@
                           label: function(context) {
                               let label = context.raw.label || '';
                               label += '<br>' + moment(context.raw.x).format('YYYY-MM-DD')
+                              label = label.replace(/\<br>/g, '\n'); // Replace '<br>' with actual line breaks
                               return label;
                           },
                       },
