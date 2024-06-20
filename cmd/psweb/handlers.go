@@ -887,10 +887,9 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	if maxAmount > 0 {
 		// calculate bubble radii and apply labels
 		// max R = 20
-		for _, p := range *chart {
-			p.R = 20 * p.Amount / maxAmount
-			p.Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
-			log.Println(p.R)
+		for i, p := range *chart {
+			(*chart)[i].R = 20 * p.Amount / maxAmount
+			(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
 		}
 	}
 
