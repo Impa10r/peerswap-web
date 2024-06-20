@@ -331,24 +331,28 @@
                           unit: 'month'
                       },
                       position: 'bottom',
-                      ticks: {
-                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
-                      },
+                      {{if eq .ColorScheme "dark"}}
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
+                            borderColor: 'rgba(255, 255, 255, 0.2)', // Set grid border color (white with slightly higher opacity)
+                            borderWidth: 1 // Grid border width
+                        },
+                      {{end}}
                       title: {
                           display: false,
-                          text: 'Date',
-                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
                       }
                   },
                   y: {
                       beginAtZero: false,
-                      ticks: {
-                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
-                      },
+                      {{if eq .ColorScheme "dark"}}
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
+                            borderColor: 'rgba(255, 255, 255, 0.2)', // Set grid border color (white with slightly higher opacity)
+                            borderWidth: 1 // Grid border width
+                        },
+                      {{end}}
                       title: {
                           display: false,
-                          text: 'PPM',
-                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
                       }
                   }
               },
