@@ -215,6 +215,7 @@
           </div>
           {{if ne .ChannelId 0}}
             <div class="box has-text-left">
+            <h4 class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
                 <canvas id="myScatterChart"></canvas>
               </div>
@@ -312,7 +313,6 @@
           type: 'bubble', // The type of chart we want to create
           data: {
               datasets: [{
-                  label: 'Realized Routing PPM',
                   data: [
                       {{range $index, $element := .Chart}}
                         { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: `{{$element.Label}}` }{{if not (last $index $.Chart)}},{{end}}
@@ -346,7 +346,7 @@
                           color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
                       },
                       title: {
-                          display: true,
+                          display: false,
                           text: 'PPM',
                           color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
                       }
@@ -362,10 +362,8 @@
                       },
                   },
                   legend: {
-                      labels: {
-                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
-                      }
-                  }
+                      display: false
+                  },
               }
           }
       });
