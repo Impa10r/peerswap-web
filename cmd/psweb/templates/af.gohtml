@@ -315,7 +315,7 @@
                   label: 'Realized Routing PPM',
                   data: [
                       {{range $index, $element := .Chart}}
-                        { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: "{{$element.Label}}" }{{if not (last $index $.Chart)}},{{end}}
+                        { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: `{{$element.Label | jsStr}}` }{{if not (last $index $.Chart)}},{{end}}
                       {{end}}
                   ],
                   backgroundColor: 'rgba(54, 162, 235, 0.8)',
@@ -357,8 +357,6 @@
                       callbacks: {
                           label: function(context) {
                               let label = context.raw.label || '';
-                              label += '<br>' + moment(context.raw.x).format('YYYY-MM-DD')
-                              label = label.replace(/\<br>/g, '\n'); // Replace '<br>' with actual line breaks
                               return label;
                           },
                       },
@@ -377,6 +375,14 @@
               }
           }
       });
+
+      // Custom function to handle JavaScript string escaping for Go templates
+      function jsStr(s) {
+          return s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+      }
+
+      // Add custom function to the template context
+      {{define "jsStr"}}jsStr{{end}}
     </script>
     </div>
   {{template "footer" .}}

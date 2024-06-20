@@ -883,14 +883,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		popupMessage = keys[0]
 	}
 
-	chart, maxAmount := ln.PlotPPM(channelId)
-	if maxAmount > 0 {
-		// calculate bubble radii and apply labels
-		// max R = 20
-		for i, p := range *chart {
-			(*chart)[i].R = 20 * p.Amount / maxAmount
-			(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "<br>Fee: " + formatWithThousandSeparators(p.Fee) + "<br>PPM: " + formatWithThousandSeparators(p.PPM)
-		}
+	chart := ln.PlotPPM(channelId)
+	// calculate bubble radii in 100k
+	for i, p := range *chart {
+		(*chart)[i].R = p.Amount / 100_000
+		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
 	type Page struct {
