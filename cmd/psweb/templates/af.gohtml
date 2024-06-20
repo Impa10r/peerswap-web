@@ -315,7 +315,7 @@
                   label: 'Realized Routing PPM',
                   data: [
                       {{range $index, $element := .Chart}}
-                        { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: `{{$element.Label | jsStr}}` }{{if not (last $index $.Chart)}},{{end}}
+                        { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: `{{$element.Label}}` }{{if not (last $index $.Chart)}},{{end}}
                       {{end}}
                   ],
                   backgroundColor: 'rgba(54, 162, 235, 0.8)',
