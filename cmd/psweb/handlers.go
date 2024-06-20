@@ -887,7 +887,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// calculate bubble radii in 100k
 	for i, p := range *chart {
 		(*chart)[i].R = p.Amount / 100_000
-		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
+		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
 	type Page struct {
