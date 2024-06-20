@@ -6,10 +6,16 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
@@ -17,10 +23,6 @@ import (
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/ps"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/sessions"
@@ -884,9 +886,9 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chart := ln.PlotPPM(channelId)
-	// calculate bubble radii in 100k
+	// bubble square area reflects amount
 	for i, p := range *chart {
-		(*chart)[i].R = p.Amount / 100_000
+		(*chart)[i].R = uint64(math.Sqrt(float64(p.Amount) / 100_000))
 		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
