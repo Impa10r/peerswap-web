@@ -884,8 +884,9 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chart, maxAmount := ln.PlotPPM(channelId)
+	log.Println(maxAmount)
 	if maxAmount > 0 {
-		// calculate bobble radius and apply labels
+		// calculate bubble radii and apply labels
 		// max R = 20
 		for _, p := range *chart {
 			p.R = 20 * p.Amount / maxAmount

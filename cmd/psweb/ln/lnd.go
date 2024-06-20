@@ -1884,15 +1884,18 @@ func PlotPPM(channelId uint64) (*[]DataPoint, uint64) {
 	maxAmount := uint64(0)
 
 	for _, e := range forwardsOut[channelId] {
-		if maxAmount < e.AmtOut {
-			maxAmount = e.AmtOut
+		// ignore small forwards
+		if e.AmtOut > 1000 {
+			if maxAmount < e.AmtOut {
+				maxAmount = e.AmtOut
+			}
+			plot = append(plot, DataPoint{
+				TS:     e.TimestampNs / 1_000_000_000,
+				Amount: e.AmtOut,
+				Fee:    e.Fee,
+				PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+			})
 		}
-		plot = append(plot, DataPoint{
-			TS:     e.TimestampNs / 1_000_000_000,
-			Amount: e.AmtOut,
-			Fee:    e.Fee,
-			PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
-		})
 	}
 
 	return &plot, maxAmount
