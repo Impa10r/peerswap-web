@@ -375,14 +375,6 @@
               }
           }
       });
-
-      // Custom function to handle JavaScript string escaping for Go templates
-      function jsStr(s) {
-          return s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-      }
-
-      // Add custom function to the template context
-      {{define "jsStr"}}jsStr{{end}}
     </script>
     </div>
   {{template "footer" .}}
