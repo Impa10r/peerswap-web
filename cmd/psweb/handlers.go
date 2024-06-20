@@ -867,7 +867,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	// sort by LocalPct descending
 	sort.Slice(channelList, func(i, j int) bool {
-		return channelList[i].LocalPct > channelList[j].LocalPct
+		return channelList[i].LocalPct < channelList[j].LocalPct
 	})
 	//check for error errorMessage to display
 	errorMessage := ""
@@ -881,6 +881,16 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok = r.URL.Query()["msg"]
 	if ok && len(keys[0]) > 0 {
 		popupMessage = keys[0]
+	}
+
+	chart, maxAmount := ln.PlotPPM(channelId)
+	if maxAmount > 0 {
+		// calculate bobble radius and apply labels
+		// max R = 20
+		for _, p := range *chart {
+			p.R = 20 * p.Amount / maxAmount
+			p.Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
+		}
 	}
 
 	type Page struct {
@@ -899,6 +909,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Enabled        bool // for the displayed channel
 		AnyEnabled     bool // for any channel
 		HasInboundFees bool
+		Chart          *[]ln.DataPoint
 	}
 
 	data := Page{
@@ -917,6 +928,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Enabled:        ln.AutoFeeEnabled[channelId],
 		AnyEnabled:     anyEnabled,
 		HasInboundFees: ln.HasInboundFees(),
+		Chart:          chart,
 	}
 
 	// executing template named "af"

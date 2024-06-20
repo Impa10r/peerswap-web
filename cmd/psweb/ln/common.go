@@ -122,6 +122,16 @@ type AutoFeeEvent struct {
 	IsManual  bool
 }
 
+// for chart plotting
+type DataPoint struct {
+	TS     uint64
+	Amount uint64
+	Fee    uint64
+	PPM    uint64
+	R      uint64
+	Label  string
+}
+
 var (
 	// lightning payments from swap out initiator to receiver
 	SwapRebates = make(map[string]int64)

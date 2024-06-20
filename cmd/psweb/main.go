@@ -133,6 +133,7 @@ func main() {
 			"fmt":  formatWithThousandSeparators,
 			"fs":   formatSigned,
 			"m":    toMil,
+			"last": last,
 		}).
 		ParseFS(tplFolder, templateNames...))
 
@@ -1495,4 +1496,9 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 	t += `</td>`
 
 	return t
+}
+
+// Template function to check if the element is the last one in the slice
+func last(x int, a interface{}) bool {
+	return x == len(*(a.(*[]ln.DataPoint)))-1
 }

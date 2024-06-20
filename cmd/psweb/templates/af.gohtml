@@ -211,8 +211,15 @@
                   <input class="button is-large" type="submit" name="delete_button" value="Delete Custom Rule">
                 {{end}}
               </div>
+            </form>
+          </div>
+          {{if ne .ChannelId 0}}
+            <div class="box has-text-left">
+              <div style="width: 100%; margin: auto;">
+                <canvas id="myScatterChart"></canvas>
+              </div>
             </div>
-          </form>
+          {{end}}
         </div> 
         <div class="column"> 
           <div class="box has-text-left">
@@ -259,7 +266,7 @@
                       color:lightgreen
                     {{end}}
                     {{if gt .AutoFee.LowLiqPct .LocalPct}}
-                      color:red
+                      color:pink
                     {{end}}{{end}}">{{fmt .LocalPct}}</td>
                   <td style="text-align: right;">{{fs .FeeRate}}</td>
                   <td style="text-align: right;">{{fs .InboundRate}}</td>
@@ -296,6 +303,77 @@
           }
         }
       }
+
+      // Get the context of the canvas element we want to select
+      var ctx = document.getElementById('myScatterChart').getContext('2d');
+
+      // Create the chart
+      var myScatterChart = new Chart(ctx, {
+          type: 'bubble', // The type of chart we want to create
+          data: {
+              datasets: [{
+                  label: 'Realized Routing PPM',
+                  data: [
+                      {{range $index, $element := .Chart}}
+                        { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: "{{$element.Label}}" }{{if not (last $index $.Chart)}},{{end}}
+                      {{end}}
+                  ],
+                  backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  borderWidth: 1
+              }]
+          },
+          options: {
+              scales: {
+                  x: {
+                      type: 'time',
+                      time: {
+                          unit: 'month'
+                      },
+                      position: 'bottom',
+                      ticks: {
+                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
+                      },
+                      title: {
+                          display: false,
+                          text: 'Date',
+                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
+                      }
+                  },
+                  y: {
+                      beginAtZero: false,
+                      ticks: {
+                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
+                      },
+                      title: {
+                          display: true,
+                          text: 'PPM',
+                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
+                      }
+                  }
+              },
+              plugins: {
+                  tooltip: {
+                      callbacks: {
+                          label: function(context) {
+                              let label = context.raw.label || '';
+                              return label;
+                          },
+                      },
+                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                      titleColor: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}',
+                      bodyColor: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}',
+                      borderColor: '{{if eq .ColorScheme "dark"}}rgba(255, 255, 255, 0.8){{else}}rgba(0, 0, 0, 0.8){{end}}',
+                      borderWidth: 1,
+                  },
+                  legend: {
+                      labels: {
+                          color: '{{if eq .ColorScheme "dark"}}white{{else}}black{{end}}'
+                      }
+                  }
+              }
+          }
+      });
     </script>
     </div>
   {{template "footer" .}}
