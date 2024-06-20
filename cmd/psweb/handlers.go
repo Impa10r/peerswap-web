@@ -884,15 +884,17 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chart, maxAmount := ln.PlotPPM(channelId)
-	log.Println(maxAmount)
 	if maxAmount > 0 {
 		// calculate bubble radii and apply labels
 		// max R = 20
 		for _, p := range *chart {
 			p.R = 20 * p.Amount / maxAmount
 			p.Label = "Routed: " + formatWithThousandSeparators(p.Amount) + "\nFee: " + formatWithThousandSeparators(p.Fee) + "\nPPM: " + formatWithThousandSeparators(p.PPM)
+			log.Println(p.R)
 		}
 	}
+
+	log.Println(*chart)
 
 	type Page struct {
 		Authenticated  bool
