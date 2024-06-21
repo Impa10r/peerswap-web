@@ -314,7 +314,6 @@ func LastAutoFeeLog(channelId uint64, isInbound bool) *AutoFeeEvent {
 			return AutoFeeLog[channelId][i]
 		}
 	}
-
 	return nil
 }
 

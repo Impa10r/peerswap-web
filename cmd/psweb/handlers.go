@@ -837,6 +837,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
+	capacity := uint64(0)
+	localPct := uint64(0)
+	feeRate := outboundFeeRates[channelId]
+	inboundRate := inboundFeeRates[channelId]
+
 	for _, peer := range res.GetPeers() {
 		alias := getNodeAlias(peer.NodeId)
 		for _, ch := range peer.Channels {
@@ -858,6 +863,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 			if ch.ChannelId == channelId {
 				peerName = alias
 				peerId = peer.NodeId
+				capacity = ch.LocalBalance + ch.RemoteBalance
+				localPct = ch.LocalBalance * 100 / (ch.LocalBalance + ch.RemoteBalance)
 			}
 			if ln.AutoFeeEnabled[ch.ChannelId] {
 				anyEnabled = true
@@ -899,6 +906,10 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelId      uint64
 		PeerName       string
 		PeerId         string
+		Capacity       uint64
+		LocalPct       uint64
+		FeeRate        int64
+		InboundRate    int64
 		GlobalEnabled  bool
 		ChannelList    []*ln.AutoFeeStatus
 		Params         *ln.AutoFeeParams
@@ -918,6 +929,10 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		GlobalEnabled:  ln.AutoFeeEnabledAll,
 		PeerName:       peerName,
 		PeerId:         peerId,
+		Capacity:       capacity,
+		LocalPct:       localPct,
+		FeeRate:        feeRate,
+		InboundRate:    inboundRate,
 		ChannelId:      channelId,
 		ChannelList:    channelList,
 		Params:         rule,
