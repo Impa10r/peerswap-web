@@ -33,9 +33,9 @@
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
                 <h4 class="title is-4">
-                  {{if ne .PeerName "Default Rule"}}<a href="/peer?id={{.PeerId}}">{{end}}
+                  {{if .ChannelId}}<a href="/peer?id={{.PeerId}}">{{end}}
                   {{.PeerName}}
-                  {{if ne .PeerName "Default Rule"}}</a>{{end}}
+                  {{if .ChannelId}}</a>{{end}}
                   {{if .ChannelId}}
                     {{if .CustomRule}}
                       (custom)
@@ -43,7 +43,7 @@
                       (<a href="/af">default</a>)
                     {{end}}
                   {{end}}
-                </h4>
+                </h4>    
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 {{if .ChannelId}}
@@ -67,6 +67,9 @@
                 {{end}}
               </div>
             </div>
+            {{if .ChannelId}}
+              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, fee rate: {{fs .FeeRate}}{{if .HasInboundFees}}, inbound rate: {{.InboundRate}}{{end}}</p>
+            {{end}}   
             <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
@@ -78,7 +81,7 @@
                   </td>
                   <td>
                     <div class="field-body">
-                      <input class="input is-medium" type="number" name="excessRate" min="0" required value="{{.Params.ExcessRate}}">
+                      <input class="input is-medium" type="number" id="excessRate" name="excessRate" min="0" required value="{{.Params.ExcessRate}}" onchange="updateChart()">
                     </div>
                   </td>
                   <td>
@@ -100,7 +103,7 @@
                   </td>
                   <td>
                     <div class="field-body">
-                      <input class="input is-medium" type="number" name="normalRate" min="0" required required value="{{.Params.NormalRate}}">
+                      <input class="input is-medium" type="number" id="normalRate" name="normalRate" min="0" required required value="{{.Params.NormalRate}}" onchange="updateChart()">
                     </div>
                   </td>
                   <td>
@@ -122,7 +125,7 @@
                   </td>
                   <td>
                     <div class="field-body">
-                      <input class="input is-medium" type="number" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}">
+                      <input class="input is-medium" type="number" id="lowLiqRate" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}" onchange="updateChart()">
                     </div>
                   </td>
                   <td>
@@ -218,6 +221,7 @@
             <h4 class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
                 <canvas id="myScatterChart"></canvas>
+                <div id="tooltip"></div>
               </div>
             </div>
           {{end}}
@@ -305,11 +309,39 @@
         }
       }
 
+      // Plugin to draw horizontal lines
+      const horizontalLinePlugin = {
+          id: 'horizontalLine',
+          afterDraw: (chart) => {
+              const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+              const lines = chart.config.options.horizontalLines;
+              
+              if (lines) {
+                  lines.forEach(line => {
+                      const yValue = line.value;
+                      const yPixel = y.getPixelForValue(yValue);
+
+                      ctx.save();
+                      ctx.beginPath();
+                      ctx.moveTo(left, yPixel);
+                      ctx.lineTo(right, yPixel);
+                      ctx.lineWidth = line.width || 2;
+                      ctx.strokeStyle = line.color || 'black';
+                      ctx.stroke();
+                      ctx.restore();
+                  });
+              }
+          }
+      };
+
+      // Register the plugin
+      Chart.register(horizontalLinePlugin);
+      
       // Get the context of the canvas element we want to select
       var ctx = document.getElementById('myScatterChart').getContext('2d');
 
       // Create the chart
-      var myScatterChart = new Chart(ctx, {
+      var myChart = new Chart(ctx, {
           type: 'bubble', // The type of chart we want to create
           data: {
               datasets: [{
@@ -346,7 +378,7 @@
                       }
                   },
                   y: {
-                      beginAtZero: false,
+                      beginAtZero: true,
                       {{if eq .ColorScheme "dark"}}
                         grid: {
                             color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
@@ -374,9 +406,26 @@
                   legend: {
                       display: false
                   },
-              }
+              },
+              horizontalLines: [
+                  { value: {{.Params.ExcessRate}}, color: 'green', width: 2 },
+                  { value: {{.Params.NormalRate}}, color: 'blue', width: 2 },
+                  { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 }
+              ]
           }
       });
+
+      function updateChart() {
+        const line1Value = parseFloat(document.getElementById('excessRate').value);
+        const line2Value = parseFloat(document.getElementById('normalRate').value);
+        const line3Value = parseFloat(document.getElementById('lowLiqRate').value);
+
+        myChart.config.options.horizontalLines[0].value = line1Value;
+        myChart.config.options.horizontalLines[1].value = line2Value;
+        myChart.config.options.horizontalLines[2].value = line3Value;
+        
+        myChart.update();
+      }
 
     </script>
     </div>
