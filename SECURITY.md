@@ -12,4 +12,4 @@ Getblock runs a publicly available Bitcoin Core server. It is used as a fallback
 
 ## Reporting a Vulnerability
 
-If you discover any vulnerability, please contact me directly at t.me/vladgoryachev
+If you discover any vulnerability, please report it discretely to contributors.

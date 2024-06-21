@@ -1,6 +1,7 @@
 package ln
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -74,19 +75,23 @@ type ChanneInfo struct {
 }
 
 type AutoFeeStatus struct {
-	Alias         string
-	ChannelId     uint64
-	LocalBalance  uint64
-	LocalPct      uint64
-	RemoteBalance uint64
-	Enabled       bool
-	Rates         string
-	Custom        bool
+	Alias       string
+	ChannelId   uint64
+	Capacity    uint64
+	LocalPct    uint64
+	Enabled     bool
+	Rule        string
+	AutoFee     *AutoFeeParams
+	Custom      bool
+	FeeRate     int64
+	InboundRate int64
 }
 
 type AutoFeeParams struct {
 	// fee rate ppm increase after each "Insufficient Balance" HTLC failure
 	FailedBumpPPM int
+	// Move Low Liq % theshold after each 'Insufficient Balance' HTLC failure above it
+	FailedMoveThreshold int
 	// low local balance threshold where fee rates stay high
 	LowLiqPct int
 	// ppm rate when liquidity is below LowLiqPct
@@ -113,6 +118,18 @@ type AutoFeeEvent struct {
 	TimeStamp int64
 	OldRate   int
 	NewRate   int
+	IsInbound bool
+	IsManual  bool
+}
+
+// for chart plotting
+type DataPoint struct {
+	TS     uint64
+	Amount uint64
+	Fee    uint64
+	PPM    uint64
+	R      uint64
+	Label  string
 }
 
 var (
@@ -124,7 +141,7 @@ var (
 	AutoFeeEnabledAll bool
 	// maps to LND channel Id
 	AutoFee         = make(map[uint64]*AutoFeeParams)
-	AutoFeeLog      = make(map[uint64]*AutoFeeEvent)
+	AutoFeeLog      = make(map[uint64][]*AutoFeeEvent)
 	AutoFeeEnabled  = make(map[uint64]bool)
 	AutoFeeDefaults = AutoFeeParams{
 		FailedBumpPPM:     10,
@@ -136,12 +153,15 @@ var (
 		InactivityDays:    7,
 		InactivityDropPPM: 5,
 		InactivityDropPct: 5,
-		CoolOffHours:      12,
+		CoolOffHours:      24,
 		LowLiqDiscount:    0,
 	}
 
 	// track timestamp of the last outbound forward per channel
 	lastForwardTS = make(map[uint64]int64)
+
+	// prevents starting another fee update while the first still running
+	autoFeeIsRunning = false
 )
 
 func toSats(amount float64) int64 {
@@ -224,7 +244,24 @@ func LoadAutoFees() {
 	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
 	db.Load("AutoFees", "AutoFee", &AutoFee)
 	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
-	db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
+
+	// drop non-array legacy log
+	var log map[uint64]interface{}
+	db.Load("AutoFees", "AutoFeeLog", &log)
+
+	if len(log) == 0 {
+		return
+	}
+
+	// Use reflection to determine the type
+	for _, data := range log {
+		v := reflect.ValueOf(data)
+		if v.Kind() == reflect.Slice {
+			// Type is map[uint64][]*AutoFeeEvent, load again
+			db.Load("AutoFees", "AutoFeeLog", &AutoFeeLog)
+			return
+		}
+	}
 }
 
 func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {
@@ -232,8 +269,9 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 	if liqPct > params.LowLiqPct {
 		// normal or high liquidity regime, check if fee can be dropped
 		lastUpdate := int64(0)
-		if AutoFeeLog[channelId] != nil {
-			lastUpdate = AutoFeeLog[channelId].TimeStamp
+		lastLog := LastAutoFeeLog(channelId, false)
+		if lastLog != nil {
+			lastUpdate = lastLog.TimeStamp
 		}
 		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the last outbound timestamp
@@ -266,4 +304,49 @@ func msatToSatUp(msat uint64) uint64 {
 		sat++
 	}
 	return sat
+}
+
+// returns last log entry
+func LastAutoFeeLog(channelId uint64, isInbound bool) *AutoFeeEvent {
+	// Loop backwards through the array
+	for i := len(AutoFeeLog[channelId]) - 1; i >= 0; i-- {
+		if AutoFeeLog[channelId][i].IsInbound == isInbound {
+			return AutoFeeLog[channelId][i]
+		}
+	}
+
+	return nil
+}
+
+func LogFee(channelId uint64, oldRate int, newRate int, isInbound bool, isManual bool) {
+	AutoFeeLog[channelId] = append(AutoFeeLog[channelId], &AutoFeeEvent{
+		TimeStamp: time.Now().Unix(),
+		OldRate:   oldRate,
+		NewRate:   newRate,
+		IsInbound: isInbound,
+		IsManual:  isManual,
+	})
+	// persist to db
+	db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+}
+
+func moveLowLiqThreshold(channelId uint64, bump int) {
+	if bump == 0 {
+		return
+	}
+
+	if AutoFee[channelId] == nil {
+		// add custom parameters
+		AutoFee[channelId] = new(AutoFeeParams)
+		// clone default values
+		*AutoFee[channelId] = AutoFeeDefaults
+	}
+
+	// do not alow exeeding high liquidity threshold
+	if AutoFee[channelId].LowLiqPct+bump < AutoFee[channelId].ExcessPct {
+		AutoFee[channelId].LowLiqPct += bump
+		// persist to db
+		db.Save("AutoFees", "AutoFee", AutoFee)
+	}
+
 }

@@ -6,10 +6,16 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
@@ -17,10 +23,6 @@ import (
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/ps"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/sessions"
@@ -375,7 +377,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 				rates = "*" + rates
 			}
 
-			feeLog := ln.AutoFeeLog[ch.ChannelId]
+			feeLog := ln.LastAutoFeeLog(ch.ChannelId, false)
 			if feeLog != nil {
 				rates += ", last update " + timePassedAgo(time.Unix(feeLog.TimeStamp, 0))
 				rates += " from " + formatWithThousandSeparators(uint64(feeLog.OldRate))
@@ -831,19 +833,28 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// get fee rates for all channels
+	outboundFeeRates := make(map[uint64]int64)
+	inboundFeeRates := make(map[uint64]int64)
+
+	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
+
 	for _, peer := range res.GetPeers() {
 		alias := getNodeAlias(peer.NodeId)
 		for _, ch := range peer.Channels {
-			rates, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
+			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
+			af, _ := ln.AutoFeeRule(ch.ChannelId)
 			channelList = append(channelList, &ln.AutoFeeStatus{
-				Enabled:       ln.AutoFeeEnabled[ch.ChannelId],
-				LocalBalance:  ch.LocalBalance,
-				RemoteBalance: ch.RemoteBalance,
-				Alias:         alias,
-				LocalPct:      ch.LocalBalance * 100 / (ch.LocalBalance + ch.RemoteBalance),
-				Rates:         rates,
-				Custom:        custom,
-				ChannelId:     ch.ChannelId,
+				Enabled:     ln.AutoFeeEnabled[ch.ChannelId],
+				Capacity:    ch.LocalBalance + ch.RemoteBalance,
+				Alias:       alias,
+				LocalPct:    ch.LocalBalance * 100 / (ch.LocalBalance + ch.RemoteBalance),
+				Rule:        rule,
+				Custom:      custom,
+				AutoFee:     af,
+				FeeRate:     outboundFeeRates[ch.ChannelId],
+				InboundRate: inboundFeeRates[ch.ChannelId],
+				ChannelId:   ch.ChannelId,
 			})
 
 			if ch.ChannelId == channelId {
@@ -858,7 +869,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	// sort by LocalPct descending
 	sort.Slice(channelList, func(i, j int) bool {
-		return channelList[i].LocalPct > channelList[j].LocalPct
+		return channelList[i].LocalPct < channelList[j].LocalPct
 	})
 	//check for error errorMessage to display
 	errorMessage := ""
@@ -872,6 +883,13 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok = r.URL.Query()["msg"]
 	if ok && len(keys[0]) > 0 {
 		popupMessage = keys[0]
+	}
+
+	chart := ln.PlotPPM(channelId)
+	// bubble square area reflects amount
+	for i, p := range *chart {
+		(*chart)[i].R = uint64(math.Sqrt(float64(p.Amount) / 10_000))
+		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
 	type Page struct {
@@ -890,6 +908,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Enabled        bool // for the displayed channel
 		AnyEnabled     bool // for any channel
 		HasInboundFees bool
+		Chart          *[]ln.DataPoint
 	}
 
 	data := Page{
@@ -908,6 +927,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Enabled:        ln.AutoFeeEnabled[channelId],
 		AnyEnabled:     anyEnabled,
 		HasInboundFees: ln.HasInboundFees(),
+		Chart:          chart,
 	}
 
 	// executing template named "af"
@@ -1154,8 +1174,6 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		HTTPS:           "https://" + hostname + ".local:" + config.Config.SecurePort,
 		IsPossibleHTTPS: os.Getenv("NO_HTTPS") == "",
 	}
-
-	log.Println(os.Getenv("NO_HTTPS"))
 
 	// executing template named "config"
 	err := templates.ExecuteTemplate(w, "config", data)
@@ -1424,6 +1442,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
+				rule.FailedMoveThreshold, err = strconv.Atoi(r.FormValue("failedMoveThreshold"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+
 				rule.LowLiqPct, err = strconv.Atoi(r.FormValue("lowLiqPct"))
 				if err != nil {
 					redirectWithError(w, r, "/af?", err)
@@ -1502,9 +1526,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			// apply the new fees
-			ln.ApplyAutoFeeAll()
-
 			// all done, display confirmation
 			http.Redirect(w, r, "/af?id="+r.FormValue("channelId")+"&msg="+msg, http.StatusSeeOther)
 			return
@@ -1566,8 +1587,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			if isEnabled {
 				msg += "Enabled"
-				// apply the new fees
-				ln.ApplyAutoFeeAll()
 			} else {
 				msg += "Disabled"
 			}
@@ -1612,11 +1631,14 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound, false)
+			oldRate, err := ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeRate, inbound, false)
 			if err != nil {
 				redirectWithError(w, r, nextPage, err)
 				return
 			}
+
+			// log change
+			ln.LogFee(channelId, oldRate, int(feeRate), inbound, true)
 
 			// all good, display confirmation
 			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
@@ -1659,7 +1681,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeBase, inbound, true)
+			_, err = ln.SetFeeRate(r.FormValue("peerNodeId"), channelId, feeBase, inbound, true)
 			if err != nil {
 				redirectWithError(w, r, nextPage, err)
 				return
@@ -1939,36 +1961,38 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		secureConnection, err := strconv.ParseBool(r.FormValue("secureConnection"))
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
+		if os.Getenv("NO_HTTPS") != "true" {
+			secureConnection, err := strconv.ParseBool(r.FormValue("secureConnection"))
+			if err != nil {
+				redirectWithError(w, r, "/config?", err)
+				return
+			}
 
-		// display CA certificate installation instructions
-		if secureConnection && !config.Config.SecureConnection {
-			config.Config.ServerIPs = r.FormValue("serverIPs")
-			config.Save()
-			http.Redirect(w, r, "/ca", http.StatusSeeOther)
-			return
-		}
+			// display CA certificate installation instructions
+			if secureConnection && !config.Config.SecureConnection {
+				config.Config.ServerIPs = r.FormValue("serverIPs")
+				config.Save()
+				http.Redirect(w, r, "/ca", http.StatusSeeOther)
+				return
+			}
 
-		if r.FormValue("serverIPs") != config.Config.ServerIPs {
-			config.Config.ServerIPs = r.FormValue("serverIPs")
-			if secureConnection {
-				if err := config.GenerateServerCertificate(); err == nil {
-					restart(w, r, true, config.Config.Password)
-				} else {
-					log.Println("GenereateServerCertificate:", err)
-					redirectWithError(w, r, "/config?", err)
-					return
+			if r.FormValue("serverIPs") != config.Config.ServerIPs {
+				config.Config.ServerIPs = r.FormValue("serverIPs")
+				if secureConnection {
+					if err := config.GenerateServerCertificate(); err == nil {
+						restart(w, r, true, config.Config.Password)
+					} else {
+						log.Println("GenereateServerCertificate:", err)
+						redirectWithError(w, r, "/config?", err)
+						return
+					}
 				}
 			}
-		}
 
-		if !secureConnection && config.Config.SecureConnection {
-			// restart to listen on HTTP only
-			restart(w, r, false, "")
+			if !secureConnection && config.Config.SecureConnection {
+				// restart to listen on HTTP only
+				restart(w, r, false, "")
+			}
 		}
 
 		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))

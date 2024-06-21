@@ -14,7 +14,6 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/btcsuite/btcd/chaincfg"
@@ -1037,23 +1036,45 @@ func SetFeeRate(peerNodeId string,
 	channelId uint64,
 	feeRate int64,
 	inbound bool,
-	isBase bool) error {
+	isBase bool) (int, error) {
 
 	if inbound {
-		return errors.New("inbound rates are not implemented")
+		return 0, errors.New("inbound rates are not implemented")
 	}
 
 	client, cleanup, err := GetClient()
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return 0, err
 	}
 	defer cleanup()
+
+	clnChId := ConvertLndToClnChannelId(channelId)
+
+	var response map[string]interface{}
+	err = client.Request(&ListPeerChannelsRequest{}, &response)
+	if err != nil {
+		return 0, err
+	}
+
+	oldRate := 0
+
+	// Iterate over channels to get old fee
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+		if channelMap["short_channel_id"] != nil {
+			if clnChId == channelMap["short_channel_id"].(string) {
+				oldRate = int(channelMap["fee_proportional_millionths"].(float64))
+				break
+			}
+		}
+	}
 
 	var req SetChannelRequest
 	var res map[string]interface{}
 
-	req.Id = ConvertLndToClnChannelId(channelId)
+	req.Id = clnChId
 	if isBase {
 		req.BaseMsat = feeRate
 	} else {
@@ -1063,10 +1084,10 @@ func SetFeeRate(peerNodeId string,
 	err = client.Request(&req, &res)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
-		return err
+		return oldRate, err
 	}
 
-	return nil
+	return oldRate, nil
 }
 
 // set min or max HTLC size (Msat!!!) for a channel
@@ -1105,15 +1126,18 @@ func HasInboundFees() bool {
 	return false
 }
 
-func ApplyAutoFeeAll() {
-	if !AutoFeeEnabledAll {
+func ApplyAutoFees() {
+	if !AutoFeeEnabledAll || autoFeeIsRunning {
 		return
 	}
+
+	autoFeeIsRunning = true
 
 	CacheForwards()
 
 	client, cleanup, err := GetClient()
 	if err != nil {
+		autoFeeIsRunning = false
 		return
 	}
 	defer cleanup()
@@ -1121,6 +1145,7 @@ func ApplyAutoFeeAll() {
 	var response map[string]interface{}
 
 	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
+		autoFeeIsRunning = false
 		return
 	}
 
@@ -1150,39 +1175,38 @@ func ApplyAutoFeeAll() {
 
 		oldFee := int(channelMap["fee_proportional_millionths"].(float64))
 		newFee := oldFee
+		liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
 
 		// check 10 minutes back to be sure
-		if params.FailedBumpPPM > 0 {
-			if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+		if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+			// forget failed HTLC to prevent duplicate action
+			failedForwardTS[channelId] = 0
+
+			if liqPct <= params.LowLiqPct {
 				// bump fee
 				newFee += params.FailedBumpPPM
-				// forget failed HTLC
-				failedForwardTS[channelId] = 0
+			} else {
+				// move threshold or do nothing
+				moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
+				autoFeeIsRunning = false
+				return
 			}
 		}
 
+		// if no Fail Bump
 		if newFee == oldFee {
-			liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
 			newFee = calculateAutoFee(channelId, params, liqPct, oldFee)
 		}
 
 		// set the new rate
 		if newFee != oldFee {
 			peerId := channelMap["peer_id"].(string)
-			if SetFeeRate(peerId, channelId, int64(newFee), false, false) == nil {
+			if _, err = SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 				// log the last change
-				AutoFeeLog[channelId] = &AutoFeeEvent{
-					TimeStamp: time.Now().Unix(),
-					OldRate:   oldFee,
-					NewRate:   newFee,
-				}
-				// persist to db
-				db.Save("AutoFees", "AutoFeeLog", AutoFeeLog)
+				LogFee(channelId, oldFee, newFee, false, false)
 			}
 		}
 	}
-}
 
-func ApplyAutoFee() {
-	// not implemented
+	autoFeeIsRunning = false
 }
