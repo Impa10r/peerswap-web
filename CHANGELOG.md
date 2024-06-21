@@ -3,7 +3,7 @@
 ## 1.5.5
 
 - Fix panic
-
+- Add lines to AF chart for High/Normal/Low Liq rates
 
 ## 1.5.4
 
