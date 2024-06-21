@@ -18,7 +18,6 @@ func (rw *responseWriter) Write(p []byte) (int, error) {
 	if err != nil {
 		if strings.Contains(err.Error(), "stream closed") || strings.Contains(err.Error(), "broken pipe") {
 			rw.brokenPipe = true
-			log.Println("Detected broken pipe error")
 		} else {
 			log.Printf("Write error: %v", err)
 		}
@@ -57,10 +56,11 @@ func authMiddleware(next http.Handler) http.Handler {
 			if !rw.brokenPipe {
 				return
 			}
-			time.Sleep(1 * time.Second) // Wait before retrying
+			time.Sleep(5 * time.Second) // Wait before retrying
 		}
 
-		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		// http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		return
 	})
 }
 

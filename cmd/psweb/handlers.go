@@ -205,12 +205,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		err := templates.ExecuteTemplate(w, "homepage", data)
 		if err != nil {
 			if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
-				log.Printf("Detected error '%v' while executing template, retrying...", err.Error())
-				time.Sleep(1 * time.Second)
+				time.Sleep(5 * time.Second)
 				continue
 			} else {
 				log.Printf("Template execution error: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 		}
@@ -218,7 +216,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Failed to execute template after 3 attempts due to broken pipe")
-	http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+	//http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 }
 
 func peerHandler(w http.ResponseWriter, r *http.Request) {

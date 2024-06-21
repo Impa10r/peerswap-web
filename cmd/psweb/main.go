@@ -34,7 +34,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.4"
+	version = "v1.5.5"
 )
 
 type SwapParams struct {
@@ -845,7 +845,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 		// alias is a link to open peer details page
 		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
 
-		peerTable += "<span title=\"Not using PeerSwap\">🙁&nbsp</span>"
+		// peerTable += "<span title=\"Not using PeerSwap\">🙁&nbsp</span>"
 		peerTable += "<span title=\"Invite peer to PeerSwap via a direct Keysend message\">" + getNodeAlias(peer.NodeId)
 		peerTable += "</span></a>"
 

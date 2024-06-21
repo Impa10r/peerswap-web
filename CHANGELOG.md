@@ -1,5 +1,10 @@
 # Versions
 
+## 1.5.5
+
+- Fix panic
+
+
 ## 1.5.4
 
 - Hide HTTPS option for Umbrel

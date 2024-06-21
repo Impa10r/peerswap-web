@@ -1210,3 +1210,21 @@ func ApplyAutoFees() {
 
 	autoFeeIsRunning = false
 }
+
+func PlotPPM(channelId uint64) *[]DataPoint {
+	var plot []DataPoint
+
+	for _, e := range forwardsOut[channelId] {
+		// ignore small forwards
+		if e.OutMsat > 1000000 {
+			plot = append(plot, DataPoint{
+				TS:     uint64(e.ResolvedTime),
+				Amount: e.OutMsat / 1000,
+				Fee:    e.FeeMsat / 1000,
+				PPM:    e.FeeMsat * 1_000_000 / e.OutMsat,
+			})
+		}
+	}
+
+	return &plot
+}

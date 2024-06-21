@@ -1861,8 +1861,11 @@ func ApplyAutoFees() {
 				toSet = true
 			} else if liqPct >= params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
 				// remove discount unless it was manually set
-				if !LastAutoFeeLog(ch.ChanId, true).IsManual {
-					toSet = true
+				lastFee := LastAutoFeeLog(ch.ChanId, true)
+				if lastFee != nil {
+					if lastFee.IsManual {
+						toSet = true
+					}
 				}
 			}
 
