@@ -6,7 +6,7 @@ A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p
 
 ### Disclaimer
 
-This source code is free speech. The contributors do not solicit its use for any purpose, do not control, are not responsible for and gain no financial benefits from such use.
+This source code is free speech. The contributors do not solicit its use for any purpose, do not control, are not responsible for and gain nothing from such use.
 
 # Setup
 
