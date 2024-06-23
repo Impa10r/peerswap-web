@@ -252,7 +252,8 @@
                       {{end}}
                       {{if gt .OldRate .NewRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
-                      {{end}}">{{.NewRate}}</td>
+                      {{end}}">
+                      {{.NewRate}}</td>
                     <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
                     <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
                   </tr>
@@ -286,13 +287,13 @@
             <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
-                  <th>Alias</th>
+                  <th>Peer</th>
                   <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
-                  <th title="Outbound Fee Rate" style="width: 6ch; text-align: right;">Rate</th>
+                  <th title="Outbound Fee Rate" style="width: 6ch; text-align: right;">Out</th>
                   <th title="Inbound Fee Rate" style="width: 4ch; text-align: right;">In</th>
                   <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
-* indicates custom rule" style="text-align: center;">AF Rules</th>
+* indicates custom rule" style="text-align: center;">Rule</th>
                   <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>
