@@ -68,7 +68,7 @@
               </div>
             </div>
             {{if .ChannelId}}
-              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, fee rate: {{fs .FeeRate}}{{if .HasInboundFees}}, inbound rate: {{.InboundRate}}{{end}}</p>
+              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
             {{end}}   
             <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
@@ -76,7 +76,9 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is high" class="label">High Liq Rate</label>
+                      <label title="Fee rate PPM floor when liquidity is high" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: green; text-decoration-color: green;"{{end}}>
+                        High Liq Rate
+                      </label>
                     </div>
                   </td>
                   <td>
@@ -98,7 +100,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label">Normal Rate</label>
+                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: blue; text-decoration-color: blue;"{{end}}>Normal Rate</label>
                     </div>
                   </td>
                   <td>
@@ -120,7 +122,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
+                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: red; text-decoration-color: red;"{{end}}>Low Liq Rate</label>
                     </div>
                   </td>
                   <td>
@@ -216,7 +218,7 @@
               </div>
             </form>
           </div>
-          {{if ne .ChannelId 0}}
+          {{if .ChannelId}}
             <div class="box has-text-left">
               <h4 class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
