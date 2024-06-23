@@ -865,7 +865,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// sort by LocalPct descending
+	// sort by LocalPct ascending
 	sort.Slice(channelList, func(i, j int) bool {
 		return channelList[i].LocalPct < channelList[j].LocalPct
 	})
@@ -917,7 +917,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	// sort by TimeStamp descending
 	sort.Slice(feeLog, func(i, j int) bool {
-		return feeLog[i].TimeStamp < feeLog[j].TimeStamp
+		return feeLog[i].TimeStamp > feeLog[j].TimeStamp
 	})
 
 	type Page struct {
