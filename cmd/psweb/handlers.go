@@ -894,15 +894,17 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	// load the last 24 hours of fee changes
 	startTS := time.Now().Add(-24 * time.Hour).Unix()
+	timeAgoWidth := 1
 
 	for id := range ln.AutoFeeLog {
 		for _, event := range ln.AutoFeeLog[id] {
 			if event.TimeStamp > startTS {
 				// either all or specific channel
 				if channelId == 0 || channelId == id {
+					timeAgo := timePassedAgo(time.Unix(event.TimeStamp, 0))
 					feeLog = append(feeLog, FeeLog{
 						TimeStamp: event.TimeStamp,
-						TimeAgo:   timePassedAgo(time.Unix(event.TimeStamp, 0)),
+						TimeAgo:   timeAgo,
 						Alias:     getNodeAlias(peerNodeId[id]),
 						ChannelId: id,
 						OldRate:   event.OldRate,
@@ -910,6 +912,9 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 						IsInbound: event.IsInbound,
 						IsManual:  event.IsManual,
 					})
+					if len(timeAgo)+1 > timeAgoWidth {
+						timeAgoWidth = len(timeAgo) + 1
+					}
 				}
 			}
 		}
@@ -942,6 +947,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees bool
 		Chart          *[]ln.DataPoint
 		FeeLog         []FeeLog
+		TimeAgoWidth   int
 	}
 
 	data := Page{
@@ -966,6 +972,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees: ln.HasInboundFees(),
 		Chart:          chart,
 		FeeLog:         feeLog,
+		TimeAgoWidth:   timeAgoWidth,
 	}
 
 	// executing template named "af"
