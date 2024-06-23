@@ -234,8 +234,8 @@
                   <th>Peer</th>
                   <th style="width: 6ch; text-align: right;">Old</th>
                   <th style="width: 6ch; text-align: right;">New</th>
-                  <th title="Direction: Inbound or outbound" style="width: 2ch; text-align: right;">D</th>
-                  <th title="Set by: Auto or manual" style="width: 2ch; text-align: right;">S</th>
+                  <th title="Direction: Inbound or outbound" style="width: 1ch; text-align: right;">D</th>
+                  <th title="Set by: Auto or manual" style="width: 1ch; text-align: right;">S</th>
                 </tr>
               </thead>
               <tbody>
@@ -251,8 +251,8 @@
                       {{if gt .OldRate .NewRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
                       {{end}}">{{.NewRate}}</td>
-                    <td style="text-align: right;" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
-                    <td style="text-align: right;" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
+                    <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
+                    <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
                   </tr>
                 {{end}}
               </tbody>
