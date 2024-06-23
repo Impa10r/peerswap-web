@@ -246,10 +246,10 @@
                     <td style="text-align: right;">{{.OldRate}}</td>
                     <td style="text-align: right; 
                       {{if gt .NewRate .OldRate}}
-                        color:green
+                        background:green; color: white;
                       {{end}}
                       {{if gt .OldRate .NewRate}}
-                        color:red
+                        background:red; color: white;
                       {{end}}">{{.NewRate}}</td>
                     <td style="text-align: right;">{{if .IsInbound}}In{{else}}Out{{end}}</td>
                     <td style="text-align: right;">{{if .IsManual}}Man{{else}}Auto{{end}}</td>
