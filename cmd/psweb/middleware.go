@@ -60,7 +60,6 @@ func authMiddleware(next http.Handler) http.Handler {
 		}
 
 		// http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
-		return
 	})
 }
 

@@ -312,7 +312,7 @@
       // Plugin to draw horizontal lines
       const horizontalLinePlugin = {
           id: 'horizontalLine',
-          afterDraw: (chart) => {
+          beforeDatasetsDraw: (chart) => {
               const { ctx, chartArea: { left, right }, scales: { y } } = chart;
               const lines = chart.config.options.horizontalLines;
               
