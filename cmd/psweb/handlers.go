@@ -894,7 +894,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	// load the last 24 hours of fee changes
 	startTS := time.Now().Add(-24 * time.Hour).Unix()
-	timeAgoWidth := 1
+	timeAgoWidth := 0
 
 	for id := range ln.AutoFeeLog {
 		for _, event := range ln.AutoFeeLog[id] {
@@ -912,8 +912,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 						IsInbound: event.IsInbound,
 						IsManual:  event.IsManual,
 					})
-					if len(timeAgo)+1 > timeAgoWidth {
-						timeAgoWidth = len(timeAgo) + 1
+					if len(timeAgo) > timeAgoWidth {
+						timeAgoWidth = len(timeAgo)
 					}
 				}
 			}
