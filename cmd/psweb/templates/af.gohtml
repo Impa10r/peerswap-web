@@ -218,13 +218,46 @@
           </div>
           {{if ne .ChannelId 0}}
             <div class="box has-text-left">
-            <h4 class="title is-4">Realized Routing PPM<h4>
+              <h4 class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
                 <canvas id="myScatterChart"></canvas>
                 <div id="tooltip"></div>
               </div>
             </div>
           {{end}}
+          <div class="box has-text-left">
+            <h4 class="title is-4">24h Fee Log<h4>
+            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width: 13ch;">Time</th>
+                  <th>Alias</th>
+                  <th style="width: 5ch; text-align: right;">Old</th>
+                  <th style="width: 5ch; text-align: right;">New</th>
+                  <th title="Inbound or outbound" style="width: 4ch; text-align: right;">Dir</th>
+                  <th title="Auto or manual" style="width: 5ch; text-align: right;">Set</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{range .FeeLog}}
+                  <tr>
+                    <td style="text-align: left;">{{.TimeAgo}}</td>
+                    <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
+                    <td style="text-align: right;">{{.OldRate}}</td>
+                    <td style="text-align: right; 
+                      {{if gt .NewRate .OldRate}}
+                        color:green
+                      {{end}}
+                      {{if gt .OldRate .NewRate}}
+                        color:red
+                      {{end}}">{{.NewRate}}</td>
+                    <td style="text-align: right;">{{if .IsInbound}}In{{else}}Out{{end}}</td>
+                    <td style="text-align: right;">{{if .IsManual}}Man{{else}}Auto{{end}}</td>
+                  </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
         </div> 
         <div class="column"> 
           <div class="box has-text-left">

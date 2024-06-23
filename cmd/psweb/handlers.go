@@ -776,6 +776,17 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type FeeLog struct {
+	Alias     string
+	ChannelId uint64
+	TimeStamp int64
+	TimeAgo   string
+	OldRate   int
+	NewRate   int
+	IsInbound bool
+	IsManual  bool
+}
+
 func afHandler(w http.ResponseWriter, r *http.Request) {
 	channelId := uint64(0)
 	peerName := "Default Rule"
@@ -812,6 +823,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
+	// store peer pub mapped to channel Id
+	peerNodeId := make(map[uint64]string)
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
@@ -825,6 +838,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		for _, ch := range peer.Channels {
 			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
 			af, _ := ln.AutoFeeRule(ch.ChannelId)
+			peerNodeId[ch.ChannelId] = peer.NodeId
+
 			channelList = append(channelList, &ln.AutoFeeStatus{
 				Enabled:     ln.AutoFeeEnabled[ch.ChannelId],
 				Capacity:    ch.LocalBalance + ch.RemoteBalance,
@@ -875,6 +890,36 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
+	var feeLog []FeeLog
+
+	// load the last 24 hours of fee changes
+	startTS := time.Now().Add(-24 * time.Hour).Unix()
+
+	for id := range ln.AutoFeeLog {
+		for _, event := range ln.AutoFeeLog[id] {
+			if event.TimeStamp > startTS {
+				// either all or specific channel
+				if channelId == 0 || channelId == id {
+					feeLog = append(feeLog, FeeLog{
+						TimeStamp: event.TimeStamp,
+						TimeAgo:   timePassedAgo(time.Unix(event.TimeStamp, 0)),
+						Alias:     getNodeAlias(peerNodeId[id]),
+						ChannelId: id,
+						OldRate:   event.OldRate,
+						NewRate:   event.NewRate,
+						IsInbound: event.IsInbound,
+						IsManual:  event.IsManual,
+					})
+				}
+			}
+		}
+	}
+
+	// sort by TimeStamp descending
+	sort.Slice(feeLog, func(i, j int) bool {
+		return feeLog[i].TimeStamp < feeLog[j].TimeStamp
+	})
+
 	type Page struct {
 		Authenticated  bool
 		ErrorMessage   string
@@ -896,6 +941,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		AnyEnabled     bool // for any channel
 		HasInboundFees bool
 		Chart          *[]ln.DataPoint
+		FeeLog         []FeeLog
 	}
 
 	data := Page{
@@ -919,6 +965,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		AnyEnabled:     anyEnabled,
 		HasInboundFees: ln.HasInboundFees(),
 		Chart:          chart,
+		FeeLog:         feeLog,
 	}
 
 	// executing template named "af"
@@ -2265,7 +2312,7 @@ func executeTemplate(w io.Writer, name string, data any) {
 	err := templates.ExecuteTemplate(w, name, data)
 	if err != nil {
 		if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
-			// nothing can be done
+			// nothing can be done, let the browser retry
 			return
 		} else {
 			log.Fatalf("Template execution error: %v", err)
