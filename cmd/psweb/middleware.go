@@ -1,31 +1,12 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"peerswap-web/cmd/psweb/config"
 	"strings"
-	"time"
 )
 
-type responseWriter struct {
-	http.ResponseWriter
-	brokenPipe bool
-}
-
-func (rw *responseWriter) Write(p []byte) (int, error) {
-	n, err := rw.ResponseWriter.Write(p)
-	if err != nil {
-		if strings.Contains(err.Error(), "stream closed") || strings.Contains(err.Error(), "broken pipe") {
-			rw.brokenPipe = true
-		} else {
-			log.Printf("Write error: %v", err)
-		}
-	}
-	return n, err
-}
-
-// Middleware to check auth and retry on broken pipe
+// Middleware to check authentication
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if config.Config.SecureConnection && !strings.HasPrefix(r.RequestURI, "/downloadca") {
@@ -50,14 +31,8 @@ func authMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		for i := 0; i < 3; i++ { // Retry up to 3 times
-			rw := &responseWriter{ResponseWriter: w}
-			next.ServeHTTP(rw, r)
-			if !rw.brokenPipe {
-				return
-			}
-			time.Sleep(1 * time.Second) // Wait before retrying
-		}
+		// proceed
+		next.ServeHTTP(w, r)
 	})
 }
 
