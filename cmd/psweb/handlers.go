@@ -201,22 +201,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "homepage" with retries
-	for i := 0; i < 3; i++ {
-		err := templates.ExecuteTemplate(w, "homepage", data)
-		if err != nil {
-			if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
-				time.Sleep(5 * time.Second)
-				continue
-			} else {
-				log.Printf("Template execution error: %v", err)
-				return
-			}
-		}
-		return
-	}
-
-	log.Println("Failed to execute template after 3 attempts due to broken pipe")
-	//http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+	executeTemplate(w, "homepage", data)
 }
 
 func peerHandler(w http.ResponseWriter, r *http.Request) {
@@ -483,10 +468,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "peer"
-	err = templates.ExecuteTemplate(w, "peer", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "peer", data)
 }
 
 func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
@@ -588,11 +570,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "bitcoin"
-	err := templates.ExecuteTemplate(w, "bitcoin", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
+	executeTemplate(w, "bitcoin", data)
 }
 
 func peginHandler(w http.ResponseWriter, r *http.Request) {
@@ -798,6 +776,17 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type FeeLog struct {
+	Alias     string
+	ChannelId uint64
+	TimeStamp int64
+	TimeAgo   string
+	OldRate   int
+	NewRate   int
+	IsInbound bool
+	IsManual  bool
+}
+
 func afHandler(w http.ResponseWriter, r *http.Request) {
 	channelId := uint64(0)
 	peerName := "Default Rule"
@@ -834,6 +823,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
+	// store peer pub mapped to channel Id
+	peerNodeId := make(map[uint64]string)
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
@@ -847,6 +838,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		for _, ch := range peer.Channels {
 			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
 			af, _ := ln.AutoFeeRule(ch.ChannelId)
+			peerNodeId[ch.ChannelId] = peer.NodeId
+
 			channelList = append(channelList, &ln.AutoFeeStatus{
 				Enabled:     ln.AutoFeeEnabled[ch.ChannelId],
 				Capacity:    ch.LocalBalance + ch.RemoteBalance,
@@ -872,7 +865,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// sort by LocalPct descending
+	// sort by LocalPct ascending
 	sort.Slice(channelList, func(i, j int) bool {
 		return channelList[i].LocalPct < channelList[j].LocalPct
 	})
@@ -897,6 +890,37 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
+	var feeLog []FeeLog
+
+	// load the last 24 hours of fee changes
+	startTS := time.Now().Add(-24 * time.Hour).Unix()
+
+	for id := range ln.AutoFeeLog {
+		for _, event := range ln.AutoFeeLog[id] {
+			if event.TimeStamp > startTS {
+				// either all or specific channel
+				if channelId == 0 || channelId == id {
+					timeAgo := timePassedAgo(time.Unix(event.TimeStamp, 0))
+					feeLog = append(feeLog, FeeLog{
+						TimeStamp: event.TimeStamp,
+						TimeAgo:   timeAgo,
+						Alias:     getNodeAlias(peerNodeId[id]),
+						ChannelId: id,
+						OldRate:   event.OldRate,
+						NewRate:   event.NewRate,
+						IsInbound: event.IsInbound,
+						IsManual:  event.IsManual,
+					})
+				}
+			}
+		}
+	}
+
+	// sort by TimeStamp descending
+	sort.Slice(feeLog, func(i, j int) bool {
+		return feeLog[i].TimeStamp > feeLog[j].TimeStamp
+	})
+
 	type Page struct {
 		Authenticated  bool
 		ErrorMessage   string
@@ -918,6 +942,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		AnyEnabled     bool // for any channel
 		HasInboundFees bool
 		Chart          *[]ln.DataPoint
+		FeeLog         []FeeLog
 	}
 
 	data := Page{
@@ -941,13 +966,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		AnyEnabled:     anyEnabled,
 		HasInboundFees: ln.HasInboundFees(),
 		Chart:          chart,
+		FeeLog:         feeLog,
 	}
 
 	// executing template named "af"
-	err = templates.ExecuteTemplate(w, "af", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "af", data)
 }
 
 func swapHandler(w http.ResponseWriter, r *http.Request) {
@@ -1005,10 +1028,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "swap"
-	err = templates.ExecuteTemplate(w, "swap", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "swap", data)
 }
 
 // Updates swap page live
@@ -1189,10 +1209,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "config"
-	err := templates.ExecuteTemplate(w, "config", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "config", data)
 }
 
 func caHandler(w http.ResponseWriter, r *http.Request) {
@@ -1247,10 +1264,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "ca"
-	err = templates.ExecuteTemplate(w, "ca", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "ca", data)
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -1297,10 +1311,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// executing template named "login"
-		err := templates.ExecuteTemplate(w, "login", data)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		executeTemplate(w, "login", data)
 	}
 }
 
@@ -1400,10 +1411,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "liquid"
-	err = templates.ExecuteTemplate(w, "liquid", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "liquid", data)
 }
 
 func submitHandler(w http.ResponseWriter, r *http.Request) {
@@ -2137,11 +2145,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "loading"
-	err := templates.ExecuteTemplate(w, "loading", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
+	executeTemplate(w, "loading", data)
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
@@ -2202,11 +2206,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "logpage"
-	err := templates.ExecuteTemplate(w, "logpage", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
+	executeTemplate(w, "logpage", data)
 }
 
 // returns log as JSON
@@ -2307,4 +2307,16 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 	// Send the next chunk of the log as the response
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(responseJSON))
+}
+
+func executeTemplate(w io.Writer, name string, data any) {
+	err := templates.ExecuteTemplate(w, name, data)
+	if err != nil {
+		if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
+			// nothing can be done, let the browser retry
+			return
+		} else {
+			log.Fatalf("Template execution error: %v", err)
+		}
+	}
 }

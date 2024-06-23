@@ -1,5 +1,10 @@
 # Versions
 
+## 1.5.6
+
+- AF: Add Fee Log table for the last 24 hours 
+- AF: Draw current fee rate with a dotted line on chart 
+
 ## 1.5.5
 
 - Fix panic

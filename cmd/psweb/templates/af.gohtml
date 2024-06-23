@@ -14,13 +14,13 @@
                   <input type="hidden" name="channelId" value="0">
                   <input type="hidden" name="nextId" value="{{.ChannelId}}">
                   <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    <input title="Global Enable/Disable switch" type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
                     {{if .GlobalEnabled}}
-                      <label for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      <label title="Global Enable/Disable switch" for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
                         ON
                       </label>
                     {{else}}
-                      <label for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      <label title="Global Enable/Disable switch" for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
                         OFF
                       </label>
                     {{end}}
@@ -52,13 +52,13 @@
                     <input type="hidden" name="channelId" value="{{.ChannelId}}">
                     <input type="hidden" name="nextId" value="{{.ChannelId}}">
                     <label class="checkbox is-large" style="padding-top: .5em;">
-                      <input type="checkbox" id="enabled" name="enabled" {{if .Enabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_{{.ChannelId}}')">
+                      <input title="Per-channel Enable/Disable switch" type="checkbox" id="enabled" name="enabled" {{if .Enabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_{{.ChannelId}}')">
                       {{if .Enabled}}
-                        <label for="enabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        <label title="Per-channel Enable/Disable switch" for="enabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
                           ON
                         </label>
                       {{else}}
-                        <label for="enabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        <label title="Per-channel Enable/Disable switch" for="enabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
                           OFF
                         </label>
                       {{end}}
@@ -68,7 +68,7 @@
               </div>
             </div>
             {{if .ChannelId}}
-              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, fee rate: {{fs .FeeRate}}{{if .HasInboundFees}}, inbound rate: {{.InboundRate}}{{end}}</p>
+              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
             {{end}}   
             <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
@@ -76,7 +76,9 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is high" class="label">High Liq Rate</label>
+                      <label title="Fee rate PPM floor when liquidity is high" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: green; text-decoration-color: green;"{{end}}>
+                        High Liq Rate
+                      </label>
                     </div>
                   </td>
                   <td>
@@ -98,7 +100,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label">Normal Rate</label>
+                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: blue; text-decoration-color: blue;"{{end}}>Normal Rate</label>
                     </div>
                   </td>
                   <td>
@@ -120,7 +122,7 @@
                 <tr>
                   <td>
                     <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label">Low Liq Rate</label>
+                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: red; text-decoration-color: red;"{{end}}>Low Liq Rate</label>
                     </div>
                   </td>
                   <td>
@@ -216,15 +218,49 @@
               </div>
             </form>
           </div>
-          {{if ne .ChannelId 0}}
+          {{if .ChannelId}}
             <div class="box has-text-left">
-            <h4 class="title is-4">Realized Routing PPM<h4>
+              <h4 class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
                 <canvas id="myScatterChart"></canvas>
                 <div id="tooltip"></div>
               </div>
             </div>
           {{end}}
+          <div class="box has-text-left">
+            <h4 class="title is-4">24h Fee Log<h4>
+            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width: 11ch;">Time</th>
+                  <th>Peer</th>
+                  <th style="width: 6ch; text-align: right;">Old</th>
+                  <th style="width: 6ch; text-align: right;">New</th>
+                  <th title="Direction: Inbound or outbound" style="width: 1ch; text-align: right;">D</th>
+                  <th title="Set by: Auto or manual" style="width: 1ch; text-align: right;">S</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{range .FeeLog}}
+                  <tr>
+                    <td class="truncate">{{.TimeAgo}}</td>
+                    <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
+                    <td style="text-align: right;">{{.OldRate}}</td>
+                    <td style="text-align: right; 
+                      {{if gt .NewRate .OldRate}}
+                        background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
+                      {{end}}
+                      {{if gt .OldRate .NewRate}}
+                        background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
+                      {{end}}">
+                      {{.NewRate}}</td>
+                    <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
+                    <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
+                  </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
         </div> 
         <div class="column"> 
           <div class="box has-text-left">
@@ -251,13 +287,13 @@
             <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
-                  <th>Alias</th>
+                  <th>Peer</th>
                   <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
-                  <th title="Outbound Fee Rate" style="width: 6ch; text-align: right;">Rate</th>
+                  <th title="Outbound Fee Rate" style="width: 6ch; text-align: right;">Out</th>
                   <th title="Inbound Fee Rate" style="width: 4ch; text-align: right;">In</th>
                   <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
-* indicates custom rule" style="text-align: center;">AF Rules</th>
+* indicates custom rule" style="text-align: center;">Rule</th>
                   <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
                 </tr>
               </thead>
@@ -312,7 +348,7 @@
       // Plugin to draw horizontal lines
       const horizontalLinePlugin = {
           id: 'horizontalLine',
-          afterDraw: (chart) => {
+          beforeDatasetsDraw: (chart) => {
               const { ctx, chartArea: { left, right }, scales: { y } } = chart;
               const lines = chart.config.options.horizontalLines;
               
@@ -325,6 +361,11 @@
                       ctx.beginPath();
                       ctx.moveTo(left, yPixel);
                       ctx.lineTo(right, yPixel);
+                      if (line.dotted) {
+                          ctx.setLineDash([5, 5]);
+                      } else {
+                          ctx.setLineDash([]);
+                      }
                       ctx.lineWidth = line.width || 2;
                       ctx.strokeStyle = line.color || 'black';
                       ctx.stroke();
@@ -410,7 +451,8 @@
               horizontalLines: [
                   { value: {{.Params.ExcessRate}}, color: 'green', width: 2 },
                   { value: {{.Params.NormalRate}}, color: 'blue', width: 2 },
-                  { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 }
+                  { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 },
+                  { value: {{.FeeRate}}, color: 'grey', width: 2, dotted: true }
               ]
           }
       });
