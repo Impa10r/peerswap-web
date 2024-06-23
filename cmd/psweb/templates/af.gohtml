@@ -230,7 +230,7 @@
             <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
-                  <th style="width: {{.TimeAgoWidth}}ch;">Time</th>
+                  <th style="width: 10ch;">Time</th>
                   <th>Alias</th>
                   <th style="width: 5ch; text-align: right;">Old</th>
                   <th style="width: 5ch; text-align: right;">New</th>
@@ -241,7 +241,7 @@
               <tbody>
                 {{range .FeeLog}}
                   <tr>
-                    <td style="text-align: left;">{{.TimeAgo}}</td>
+                    <td class="truncate">{{.TimeAgo}}</td>
                     <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
                     <td style="text-align: right;">{{.OldRate}}</td>
                     <td style="text-align: right; 

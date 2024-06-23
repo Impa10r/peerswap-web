@@ -894,7 +894,6 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	// load the last 24 hours of fee changes
 	startTS := time.Now().Add(-24 * time.Hour).Unix()
-	timeAgoWidth := 0
 
 	for id := range ln.AutoFeeLog {
 		for _, event := range ln.AutoFeeLog[id] {
@@ -912,9 +911,6 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 						IsInbound: event.IsInbound,
 						IsManual:  event.IsManual,
 					})
-					if len(timeAgo) > timeAgoWidth {
-						timeAgoWidth = len(timeAgo)
-					}
 				}
 			}
 		}
@@ -947,7 +943,6 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees bool
 		Chart          *[]ln.DataPoint
 		FeeLog         []FeeLog
-		TimeAgoWidth   int
 	}
 
 	data := Page{
@@ -972,7 +967,6 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees: ln.HasInboundFees(),
 		Chart:          chart,
 		FeeLog:         feeLog,
-		TimeAgoWidth:   timeAgoWidth,
 	}
 
 	// executing template named "af"
