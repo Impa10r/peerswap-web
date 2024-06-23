@@ -231,11 +231,11 @@
               <thead>
                 <tr>
                   <th style="width: 11ch;">Time</th>
-                  <th>Alias</th>
+                  <th>Peer</th>
                   <th style="width: 6ch; text-align: right;">Old</th>
                   <th style="width: 6ch; text-align: right;">New</th>
-                  <th title="Inbound or outbound" style="width: 4ch; text-align: right;">Dir</th>
-                  <th title="Auto or manual" style="width: 5ch; text-align: right;">Set</th>
+                  <th title="Direction: Inbound or outbound" style="width: 2ch; text-align: right;">D</th>
+                  <th title="Set by: Auto or manual" style="width: 2ch; text-align: right;">S</th>
                 </tr>
               </thead>
               <tbody>
@@ -251,8 +251,8 @@
                       {{if gt .OldRate .NewRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
                       {{end}}">{{.NewRate}}</td>
-                    <td style="text-align: right;">{{if .IsInbound}}In{{else}}Out{{end}}</td>
-                    <td style="text-align: right;">{{if .IsManual}}Man{{else}}Auto{{end}}</td>
+                    <td style="text-align: right;" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
+                    <td style="text-align: right;" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
                   </tr>
                 {{end}}
               </tbody>
