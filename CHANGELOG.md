@@ -1,5 +1,10 @@
 # Versions
 
+## 1.5.7
+
+- AF: Fix enable/disable all individual channels
+- AF: Fix inbound fee management
+
 ## 1.5.6
 
 - AF: Add Fee Log table for the last 24 hours 

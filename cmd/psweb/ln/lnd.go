@@ -1258,7 +1258,7 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 
 	info.FeeRate = policy.GetFeeRateMilliMsat()
 	info.FeeBase = policy.GetFeeBaseMsat()
-	if CanRBF() { // signals LND 0.18+
+	if HasInboundFees() {
 		info.InboundFeeBase = int64(policy.GetInboundFeeBaseMsat())
 		info.InboundFeeRate = int64(policy.GetInboundFeeRateMilliMsat())
 	}
@@ -1863,7 +1863,7 @@ func ApplyAutoFees() {
 				// remove discount unless it was manually set
 				lastFee := LastAutoFeeLog(ch.ChanId, true)
 				if lastFee != nil {
-					if lastFee.IsManual {
+					if !lastFee.IsManual {
 						toSet = true
 					}
 				}

@@ -780,6 +780,7 @@ type FeeLog struct {
 	Alias     string
 	ChannelId uint64
 	TimeStamp int64
+	TimeUTC   string
 	TimeAgo   string
 	OldRate   int
 	NewRate   int
@@ -903,6 +904,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 					timeAgo := timePassedAgo(time.Unix(event.TimeStamp, 0))
 					feeLog = append(feeLog, FeeLog{
 						TimeStamp: event.TimeStamp,
+						TimeUTC:   time.Unix(event.TimeStamp, 0).UTC().Format(time.RFC1123),
 						TimeAgo:   timeAgo,
 						Alias:     getNodeAlias(peerNodeId[id]),
 						ChannelId: id,

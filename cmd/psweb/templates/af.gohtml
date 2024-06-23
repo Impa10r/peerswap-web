@@ -243,7 +243,7 @@
               <tbody>
                 {{range .FeeLog}}
                   <tr>
-                    <td class="truncate">{{.TimeAgo}}</td>
+                    <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
                     <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
                     <td style="text-align: right;">{{.OldRate}}</td>
                     <td style="text-align: right; 
@@ -329,6 +329,11 @@
       </div>
     </form>
     <script>
+      // toggles all individual enable/disable 
+      function toggleAll(value) {
+        document.getElementById("enabledAll").checked = value;
+        submitForm("toggleForm_all");
+      }
       // submits enable/disable toggle 
       function submitForm(formId) {
         document.getElementById(formId).submit();
@@ -344,131 +349,131 @@
           }
         }
       }
+      {{if .ChannelId}}
+        // Plugin to draw horizontal lines
+        const horizontalLinePlugin = {
+            id: 'horizontalLine',
+            beforeDatasetsDraw: (chart) => {
+                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+                const lines = chart.config.options.horizontalLines;
+                
+                if (lines) {
+                    lines.forEach(line => {
+                        const yValue = line.value;
+                        const yPixel = y.getPixelForValue(yValue);
 
-      // Plugin to draw horizontal lines
-      const horizontalLinePlugin = {
-          id: 'horizontalLine',
-          beforeDatasetsDraw: (chart) => {
-              const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-              const lines = chart.config.options.horizontalLines;
-              
-              if (lines) {
-                  lines.forEach(line => {
-                      const yValue = line.value;
-                      const yPixel = y.getPixelForValue(yValue);
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(left, yPixel);
+                        ctx.lineTo(right, yPixel);
+                        if (line.dotted) {
+                            ctx.setLineDash([5, 5]);
+                        } else {
+                            ctx.setLineDash([]);
+                        }
+                        ctx.lineWidth = line.width || 2;
+                        ctx.strokeStyle = line.color || 'black';
+                        ctx.stroke();
+                        ctx.restore();
+                    });
+                }
+            }
+        };
 
-                      ctx.save();
-                      ctx.beginPath();
-                      ctx.moveTo(left, yPixel);
-                      ctx.lineTo(right, yPixel);
-                      if (line.dotted) {
-                          ctx.setLineDash([5, 5]);
-                      } else {
-                          ctx.setLineDash([]);
-                      }
-                      ctx.lineWidth = line.width || 2;
-                      ctx.strokeStyle = line.color || 'black';
-                      ctx.stroke();
-                      ctx.restore();
-                  });
-              }
-          }
-      };
-
-      // Register the plugin
-      Chart.register(horizontalLinePlugin);
-      
-      // Get the context of the canvas element we want to select
-      var ctx = document.getElementById('myScatterChart').getContext('2d');
-
-      // Create the chart
-      var myChart = new Chart(ctx, {
-          type: 'bubble', // The type of chart we want to create
-          data: {
-              datasets: [{
-                  data: [
-                      {{range $index, $element := .Chart}}
-                        { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: `{{$element.Label}}` }{{if not (last $index $.Chart)}},{{end}}
-                      {{end}}
-                  ],
-                  backgroundColor: 'rgba(54, 162, 235, 0.8)',
-                  borderColor: 'rgba(75, 192, 192, 1)',
-                  borderWidth: 1
-              }]
-          },
-          options: {
-              scales: {
-                  x: {
-                      type: 'time',
-                      time: {
-                          unit: 'month'
-                      },
-                      position: 'bottom',
-                      {{if eq .ColorScheme "dark"}}
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
-                            borderColor: 'rgba(255, 255, 255, 0.2)', // Set grid border color (white with slightly higher opacity)
-                            borderWidth: 1 // Grid border width
-                        },
-                        ticks: {
-                            color: 'white' // Set x-axis font color to white
-                        },
-                      {{end}}
-                      title: {
-                          display: false,
-                      }
-                  },
-                  y: {
-                      beginAtZero: true,
-                      {{if eq .ColorScheme "dark"}}
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
-                            borderColor: 'rgba(255, 255, 255, 0.2)', // Set grid border color (white with slightly higher opacity)
-                            borderWidth: 1 // Grid border width
-                        },
-                        ticks: {
-                            color: 'white' // Set x-axis font color to white
-                        },
-                      {{end}}
-                      title: {
-                          display: false,
-                      }
-                  }
-              },
-              plugins: {
-                  tooltip: {
-                      callbacks: {
-                          label: function(context) {
-                              let label = context.raw.label || '';
-                              return label;
-                          },
-                      },
-                  },
-                  legend: {
-                      display: false
-                  },
-              },
-              horizontalLines: [
-                  { value: {{.Params.ExcessRate}}, color: 'green', width: 2 },
-                  { value: {{.Params.NormalRate}}, color: 'blue', width: 2 },
-                  { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 },
-                  { value: {{.FeeRate}}, color: 'grey', width: 2, dotted: true }
-              ]
-          }
-      });
-
-      function updateChart() {
-        const line1Value = parseFloat(document.getElementById('excessRate').value);
-        const line2Value = parseFloat(document.getElementById('normalRate').value);
-        const line3Value = parseFloat(document.getElementById('lowLiqRate').value);
-
-        myChart.config.options.horizontalLines[0].value = line1Value;
-        myChart.config.options.horizontalLines[1].value = line2Value;
-        myChart.config.options.horizontalLines[2].value = line3Value;
+        // Register the plugin
+        Chart.register(horizontalLinePlugin);
         
-        myChart.update();
-      }
+        // Get the context of the canvas element we want to select
+        var ctx = document.getElementById('myScatterChart').getContext('2d');
 
+        // Create the chart
+        var myChart = new Chart(ctx, {
+            type: 'bubble', // The type of chart we want to create
+            data: {
+                datasets: [{
+                    data: [
+                        {{range $index, $element := .Chart}}
+                          { x: new Date({{$element.TS}} * 1000), y: {{$element.PPM}}, r: {{$element.R}}, label: `{{$element.Label}}` }{{if not (last $index $.Chart)}},{{end}}
+                        {{end}}
+                    ],
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'month'
+                        },
+                        position: 'bottom',
+                        {{if eq .ColorScheme "dark"}}
+                          grid: {
+                              color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
+                              borderColor: 'rgba(255, 255, 255, 0.2)', // Set grid border color (white with slightly higher opacity)
+                              borderWidth: 1 // Grid border width
+                          },
+                          ticks: {
+                              color: 'white' // Set x-axis font color to white
+                          },
+                        {{end}}
+                        title: {
+                            display: false,
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        {{if eq .ColorScheme "dark"}}
+                          grid: {
+                              color: 'rgba(255, 255, 255, 0.1)', // Set grid line color (white with reduced opacity)
+                              borderColor: 'rgba(255, 255, 255, 0.2)', // Set grid border color (white with slightly higher opacity)
+                              borderWidth: 1 // Grid border width
+                          },
+                          ticks: {
+                              color: 'white' // Set x-axis font color to white
+                          },
+                        {{end}}
+                        title: {
+                            display: false,
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.raw.label || '';
+                                return label;
+                            },
+                        },
+                    },
+                    legend: {
+                        display: false
+                    },
+                },
+                horizontalLines: [
+                    { value: {{.Params.ExcessRate}}, color: 'green', width: 2 },
+                    { value: {{.Params.NormalRate}}, color: 'blue', width: 2 },
+                    { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 },
+                    { value: {{.FeeRate}}, color: 'grey', width: 2, dotted: true }
+                ]
+            }
+        });
+
+        function updateChart() {
+          const line1Value = parseFloat(document.getElementById('excessRate').value);
+          const line2Value = parseFloat(document.getElementById('normalRate').value);
+          const line3Value = parseFloat(document.getElementById('lowLiqRate').value);
+
+          myChart.config.options.horizontalLines[0].value = line1Value;
+          myChart.config.options.horizontalLines[1].value = line2Value;
+          myChart.config.options.horizontalLines[2].value = line3Value;
+          
+          myChart.update();
+        }
+      {{end}}
     </script>
     </div>
   {{template "footer" .}}
