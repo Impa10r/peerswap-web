@@ -4,6 +4,7 @@
 
 - AF: Fix enable/disable all individual channels
 - AF: Fix inbound fee management
+- AutoSwap: add max amount
 
 ## 1.5.6
 

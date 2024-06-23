@@ -44,6 +44,7 @@ type Configuration struct {
 	ProxyURL                string
 	AutoSwapEnabled         bool
 	AutoSwapThresholdAmount uint64
+	AutoSwapMaxAmount       uint64
 	AutoSwapThresholdPPM    uint64
 	AutoSwapTargetPct       uint64
 	SecureConnection        bool

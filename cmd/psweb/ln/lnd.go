@@ -713,7 +713,8 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 			NumMaxInvoices:    100, // bolt11 fields can be long
 		})
 		if err != nil {
-			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") {
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") &&
+				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
 				log.Println("ListInvoices:", err)
 			}
 			return err
@@ -1855,12 +1856,12 @@ func ApplyAutoFees() {
 			toSet := false
 			discountRate := int64(0)
 
-			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat > int32(params.LowLiqDiscount) {
 				// set inbound fee discount
 				discountRate = int64(params.LowLiqDiscount)
 				toSet = true
-			} else if liqPct >= params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
-				// remove discount unless it was manually set
+			} else if liqPct > params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
+				// remove discount unless it was set manually
 				lastFee := LastAutoFeeLog(ch.ChanId, true)
 				if lastFee != nil {
 					if !lastFee.IsManual {

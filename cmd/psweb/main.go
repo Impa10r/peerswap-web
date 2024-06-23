@@ -1190,7 +1190,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			swapAmount := targetBalance - channel.LocalBalance
 
 			// limit to own and peer's max HTLC setting and remote balance less reserve for LN fee
-			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc, chanInfo.PeerMaxHtlc, channel.RemoteBalance-1000)
+			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc, chanInfo.PeerMaxHtlc, channel.RemoteBalance-1000, config.Config.AutoSwapMaxAmount)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {

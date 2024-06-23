@@ -1389,6 +1389,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		LiquidApi               string
 		AutoSwapEnabled         bool
 		AutoSwapThresholdAmount uint64
+		AutoSwapMaxAmount       uint64
 		AutoSwapThresholdPPM    uint64
 		AutoSwapCandidate       *SwapParams
 		AutoSwapTargetPct       uint64
@@ -1407,6 +1408,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		LiquidApi:               config.Config.LiquidApi,
 		AutoSwapEnabled:         config.Config.AutoSwapEnabled,
 		AutoSwapThresholdAmount: config.Config.AutoSwapThresholdAmount,
+		AutoSwapMaxAmount:       config.Config.AutoSwapMaxAmount,
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
@@ -1788,6 +1790,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			maxAmount, err := strconv.ParseUint(r.FormValue("maxAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
 			newPPM, err := strconv.ParseUint(r.FormValue("thresholdPPM"), 10, 64)
 			if err != nil {
 				redirectWithError(w, r, "/liquid?", err)
@@ -1807,6 +1815,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			// Log only if something changed
 			if nowEnabled && (!config.Config.AutoSwapEnabled ||
 				config.Config.AutoSwapThresholdAmount != newAmount ||
+				config.Config.AutoSwapMaxAmount != maxAmount ||
 				config.Config.AutoSwapThresholdPPM != newPPM ||
 				config.Config.AutoSwapTargetPct != newPct) {
 				t += "Enabled"
@@ -1822,6 +1831,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			config.Config.AutoSwapThresholdPPM = newPPM
 			config.Config.AutoSwapThresholdAmount = newAmount
+			config.Config.AutoSwapThresholdAmount = maxAmount
 			config.Config.AutoSwapTargetPct = newPct
 			config.Config.AutoSwapEnabled = nowEnabled
 
