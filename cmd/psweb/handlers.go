@@ -201,22 +201,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "homepage" with retries
-	for i := 0; i < 3; i++ {
-		err := templates.ExecuteTemplate(w, "homepage", data)
-		if err != nil {
-			if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
-				time.Sleep(5 * time.Second)
-				continue
-			} else {
-				log.Printf("Template execution error: %v", err)
-				return
-			}
-		}
-		return
-	}
-
-	log.Println("Failed to execute template after 3 attempts due to broken pipe")
-	//http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+	executeTemplate(w, "homepage", data)
 }
 
 func peerHandler(w http.ResponseWriter, r *http.Request) {
@@ -483,10 +468,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "peer"
-	err = templates.ExecuteTemplate(w, "peer", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "peer", data)
 }
 
 func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
@@ -588,11 +570,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "bitcoin"
-	err := templates.ExecuteTemplate(w, "bitcoin", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
+	executeTemplate(w, "bitcoin", data)
 }
 
 func peginHandler(w http.ResponseWriter, r *http.Request) {
@@ -944,10 +922,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "af"
-	err = templates.ExecuteTemplate(w, "af", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "af", data)
 }
 
 func swapHandler(w http.ResponseWriter, r *http.Request) {
@@ -1005,10 +980,7 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "swap"
-	err = templates.ExecuteTemplate(w, "swap", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "swap", data)
 }
 
 // Updates swap page live
@@ -1189,10 +1161,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "config"
-	err := templates.ExecuteTemplate(w, "config", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "config", data)
 }
 
 func caHandler(w http.ResponseWriter, r *http.Request) {
@@ -1247,10 +1216,7 @@ func caHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "ca"
-	err = templates.ExecuteTemplate(w, "ca", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "ca", data)
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -1297,10 +1263,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// executing template named "login"
-		err := templates.ExecuteTemplate(w, "login", data)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		executeTemplate(w, "login", data)
 	}
 }
 
@@ -1400,10 +1363,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "liquid"
-	err = templates.ExecuteTemplate(w, "liquid", data)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	executeTemplate(w, "liquid", data)
 }
 
 func submitHandler(w http.ResponseWriter, r *http.Request) {
@@ -2137,11 +2097,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "loading"
-	err := templates.ExecuteTemplate(w, "loading", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
+	executeTemplate(w, "loading", data)
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
@@ -2202,11 +2158,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// executing template named "logpage"
-	err := templates.ExecuteTemplate(w, "logpage", data)
-	if err != nil {
-		log.Fatalln(err)
-		http.Error(w, http.StatusText(500), 500)
-	}
+	executeTemplate(w, "logpage", data)
 }
 
 // returns log as JSON
@@ -2307,4 +2259,16 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 	// Send the next chunk of the log as the response
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(responseJSON))
+}
+
+func executeTemplate(w io.Writer, name string, data any) {
+	err := templates.ExecuteTemplate(w, name, data)
+	if err != nil {
+		if strings.Contains(err.Error(), "broken pipe") || strings.Contains(err.Error(), "http2: stream closed") {
+			// nothing can be done
+			return
+		} else {
+			log.Fatalf("Template execution error: %v", err)
+		}
+	}
 }

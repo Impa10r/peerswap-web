@@ -56,10 +56,8 @@ func authMiddleware(next http.Handler) http.Handler {
 			if !rw.brokenPipe {
 				return
 			}
-			time.Sleep(5 * time.Second) // Wait before retrying
+			time.Sleep(1 * time.Second) // Wait before retrying
 		}
-
-		// http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 	})
 }
 
