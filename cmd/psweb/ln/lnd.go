@@ -1861,10 +1861,10 @@ func ApplyAutoFees() {
 				discountRate = int64(params.LowLiqDiscount)
 				toSet = true
 			} else if liqPct > params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
-				// remove discount unless it was set manually
+				// remove discount unless it was set manually or CoolOffHours did not pass
 				lastFee := LastAutoFeeLog(ch.ChanId, true)
 				if lastFee != nil {
-					if !lastFee.IsManual {
+					if !lastFee.IsManual && lastFee.TimeStamp < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 						toSet = true
 					}
 				}
