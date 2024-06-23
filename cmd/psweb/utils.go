@@ -22,9 +22,13 @@ func timePassedAgo(t time.Time) string {
 		result = fmt.Sprintf("%d day ago", days)
 	} else if days > 1 {
 		result = fmt.Sprintf("%d days ago", days)
-	} else if hours > 0 {
+	} else if hours == 1 {
+		result = fmt.Sprintf("%d hour ago", hours)
+	} else if hours > 1 {
 		result = fmt.Sprintf("%d hours ago", hours)
-	} else if minutes > 0 {
+	} else if minutes == 1 {
+		result = fmt.Sprintf("%d minute ago", minutes)
+	} else if minutes > 1 {
 		result = fmt.Sprintf("%d minutes ago", minutes)
 	} else {
 		result = fmt.Sprintf("%d seconds ago", seconds)
