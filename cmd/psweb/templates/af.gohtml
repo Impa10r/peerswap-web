@@ -358,6 +358,11 @@
                       ctx.beginPath();
                       ctx.moveTo(left, yPixel);
                       ctx.lineTo(right, yPixel);
+                      if (line.dotted) {
+                          ctx.setLineDash([5, 5]);
+                      } else {
+                          ctx.setLineDash([]);
+                      }
                       ctx.lineWidth = line.width || 2;
                       ctx.strokeStyle = line.color || 'black';
                       ctx.stroke();
@@ -443,7 +448,8 @@
               horizontalLines: [
                   { value: {{.Params.ExcessRate}}, color: 'green', width: 2 },
                   { value: {{.Params.NormalRate}}, color: 'blue', width: 2 },
-                  { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 }
+                  { value: {{.Params.LowLiqRate}}, color: 'darkred', width: 2 },
+                  { value: {{.FeeRate}}, color: 'grey', width: 2, dotted: true }
               ]
           }
       });
