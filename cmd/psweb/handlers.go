@@ -1831,7 +1831,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			config.Config.AutoSwapThresholdPPM = newPPM
 			config.Config.AutoSwapThresholdAmount = newAmount
-			config.Config.AutoSwapThresholdAmount = maxAmount
+			config.Config.AutoSwapMaxAmount = maxAmount
 			config.Config.AutoSwapTargetPct = newPct
 			config.Config.AutoSwapEnabled = nowEnabled
 

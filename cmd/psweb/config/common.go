@@ -82,8 +82,9 @@ func Load(dataDir string) {
 	Config.BitcoinApi = "https://mempool.space"
 	Config.LiquidApi = "https://liquid.network"
 	Config.AutoSwapThresholdAmount = 2000000
+	Config.AutoSwapMaxAmount = 2000000
 	Config.AutoSwapThresholdPPM = 300
-	Config.AutoSwapTargetPct = 50
+	Config.AutoSwapTargetPct = 70
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 
