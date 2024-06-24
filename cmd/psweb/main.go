@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.7"
+	version = "v1.5.8"
 )
 
 type SwapParams struct {
@@ -1237,6 +1237,55 @@ func executeAutoSwap() {
 	}
 	defer cleanup()
 
+	res2, err := ps.ListActiveSwaps(client)
+	if err != nil {
+		return
+	}
+
+	activeSwaps := res2.GetSwaps()
+
+	if len(activeSwaps) > 0 {
+		if autoSwapPending {
+			// save the Id
+			autoSwapId = activeSwaps[0].Id
+		}
+		// cannot have active swaps pending to initiate auto swap
+		return
+	}
+
+	if autoSwapPending {
+		disable := false
+		// no active swaps means completed
+		if autoSwapId != "" {
+			// check the state
+			res, err := ps.GetSwap(client, autoSwapId)
+			if err != nil {
+				log.Println("GetSwap:", err)
+				disable = true
+			}
+			if res.GetSwap().State != "State_ClaimedPreimage" {
+				log.Println("The last auto swap failed")
+				disable = true
+			}
+		} else {
+			// did not catch an Id is an exception
+			disable = true
+			log.Println("Unable to check the status of the last auto swap")
+		}
+
+		if disable {
+			// disable auto swap
+			config.Config.AutoSwapEnabled = false
+			config.Save()
+			log.Println("Automatic swap-ins Disabled")
+		}
+
+		// stop following
+		autoSwapPending = false
+		autoSwapId = ""
+		return
+	}
+
 	res, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		return
@@ -1246,45 +1295,6 @@ func executeAutoSwap() {
 
 	if satAmount < config.Config.AutoSwapThresholdAmount {
 		return
-	}
-
-	res2, err := ps.ListActiveSwaps(client)
-	if err != nil {
-		return
-	}
-
-	activeSwaps := res2.GetSwaps()
-
-	// cannot have active swaps pending
-	if len(activeSwaps) > 0 {
-		if autoSwapPending {
-			// save the Id
-			autoSwapId = activeSwaps[0].Id
-		}
-		return
-	}
-
-	if autoSwapPending && autoSwapId != "" {
-		autoSwapPending = false
-		disable := false
-		// check the state
-		res, err := ps.GetSwap(client, autoSwapId)
-		if err != nil {
-			log.Println("GetSwap:", err)
-			disable = true
-		}
-
-		if res.GetSwap().State != "State_ClaimedPreimage" {
-			disable = true
-		}
-
-		if disable {
-			// disable auto swap
-			config.Config.AutoSwapEnabled = false
-			config.Save()
-			log.Println("Automatic swap-ins Disabled")
-			return
-		}
 	}
 
 	var candidate SwapParams

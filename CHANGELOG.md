@@ -1,5 +1,9 @@
 # Versions
 
+## 1.5.8
+
+- AutoSwap: Tighter control on pending swap state 
+
 ## 1.5.7
 
 - AutoFee: Fix enable/disable all individual channels

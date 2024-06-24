@@ -1147,8 +1147,11 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 
 		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
 		swapData += formatSigned(cost) + " sats"
-		swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
-		swapData += formatSigned(ppm)
+
+		if swap.State == "State_ClaimedPreimage" {
+			swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
+			swapData += formatSigned(ppm)
+		}
 	}
 
 	swapData += `</td></tr>

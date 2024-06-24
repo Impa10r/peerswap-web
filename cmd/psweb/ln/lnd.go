@@ -1751,7 +1751,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	liqPct := int(localBalance * 100 / r.Capacity)
 	if htlcFail {
-		if liqPct <= params.LowLiqPct {
+		if liqPct < params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
 			newFee += params.FailedBumpPPM
 		} else {
