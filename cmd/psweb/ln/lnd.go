@@ -713,7 +713,8 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 			NumMaxInvoices:    100, // bolt11 fields can be long
 		})
 		if err != nil {
-			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") {
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") &&
+				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
 				log.Println("ListInvoices:", err)
 			}
 			return err
@@ -872,7 +873,7 @@ func appendPayment(payment *lnrpc.Payment) {
 							// find swap id
 							if parts[2] == "fee" && len(parts[4]) > 0 {
 								// save rebate payment
-								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
+								saveSwapRabate(parts[4], payment.ValueMsat/1000)
 							}
 							// skip peerswap-related payments
 							return
@@ -1115,7 +1116,7 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 				// find swap id
 				if parts[2] == "fee" && len(parts[4]) > 0 {
 					// save rebate payment
-					SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
+					saveSwapRabate(parts[4], invoice.AmtPaidMsat/1000)
 				}
 			} else {
 				// skip peerswap-related
@@ -1258,7 +1259,7 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 
 	info.FeeRate = policy.GetFeeRateMilliMsat()
 	info.FeeBase = policy.GetFeeBaseMsat()
-	if CanRBF() { // signals LND 0.18+
+	if HasInboundFees() {
 		info.InboundFeeBase = int64(policy.GetInboundFeeBaseMsat())
 		info.InboundFeeRate = int64(policy.GetInboundFeeRateMilliMsat())
 	}
@@ -1855,15 +1856,15 @@ func ApplyAutoFees() {
 			toSet := false
 			discountRate := int64(0)
 
-			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat != int32(params.LowLiqDiscount) {
+			if liqPct < params.LowLiqPct && policy.InboundFeeRateMilliMsat > int32(params.LowLiqDiscount) {
 				// set inbound fee discount
 				discountRate = int64(params.LowLiqDiscount)
 				toSet = true
-			} else if liqPct >= params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
-				// remove discount unless it was manually set
+			} else if liqPct > params.LowLiqPct && policy.InboundFeeRateMilliMsat < 0 {
+				// remove discount unless it was set manually or CoolOffHours did not pass
 				lastFee := LastAutoFeeLog(ch.ChanId, true)
 				if lastFee != nil {
-					if lastFee.IsManual {
+					if !lastFee.IsManual && lastFee.TimeStamp < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 						toSet = true
 					}
 				}

@@ -239,7 +239,11 @@ func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 	return summary, isCustom
 }
 
-func LoadAutoFees() {
+func LoadDB() {
+	// load rebates from db
+	db.Load("Swaps", "SwapRebates", SwapRebates)
+
+	// load auto fees from db
 	db.Load("AutoFees", "AutoFeeEnabledAll", &AutoFeeEnabledAll)
 	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
 	db.Load("AutoFees", "AutoFee", &AutoFee)
@@ -348,4 +352,11 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 		db.Save("AutoFees", "AutoFee", AutoFee)
 	}
 
+}
+
+func saveSwapRabate(swapId string, rebate int64) {
+	// save rebate payment
+	SwapRebates[swapId] = rebate
+	// save to db
+	db.Save("Swaps", "SwapRebates", SwapRebates)
 }

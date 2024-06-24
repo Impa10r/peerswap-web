@@ -82,7 +82,7 @@
                           <label class="label">Amount</label>
                         </div>
                         <div class="field-body">
-                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="10000" placeholder="⚡ Swap Amount (sats)">
+                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
                         </div>
                       </div>
                       <div class="field is-horizontal">
@@ -137,7 +137,7 @@
                         }   
 
                         // amount cannot be blank
-                        if (swapAmount < 10000) {
+                        if (swapAmount < 100000) {
                           document.getElementById('result').innerText = "Please enter the Swap Amount";
                           return;
                         }
@@ -486,13 +486,13 @@ Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.Loca
                 <div class="column">
                   <center>            
                     {{if .Suspicious}}
-                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('unsuspectPeer')">🕵 This peer is suspicious</p>
+                      <p title="Click to remove the peer from Suspicious List to allow receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('unsuspectPeer')">🕵 This peer is suspicious</p>
                       <form id="unsuspectPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="unsuspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('suspectPeer')">✅ This peer is not suspicious</p>
+                      <p title="Click to add the peer to Suspicious List to deny receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('suspectPeer')">✅ This peer is not suspicious</p>
                       <form id="suspectPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="suspectPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
@@ -503,13 +503,13 @@ Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.Loca
                 <div class="column">
                   <center>
                     {{if .Allowed}}
-                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('removePeer')">✅ This peer is whitelisted</p>
+                      <p title="Click to remove the peer from Allow List to deny receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('removePeer')">✅ This peer is whitelisted</p>
                       <form id="removePeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="removePeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
                       </form>
                     {{else}}
-                      <p style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is not whitelisted</p>
+                      <p title="Click to add the peer to Allow List to enable receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is not whitelisted</p>
                       <form id="addPeer" action="/submit" method="post">
                         <input type="hidden" name="action" value="addPeer">
                         <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">

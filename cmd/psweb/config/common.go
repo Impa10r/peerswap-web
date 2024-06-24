@@ -44,6 +44,7 @@ type Configuration struct {
 	ProxyURL                string
 	AutoSwapEnabled         bool
 	AutoSwapThresholdAmount uint64
+	AutoSwapMaxAmount       uint64
 	AutoSwapThresholdPPM    uint64
 	AutoSwapTargetPct       uint64
 	SecureConnection        bool
@@ -80,9 +81,10 @@ func Load(dataDir string) {
 	Config.NodeApi = "https://amboss.space/node"
 	Config.BitcoinApi = "https://mempool.space"
 	Config.LiquidApi = "https://liquid.network"
-	Config.AutoSwapThresholdAmount = 2000000
+	Config.AutoSwapThresholdAmount = 2_000_000
+	Config.AutoSwapMaxAmount = 10_000_000
 	Config.AutoSwapThresholdPPM = 300
-	Config.AutoSwapTargetPct = 50
+	Config.AutoSwapTargetPct = 70
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 

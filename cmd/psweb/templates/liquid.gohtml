@@ -42,6 +42,14 @@
               </div>
               <div class="field is-horizontal">
                 <div class="field-label is-normal">
+                  <label title="Maximum swap amount per peer" class="label">Max Swap Amount</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="number" name="maxAmount" min="100000" value={{.AutoSwapMaxAmount}} required placeholder="🌊 Liquid Amount (sats)">
+                </div>
+              </div>
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
                   <label title="Minimum required channel's historic revenue PPM" class="label">Threshold PPM</label>
                 </div>
                 <div class="field-body">

@@ -1,9 +1,18 @@
 # Versions
 
+## 1.5.7
+
+- AutoFee: Fix enable/disable all individual channels
+- AutoFee: Fix inbound fee management
+- AutoSwap: Add max swap amount limit
+- AutoSwap: Disable on error or swap failure
+- Add cost of swaps failed with State_ClaimedCoop or State_ClaimedCsv
+- Persist swap costs and rebates to db
+
 ## 1.5.6
 
-- AF: Add Fee Log table for the last 24 hours 
-- AF: Draw current fee rate with a dotted line on chart 
+- AutoFee: Add Fee Log table for the last 24 hours 
+- AutoFee: Draw current fee rate with a dotted line on chart 
 
 ## 1.5.5
 
@@ -13,11 +22,11 @@
 ## 1.5.4
 
 - Hide HTTPS option for Umbrel
-- AF: apply HTLC Fail Bumps only when Local % <= Low Liq % 
-- AF: for HTLC Fails above Low Liq % allow increasing Low Liq % threshold
-- AF: log full fee changes history, including inbound
-- AF: reduce LND load when applying auto fees
-- AF: add realized PPM chart for the channel to help decide AF parameters
+- AutoFee: apply HTLC Fail Bumps only when Local % <= Low Liq % 
+- AutoFee: for HTLC Fails above Low Liq % allow increasing Low Liq % threshold
+- AutoFee: log full fee changes history, including inbound
+- AutoFee: reduce LND load when applying auto fees
+- AutoFee: add realized PPM chart for the channel to help decide AF parameters
 
 ## 1.5.3
 
