@@ -22,6 +22,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/internet"
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
@@ -60,6 +61,9 @@ var (
 	txFee = make(map[string]int64)
 	// Key used for cookie encryption
 	store *sessions.CookieStore
+	// catch a pending Auto Swap Id to check the state later
+	autoSwapPending bool
+	autoSwapId      string
 )
 
 func main() {
@@ -193,6 +197,12 @@ func main() {
 		log.Println("Listening on http://localhost:" + config.Config.ListenPort)
 	}
 
+	// Load persisted data from database (synchronous to protect map writes)
+	ln.LoadDB()
+
+	// fetch all chain costs (synchronous to protect map writes)
+	cacheSwapCosts()
+
 	// Start timer to run every minute
 	go startTimer()
 
@@ -201,12 +211,6 @@ func main() {
 
 	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
-
-	// Load persisted AutoFee data from database
-	go ln.LoadAutoFees()
-
-	// fetch all chain costs (synchronous to protect map writes)
-	cacheSwapCosts()
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -1253,7 +1257,34 @@ func executeAutoSwap() {
 
 	// cannot have active swaps pending
 	if len(activeSwaps) > 0 {
+		if autoSwapPending {
+			// save the Id
+			autoSwapId = activeSwaps[0].Id
+		}
 		return
+	}
+
+	if autoSwapPending && autoSwapId != "" {
+		autoSwapPending = false
+		disable := false
+		// check the state
+		res, err := ps.GetSwap(client, autoSwapId)
+		if err != nil {
+			log.Println("GetSwap:", err)
+			disable = true
+		}
+
+		if res.GetSwap().State != "State_ClaimedPreimage" {
+			disable = true
+		}
+
+		if disable {
+			// disable auto swap
+			config.Config.AutoSwapEnabled = false
+			config.Save()
+			log.Println("Automatic swap-ins Disabled")
+			return
+		}
 	}
 
 	var candidate SwapParams
@@ -1280,6 +1311,10 @@ func executeAutoSwap() {
 		return
 	}
 
+	// ready to catch Id and get status
+	autoSwapPending = true
+	autoSwapId = ""
+
 	// Log swap id
 	log.Println("Initiated Auto Swap-In, id: "+id+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
 
@@ -1292,7 +1327,7 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) int64 {
 		return 0
 	}
 
-	if simplifySwapState(swap.State) != "success" {
+	if !stringIsInSlice(swap.State, []string{"State_ClaimedPreimage", "State_ClaimedCoop", "State_ClaimedCsv"}) {
 		return 0
 	}
 
@@ -1302,8 +1337,16 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) int64 {
 		fee = ln.SwapRebates[swap.Id]
 	case "swap-insender":
 		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		if stringIsInSlice(swap.State, []string{"State_ClaimedCoop", "State_ClaimedCsv"}) {
+			// swap failed but we bear the claim cost
+			fee += onchainTxFee(swap.Asset, swap.ClaimTxId)
+		}
 	case "swap-outreceiver":
 		fee = onchainTxFee(swap.Asset, swap.OpeningTxId) - ln.SwapRebates[swap.Id]
+		if stringIsInSlice(swap.State, []string{"State_ClaimedCoop", "State_ClaimedCsv"}) {
+			// swap failed but we bear the claim cost
+			fee += onchainTxFee(swap.Asset, swap.ClaimTxId)
+		}
 	case "swap-inreceiver":
 		fee = onchainTxFee(swap.Asset, swap.ClaimTxId)
 	}
@@ -1320,7 +1363,6 @@ func onchainTxFee(asset, txId string) int64 {
 	}
 	switch asset {
 	case "lbtc":
-
 		fee = internet.GetLiquidTxFee(txId)
 	case "btc":
 		fee = internet.GetBitcoinTxFee(txId)
@@ -1345,11 +1387,17 @@ func cacheSwapCosts() {
 		return
 	}
 
+	// load from db
+	db.Load("Swaps", "txFee", txFee)
+
 	swaps := res.GetSwaps()
 
 	for _, swap := range swaps {
 		swapCost(swap)
 	}
+
+	// save to db
+	db.Save("Swaps", "txFee", txFee)
 }
 
 func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string) {

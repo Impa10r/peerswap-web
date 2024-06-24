@@ -873,7 +873,7 @@ func appendPayment(payment *lnrpc.Payment) {
 							// find swap id
 							if parts[2] == "fee" && len(parts[4]) > 0 {
 								// save rebate payment
-								SwapRebates[parts[4]] = int64(payment.ValueMsat) / 1000
+								saveSwapRabate(parts[4], payment.ValueMsat/1000)
 							}
 							// skip peerswap-related payments
 							return
@@ -1116,7 +1116,7 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 				// find swap id
 				if parts[2] == "fee" && len(parts[4]) > 0 {
 					// save rebate payment
-					SwapRebates[parts[4]] = int64(invoice.AmtPaidMsat) / 1000
+					saveSwapRabate(parts[4], invoice.AmtPaidMsat/1000)
 				}
 			} else {
 				// skip peerswap-related

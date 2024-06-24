@@ -927,7 +927,7 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 						// find swap id
 						if parts[2] == "fee" && len(parts[4]) > 0 {
 							// save rebate payment
-							SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
+							saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
 						}
 					} else {
 						// only account for non-peerswap related
@@ -962,7 +962,7 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 									// find swap id
 									if parts[2] == "fee" && len(parts[4]) > 0 {
 										// save rebate payment
-										SwapRebates[parts[4]] = int64(htlc.AmountMsat) / 1000
+										saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
 									}
 									// skip peerswap-related payments
 									continue
