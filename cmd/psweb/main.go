@@ -1371,6 +1371,8 @@ func onchainTxFee(asset, txId string) int64 {
 	// save to cache
 	if fee > 0 {
 		txFee[txId] = fee
+		// persist to db
+		db.Save("Swaps", "txFee", txFee)
 	}
 	return fee
 }
