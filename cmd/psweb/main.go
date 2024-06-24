@@ -1334,7 +1334,10 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) int64 {
 	fee := int64(0)
 	switch swap.Type + swap.Role {
 	case "swap-outsender":
-		fee = ln.SwapRebates[swap.Id]
+		rebate, exists := ln.SwapRebates[swap.Id]
+		if exists {
+			fee = rebate
+		}
 	case "swap-insender":
 		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
 		if stringIsInSlice(swap.State, []string{"State_ClaimedCoop", "State_ClaimedCsv"}) {
@@ -1342,7 +1345,11 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) int64 {
 			fee += onchainTxFee(swap.Asset, swap.ClaimTxId)
 		}
 	case "swap-outreceiver":
-		fee = onchainTxFee(swap.Asset, swap.OpeningTxId) - ln.SwapRebates[swap.Id]
+		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		rebate, exists := ln.SwapRebates[swap.Id]
+		if exists {
+			fee -= rebate
+		}
 		if stringIsInSlice(swap.State, []string{"State_ClaimedCoop", "State_ClaimedCsv"}) {
 			// swap failed but we bear the claim cost
 			fee += onchainTxFee(swap.Asset, swap.ClaimTxId)
@@ -1397,9 +1404,6 @@ func cacheSwapCosts() {
 	for _, swap := range swaps {
 		swapCost(swap)
 	}
-
-	// save to db
-	db.Save("Swaps", "txFee", txFee)
 }
 
 func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string) {

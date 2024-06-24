@@ -7,7 +7,7 @@
 - AutoSwap: Add max swap amount limit
 - AutoSwap: Disable on error or swap failure
 - Add cost of swaps failed with State_ClaimedCoop or State_ClaimedCsv
-- Persist swap costs to db
+- Persist swap costs and rebates to db
 
 ## 1.5.6
 
