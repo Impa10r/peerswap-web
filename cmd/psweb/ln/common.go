@@ -358,6 +358,4 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 func saveSwapRabate(swapId string, rebate int64) {
 	// save rebate payment
 	SwapRebates[swapId] = rebate
-	// save to db
-	db.Save("Swaps", "SwapRebates", SwapRebates)
 }

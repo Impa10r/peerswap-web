@@ -221,7 +221,13 @@ func main() {
 	log.Printf("Received termination signal: %s\n", sig)
 
 	// persist to db
-	db.Save("Swaps", "txFee", txFee)
+	if db.Save("Swaps", "txFee", txFee) != nil {
+		log.Printf("Failed to persist txFee to db")
+	}
+
+	if db.Save("Swaps", "SwapRebates", ln.SwapRebates) != nil {
+		log.Printf("Failed to persist SwapRebates to db")
+	}
 
 	// Exit the program gracefully
 	os.Exit(0)
