@@ -220,6 +220,9 @@ func main() {
 	sig := <-signalChan
 	log.Printf("Received termination signal: %s\n", sig)
 
+	// persist to db
+	db.Save("Swaps", "txFee", txFee)
+
 	// Exit the program gracefully
 	os.Exit(0)
 }
@@ -656,7 +659,11 @@ func convertPeersToHTMLTable(
 
 		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			color := "red"
+			if config.Config.ColorScheme == "dark" {
+				color = "pink"
+			}
+			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -865,7 +872,11 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			color := "red"
+			if config.Config.ColorScheme == "dark" {
+				color = "pink"
+			}
+			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
@@ -1388,8 +1399,6 @@ func onchainTxFee(asset, txId string) int64 {
 	// save to cache
 	if fee > 0 {
 		txFee[txId] = fee
-		// persist to db
-		db.Save("Swaps", "txFee", txFee)
 	}
 	return fee
 }
