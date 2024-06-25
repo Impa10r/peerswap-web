@@ -1170,7 +1170,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestamp6m {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
 			result.AmountOut6m += e.AmtOut
 			feeMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1185,7 +1185,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestamp6m {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
 			result.AmountIn6m += e.AmtIn
 			assistedMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1285,13 +1285,13 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestampNs {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
 			routedOutMsat += e.AmtOutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestampNs {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
 			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -1888,7 +1888,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.AmtOut > 1000 {
+		if e.AmtOutMsat > ignoreForwardsMsat {
 			plot = append(plot, DataPoint{
 				TS:     e.TimestampNs / 1_000_000_000,
 				Amount: e.AmtOut,

@@ -465,7 +465,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timestamp6m {
+		if e.ResolvedTime > timestamp6m && e.OutMsat > ignoreForwardsMsat {
 			amountOut6m += e.OutMsat
 			feeMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -479,7 +479,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timestamp6m {
+		if e.ResolvedTime > timestamp6m && e.OutMsat > ignoreForwardsMsat {
 			amountIn6m += e.OutMsat
 			assistedMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -620,13 +620,13 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	timeStampF := float64(timeStamp)
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timeStampF {
+		if e.ResolvedTime > timeStampF && e.OutMsat > ignoreForwardsMsat {
 			amountOut += e.OutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timeStampF {
+		if e.ResolvedTime > timeStampF && e.OutMsat > ignoreForwardsMsat {
 			amountIn += e.OutMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -1216,7 +1216,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.OutMsat > 1000000 {
+		if e.OutMsat > ignoreForwardsMsat {
 			plot = append(plot, DataPoint{
 				TS:     uint64(e.ResolvedTime),
 				Amount: e.OutMsat / 1000,

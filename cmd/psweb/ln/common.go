@@ -132,6 +132,9 @@ type DataPoint struct {
 	Label  string
 }
 
+// do not add small forwards to statistics
+const ignoreForwardsMsat = 1_000_000
+
 var (
 	// lightning payments from swap out initiator to receiver
 	SwapRebates = make(map[string]int64)

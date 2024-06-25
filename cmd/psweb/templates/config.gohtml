@@ -251,7 +251,9 @@
                 {{else}}
                     peerswapd
                 {{end}}</p>
-                <p style="padding-bottom: 0.5em">** Changing these values will restart PSWeb</p>
+                {{if .IsPossibleHTTPS}}
+                  <p style="padding-bottom: 0.5em">** Changing these values will restart PSWeb</p>
+                {{end}}
                 <input class="button is-large" type="submit" value="Save Configuration">     
                 <br>
                 <small>
