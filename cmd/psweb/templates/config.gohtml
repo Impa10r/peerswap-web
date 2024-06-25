@@ -246,7 +246,7 @@
                 </div>
               </div>
               <center>
-                <p>* Changing these values will restart {{if eq .Implementation "CLN"}}
+                <p{{if not .IsPossibleHTTPS}} style="padding-bottom: 0.5em"{{end}}>* Changing these values will restart {{if eq .Implementation "CLN"}}
                     lightningd
                 {{else}}
                     peerswapd

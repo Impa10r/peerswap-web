@@ -45,9 +45,6 @@ const (
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
 	SwapFeeReserveLBTC = uint64(1000)
 	SwapFeeReserveBTC  = uint64(2000)
-
-	// used in outbound forwards tracking for auto fees
-	forwardAmountThreshold = uint64(1000)
 )
 
 type InflightHTLC struct {
@@ -774,10 +771,9 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
-			forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
-			forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
-			// record for autofees
-			if event.AmtOut >= forwardAmountThreshold {
+			if event.AmtOutMsat >= ignoreForwardsMsat {
+				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
+				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
 				lastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
 			}
 		}
@@ -980,17 +976,17 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 			// find HTLC in queue
 			for _, htlc := range inflightHTLCs[htlcEvent.IncomingChannelId] {
 				if htlc.IncomingHtlcId == htlcEvent.IncomingHtlcId {
-					// add our stored forwards
-					forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
-					// settled htlcEvent has no Outgoing info, take from queue
-					forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 					// store the last timestamp
 					lastForwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
 					// delete from queue
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
-					// record for autofees
-					if htlc.forwardingEvent.AmtOut >= forwardAmountThreshold {
+					// ignore dust
+					if htlc.forwardingEvent.AmtOutMsat >= ignoreForwardsMsat {
+						// add our stored forwards
+						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
+						// settled htlcEvent has no Outgoing info, take from queue
+						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 						lastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
 					}
 

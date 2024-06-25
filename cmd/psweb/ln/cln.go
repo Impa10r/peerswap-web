@@ -416,7 +416,7 @@ func CacheForwards() {
 			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
 			for _, f := range newForwards.Forwards {
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
-				if f.Status == "settled" {
+				if f.Status == "settled" && f.OutMsat > ignoreForwardsMsat {
 					chIn := ConvertClnToLndChannelId(f.InChannel)
 					forwardsIn[chIn] = append(forwardsIn[chIn], f)
 					forwardsOut[chOut] = append(forwardsOut[chOut], f)
