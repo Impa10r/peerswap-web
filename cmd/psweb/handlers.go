@@ -893,8 +893,13 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 
 	var feeLog []FeeLog
 
-	// load the last 24 hours of fee changes
-	startTS := time.Now().Add(-24 * time.Hour).Unix()
+	// 24 hours fee log for all channels
+	days := 1
+	if channelId > 0 {
+		// or 7 days for a single one
+		days = 7
+	}
+	startTS := time.Now().AddDate(0, 0, -days).Unix()
 
 	for id := range ln.AutoFeeLog {
 		for _, event := range ln.AutoFeeLog[id] {
