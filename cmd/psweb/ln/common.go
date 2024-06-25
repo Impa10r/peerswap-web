@@ -132,6 +132,9 @@ type DataPoint struct {
 	Label  string
 }
 
+// ignore small forwards
+const ignoreForwardsMsat = 1_000_000
+
 var (
 	// lightning payments from swap out initiator to receiver
 	SwapRebates = make(map[string]int64)
@@ -270,15 +273,16 @@ func LoadDB() {
 
 func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {
 	newFee := oldFee
-	if liqPct > params.LowLiqPct {
+	if liqPct >= params.LowLiqPct {
 		// normal or high liquidity regime, check if fee can be dropped
 		lastUpdate := int64(0)
 		lastLog := LastAutoFeeLog(channelId, false)
 		if lastLog != nil {
 			lastUpdate = lastLog.TimeStamp
 		}
+		// see if cool-off period has passed
 		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
-			// check the last outbound timestamp
+			// check the inactivity period
 			if lastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
 				newFee -= params.InactivityDropPPM
@@ -345,7 +349,7 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 		*AutoFee[channelId] = AutoFeeDefaults
 	}
 
-	// do not alow exeeding high liquidity threshold
+	// do not allow reaching high liquidity threshold
 	if AutoFee[channelId].LowLiqPct+bump < AutoFee[channelId].ExcessPct {
 		AutoFee[channelId].LowLiqPct += bump
 		// persist to db
@@ -357,6 +361,4 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 func saveSwapRabate(swapId string, rebate int64) {
 	// save rebate payment
 	SwapRebates[swapId] = rebate
-	// save to db
-	db.Save("Swaps", "SwapRebates", SwapRebates)
 }

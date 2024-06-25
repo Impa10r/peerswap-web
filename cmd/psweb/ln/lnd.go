@@ -45,9 +45,6 @@ const (
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
 	SwapFeeReserveLBTC = uint64(1000)
 	SwapFeeReserveBTC  = uint64(2000)
-
-	// used in outbound forwards tracking for auto fees
-	forwardAmountThreshold = uint64(1000)
 )
 
 type InflightHTLC struct {
@@ -774,10 +771,9 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
-			forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
-			forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
-			// record for autofees
-			if event.AmtOut >= forwardAmountThreshold {
+			if event.AmtOutMsat > ignoreForwardsMsat {
+				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
+				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
 				lastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
 			}
 		}
@@ -980,30 +976,31 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 			// find HTLC in queue
 			for _, htlc := range inflightHTLCs[htlcEvent.IncomingChannelId] {
 				if htlc.IncomingHtlcId == htlcEvent.IncomingHtlcId {
-					// add our stored forwards
-					forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
-					// settled htlcEvent has no Outgoing info, take from queue
-					forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 					// store the last timestamp
 					lastForwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
 					// delete from queue
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
-					// record for autofees
-					if htlc.forwardingEvent.AmtOut >= forwardAmountThreshold {
+					// ignore dust
+					if htlc.forwardingEvent.AmtOutMsat > ignoreForwardsMsat {
+						// add our stored forwards
+						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
+						// settled htlcEvent has no Outgoing info, take from queue
+						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
+						// TS for autofee
 						lastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
-					}
 
-					// execute autofee
-					client, cleanup, err := GetClient()
-					if err != nil {
-						return err
-					}
-					defer cleanup()
+						// execute autofee
+						client, cleanup, err := GetClient()
+						if err != nil {
+							return err
+						}
+						defer cleanup()
 
-					// calculate with new balance
-					applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
-					break
+						// calculate with new balance
+						applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
+						break
+					}
 				}
 			}
 		}
@@ -1170,7 +1167,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestamp6m {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
 			result.AmountOut6m += e.AmtOut
 			feeMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1185,7 +1182,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestamp6m {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
 			result.AmountIn6m += e.AmtIn
 			assistedMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1285,13 +1282,13 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestampNs {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
 			routedOutMsat += e.AmtOutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestampNs {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
 			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -1751,7 +1748,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	liqPct := int(localBalance * 100 / r.Capacity)
 	if htlcFail {
-		if liqPct <= params.LowLiqPct {
+		if liqPct < params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
 			newFee += params.FailedBumpPPM
 		} else {
@@ -1888,7 +1885,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.AmtOut > 1000 {
+		if e.AmtOutMsat > ignoreForwardsMsat {
 			plot = append(plot, DataPoint{
 				TS:     e.TimestampNs / 1_000_000_000,
 				Amount: e.AmtOut,

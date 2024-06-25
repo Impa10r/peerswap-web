@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.7"
+	version = "v1.5.8"
 )
 
 type SwapParams struct {
@@ -219,6 +219,15 @@ func main() {
 	// Wait for termination signal
 	sig := <-signalChan
 	log.Printf("Received termination signal: %s\n", sig)
+
+	// persist to db
+	if db.Save("Swaps", "txFee", txFee) != nil {
+		log.Printf("Failed to persist txFee to db")
+	}
+
+	if db.Save("Swaps", "SwapRebates", ln.SwapRebates) != nil {
+		log.Printf("Failed to persist SwapRebates to db")
+	}
 
 	// Exit the program gracefully
 	os.Exit(0)
@@ -656,7 +665,11 @@ func convertPeersToHTMLTable(
 
 		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			color := "red"
+			if config.Config.ColorScheme == "dark" {
+				color = "pink"
+			}
+			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
 
@@ -865,7 +878,11 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			ppmCost = totalCost * 1_000_000 / totalPayments
 		}
 		if totalCost > 0 {
-			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:red\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			color := "red"
+			if config.Config.ColorScheme == "dark" {
+				color = "pink"
+			}
+			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
 
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
@@ -1237,6 +1254,55 @@ func executeAutoSwap() {
 	}
 	defer cleanup()
 
+	res2, err := ps.ListActiveSwaps(client)
+	if err != nil {
+		return
+	}
+
+	activeSwaps := res2.GetSwaps()
+
+	if len(activeSwaps) > 0 {
+		if autoSwapPending {
+			// save the Id
+			autoSwapId = activeSwaps[0].Id
+		}
+		// cannot have active swaps pending to initiate auto swap
+		return
+	}
+
+	if autoSwapPending {
+		disable := false
+		// no active swaps means completed
+		if autoSwapId != "" {
+			// check the state
+			res, err := ps.GetSwap(client, autoSwapId)
+			if err != nil {
+				log.Println("GetSwap:", err)
+				disable = true
+			}
+			if res.GetSwap().State != "State_ClaimedPreimage" {
+				log.Println("The last auto swap failed")
+				disable = true
+			}
+		} else {
+			// did not catch an Id is an exception
+			disable = true
+			log.Println("Unable to check the status of the last auto swap")
+		}
+
+		if disable {
+			// disable auto swap
+			config.Config.AutoSwapEnabled = false
+			config.Save()
+			log.Println("Automatic swap-ins Disabled")
+		}
+
+		// stop following
+		autoSwapPending = false
+		autoSwapId = ""
+		return
+	}
+
 	res, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		return
@@ -1246,45 +1312,6 @@ func executeAutoSwap() {
 
 	if satAmount < config.Config.AutoSwapThresholdAmount {
 		return
-	}
-
-	res2, err := ps.ListActiveSwaps(client)
-	if err != nil {
-		return
-	}
-
-	activeSwaps := res2.GetSwaps()
-
-	// cannot have active swaps pending
-	if len(activeSwaps) > 0 {
-		if autoSwapPending {
-			// save the Id
-			autoSwapId = activeSwaps[0].Id
-		}
-		return
-	}
-
-	if autoSwapPending && autoSwapId != "" {
-		autoSwapPending = false
-		disable := false
-		// check the state
-		res, err := ps.GetSwap(client, autoSwapId)
-		if err != nil {
-			log.Println("GetSwap:", err)
-			disable = true
-		}
-
-		if res.GetSwap().State != "State_ClaimedPreimage" {
-			disable = true
-		}
-
-		if disable {
-			// disable auto swap
-			config.Config.AutoSwapEnabled = false
-			config.Save()
-			log.Println("Automatic swap-ins Disabled")
-			return
-		}
 	}
 
 	var candidate SwapParams
@@ -1378,8 +1405,6 @@ func onchainTxFee(asset, txId string) int64 {
 	// save to cache
 	if fee > 0 {
 		txFee[txId] = fee
-		// persist to db
-		db.Save("Swaps", "txFee", txFee)
 	}
 	return fee
 }

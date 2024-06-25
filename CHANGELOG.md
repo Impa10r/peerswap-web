@@ -1,5 +1,10 @@
 # Versions
 
+## 1.5.8
+
+- Ignore forwards < 1000 sats in statistics and autofees 
+- Show 7 day Fee Log for individual channels
+
 ## 1.5.7
 
 - AutoFee: Fix enable/disable all individual channels
