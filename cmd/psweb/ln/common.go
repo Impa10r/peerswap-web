@@ -132,7 +132,7 @@ type DataPoint struct {
 	Label  string
 }
 
-// do not add small forwards to statistics
+// ignore small forwards
 const ignoreForwardsMsat = 1_000_000
 
 var (

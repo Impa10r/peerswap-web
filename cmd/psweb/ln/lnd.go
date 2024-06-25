@@ -771,7 +771,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
-			if event.AmtOutMsat >= ignoreForwardsMsat {
+			if event.AmtOutMsat > ignoreForwardsMsat {
 				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
 				lastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
@@ -982,24 +982,25 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
 					// ignore dust
-					if htlc.forwardingEvent.AmtOutMsat >= ignoreForwardsMsat {
+					if htlc.forwardingEvent.AmtOutMsat > ignoreForwardsMsat {
 						// add our stored forwards
 						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
 						// settled htlcEvent has no Outgoing info, take from queue
 						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
+						// TS for autofee
 						lastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
-					}
 
-					// execute autofee
-					client, cleanup, err := GetClient()
-					if err != nil {
-						return err
-					}
-					defer cleanup()
+						// execute autofee
+						client, cleanup, err := GetClient()
+						if err != nil {
+							return err
+						}
+						defer cleanup()
 
-					// calculate with new balance
-					applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
-					break
+						// calculate with new balance
+						applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
+						break
+					}
 				}
 			}
 		}
