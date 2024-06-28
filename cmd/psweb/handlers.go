@@ -19,7 +19,6 @@ import (
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
-	"peerswap-web/cmd/psweb/internet"
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/ps"
@@ -486,6 +485,13 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		popupMessage = keys[0]
 	}
 
+	// newly genetated address
+	addr := ""
+	keys, ok = r.URL.Query()["addr"]
+	if ok && len(keys[0]) > 0 {
+		addr = keys[0]
+	}
+
 	var utxos []ln.UTXO
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -502,6 +508,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance   uint64
 		Outputs          *[]ln.UTXO
 		PeginTxId        string
+		IsPegin          bool // false for ordinary BTC withdrawal
 		PeginAmount      uint64
 		BitcoinApi       string
 		Confirmations    int32
@@ -515,6 +522,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		CanBump          bool
 		CanRBF           bool
 		IsCLN            bool
+		BitcoinAddress   string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -536,8 +544,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 					fee = fee + fee/2
 				}
 			}
-			if fee < config.Config.PeginFeeRate+1 {
-				fee = config.Config.PeginFeeRate + 1 // min increment
+			if fee < config.Config.PeginFeeRate+2 {
+				fee = config.Config.PeginFeeRate + 2 // min increment
 			}
 		}
 	}
@@ -554,6 +562,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance:   uint64(btcBalance),
 		Outputs:          &utxos,
 		PeginTxId:        config.Config.PeginTxId,
+		IsPegin:          config.Config.PeginClaimScript != "",
 		PeginAmount:      uint64(config.Config.PeginAmount),
 		BitcoinApi:       config.Config.BitcoinApi,
 		Confirmations:    confs,
@@ -563,16 +572,18 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate:   mempoolFeeRate,
 		LiquidFeeRate:    liquid.EstimateFee(),
 		SuggestedFeeRate: fee,
-		MinBumpFeeRate:   config.Config.PeginFeeRate + 1,
+		MinBumpFeeRate:   config.Config.PeginFeeRate + 2,
 		CanBump:          canBump,
 		CanRBF:           ln.CanRBF(),
 		IsCLN:            ln.Implementation == "CLN",
+		BitcoinAddress:   addr,
 	}
 
 	// executing template named "bitcoin"
 	executeTemplate(w, "bitcoin", data)
 }
 
+// handles Liquid pegin and Bitcoin send form
 func peginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
@@ -595,6 +606,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		selectedOutputs := r.Form["selected_outputs[]"]
 		subtractFeeFromAmount := r.FormValue("subtractfee") == "on"
+		isPegin := r.FormValue("isPegin") == "true"
 
 		totalAmount := int64(0)
 
@@ -638,68 +650,78 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// test on pre-existing tx that bitcon core can complete the peg
-		tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
-		if config.Config.Chain == "testnet" {
-			tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
-		}
+		address := ""
+		claimScript := ""
 
-		_, err = bitcoin.GetTxOutProof(tx)
-		if err != nil {
-			// automatic fallback to getblock.io
-			config.Config.BitcoinHost = config.GetBlockIoHost()
-			config.Config.BitcoinUser = ""
-			config.Config.BitcoinPass = ""
+		if isPegin {
+			// test on pre-existing tx that bitcon core can complete the peg
+			tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
+			if config.Config.Chain == "testnet" {
+				tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+			}
+
 			_, err = bitcoin.GetTxOutProof(tx)
 			if err != nil {
-				redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
-				return
-			} else {
-				// use getblock.io endpoint going forward
-				log.Println("Switching to getblock.io bitcoin host endpoint")
-				if err := config.Save(); err != nil {
-					log.Println("Error saving config file:", err)
-					redirectWithError(w, r, "/bitcoin?", err)
+				// automatic fallback to getblock.io
+				config.Config.BitcoinHost = config.GetBlockIoHost()
+				config.Config.BitcoinUser = ""
+				config.Config.BitcoinPass = ""
+				_, err = bitcoin.GetTxOutProof(tx)
+				if err != nil {
+					redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
 					return
+				} else {
+					// use getblock.io endpoint going forward
+					log.Println("Switching to getblock.io bitcoin host endpoint")
+					if err := config.Save(); err != nil {
+						redirectWithError(w, r, "/bitcoin?", err)
+						return
+					}
 				}
 			}
+
+			var addr liquid.PeginAddress
+
+			err = liquid.GetPeginAddress(&addr)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			address = addr.MainChainAddress
+			claimScript = addr.ClaimScript
+		} else {
+			address = r.FormValue("sendAddress")
+			claimScript = ""
 		}
 
-		var addr liquid.PeginAddress
-
-		err = liquid.GetPeginAddress(&addr)
+		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, addr.MainChainAddress, amount, fee, subtractFeeFromAmount)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
+		if isPegin {
+			log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
+			duration := time.Duration(1020) * time.Minute
+			formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+			telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration)
+		} else {
+			log.Println("BTC withdrawal TxId:", res.TxId, "RawHex:", res.RawHex)
+			telegramSendMessage("BTC withdrawal: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats.")
 		}
 
-		// to speed things up, also broadcast it to mempool.space
-		internet.SendRawTransaction(res.RawHex)
-
-		log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", addr.ClaimScript)
-		duration := time.Duration(1020) * time.Minute
-		formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-
-		config.Config.PeginClaimScript = addr.ClaimScript
-		config.Config.PeginAddress = addr.MainChainAddress
+		config.Config.PeginClaimScript = claimScript
+		config.Config.PeginAddress = address
 		config.Config.PeginAmount = res.AmountSat
 		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
 		config.Config.PeginFeeRate = uint32(fee)
 
 		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
-
-		telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration)
 
 		// Redirect to bitcoin page to follow the pegin progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -748,9 +770,6 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if ln.CanRBF() {
-			// to speed things up, also broadcast it to mempool.space
-			internet.SendRawTransaction(res.RawHex)
-
 			log.Println("RBF TxId:", res.TxId)
 			config.Config.PeginReplacedTxId = config.Config.PeginTxId
 			config.Config.PeginAmount = res.AmountSat
@@ -764,7 +783,6 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginFeeRate = uint32(fee)
 
 		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
@@ -1444,6 +1462,17 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "deleteTxId":
+			// acknowledges BTC withdrawal
+			config.Config.PeginTxId = ""
+			if err := config.Save(); err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			// all done
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
 		case "saveAutoFee":
 			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
 			if err != nil {
@@ -1845,13 +1874,24 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			// Save config
 			if err := config.Save(); err != nil {
-				log.Println("Error saving config file:", err)
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
 
 			// Reload liquid page with pop-up
 			http.Redirect(w, r, "/liquid?msg="+msg, http.StatusSeeOther)
+			return
+
+		case "newBitcoinAddress":
+			addr, err := ln.NewAddress()
+			if err != nil {
+				log.Printf("unable to connect to RPC server: %v", err)
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			// Redirect to bitcoin page with new address
+			http.Redirect(w, r, "/bitcoin?addr="+addr, http.StatusSeeOther)
 			return
 
 		case "newAddress":
@@ -2012,7 +2052,10 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			// display CA certificate installation instructions
 			if secureConnection && !config.Config.SecureConnection {
 				config.Config.ServerIPs = r.FormValue("serverIPs")
-				config.Save()
+				if err := config.Save(); err != nil {
+					redirectWithError(w, r, "/config?", err)
+					return
+				}
 				http.Redirect(w, r, "/ca", http.StatusSeeOther)
 				return
 			}
@@ -2105,7 +2148,6 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
 			redirectWithError(w, r, "/config?", err)
 			return
 		}
@@ -2113,7 +2155,6 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if mustRestart {
 			// show progress bar and log
 			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
-			config.SavePS()
 			ps.Stop()
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)

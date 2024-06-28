@@ -384,7 +384,7 @@ func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string, lockId *[]byt
 		})
 
 		if err != nil {
-			log.Println("ReleaseOutput:", err)
+			//log.Println("ReleaseOutput:", err)
 			return err
 		}
 	}

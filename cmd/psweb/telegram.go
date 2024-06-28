@@ -162,9 +162,7 @@ func telegramConnect() {
 		)
 		bot.Send(cmdCfg)
 		config.Config.TelegramChatId = chatId
-		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
-		}
+		config.Save()
 	} else {
 		chatId = 0
 		bot = nil

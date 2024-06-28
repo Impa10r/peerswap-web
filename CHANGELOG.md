@@ -1,5 +1,9 @@
 # Versions
 
+## 1.5.9
+
+- Add BTC receiving and sending with coin selection
+
 ## 1.5.8
 
 - Ignore forwards < 1000 sats in statistics and autofees 

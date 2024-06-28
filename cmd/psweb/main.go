@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.8"
+	version = "v1.5.9"
 )
 
 type SwapParams struct {
@@ -421,10 +421,7 @@ func liquidBackup(force bool) {
 	config.Config.ElementsBackupAmount = satAmount
 
 	// Save config
-	if err := config.Save(); err != nil {
-		log.Println("Error saving config file:", err)
-		return
-	}
+	config.Save()
 }
 
 func setLogging() (func(), error) {
@@ -1057,49 +1054,48 @@ func checkPegin() {
 			// RBF replacement conflict: the old transaction mined before the new one
 			config.Config.PeginTxId = config.Config.PeginReplacedTxId
 			config.Config.PeginReplacedTxId = ""
-			log.Println("The last RBF failed as previous tx mined earlier, switching to prior txid for the peg-in progress:", config.Config.PeginTxId)
+			log.Println("The last RBF failed as previous tx mined earlier, switching to prior txid:", config.Config.PeginTxId)
 		}
 	}
 
-	if confs >= 102 {
-		// claim pegin
-		failed := false
-		proof := ""
-		txid := ""
-		rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
-		if err == nil {
-			proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+	if confs > 101 {
+		if config.Config.PeginClaimScript != "" {
+			// claim pegin
+			failed := false
+			proof := ""
+			txid := ""
+			rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
 			if err == nil {
-				txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
-				// claimpegin takes long time, allow it to timeout
-				if err != nil && err.Error() != "timeout reading data from server" {
+				proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+				if err == nil {
+					txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
+					// claimpegin takes long time, allow it to timeout
+					if err != nil && err.Error() != "timeout reading data from server" {
+						failed = true
+					}
+				} else {
 					failed = true
 				}
 			} else {
 				failed = true
 			}
-		} else {
-			failed = true
-		}
 
-		if failed {
-			log.Println("Peg-in claim FAILED!")
-			log.Println("Mainchain TxId:", config.Config.PeginTxId)
-			log.Println("Raw tx:", rawTx)
-			log.Println("Proof:", proof)
-			log.Println("Claim Script:", config.Config.PeginClaimScript)
-			telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
-		} else {
-			log.Println("Peg-in success! Liquid TxId:", txid)
-			telegramSendMessage("💸 Peg-in success!")
+			if failed {
+				log.Println("Peg-in claim FAILED!")
+				log.Println("Mainchain TxId:", config.Config.PeginTxId)
+				log.Println("Raw tx:", rawTx)
+				log.Println("Proof:", proof)
+				log.Println("Claim Script:", config.Config.PeginClaimScript)
+				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+			} else {
+				log.Println("Peg-in success! Liquid TxId:", txid)
+				telegramSendMessage("💸 Peg-in success!")
+			}
 		}
 
 		// stop trying after one attempt
 		config.Config.PeginTxId = ""
-
-		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
-		}
+		config.Save()
 	}
 }
 

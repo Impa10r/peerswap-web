@@ -148,6 +148,7 @@ func Save() error {
 	filename := filepath.Join(Config.DataDir, "pswebconfig.json")
 	err = os.WriteFile(filename, jsonData, 0644)
 	if err != nil {
+		log.Println("Error saving config file:", err)
 		return err
 	}
 	return nil

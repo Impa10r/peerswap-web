@@ -1,81 +1,108 @@
 {{define "bitcoin"}}
   {{template "header" .}}
     <div class="container">
-      {{if eq .PeginTxId ""}}
-        <form id="myForm" autocomplete="off" action="/pegin" method="post" onsubmit="return confirmSubmit()">
-      {{end}}
       <div class="columns">
         <div class="column">
           <div class="box has-text-left">
             <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
           </div>
+          <div class="box has-text-left">
+            <h4 class="title is-4">Receive Bitcoin</h4> 
+            {{if eq .BitcoinAddress ""}}
+              <form action="/submit" method="post">
+                <center>
+                  <input type="hidden" name="action" value="newBitcoinAddress">
+                  <input class="button is-large" type="submit" value="Get New Address">
+                </center>
+              </form>
+            {{else}}
+              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.BitcoinAddress}}" readonly>               
+              <script>
+                function copyToClipboard() {
+                  // Get the text to copy
+                  var copyText = document.getElementById("copyText");
+
+                  // Select the text
+                  copyText.select();
+                  copyText.setSelectionRange(0, 99999); // For mobile devices
+
+                  // Copy the selected text
+                  document.execCommand("copy");
+
+                  // Alert the user that the text has been copied
+                  displayTemporaryMessage("Copied the address to clipboard");
+                }
+              </script>
+            {{end}}
+          </div>
           {{if eq .PeginTxId ""}}
             <div class="box has-text-left">
-              <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
-                <div style="text-align: left;">
-                    <h4 class="title is-4">Liquid Peg-In</h4>
-                </div>
-                <div style="display: flex; justify-content: flex-end;">
-                    {{if .CanRBF}}
-                      <div style="text-align: center; max-width: 6ch;">
-                        <p title="Replace By Fee bumping method is supported" style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                          RBF
-                        </p>
-                      </div>
-                    {{else}}
-                      <div style="text-align: center; max-width: 7ch;">
-                        <p id="cpfp" title="Child Pays For Parent fee bumping method is available. Cannot be used together with Subtract Fee From Amount option. LND v0.18+ is required for RBF." style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
-                          CPFP
-                        </p>
-                      </div>
-                    {{end}}
-                </div>
+              <div class="tabs is-large is-boxed">
+                <ul>
+                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-In</a></li>
+                  <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send Bitcoin</a></li>
+                </ul>
               </div>
-              <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Amount</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Fee Rate</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Fee Estimate</label>
-                </div>
-                <div class="field-body">
-                  <label id="result" class="label"></label>
-                  <input type="number" id="totalFee" style="display: none;" value=0>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                </div>
-                <div class="field-body">
-                  <div class="control">
-                    <label class="checkbox is-large">
-                      <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
-                      <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                    </label>
+              <form id="myForm" autocomplete="off" action="/pegin" method="post" onsubmit="return confirmSubmit()">
+                <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                <div id="sendAddressField" class="field is-horizontal" style="display:none">
+                  <div class="field-label is-normal">
+                    <label class="label">Address</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address" oninput="delayedCalculateTransactionFee()">
                   </div>
                 </div>
-              </div>     
-              <div style="text-align: center;">
-                <input class="button is-large" type="submit" value="Start Peg-In">
-              </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Amount</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Fee Rate</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Fee Estimate</label>
+                  </div>
+                  <div class="field-body">
+                    <label id="result" class="label"></label>
+                    <input type="number" id="totalFee" style="display: none;" value=0>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                  </div>
+                  <div class="field-body">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" id="subtractfee" onchange="calculateTransactionFee()" name="subtractfee">
+                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <!-- Hidden true/false element -->
+                <input type="hidden" id="isPegin" name="isPegin" value="true">
+                <div style="text-align: center;">
+                  <input id="sendButton" class="button is-large" type="submit" value="Start Peg-In">
+                </div>
             </div>
           {{else}}
             <div class="box has-text-left">
-              <h4 class="title is-4">Peg-In Progress</h4> 
+              {{if .IsPegin}}
+                <h4 class="title is-4">Peg-In Progress</h4> 
+              {{else}}
+                <h4 class="title is-4">Bitcoin Withdrawal</h4> 
+              {{end}}
               <table style="table-layout:fixed; width: 100%;">
                 <tr>
                   <td style="width: 8ch; text-align: right">
@@ -90,15 +117,18 @@
                     Confs: 
                   </td>
                   <td>
-                    {{.Confirmations}} / 102
-                  </td>
-                </tr>
-                <tr>
-                  <td style="text-align: right">
-                    T left: 
-                  </td>
-                  <td>
-                    {{.Duration}}
+                    {{.Confirmations}} 
+                    {{if .IsPegin}}
+                      / 102
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="text-align: right">
+                          T left: 
+                        </td>
+                        <td>
+                          {{.Duration}}
+                    {{end}}
                   </td>
                 </tr>
                 <tr>
@@ -136,7 +166,7 @@
                     </td>
                     <td>
                       {{if .CanRBF}}
-                        If the tx does not confirm for a long time, consider replacing the peg-in transaction with a new one, paying a higher fee rate.
+                        If the tx does not confirm for a long time, consider replacing it with a new one, paying a higher fee rate.
                       {{else}}
                         If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child).
                       {{end}}
@@ -164,16 +194,26 @@
                   </center>
                 </form>
               {{else}}
-                <div class="progress is-large">
-                  <div class="current-progress" style="width: {{.Progress}}%">
+                {{if .IsPegin}}
+                  <div class="progress is-large">
+                    <div class="current-progress" style="width: {{.Progress}}%">
+                    </div>
                   </div>
-                </div>
-                <script>
-                  // Reload the page every minute (60000 milliseconds)
-                  setInterval(function(){
-                      location.reload();
-                  }, 60000);
-                </script>
+                  <script>
+                    // Reload the page every minute (60000 milliseconds)
+                    setInterval(function(){
+                        location.reload();
+                    }, 60000);
+                  </script>
+                {{else}}
+                  <form action="/submit" method="post">
+                    <input type="hidden" name="action" value="deleteTxId">
+                    <center>
+                      <br>
+                      <input title="Stop tracking this withdrawal" class="button is-large" type="submit" value="OK">
+                    </center>
+                  </form>
+                {{end}}
               {{end}}
             </div>
           {{end}}
@@ -220,6 +260,26 @@
       {{if eq .PeginTxId ""}}
         </form>
         <script>
+          function tabPegin() {
+            document.getElementById('peginTab').classList.add("is-active");
+            document.getElementById('sendTab').classList.remove("is-active");
+            document.getElementById("sendAddressField").style.display = "none";
+            document.getElementById('sendAddress').removeAttribute('required');
+            document.getElementById("sendButton").value = "Start Peg-In";
+            document.getElementById("isPegin").value = "true";
+            calculateTransactionFee();
+          }
+
+          function tabSend() {
+            document.getElementById('peginTab').classList.remove("is-active");
+            document.getElementById('sendTab').classList.add("is-active");
+            document.getElementById("sendAddressField").style.display = "";
+            document.getElementById('sendAddress').setAttribute('required', 'true');
+            document.getElementById("sendButton").value = "Send Bitcoin";
+            document.getElementById("isPegin").value = "false";
+            calculateTransactionFee();
+          }
+
           function setMax() {
             document.getElementById("peginAmount").value = {{.BitcoinBalance}};
             document.getElementById("subtractfee").checked = true;
@@ -328,14 +388,7 @@
                   change = 1
                 }
               {{end}}     
-              {{if not .CanRBF}}
-                document.getElementById('cpfp').classList.add("strikethrough");
-              {{end}}
-            } else {
-              {{if not .CanRBF}}
-                document.getElementById('cpfp').classList.remove("strikethrough");
-              {{end}}
-            }
+            } 
 
             // amount cannot be blank
             if (peginAmount < 1) {
@@ -346,25 +399,18 @@
               return;
             }
 
-            // fee rate cannot be blank
-            const feeRate = Number(document.getElementById("feeRate").value)
-            if (feeRate < 1) {
-              document.getElementById('result').innerText = "Please enter Fee Rate in sat/vB";
-              return;
-            }
-
             {{if .CanRBF}} 
               // change is P2TR
-              const outputsP2TR = change; // Number of P2TR outputs
-              const outputsP2WPKH = 0; // Number of P2WPKH outputs
+              let outputsP2TR = change; // Number of P2TR outputs
+              let outputsP2WPKH = 0; // Number of P2WPKH outputs
             {{else}} 
               // change is P2WPKH
-              const outputsP2TR = 0; // Number of P2TR outputs
-              const outputsP2WPKH = change; // Number of P2WPKH outputs
+              let outputsP2TR = 0; // Number of P2TR outputs
+              let outputsP2WPKH = change; // Number of P2WPKH outputs
             {{end}}
 
             // there is always one P2SH output for peg-in address
-            const outputsP2SH = 1;
+            let outputsP2SH = 1;
             
             // Initialize total UTXO amount and UTXO counters
             let totalUtxoAmount = 0;
@@ -434,6 +480,34 @@
               document.getElementById("unselectAll").textContent = selectedUtxoCount;
               document.getElementById("unselectAll").style.visibility = "visible";
             }
+            
+            // fee rate cannot be blank
+            const feeRate = Number(document.getElementById("feeRate").value)
+            if (feeRate < 1) {
+              document.getElementById('result').innerText = "Please enter Fee Rate in sat/vB";
+              return;
+            }
+            
+            const sendAddress = document.getElementById("sendAddress").value;      
+            const isPegin = document.getElementById("isPegin").value == "true";
+            
+            if (!isPegin) {
+              if (sendAddress == "") {
+                document.getElementById('result').innerText = "Please enter destination address";
+                return;
+              }
+    
+              // identify send address type
+              if (sendAddress.startsWith('bc1p') || sendAddress.startsWith('tb1p')) {
+                // is P2TR output count
+                outputsP2TR++;
+                outputsP2SH = 0;
+              } else if (sendAddress.startsWith('bc1q') || sendAddress.startsWith('tb1q')) {
+                // is P2WPKH output count
+                outputsP2WPKH++;
+                outputsP2SH = 0;
+              } 
+            }
 
             // Base size and total size initialization
             let baseSize = 0;
@@ -502,9 +576,15 @@
             vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4)
             let fee = feeRate * vbyteSize
             
-            //liquid peg-in fee estimate
-            liquidFee = Math.ceil({{.LiquidFeeRate}} * 450)
-            fee += liquidFee; 
+            let text = "Transaction size: " + vbyteSize + " vBytes\n";
+            
+            if (isPegin) {
+              //liquid peg-in fee estimate
+              liquidFee = Math.ceil({{.LiquidFeeRate}} * 450)
+              fee += liquidFee; 
+              text += "Liquid chain fee: " + formatWithThousandSeparators(liquidFee) + " sats\n";
+            }
+
             document.getElementById("totalFee").value = Number(fee);
 
             let netAmount = peginAmount;
@@ -512,9 +592,7 @@
             if (subtractFee) {
               netAmount -= fee;
             }
-            
-            let text = "Transaction size: " + vbyteSize + " vBytes\n";
-            text += "Liquid chain fee: " + formatWithThousandSeparators(liquidFee) + " sats\n";
+
             text += "Estimated total fee: " + formatWithThousandSeparators(fee) + " sats\n";
             text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
             
