@@ -143,6 +143,7 @@ func Load(dataDir string) {
 func Save() error {
 	jsonData, err := json.MarshalIndent(Config, "", "  ")
 	if err != nil {
+		log.Println("Error saving config file:", err)
 		return err
 	}
 	filename := filepath.Join(Config.DataDir, "pswebconfig.json")

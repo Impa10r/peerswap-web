@@ -115,6 +115,12 @@ func main() {
 	}
 	defer cleanup()
 
+	// Load persisted data from database (synchronous to protect map writes)
+	ln.LoadDB()
+
+	// fetch all chain costs (synchronous to protect map writes)
+	cacheSwapCosts()
+
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
 	if err != nil {
@@ -197,12 +203,6 @@ func main() {
 		log.Println("Listening on http://localhost:" + config.Config.ListenPort)
 	}
 
-	// Load persisted data from database (synchronous to protect map writes)
-	ln.LoadDB()
-
-	// fetch all chain costs (synchronous to protect map writes)
-	cacheSwapCosts()
-
 	// Start timer to run every minute
 	go startTimer()
 
@@ -221,10 +221,6 @@ func main() {
 	log.Printf("Received termination signal: %s\n", sig)
 
 	// persist to db
-	if db.Save("Swaps", "txFee", txFee) != nil {
-		log.Printf("Failed to persist txFee to db")
-	}
-
 	if db.Save("Swaps", "SwapRebates", ln.SwapRebates) != nil {
 		log.Printf("Failed to persist SwapRebates to db")
 	}
@@ -1418,12 +1414,17 @@ func cacheSwapCosts() {
 	}
 
 	// load from db
-	db.Load("Swaps", "txFee", txFee)
+	db.Load("Swaps", "txFee", &txFee)
 
 	swaps := res.GetSwaps()
 
 	for _, swap := range swaps {
 		swapCost(swap)
+	}
+
+	// save to db
+	if db.Save("Swaps", "txFee", txFee) != nil {
+		log.Printf("Failed to persist txFee to db")
 	}
 }
 

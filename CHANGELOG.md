@@ -2,7 +2,7 @@
 
 ## 1.5.9
 
-- Add BTC receiving and sending with coin selection
+- Add get BTC receiving address and send with coin selection
 
 ## 1.5.8
 

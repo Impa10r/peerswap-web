@@ -244,7 +244,7 @@ func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 
 func LoadDB() {
 	// load rebates from db
-	db.Load("Swaps", "SwapRebates", SwapRebates)
+	db.Load("Swaps", "SwapRebates", &SwapRebates)
 
 	// load auto fees from db
 	db.Load("AutoFees", "AutoFeeEnabledAll", &AutoFeeEnabledAll)

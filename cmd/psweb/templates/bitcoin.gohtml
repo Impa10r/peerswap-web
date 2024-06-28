@@ -492,11 +492,6 @@
             const isPegin = document.getElementById("isPegin").value == "true";
             
             if (!isPegin) {
-              if (sendAddress == "") {
-                document.getElementById('result').innerText = "Please enter destination address";
-                return;
-              }
-    
               // identify send address type
               if (sendAddress.startsWith('bc1p') || sendAddress.startsWith('tb1p')) {
                 // is P2TR output count
