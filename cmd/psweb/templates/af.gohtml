@@ -68,7 +68,12 @@
               </div>
             </div>
             {{if .ChannelId}}
-              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
+              <p style="text-align: left;">Capacity: {{m .Capacity}}, <span {{if gt .LocalPct .Params.ExcessPct}}
+                      style="color:{{if eq .ColorScheme "dark"}}light{{end}}green"
+                    {{end}}
+                    {{if gt .Params.LowLiqPct .LocalPct}}
+                      style="color:{{if eq .ColorScheme "dark"}}pink{{else}}red{{end}}"
+                    {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
             {{end}}   
             <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
