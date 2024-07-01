@@ -3,6 +3,7 @@
 ## 1.5.9
 
 - Add get BTC receiving address and send with coin selection
+- AutoFee: add column with days from the last outbound flow
 
 ## 1.5.8
 
