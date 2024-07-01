@@ -851,6 +851,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	localPct := uint64(0)
 	feeRate := outboundFeeRates[channelId]
 	inboundRate := inboundFeeRates[channelId]
+	currentTime := time.Now()
 
 	for _, peer := range res.GetPeers() {
 		alias := getNodeAlias(peer.NodeId)
@@ -858,6 +859,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
 			af, _ := ln.AutoFeeRule(ch.ChannelId)
 			peerNodeId[ch.ChannelId] = peer.NodeId
+			daysNoFlow := 999
+			ts, ok := ln.LastForwardTS[ch.ChannelId]
+			if ok {
+				daysNoFlow = int(currentTime.Sub(time.Unix(ts, 0)).Hours() / 24)
+			}
 
 			channelList = append(channelList, &ln.AutoFeeStatus{
 				Enabled:     ln.AutoFeeEnabled[ch.ChannelId],
@@ -870,6 +876,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 				FeeRate:     outboundFeeRates[ch.ChannelId],
 				InboundRate: inboundFeeRates[ch.ChannelId],
 				ChannelId:   ch.ChannelId,
+				DaysNoFlow:  daysNoFlow,
 			})
 
 			if ch.ChannelId == channelId {
