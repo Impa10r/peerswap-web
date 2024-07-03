@@ -68,7 +68,12 @@
               </div>
             </div>
             {{if .ChannelId}}
-              <p style="text-align: left;">Capacity: {{m .Capacity}}, {{.LocalPct}}% local, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
+              <p style="text-align: left;">Capacity: {{m .Capacity}}, <span {{if gt .LocalPct .Params.ExcessPct}}
+                      style="color:{{if eq .ColorScheme "dark"}}light{{end}}green"
+                    {{end}}
+                    {{if gt .Params.LowLiqPct .LocalPct}}
+                      style="color:{{if eq .ColorScheme "dark"}}pink{{else}}red{{end}}"
+                    {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
             {{end}}   
             <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
@@ -86,7 +91,7 @@
                       <input class="input is-medium" type="number" id="excessRate" name="excessRate" min="0" required value="{{.Params.ExcessRate}}" onchange="updateChart()">
                     </div>
                   </td>
-                  <td>
+                  <td style="padding-left: 10px;">
                     <div class="field-label is-normal">
                       <label title="High local balance threshold" class="label">High Liq %</label>
                     </div>
@@ -108,7 +113,7 @@
                       <input class="input is-medium" type="number" id="normalRate" name="normalRate" min="0" required required value="{{.Params.NormalRate}}" onchange="updateChart()">
                     </div>
                   </td>
-                  <td>
+                  <td style="padding-left: 10px;">
                     <div class="field-label is-normal">
                       <label title="Low local balance threshold below which fee rates will not auto decrease" class="label">Low Liq %</label>
                     </div>
@@ -130,7 +135,7 @@
                       <input class="input is-medium" type="number" id="lowLiqRate" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}" onchange="updateChart()">
                     </div>
                   </td>
-                  <td>
+                  <td style="padding-left: 10px;">
                     <div class="field-label is-normal">
                       <label title="Inbound fee discount when liquidity is below Low Liq % (use negative value)" class="label">Low Liq Discount</label>
                     </div>
@@ -152,7 +157,7 @@
                       <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
                     </div>
                   </td>
-                  <td>
+                  <td style="padding-left: 10px;">
                     <div class="field-label is-normal">
                       <label title="Move Low Liq % theshold higher after each 'Insufficient Balance' HTLC failure above it" class="label">Fail % Move</label>
                     </div>
@@ -174,7 +179,7 @@
                       <input class="input is-medium" type="number" name="inactivityDays" min="0" required value="{{.Params.InactivityDays}}">
                     </div>
                   </td>
-                  <td>
+                  <td style="padding-left: 10px;">
                     <div class="field-label is-normal">
                       <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop</label>
                     </div>
@@ -196,7 +201,7 @@
                       <input class="input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
                     </div>
                   </td>
-                  <td>
+                  <td style="padding-left: 10px;">
                     <div class="field-label is-normal">
                       <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
                     </div>
@@ -290,8 +295,9 @@
                   <th>Peer</th>
                   <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
-                  <th title="Outbound Fee Rate" style="width: 6ch; text-align: right;">Out</th>
+                  <th title="Outbound Fee Rate" style="width: 5ch; text-align: right;">Out</th>
                   <th title="Inbound Fee Rate" style="width: 4ch; text-align: right;">In</th>
+                  <th title="Days from the last outbound flow" style="width: 4ch; text-align: right;">Flow</th>
                   <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
 * indicates custom rule" style="text-align: center;">Rule</th>
                   <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
@@ -311,6 +317,13 @@
                     {{end}}{{end}}">{{fmt .LocalPct}}</td>
                   <td style="text-align: right;">{{fs .FeeRate}}</td>
                   <td style="text-align: right;">{{fs .InboundRate}}</td>
+                  <td style="text-align: right;
+                    {{if gt 7 .DaysNoFlow}}
+                      color:lightgreen
+                    {{end}}
+                    {{if gt .DaysNoFlow 14}}
+                      color:pink
+                    {{end}}">{{.DaysNoFlow}}</td>
                   <td class="truncate" style="text-align: center;">{{if .Enabled}}{{if .Custom}}*{{end}}{{.Rule}}{{end}}</td>
                   <td>
                     <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">

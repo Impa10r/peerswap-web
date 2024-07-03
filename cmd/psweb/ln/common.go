@@ -85,6 +85,7 @@ type AutoFeeStatus struct {
 	Custom      bool
 	FeeRate     int64
 	InboundRate int64
+	DaysNoFlow  int
 }
 
 type AutoFeeParams struct {
@@ -161,7 +162,7 @@ var (
 	}
 
 	// track timestamp of the last outbound forward per channel
-	lastForwardTS = make(map[uint64]int64)
+	LastForwardTS = make(map[uint64]int64)
 
 	// prevents starting another fee update while the first still running
 	autoFeeIsRunning = false
@@ -244,7 +245,7 @@ func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 
 func LoadDB() {
 	// load rebates from db
-	db.Load("Swaps", "SwapRebates", SwapRebates)
+	db.Load("Swaps", "SwapRebates", &SwapRebates)
 
 	// load auto fees from db
 	db.Load("AutoFees", "AutoFeeEnabledAll", &AutoFeeEnabledAll)
@@ -283,7 +284,7 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 		// see if cool-off period has passed
 		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the inactivity period
-			if lastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
+			if LastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
 				newFee -= params.InactivityDropPPM
 				newFee = newFee * (100 - params.InactivityDropPct) / 100

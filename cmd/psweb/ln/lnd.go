@@ -384,7 +384,7 @@ func releaseOutputs(cl walletrpc.WalletKitClient, utxos *[]string, lockId *[]byt
 		})
 
 		if err != nil {
-			log.Println("ReleaseOutput:", err)
+			//log.Println("ReleaseOutput:", err)
 			return err
 		}
 	}
@@ -774,7 +774,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 			if event.AmtOutMsat > ignoreForwardsMsat {
 				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
-				lastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
+				LastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
 			}
 		}
 
@@ -988,7 +988,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 						// settled htlcEvent has no Outgoing info, take from queue
 						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 						// TS for autofee
-						lastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
+						LastForwardTS[htlc.OutgoingChannelId] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
 
 						// execute autofee
 						client, cleanup, err := GetClient()

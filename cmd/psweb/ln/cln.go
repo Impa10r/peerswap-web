@@ -421,7 +421,7 @@ func CacheForwards() {
 					forwardsIn[chIn] = append(forwardsIn[chIn], f)
 					forwardsOut[chOut] = append(forwardsOut[chOut], f)
 					// save for autofees
-					lastForwardTS[chOut] = int64(f.ResolvedTime)
+					LastForwardTS[chOut] = int64(f.ResolvedTime)
 				} else {
 					// catch not enough balance error
 					if f.FailCode == 4103 {

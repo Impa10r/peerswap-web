@@ -184,6 +184,11 @@ input[type=checkbox] {
     .input { 
         padding: 0.5em; /* reduce padding inside input cells */
     }
+
+    th, td {
+        padding-left: 1px;
+        padding-right: 1px;
+    }
 }
 
  /* Style for the tooltip */

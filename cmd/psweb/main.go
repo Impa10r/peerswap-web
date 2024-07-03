@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.5.8"
+	version = "v1.5.9"
 )
 
 type SwapParams struct {
@@ -114,6 +114,12 @@ func main() {
 		log.Fatal(err)
 	}
 	defer cleanup()
+
+	// Load persisted data from database (synchronous to protect map writes)
+	ln.LoadDB()
+
+	// fetch all chain costs (synchronous to protect map writes)
+	cacheSwapCosts()
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -197,12 +203,6 @@ func main() {
 		log.Println("Listening on http://localhost:" + config.Config.ListenPort)
 	}
 
-	// Load persisted data from database (synchronous to protect map writes)
-	ln.LoadDB()
-
-	// fetch all chain costs (synchronous to protect map writes)
-	cacheSwapCosts()
-
 	// Start timer to run every minute
 	go startTimer()
 
@@ -221,10 +221,6 @@ func main() {
 	log.Printf("Received termination signal: %s\n", sig)
 
 	// persist to db
-	if db.Save("Swaps", "txFee", txFee) != nil {
-		log.Printf("Failed to persist txFee to db")
-	}
-
 	if db.Save("Swaps", "SwapRebates", ln.SwapRebates) != nil {
 		log.Printf("Failed to persist SwapRebates to db")
 	}
@@ -421,10 +417,7 @@ func liquidBackup(force bool) {
 	config.Config.ElementsBackupAmount = satAmount
 
 	// Save config
-	if err := config.Save(); err != nil {
-		log.Println("Error saving config file:", err)
-		return
-	}
+	config.Save()
 }
 
 func setLogging() (func(), error) {
@@ -1057,49 +1050,53 @@ func checkPegin() {
 			// RBF replacement conflict: the old transaction mined before the new one
 			config.Config.PeginTxId = config.Config.PeginReplacedTxId
 			config.Config.PeginReplacedTxId = ""
-			log.Println("The last RBF failed as previous tx mined earlier, switching to prior txid for the peg-in progress:", config.Config.PeginTxId)
+			log.Println("The last RBF failed as previous tx mined earlier, switching to prior txid:", config.Config.PeginTxId)
 		}
 	}
 
-	if confs >= 102 {
-		// claim pegin
-		failed := false
-		proof := ""
-		txid := ""
-		rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
-		if err == nil {
-			proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+	if confs > 0 {
+		if config.Config.PeginClaimScript == "" {
+			log.Println("BTC withdrawal complete")
+			telegramSendMessage("BTC withdrawal complete")
+		} else if confs > 101 {
+			// claim pegin
+			failed := false
+			proof := ""
+			txid := ""
+			rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
 			if err == nil {
-				txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
-				// claimpegin takes long time, allow it to timeout
-				if err != nil && err.Error() != "timeout reading data from server" {
+				proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+				if err == nil {
+					txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
+					// claimpegin takes long time, allow it to timeout
+					if err != nil && err.Error() != "timeout reading data from server" {
+						failed = true
+					}
+				} else {
 					failed = true
 				}
 			} else {
 				failed = true
 			}
-		} else {
-			failed = true
-		}
 
-		if failed {
-			log.Println("Peg-in claim FAILED!")
-			log.Println("Mainchain TxId:", config.Config.PeginTxId)
-			log.Println("Raw tx:", rawTx)
-			log.Println("Proof:", proof)
-			log.Println("Claim Script:", config.Config.PeginClaimScript)
-			telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+			if failed {
+				log.Println("Peg-in claim FAILED!")
+				log.Println("Mainchain TxId:", config.Config.PeginTxId)
+				log.Println("Raw tx:", rawTx)
+				log.Println("Proof:", proof)
+				log.Println("Claim Script:", config.Config.PeginClaimScript)
+				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+			} else {
+				log.Println("Peg-in success! Liquid TxId:", txid)
+				telegramSendMessage("💸 Peg-in success!")
+			}
 		} else {
-			log.Println("Peg-in success! Liquid TxId:", txid)
-			telegramSendMessage("💸 Peg-in success!")
+			return
 		}
 
 		// stop trying after one attempt
 		config.Config.PeginTxId = ""
-
-		if err := config.Save(); err != nil {
-			log.Println("Error saving config file:", err)
-		}
+		config.Save()
 	}
 }
 
@@ -1422,12 +1419,17 @@ func cacheSwapCosts() {
 	}
 
 	// load from db
-	db.Load("Swaps", "txFee", txFee)
+	db.Load("Swaps", "txFee", &txFee)
 
 	swaps := res.GetSwaps()
 
 	for _, swap := range swaps {
 		swapCost(swap)
+	}
+
+	// save to db
+	if db.Save("Swaps", "txFee", txFee) != nil {
+		log.Printf("Failed to persist txFee to db")
 	}
 }
 
