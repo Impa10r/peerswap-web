@@ -988,7 +988,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 						// settled htlcEvent has no Outgoing info, take from queue
 						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 						// TS for autofee
-						LastForwardTS[htlc.forwardingEvent.ChanIdOut] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
+						LastForwardTS[htlc.OutgoingChannelId] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
 
 						// execute autofee
 						client, cleanup, err := GetClient()

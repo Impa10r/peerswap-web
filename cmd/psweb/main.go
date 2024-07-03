@@ -1054,8 +1054,11 @@ func checkPegin() {
 		}
 	}
 
-	if confs > 101 {
-		if config.Config.PeginClaimScript != "" {
+	if confs > 0 {
+		if config.Config.PeginClaimScript == "" {
+			log.Println("BTC withdrawal complete")
+			telegramSendMessage("BTC withdrawal complete")
+		} else if confs > 101 {
 			// claim pegin
 			failed := false
 			proof := ""
