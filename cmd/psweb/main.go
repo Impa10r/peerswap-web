@@ -1090,6 +1090,8 @@ func checkPegin() {
 				log.Println("Peg-in success! Liquid TxId:", txid)
 				telegramSendMessage("💸 Peg-in success!")
 			}
+		} else {
+			return
 		}
 
 		// stop trying after one attempt
