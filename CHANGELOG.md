@@ -2,8 +2,9 @@
 
 ## 1.5.9
 
-- Add get BTC receiving address and send with coin selection
+- Add get BTC receiving address and send BTC with coin selection
 - AutoFee: add column with days from the last outbound flow
+- AutoFee: fix live outbound payments not registering for LND
 
 ## 1.5.8
 
