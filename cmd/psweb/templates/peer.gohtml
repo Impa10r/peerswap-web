@@ -58,9 +58,9 @@
                         <div class="field-body">
                           <div class="select is-medium is-fullwidth">
                             <select id="from" name="from" onchange="fromChanged()">
+                              <option value="ln"{{if not .DirectionIn}} selected{{end}}>Lightning ⚡</option>
                               <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if .DirectionIn}} selected{{end}}>Liquid 🌊</option>
                               <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
-                              <option value="ln"{{if not .DirectionIn}} selected{{end}}>Lightning ⚡</option>
                             </select>
                           </div>
                         </div>
@@ -72,9 +72,9 @@
                         <div class="field-body">
                           <div class="select is-medium is-fullwidth">
                             <select id="to" name="to" onchange="toChanged()">
+                              <option value="ln"{{if .DirectionIn}} selected{{end}}>Lightning ⚡</option>
                               <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if not .DirectionIn}} selected{{end}}>Liquid 🌊</option>
                               <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
-                              <option value="ln"{{if .DirectionIn}} selected{{end}}>Lightning ⚡</option>
                             </select>
                           </div>
                         </div>
