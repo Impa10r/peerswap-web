@@ -196,7 +196,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
-		PeginPending:      config.Config.PeginTxId != "",
+		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
 	}
 
 	// executing template named "homepage" with retries

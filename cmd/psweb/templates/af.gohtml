@@ -225,7 +225,7 @@
           </div>
           {{if .ChannelId}}
             <div class="box has-text-left">
-              <h4 class="title is-4">Realized Routing PPM<h4>
+              <h4 title="Last 6 months history" class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
                 <canvas id="myScatterChart"></canvas>
                 <div id="tooltip"></div>
@@ -233,7 +233,7 @@
             </div>
           {{end}}
           <div class="box has-text-left">
-            <h4 class="title is-4">Fee Log<h4>
+            <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Fee Log<h4>
             <table class="table" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
@@ -267,7 +267,7 @@
             </table>
           </div>
           <div class="box has-text-left">
-            <h4 class="title is-4">Last Forwards<h4>
+            <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Last Forwards<h4>
             <table class="table" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
@@ -321,7 +321,7 @@
                   <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
                   <th title="Outbound Fee Rate" style="width: 5ch; text-align: right;">Out</th>
-                  <th title="Inbound Fee Rate" style="width: 4ch; text-align: right;">In</th>
+                  <th title="Inbound Discount" style="width: 4ch; text-align: right;">In</th>
                   <th title="Days from the last outbound flow" style="width: 4ch; text-align: right;">Flow</th>
                   <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
 * indicates custom rule" style="text-align: center;">Rule</th>
