@@ -931,8 +931,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// 24 hours fee log for all channels
 	days := 1
 	if channelId > 0 {
-		// or 7 days for a single one
-		days = 7
+		// or 30 days for a single one
+		days = 30
 	}
 	startTS := time.Now().AddDate(0, 0, -days).Unix()
 
@@ -2004,10 +2004,21 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			var id string
-			switch r.FormValue("direction") {
-			case "swapIn":
+			asset := r.FormValue("from")
+			direction := "in"
+			if asset == "ln" {
+				asset = r.FormValue("to")
+				direction = "out"
+			}
+			if asset == "ln" || r.FormValue("from") != "ln" && r.FormValue("to") != "ln" {
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("invalid combination of assets"))
+				return
+			}
+
+			switch direction {
+			case "in":
 				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
-			case "swapOut":
+			case "out":
 				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
 			}
 

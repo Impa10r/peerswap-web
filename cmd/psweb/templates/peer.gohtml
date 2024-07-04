@@ -53,26 +53,28 @@
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
-                          <label class="label">Direction</label>
+                          <label class="label">From</label>
                         </div>
                         <div class="field-body">
                           <div class="select is-medium is-fullwidth">
-                            <select id="direction" name="direction" onchange="calculateTransactionFee()">
-                              <option value="swapIn" {{if .DirectionIn}}selected{{end}}>Swap In ⇨ ⚡</option>
-                              <option value="swapOut" {{if not .DirectionIn}}selected{{end}}>Swap Out ⚡ ⇨ </option>
+                            <select id="from" name="from" onchange="fromChanged()">
+                              <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if .DirectionIn}} selected{{end}}>Liquid 🌊</option>
+                              <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
+                              <option value="ln"{{if not .DirectionIn}} selected{{end}}>Lightning ⚡</option>
                             </select>
                           </div>
                         </div>
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
-                          <label class="label">Asset</label>
+                          <label class="label">To</label>
                         </div>
                         <div class="field-body">
                           <div class="select is-medium is-fullwidth">
-                            <select id="asset" name="asset" onchange="calculateTransactionFee()">
-                              <option value="lbtc" {{if not .LBTC}}disabled{{end}}>Liquid 🌊</option>
-                              <option value="btc" {{if not .BTC}}disabled{{end}}>Bitcoin ₿</option>
+                            <select id="to" name="to" onchange="toChanged()">
+                              <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if not .DirectionIn}} selected{{end}}>Liquid 🌊</option>
+                              <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
+                              <option value="ln"{{if .DirectionIn}} selected{{end}}>Lightning ⚡</option>
                             </select>
                           </div>
                         </div>
@@ -120,14 +122,34 @@
                           return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
                       }
                       
+                      function fromChanged() {
+                        if (document.getElementById("from").value == "ln") {
+                          document.getElementById("to").value = "lbtc";
+                        } else {
+                          document.getElementById("to").value = "ln";
+                        }
+                      }
+
+                      function toChanged() {
+                        if (document.getElementById("to").value == "ln") {
+                          document.getElementById("from").value = "lbtc";
+                        } else {
+                          document.getElementById("from").value = "ln";
+                        }
+                      }
+
                       function calculateTransactionFee() {
-                        var asset = document.getElementById("asset").value;
-                        var swapAmount = Number(document.getElementById("swapAmount").value);
+                        const swapAmount = Number(document.getElementById("swapAmount").value);
                         let fee = 0;
                         let feeRate = {{.MempoolFeeRate}}; // LBTC
                         let title = ""; 
                         let change = 25000;
+                        let asset = document.getElementById("from").value;
 
+                        if (asset == "ln") {
+                          asset = document.getElementById("to").value;
+                        }
+                        
                         if (asset == "btc") {
                           feeRate = {{.BtcFeeRate}};
                           document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
@@ -138,11 +160,11 @@
 
                         // amount cannot be blank
                         if (swapAmount < 100000) {
-                          document.getElementById('result').innerText = "Please enter the Swap Amount";
+                          document.getElementById('result').innerText = "Minimum Swap Amount is 100,000 sats";
                           return;
                         }
                         
-                        if (document.getElementById("direction").value == "swapIn") {
+                        if (document.getElementById("from").value != "ln") {
                           title = "Assumed UTXOs:\n";
                           if (asset == "btc") {
                             // Check amount

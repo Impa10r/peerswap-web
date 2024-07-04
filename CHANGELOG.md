@@ -2,7 +2,7 @@
 
 ## 1.6.0
 
-- 
+- Make New Swap form inputs more intuitive
 
 ## 1.5.9
 
