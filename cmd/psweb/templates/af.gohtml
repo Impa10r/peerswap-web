@@ -275,7 +275,7 @@
                   <th>In</th>
                   <th>Out</th>
                   <th style="width: 5ch; text-align: right;">Amt</th>
-                  <th style="width: 7ch; text-align: right;">Fee</th>
+                  <th style="width: 7ch; text-align: right;">PPM</th>
                 </tr>
               </thead>
               <tbody>
@@ -285,7 +285,7 @@
                     <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
                     <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
                     <td title="{{fmt .Amount}} sats" style="text-align: right;">{{m .Amount}}</td>
-                    <td title="PPM: {{.PPM}}" style="text-align: right;">{{fmt .Fee}}</td>
+                    <td title="Fee: {{fmt .Fee}}" style="text-align: right;">{{fmt .PPM}}</td>
                   </tr>
                 {{end}}
               </tbody>
