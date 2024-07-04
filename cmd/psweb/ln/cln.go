@@ -215,7 +215,7 @@ type UnreserveInputsResponse struct {
 	Reservations []Reservation `json:"reservations"`
 }
 
-func BumpPeginFee(newFeeRate uint64) (*SentResult, error) {
+func BumpPeginFee(newFeeRate uint64, label string) (*SentResult, error) {
 
 	client, clean, err := GetClient()
 	if err != nil {
@@ -272,7 +272,8 @@ func BumpPeginFee(newFeeRate uint64) (*SentResult, error) {
 		config.Config.PeginAddress,
 		config.Config.PeginAmount,
 		newFeeRate,
-		sendAll)
+		sendAll,
+		label)
 }
 
 func getTransaction(client *glightning.Lightning, txid string) (*glightning.Transaction, error) {
@@ -302,7 +303,7 @@ func GetRawTransaction(client *glightning.Lightning, txid string) (string, error
 }
 
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)
@@ -679,6 +680,8 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 			updates := channelMap["updates"].(map[string]interface{})
 			local := updates["local"].(map[string]interface{})
 			remote := updates["remote"].(map[string]interface{})
+			info.PeerFeeBase = int64(remote["fee_base_msat"].(float64))
+			info.PeerFeeRate = int64(remote["fee_proportional_millionths"].(float64))
 			info.PeerMinHtlc = msatToSatUp(uint64(remote["htlc_minimum_msat"].(float64)))
 			info.PeerMaxHtlc = uint64(remote["htlc_maximum_msat"].(float64)) / 1000
 			info.OurMaxHtlc = uint64(local["htlc_maximum_msat"].(float64)) / 1000
@@ -1227,4 +1230,51 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 	}
 
 	return &plot
+}
+
+// channelId == 0 means all channels
+func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
+	var log []DataPoint
+
+	for chId := range forwardsOut {
+		if channelId > 0 && channelId != chId {
+			continue
+		}
+		for _, e := range forwardsOut[chId] {
+			// ignore small forwards
+			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+				log = append(log, DataPoint{
+					TS:        uint64(e.ResolvedTime),
+					Amount:    e.OutMsat / 1000,
+					Fee:       e.FeeMsat / 1000,
+					PPM:       e.FeeMsat * 1_000_000 / e.OutMsat,
+					ChanIdIn:  ConvertClnToLndChannelId(e.InChannel),
+					ChanIdOut: chId,
+				})
+			}
+		}
+	}
+
+	if channelId > 0 {
+		for _, e := range forwardsIn[channelId] {
+			// ignore small forwards
+			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+				log = append(log, DataPoint{
+					TS:        uint64(e.ResolvedTime),
+					Amount:    e.OutMsat / 1000,
+					Fee:       e.FeeMsat / 1000,
+					PPM:       e.FeeMsat * 1_000_000 / e.OutMsat,
+					ChanIdIn:  channelId,
+					ChanIdOut: ConvertClnToLndChannelId(e.OutChannel),
+				})
+			}
+		}
+	}
+
+	// sort by TimeStamp descending
+	sort.Slice(log, func(i, j int) bool {
+		return log[i].TS > log[j].TS
+	})
+
+	return &log
 }

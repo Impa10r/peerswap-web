@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -243,7 +244,7 @@ func GetRawTransaction(client lnrpc.LightningClient, txid string) (string, error
 }
 
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
@@ -340,7 +341,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	req := &walletrpc.Transaction{
 		TxHex: rawTx,
-		Label: "Liquid Peg-in",
+		Label: label,
 	}
 
 	_, err = cl.PublishTransaction(ctx, req)
@@ -535,7 +536,7 @@ func fundPsbtSpendAll(cl walletrpc.WalletKitClient, utxoStrings *[]string, addre
 	return fundResp.FundedPsbt, nil
 }
 
-func BumpPeginFee(feeRate uint64) (*SentResult, error) {
+func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
 
 	client, cleanup, err := GetClient()
 	if err != nil {
@@ -596,7 +597,8 @@ func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 		config.Config.PeginAddress,
 		config.Config.PeginAmount,
 		feeRate,
-		len(tx.OutputDetails) == 1)
+		len(tx.OutputDetails) == 1,
+		label)
 
 }
 
@@ -1240,18 +1242,11 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 	}
 
 	policy := r.Node1Policy
+	peerPolicy := r.Node2Policy
 	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
-		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
-		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
-	} else {
-		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
-		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
+		peerPolicy = r.Node1Policy
 	}
 
 	info.FeeRate = policy.GetFeeRateMilliMsat()
@@ -1260,6 +1255,16 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 		info.InboundFeeBase = int64(policy.GetInboundFeeBaseMsat())
 		info.InboundFeeRate = int64(policy.GetInboundFeeRateMilliMsat())
 	}
+	info.OurMaxHtlc = policy.GetMaxHtlcMsat() / 1000
+	info.OurMinHtlc = msatToSatUp(uint64(policy.GetMinHtlc()))
+
+	info.PeerMaxHtlc = peerPolicy.GetMaxHtlcMsat() / 1000
+	info.PeerMinHtlc = msatToSatUp(uint64(peerPolicy.GetMinHtlc()))
+	info.PeerFeeRate = peerPolicy.GetFeeRateMilliMsat()
+	info.PeerFeeBase = peerPolicy.GetFeeBaseMsat()
+	info.PeerInboundFeeBase = int64(peerPolicy.GetInboundFeeBaseMsat())
+	info.PeerInboundFeeRate = int64(peerPolicy.GetInboundFeeRateMilliMsat())
+
 	info.Capacity = uint64(r.Capacity)
 
 	return info
@@ -1887,13 +1892,63 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 		// ignore small forwards
 		if e.AmtOutMsat > ignoreForwardsMsat {
 			plot = append(plot, DataPoint{
-				TS:     e.TimestampNs / 1_000_000_000,
-				Amount: e.AmtOut,
-				Fee:    e.Fee,
-				PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+				TS:        e.TimestampNs / 1_000_000_000,
+				Amount:    e.AmtOut,
+				Fee:       e.Fee,
+				PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+				ChanIdIn:  e.ChanIdIn,
+				ChanIdOut: e.ChanIdOut,
 			})
 		}
 	}
 
 	return &plot
+}
+
+// channelId == 0 means all channels
+func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
+	var log []DataPoint
+	fromTS_Ns := uint64(fromTS * 1_000_000_000)
+
+	for chId := range forwardsOut {
+		if channelId > 0 && channelId != chId {
+			continue
+		}
+		for _, e := range forwardsOut[chId] {
+			// ignore small forwards
+			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+				log = append(log, DataPoint{
+					TS:        e.TimestampNs / 1_000_000_000,
+					Amount:    e.AmtOut,
+					Fee:       e.Fee,
+					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+					ChanIdIn:  e.ChanIdIn,
+					ChanIdOut: e.ChanIdOut,
+				})
+			}
+		}
+	}
+
+	if channelId > 0 {
+		for _, e := range forwardsIn[channelId] {
+			// ignore small forwards
+			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+				log = append(log, DataPoint{
+					TS:        e.TimestampNs / 1_000_000_000,
+					Amount:    e.AmtOut,
+					Fee:       e.Fee,
+					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+					ChanIdIn:  e.ChanIdIn,
+					ChanIdOut: e.ChanIdOut,
+				})
+			}
+		}
+	}
+
+	// sort by TimeStamp descending
+	sort.Slice(log, func(i, j int) bool {
+		return log[i].TS > log[j].TS
+	})
+
+	return &log
 }

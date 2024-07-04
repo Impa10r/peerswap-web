@@ -57,21 +57,26 @@ type ChannelStats struct {
 }
 
 type ChanneInfo struct {
-	ChannelId      uint64
-	LocalBalance   uint64
-	RemoteBalance  uint64
-	FeeRate        int64 // PPM
-	FeeBase        int64 // mSat
-	InboundFeeRate int64 // PPM
-	InboundFeeBase int64 // mSat
-	Active         bool
-	OurMaxHtlc     uint64
-	OurMinHtlc     uint64
-	PeerMaxHtlc    uint64
-	PeerMinHtlc    uint64
-	Capacity       uint64
-	LocalPct       uint64
-	AutoFeeLog     string
+	ChannelId          uint64
+	LocalBalance       uint64
+	RemoteBalance      uint64
+	FeeRate            int64 // PPM
+	FeeBase            int64 // mSat
+	InboundFeeRate     int64 // PPM
+	InboundFeeBase     int64 // mSat
+	Active             bool
+	OurMaxHtlc         uint64
+	OurMinHtlc         uint64
+	PeerMaxHtlc        uint64
+	PeerMinHtlc        uint64
+	PeerFeeRate        int64 // PPM
+	PeerFeeBase        int64 // mSat
+	PeerInboundFeeRate int64 // PPM
+	PeerInboundFeeBase int64 // mSat
+
+	Capacity   uint64
+	LocalPct   uint64
+	AutoFeeLog string
 }
 
 type AutoFeeStatus struct {
@@ -123,14 +128,20 @@ type AutoFeeEvent struct {
 	IsManual  bool
 }
 
-// for chart plotting
+// for chart plotting and forwards log
 type DataPoint struct {
-	TS     uint64
-	Amount uint64
-	Fee    uint64
-	PPM    uint64
-	R      uint64
-	Label  string
+	TS        uint64
+	Amount    uint64
+	Fee       uint64
+	PPM       uint64
+	R         uint64
+	Label     string
+	ChanIdIn  uint64
+	ChanIdOut uint64
+	AliasIn   string
+	AliasOut  string
+	TimeAgo   string
+	TimeUTC   string
 }
 
 // ignore small forwards

@@ -196,7 +196,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinBalance:    uint64(btcBalance),
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
-		PeginPending:      config.Config.PeginTxId != "",
+		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
 	}
 
 	// executing template named "homepage" with retries
@@ -695,7 +695,12 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			claimScript = ""
 		}
 
-		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount)
+		label := "Liquid Peg-in"
+		if !isPegin {
+			label = "BTC Withdrawal"
+		}
+
+		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -763,7 +768,12 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		res, err := ln.BumpPeginFee(fee)
+		label := "Liquid Peg-in"
+		if config.Config.PeginClaimScript == "" {
+			label = "BTC Withdrawal"
+		}
+
+		res, err := ln.BumpPeginFee(fee, label)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -921,8 +931,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// 24 hours fee log for all channels
 	days := 1
 	if channelId > 0 {
-		// or 7 days for a single one
-		days = 7
+		// or 30 days for a single one
+		days = 30
 	}
 	startTS := time.Now().AddDate(0, 0, -days).Unix()
 
@@ -953,6 +963,15 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		return feeLog[i].TimeStamp > feeLog[j].TimeStamp
 	})
 
+	forwardsLog := ln.ForwardsLog(channelId, startTS)
+
+	for i, f := range *forwardsLog {
+		(*forwardsLog)[i].AliasIn = getNodeAlias(peerNodeId[f.ChanIdIn])
+		(*forwardsLog)[i].AliasOut = getNodeAlias(peerNodeId[f.ChanIdOut])
+		(*forwardsLog)[i].TimeAgo = timePassedAgo(time.Unix(int64(f.TS), 0))
+		(*forwardsLog)[i].TimeUTC = time.Unix(int64(f.TS), 0).UTC().Format(time.RFC1123)
+	}
+
 	type Page struct {
 		Authenticated  bool
 		ErrorMessage   string
@@ -975,6 +994,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees bool
 		Chart          *[]ln.DataPoint
 		FeeLog         []FeeLog
+		ForwardsLog    *[]ln.DataPoint
 	}
 
 	data := Page{
@@ -999,6 +1019,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees: ln.HasInboundFees(),
 		Chart:          chart,
 		FeeLog:         feeLog,
+		ForwardsLog:    forwardsLog,
 	}
 
 	// executing template named "af"
@@ -1994,10 +2015,21 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			var id string
-			switch r.FormValue("direction") {
-			case "swapIn":
+			asset := r.FormValue("from")
+			direction := "in"
+			if asset == "ln" {
+				asset = r.FormValue("to")
+				direction = "out"
+			}
+			if asset == "ln" || r.FormValue("from") != "ln" && r.FormValue("to") != "ln" {
+				redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("invalid combination of assets"))
+				return
+			}
+
+			switch direction {
+			case "in":
 				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
-			case "swapOut":
+			case "out":
 				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
 			}
 

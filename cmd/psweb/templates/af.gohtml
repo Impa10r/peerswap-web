@@ -225,7 +225,7 @@
           </div>
           {{if .ChannelId}}
             <div class="box has-text-left">
-              <h4 class="title is-4">Realized Routing PPM<h4>
+              <h4 title="Last 6 months history" class="title is-4">Realized Routing PPM<h4>
               <div style="width: 100%; margin: auto;">
                 <canvas id="myScatterChart"></canvas>
                 <div id="tooltip"></div>
@@ -233,8 +233,8 @@
             </div>
           {{end}}
           <div class="box has-text-left">
-            <h4 class="title is-4">Fee Log<h4>
-            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
+            <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Fee Log<h4>
+            <table class="table" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
                   <th style="width: 13ch;">Time</th>
@@ -266,6 +266,31 @@
               </tbody>
             </table>
           </div>
+          <div class="box has-text-left">
+            <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Last Forwards<h4>
+            <table class="table" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width: 13ch;">Time</th>
+                  <th>In</th>
+                  <th>Out</th>
+                  <th style="width: 5ch; text-align: right;">Amt</th>
+                  <th style="width: 7ch; text-align: right;">Fee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{range .ForwardsLog}}
+                  <tr>
+                    <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
+                    <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
+                    <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
+                    <td title="{{fmt .Amount}} sats" style="text-align: right;">{{m .Amount}}</td>
+                    <td title="PPM: {{.PPM}}" style="text-align: right;">{{fmt .Fee}}</td>
+                  </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
         </div> 
         <div class="column"> 
           <div class="box has-text-left">
@@ -289,14 +314,14 @@
                 <input type="checkbox" id="enabledAll" name="enabled" style="display:none;">
               </form>
             </div>
-            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
+            <table class="table" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
                   <th>Peer</th>
                   <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
                   <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
                   <th title="Outbound Fee Rate" style="width: 5ch; text-align: right;">Out</th>
-                  <th title="Inbound Fee Rate" style="width: 4ch; text-align: right;">In</th>
+                  <th title="Inbound Discount" style="width: 4ch; text-align: right;">In</th>
                   <th title="Days from the last outbound flow" style="width: 4ch; text-align: right;">Flow</th>
                   <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
 * indicates custom rule" style="text-align: center;">Rule</th>
