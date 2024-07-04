@@ -96,35 +96,6 @@
           </div>
         </div>
         <div class="column">
-          <div class="box has-text-left">
-            <h4 class="title is-4">Receive Liquid</h4> 
-            {{if eq .LiquidAddress ""}}
-              <form action="/submit" method="post">
-                <center>
-                  <input type="hidden" name="action" value="newAddress">
-                  <input class="button is-large" type="submit" value="Get New Address">
-                </center>
-              </form>
-            {{else}}
-              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.LiquidAddress}}" readonly>               
-              <script>
-                function copyToClipboard() {
-                  // Get the text to copy
-                  var copyText = document.getElementById("copyText");
-
-                  // Select the text
-                  copyText.select();
-                  copyText.setSelectionRange(0, 99999); // For mobile devices
-
-                  // Copy the selected text
-                  document.execCommand("copy");
-
-                  // Alert the user that the text has been copied
-                  displayTemporaryMessage("Copied the address to clipboard");
-                }
-              </script>
-            {{end}}
-          </div>
           {{if eq .TxId ""}}
             <div class="box has-text-left">
               <h4 class="title is-4">Send Liquid</h4> 
@@ -202,6 +173,35 @@
               </table>
             </div>
           {{end}}
+          <div class="box has-text-left">
+            <h4 class="title is-4">Receive Liquid</h4> 
+            {{if eq .LiquidAddress ""}}
+              <form action="/submit" method="post">
+                <center>
+                  <input type="hidden" name="action" value="newAddress">
+                  <input class="button is-large" type="submit" value="Get New Address">
+                </center>
+              </form>
+            {{else}}
+              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.LiquidAddress}}" readonly>               
+              <script>
+                function copyToClipboard() {
+                  // Get the text to copy
+                  var copyText = document.getElementById("copyText");
+
+                  // Select the text
+                  copyText.select();
+                  copyText.setSelectionRange(0, 99999); // For mobile devices
+
+                  // Copy the selected text
+                  document.execCommand("copy");
+
+                  // Alert the user that the text has been copied
+                  displayTemporaryMessage("Copied the address to clipboard");
+                }
+              </script>
+            {{end}}
+          </div>
         </div>
       </div>
     </div>

@@ -215,7 +215,7 @@ type UnreserveInputsResponse struct {
 	Reservations []Reservation `json:"reservations"`
 }
 
-func BumpPeginFee(newFeeRate uint64) (*SentResult, error) {
+func BumpPeginFee(newFeeRate uint64, label string) (*SentResult, error) {
 
 	client, clean, err := GetClient()
 	if err != nil {
@@ -272,7 +272,8 @@ func BumpPeginFee(newFeeRate uint64) (*SentResult, error) {
 		config.Config.PeginAddress,
 		config.Config.PeginAmount,
 		newFeeRate,
-		sendAll)
+		sendAll,
+		label)
 }
 
 func getTransaction(client *glightning.Lightning, txid string) (*glightning.Transaction, error) {
@@ -302,7 +303,7 @@ func GetRawTransaction(client *glightning.Lightning, txid string) (string, error
 }
 
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)

@@ -695,7 +695,12 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			claimScript = ""
 		}
 
-		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount)
+		label := "Liquid Peg-in"
+		if !isPegin {
+			label = "BTC Withdrawal"
+		}
+
+		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -763,7 +768,12 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		res, err := ln.BumpPeginFee(fee)
+		label := "Liquid Peg-in"
+		if config.Config.PeginClaimScript == "" {
+			label = "BTC Withdrawal"
+		}
+
+		res, err := ln.BumpPeginFee(fee, label)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return

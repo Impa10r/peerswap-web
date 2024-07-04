@@ -1,5 +1,9 @@
 # Versions
 
+## 1.6.0
+
+- 
+
 ## 1.5.9
 
 - Add get BTC receiving address and send BTC with coin selection

@@ -243,7 +243,7 @@ func GetRawTransaction(client lnrpc.LightningClient, txid string) (string, error
 }
 
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
@@ -340,7 +340,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 
 	req := &walletrpc.Transaction{
 		TxHex: rawTx,
-		Label: "Liquid Peg-in",
+		Label: label,
 	}
 
 	_, err = cl.PublishTransaction(ctx, req)
@@ -535,7 +535,7 @@ func fundPsbtSpendAll(cl walletrpc.WalletKitClient, utxoStrings *[]string, addre
 	return fundResp.FundedPsbt, nil
 }
 
-func BumpPeginFee(feeRate uint64) (*SentResult, error) {
+func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
 
 	client, cleanup, err := GetClient()
 	if err != nil {
@@ -596,7 +596,8 @@ func BumpPeginFee(feeRate uint64) (*SentResult, error) {
 		config.Config.PeginAddress,
 		config.Config.PeginAmount,
 		feeRate,
-		len(tx.OutputDetails) == 1)
+		len(tx.OutputDetails) == 1,
+		label)
 
 }
 
