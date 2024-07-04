@@ -680,6 +680,8 @@ func GetChannelInfo(client *glightning.Lightning, lndChannelId uint64, nodeId st
 			updates := channelMap["updates"].(map[string]interface{})
 			local := updates["local"].(map[string]interface{})
 			remote := updates["remote"].(map[string]interface{})
+			info.PeerFeeBase = int64(remote["fee_base_msat"].(float64))
+			info.PeerFeeRate = int64(remote["fee_proportional_millionths"].(float64))
 			info.PeerMinHtlc = msatToSatUp(uint64(remote["htlc_minimum_msat"].(float64)))
 			info.PeerMaxHtlc = uint64(remote["htlc_maximum_msat"].(float64)) / 1000
 			info.OurMaxHtlc = uint64(local["htlc_maximum_msat"].(float64)) / 1000

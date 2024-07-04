@@ -482,6 +482,23 @@ Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.Loca
                         <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
                       </form>
                     </td>
+                    <tr style="border: 1px dotted">
+                        <td colspan="2" style="text-align: right; padding: 0px;">
+                          Peer Fees:
+                        </td>
+                        <td style="text-align: center; padding: 0px;">
+                          {{.PeerFeeRate}}
+                        </td>
+                        <td style="text-align: center; padding: 0px;">
+                          {{.PeerFeeBase}}
+                        </td>
+                        <td style="text-align: center; padding: 0px;">
+                          {{.PeerInboundFeeRate}}
+                        </td>
+                        <td style="text-align: center; padding: 0px;">
+                          {{.PeerInboundFeeBase}}
+                        </td>
+                      </tr>
                     {{if ne .AutoFeeLog ""}}
                       <tr style="border: 1px dotted">
                         <td colspan="6" style="text-align: center; padding: 0px;">

@@ -1241,18 +1241,11 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 	}
 
 	policy := r.Node1Policy
+	peerPolicy := r.Node2Policy
 	if r.Node1Pub == peerNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
-		info.PeerMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
-		info.OurMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
-	} else {
-		info.PeerMaxHtlc = r.GetNode2Policy().GetMaxHtlcMsat() / 1000
-		info.PeerMinHtlc = msatToSatUp(uint64(r.GetNode2Policy().GetMinHtlc()))
-		info.OurMaxHtlc = r.GetNode1Policy().GetMaxHtlcMsat() / 1000
-		info.OurMinHtlc = msatToSatUp(uint64(r.GetNode1Policy().GetMinHtlc()))
+		peerPolicy = r.Node1Policy
 	}
 
 	info.FeeRate = policy.GetFeeRateMilliMsat()
@@ -1261,6 +1254,16 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 		info.InboundFeeBase = int64(policy.GetInboundFeeBaseMsat())
 		info.InboundFeeRate = int64(policy.GetInboundFeeRateMilliMsat())
 	}
+	info.OurMaxHtlc = policy.GetMaxHtlcMsat() / 1000
+	info.OurMinHtlc = msatToSatUp(uint64(policy.GetMinHtlc()))
+
+	info.PeerMaxHtlc = peerPolicy.GetMaxHtlcMsat() / 1000
+	info.PeerMinHtlc = msatToSatUp(uint64(peerPolicy.GetMinHtlc()))
+	info.PeerFeeRate = peerPolicy.GetFeeRateMilliMsat()
+	info.PeerFeeBase = peerPolicy.GetFeeBaseMsat()
+	info.PeerInboundFeeBase = int64(peerPolicy.GetInboundFeeBaseMsat())
+	info.PeerInboundFeeRate = int64(peerPolicy.GetInboundFeeRateMilliMsat())
+
 	info.Capacity = uint64(r.Capacity)
 
 	return info
@@ -1888,10 +1891,12 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 		// ignore small forwards
 		if e.AmtOutMsat > ignoreForwardsMsat {
 			plot = append(plot, DataPoint{
-				TS:     e.TimestampNs / 1_000_000_000,
-				Amount: e.AmtOut,
-				Fee:    e.Fee,
-				PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+				TS:        e.TimestampNs / 1_000_000_000,
+				Amount:    e.AmtOut,
+				Fee:       e.Fee,
+				PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+				ChanIdIn:  e.ChanIdIn,
+				ChanIdOut: e.ChanIdOut,
 			})
 		}
 	}
