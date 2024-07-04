@@ -1108,7 +1108,7 @@ func getNodeAlias(key string) string {
 	}
 
 	if key == "" {
-		return "<closed channel>"
+		return "* closed channel *"
 	}
 
 	// try lightning
