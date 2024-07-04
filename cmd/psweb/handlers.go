@@ -901,6 +901,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if peerId == "" {
+		// non-existing channel
+		channelId = 0
+	}
+
 	// sort by LocalPct ascending
 	sort.Slice(channelList, func(i, j int) bool {
 		return channelList[i].LocalPct < channelList[j].LocalPct
