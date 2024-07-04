@@ -4,6 +4,7 @@
 
 - Make New Swap form inputs more intuitive
 - AutoFee: add last forwards history
+- Add peer fee rates display on peer page
 
 ## 1.5.9
 

@@ -128,6 +128,7 @@
                         } else {
                           document.getElementById("to").value = "ln";
                         }
+                        calculateTransactionFee();
                       }
 
                       function toChanged() {
@@ -136,6 +137,7 @@
                         } else {
                           document.getElementById("from").value = "ln";
                         }
+                        calculateTransactionFee();
                       }
 
                       function calculateTransactionFee() {
@@ -170,7 +172,7 @@
                             // Check amount
                             const maxAmount = {{.BitcoinBalance}} - {{.ReserveBTC}};
                             if (swapAmount > maxAmount) {
-                              document.getElementById('result').innerText = "Swap-in amount cannot exceed " + formatWithThousandSeparators(maxAmount);
+                              document.getElementById('result').innerText = "Insufficient BTC balance (" + formatWithThousandSeparators(maxAmount) + " sats maximum)";
                               return;
                             }
 
@@ -229,7 +231,7 @@
                             // Check amount
                             const maxAmount = {{.LiquidBalance}} - {{.ReserveLBTC}};
                             if (swapAmount > maxAmount) {
-                              document.getElementById('result').innerText = "Swap-in amount cannot exceed " + formatWithThousandSeparators(maxAmount);
+                              document.getElementById('result').innerText = "Insufficient L-BTC balance (" + formatWithThousandSeparators(maxAmount) + " sats maximum)";
                               return;
                             }
 
