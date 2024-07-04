@@ -810,8 +810,8 @@ type FeeLog struct {
 	TimeStamp int64
 	TimeUTC   string
 	TimeAgo   string
-	OldRate   int
-	NewRate   int
+	OldRate   int64
+	NewRate   int64
 	IsInbound bool
 	IsManual  bool
 }
@@ -953,8 +953,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 						TimeAgo:   timeAgo,
 						Alias:     getNodeAlias(peerNodeId[id]),
 						ChannelId: id,
-						OldRate:   event.OldRate,
-						NewRate:   event.NewRate,
+						OldRate:   int64(event.OldRate),
+						NewRate:   int64(event.NewRate),
 						IsInbound: event.IsInbound,
 						IsManual:  event.IsManual,
 					})

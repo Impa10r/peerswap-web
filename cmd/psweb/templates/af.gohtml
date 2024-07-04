@@ -239,8 +239,8 @@
                 <tr>
                   <th style="width: 13ch;">Time</th>
                   <th>Peer</th>
-                  <th style="width: 6ch; text-align: right;">Old</th>
-                  <th style="width: 6ch; text-align: right;">New</th>
+                  <th style="width: 7ch; text-align: right;">Old</th>
+                  <th style="width: 7ch; text-align: right;">New</th>
                   <th title="Direction: Inbound or outbound" style="width: 1ch; text-align: right;">D</th>
                   <th title="Set by: Auto or manual" style="width: 1ch; text-align: right;">S</th>
                 </tr>
@@ -250,7 +250,7 @@
                   <tr>
                     <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
                     <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
-                    <td style="text-align: right;">{{.OldRate}}</td>
+                    <td style="text-align: right;">{{fs .OldRate}}</td>
                     <td style="text-align: right; 
                       {{if gt .NewRate .OldRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
@@ -258,7 +258,7 @@
                       {{if gt .OldRate .NewRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
                       {{end}}">
-                      {{.NewRate}}</td>
+                      {{fs .NewRate}}</td>
                     <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
                     <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
                   </tr>
