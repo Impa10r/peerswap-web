@@ -944,6 +944,8 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					forwardingEvent.AmtIn = info.IncomingAmtMsat / 1000
 					forwardingEvent.AmtOut = info.OutgoingAmtMsat / 1000
 					forwardingEvent.TimestampNs = htlcEvent.TimestampNs
+					forwardingEvent.ChanIdIn = htlcEvent.IncomingChannelId
+					forwardingEvent.ChanIdOut = htlcEvent.OutgoingChannelId
 
 					htlc.forwardingEvent = forwardingEvent
 

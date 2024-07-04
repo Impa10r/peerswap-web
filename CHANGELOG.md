@@ -1,5 +1,9 @@
 # Versions
 
+## 1.6.1
+
+- Fix forwards subscription to add channel IDs
+
 ## 1.6.0
 
 - Make New Swap form inputs more intuitive
