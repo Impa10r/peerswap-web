@@ -234,7 +234,7 @@
           {{end}}
           <div class="box has-text-left">
             <h4 class="title is-4">Fee Log<h4>
-            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
+            <table class="table" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
                   <th style="width: 13ch;">Time</th>
@@ -266,6 +266,31 @@
               </tbody>
             </table>
           </div>
+          <div class="box has-text-left">
+            <h4 class="title is-4">Last Forwards<h4>
+            <table class="table" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width: 13ch;">Time</th>
+                  <th>In</th>
+                  <th>Out</th>
+                  <th style="width: 5ch; text-align: right;">Amt</th>
+                  <th style="width: 7ch; text-align: right;">Fee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{range .ForwardsLog}}
+                  <tr>
+                    <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
+                    <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
+                    <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
+                    <td title="{{fmt .Amount}} sats" style="text-align: right;">{{m .Amount}}</td>
+                    <td title="PPM: {{.PPM}}" style="text-align: right;">{{fmt .Fee}}</td>
+                  </tr>
+                {{end}}
+              </tbody>
+            </table>
+          </div>
         </div> 
         <div class="column"> 
           <div class="box has-text-left">
@@ -289,7 +314,7 @@
                 <input type="checkbox" id="enabledAll" name="enabled" style="display:none;">
               </form>
             </div>
-            <table class="table" id="channelsTable" style="width:100%; table-layout:fixed;">
+            <table class="table" style="width:100%; table-layout:fixed;">
               <thead>
                 <tr>
                   <th>Peer</th>

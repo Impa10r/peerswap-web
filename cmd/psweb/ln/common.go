@@ -138,6 +138,10 @@ type DataPoint struct {
 	Label     string
 	ChanIdIn  uint64
 	ChanIdOut uint64
+	AliasIn   string
+	AliasOut  string
+	TimeAgo   string
+	TimeUTC   string
 }
 
 // ignore small forwards

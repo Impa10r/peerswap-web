@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1902,4 +1903,52 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 	}
 
 	return &plot
+}
+
+// channelId == 0 means all channels
+func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
+	var log []DataPoint
+	fromTS_Ns := uint64(fromTS * 1_000_000_000)
+
+	for chId := range forwardsOut {
+		if channelId > 0 && channelId != chId {
+			continue
+		}
+		for _, e := range forwardsOut[chId] {
+			// ignore small forwards
+			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+				log = append(log, DataPoint{
+					TS:        e.TimestampNs / 1_000_000_000,
+					Amount:    e.AmtOut,
+					Fee:       e.Fee,
+					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+					ChanIdIn:  e.ChanIdIn,
+					ChanIdOut: e.ChanIdOut,
+				})
+			}
+		}
+	}
+
+	if channelId > 0 {
+		for _, e := range forwardsIn[channelId] {
+			// ignore small forwards
+			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+				log = append(log, DataPoint{
+					TS:        e.TimestampNs / 1_000_000_000,
+					Amount:    e.AmtOut,
+					Fee:       e.Fee,
+					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+					ChanIdIn:  e.ChanIdIn,
+					ChanIdOut: e.ChanIdOut,
+				})
+			}
+		}
+	}
+
+	// sort by TimeStamp descending
+	sort.Slice(log, func(i, j int) bool {
+		return log[i].TS > log[j].TS
+	})
+
+	return &log
 }

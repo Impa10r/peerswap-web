@@ -963,6 +963,15 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		return feeLog[i].TimeStamp > feeLog[j].TimeStamp
 	})
 
+	forwardsLog := ln.ForwardsLog(channelId, startTS)
+
+	for i, f := range *forwardsLog {
+		(*forwardsLog)[i].AliasIn = getNodeAlias(peerNodeId[f.ChanIdIn])
+		(*forwardsLog)[i].AliasOut = getNodeAlias(peerNodeId[f.ChanIdOut])
+		(*forwardsLog)[i].TimeAgo = timePassedAgo(time.Unix(int64(f.TS), 0))
+		(*forwardsLog)[i].TimeUTC = time.Unix(int64(f.TS), 0).UTC().Format(time.RFC1123)
+	}
+
 	type Page struct {
 		Authenticated  bool
 		ErrorMessage   string
@@ -985,6 +994,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees bool
 		Chart          *[]ln.DataPoint
 		FeeLog         []FeeLog
+		ForwardsLog    *[]ln.DataPoint
 	}
 
 	data := Page{
@@ -1009,6 +1019,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		HasInboundFees: ln.HasInboundFees(),
 		Chart:          chart,
 		FeeLog:         feeLog,
+		ForwardsLog:    forwardsLog,
 	}
 
 	// executing template named "af"

@@ -1231,3 +1231,50 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	return &plot
 }
+
+// channelId == 0 means all channels
+func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
+	var log []DataPoint
+
+	for chId := range forwardsOut {
+		if channelId > 0 && channelId != chId {
+			continue
+		}
+		for _, e := range forwardsOut[chId] {
+			// ignore small forwards
+			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+				log = append(log, DataPoint{
+					TS:        uint64(e.ResolvedTime),
+					Amount:    e.OutMsat / 1000,
+					Fee:       e.FeeMsat / 1000,
+					PPM:       e.FeeMsat * 1_000_000 / e.OutMsat,
+					ChanIdIn:  ConvertClnToLndChannelId(e.InChannel),
+					ChanIdOut: chId,
+				})
+			}
+		}
+	}
+
+	if channelId > 0 {
+		for _, e := range forwardsIn[channelId] {
+			// ignore small forwards
+			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+				log = append(log, DataPoint{
+					TS:        uint64(e.ResolvedTime),
+					Amount:    e.OutMsat / 1000,
+					Fee:       e.FeeMsat / 1000,
+					PPM:       e.FeeMsat * 1_000_000 / e.OutMsat,
+					ChanIdIn:  channelId,
+					ChanIdOut: ConvertClnToLndChannelId(e.OutChannel),
+				})
+			}
+		}
+	}
+
+	// sort by TimeStamp descending
+	sort.Slice(log, func(i, j int) bool {
+		return log[i].TS > log[j].TS
+	})
+
+	return &log
+}
