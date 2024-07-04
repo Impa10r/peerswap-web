@@ -1107,6 +1107,10 @@ func getNodeAlias(key string) string {
 		return alias
 	}
 
+	if key == "" {
+		return "<closed channel>"
+	}
+
 	// try lightning
 	alias = ln.GetAlias(key)
 
