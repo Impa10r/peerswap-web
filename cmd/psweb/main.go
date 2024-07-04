@@ -142,6 +142,7 @@ func main() {
 			"u":    toUint,
 			"fmt":  formatWithThousandSeparators,
 			"fs":   formatSigned,
+			"ff":   formatFloat,
 			"m":    toMil,
 			"last": last,
 		}).

@@ -1897,7 +1897,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 			plot = append(plot, DataPoint{
 				TS:     e.TimestampNs / 1_000_000_000,
 				Amount: e.AmtOut,
-				Fee:    e.Fee,
+				Fee:    float64(e.FeeMsat) / 1000,
 				PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
 			})
 		}
@@ -1921,7 +1921,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
-					Fee:       e.Fee,
+					Fee:       float64(e.FeeMsat) / 1000,
 					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
 					ChanIdIn:  e.ChanIdIn,
 					ChanIdOut: e.ChanIdOut,
@@ -1937,7 +1937,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
-					Fee:       e.Fee,
+					Fee:       float64(e.FeeMsat) / 1000,
 					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
 					ChanIdIn:  e.ChanIdIn,
 					ChanIdOut: e.ChanIdOut,

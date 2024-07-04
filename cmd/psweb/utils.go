@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -45,6 +47,21 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 		}
 	}
 	return false
+}
+
+// formats 1234.567 as 1,234.567
+func formatFloat(number float64) string {
+	integerPart := uint64(math.Trunc(number))
+	decimalPart := number - float64(integerPart)
+
+	// Format the integer part with commas
+	formattedIntegerPart := formatWithThousandSeparators(uint64(integerPart))
+
+	if decimalPart == 0 {
+		return formattedIntegerPart
+	} else {
+		return formattedIntegerPart + strings.TrimPrefix(fmt.Sprintf("%.3f", decimalPart), "0")
+	}
 }
 
 // formats 100000 as 100,000

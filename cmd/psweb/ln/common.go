@@ -132,7 +132,7 @@ type AutoFeeEvent struct {
 type DataPoint struct {
 	TS        uint64
 	Amount    uint64
-	Fee       uint64
+	Fee       float64
 	PPM       uint64
 	R         uint64
 	Label     string

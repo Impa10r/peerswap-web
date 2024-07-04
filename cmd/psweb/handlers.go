@@ -928,7 +928,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// bubble square area reflects amount
 	for i, p := range *chart {
 		(*chart)[i].R = uint64(math.Sqrt(float64(p.Amount) / 10_000))
-		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatWithThousandSeparators(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
+		(*chart)[i].Label = "Routed: " + formatWithThousandSeparators(p.Amount) + ", Fee: " + formatFloat(p.Fee) + ", PPM: " + formatWithThousandSeparators(p.PPM)
 	}
 
 	var feeLog []FeeLog
