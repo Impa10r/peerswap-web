@@ -163,6 +163,10 @@ input[type="number"] {
     font-size: 2em;
 }
 
+.highlight {
+    background-color: #b4d8f0;
+}
+
 input[type=checkbox] {
     transform: scale(1.5);
     cursor: pointer;

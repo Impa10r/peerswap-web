@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.0"
+	version = "v1.6.1"
 )
 
 type SwapParams struct {
@@ -142,6 +142,7 @@ func main() {
 			"u":    toUint,
 			"fmt":  formatWithThousandSeparators,
 			"fs":   formatSigned,
+			"ff":   formatFloat,
 			"m":    toMil,
 			"last": last,
 		}).
@@ -1105,6 +1106,10 @@ func getNodeAlias(key string) string {
 	alias, exists := aliasCache[key]
 	if exists {
 		return alias
+	}
+
+	if key == "" {
+		return "* closed channel *"
 	}
 
 	// try lightning

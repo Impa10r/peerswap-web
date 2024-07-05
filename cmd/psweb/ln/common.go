@@ -132,7 +132,7 @@ type AutoFeeEvent struct {
 type DataPoint struct {
 	TS        uint64
 	Amount    uint64
-	Fee       uint64
+	Fee       float64
 	PPM       uint64
 	R         uint64
 	Label     string
@@ -230,7 +230,7 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 func AutoFeeRule(channelId uint64) (*AutoFeeParams, bool) {
 	params := &AutoFeeDefaults
 	isCustom := false
-	if AutoFee[channelId] != nil {
+	if channelId > 0 && AutoFee[channelId] != nil {
 		// channel has custom parameters
 		params = AutoFee[channelId]
 		isCustom = true

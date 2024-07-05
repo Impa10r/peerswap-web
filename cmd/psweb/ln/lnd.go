@@ -939,11 +939,14 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					forwardingEvent := new(lnrpc.ForwardingEvent)
 
 					forwardingEvent.FeeMsat = info.IncomingAmtMsat - info.OutgoingAmtMsat
+					forwardingEvent.Fee = forwardingEvent.FeeMsat / 1000
 					forwardingEvent.AmtInMsat = info.IncomingAmtMsat
 					forwardingEvent.AmtOutMsat = info.OutgoingAmtMsat
 					forwardingEvent.AmtIn = info.IncomingAmtMsat / 1000
 					forwardingEvent.AmtOut = info.OutgoingAmtMsat / 1000
 					forwardingEvent.TimestampNs = htlcEvent.TimestampNs
+					forwardingEvent.ChanIdIn = htlcEvent.IncomingChannelId
+					forwardingEvent.ChanIdOut = htlcEvent.OutgoingChannelId
 
 					htlc.forwardingEvent = forwardingEvent
 
@@ -1892,12 +1895,10 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 		// ignore small forwards
 		if e.AmtOutMsat > ignoreForwardsMsat {
 			plot = append(plot, DataPoint{
-				TS:        e.TimestampNs / 1_000_000_000,
-				Amount:    e.AmtOut,
-				Fee:       e.Fee,
-				PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
-				ChanIdIn:  e.ChanIdIn,
-				ChanIdOut: e.ChanIdOut,
+				TS:     e.TimestampNs / 1_000_000_000,
+				Amount: e.AmtOut,
+				Fee:    float64(e.FeeMsat) / 1000,
+				PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
 			})
 		}
 	}
@@ -1920,7 +1921,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
-					Fee:       e.Fee,
+					Fee:       float64(e.FeeMsat) / 1000,
 					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
 					ChanIdIn:  e.ChanIdIn,
 					ChanIdOut: e.ChanIdOut,
@@ -1936,7 +1937,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
-					Fee:       e.Fee,
+					Fee:       float64(e.FeeMsat) / 1000,
 					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
 					ChanIdIn:  e.ChanIdIn,
 					ChanIdOut: e.ChanIdOut,

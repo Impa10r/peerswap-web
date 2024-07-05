@@ -75,7 +75,7 @@
                       style="color:{{if eq .ColorScheme "dark"}}pink{{else}}red{{end}}"
                     {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
             {{end}}   
-            <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
+            <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
                 <tr>
@@ -218,7 +218,8 @@
                 <input type="hidden" name="channelId" value="{{.ChannelId}}">
                 <input class="button is-large" type="submit" name="update_button" value="{{if .ChannelId}}{{if .CustomRule}}Update{{else}}Add{{end}} Custom{{else}}Update Default{{end}} Rule">
                 {{if and .CustomRule .ChannelId}}
-                  <input class="button is-large" type="submit" name="delete_button" value="Delete Custom Rule">
+                  <input title="Apply specific changed value(s) to all custom rules" class="button is-large" type="submit" name="update_all" value="Update All">
+                  <input title="Delete custom rule for this channel" class="button is-large" type="submit" name="delete_button" value="Delete">
                 {{end}}
               </div>
             </form>
@@ -239,8 +240,8 @@
                 <tr>
                   <th style="width: 13ch;">Time</th>
                   <th>Peer</th>
-                  <th style="width: 6ch; text-align: right;">Old</th>
-                  <th style="width: 6ch; text-align: right;">New</th>
+                  <th style="width: 7ch; text-align: right;">Old</th>
+                  <th style="width: 7ch; text-align: right;">New</th>
                   <th title="Direction: Inbound or outbound" style="width: 1ch; text-align: right;">D</th>
                   <th title="Set by: Auto or manual" style="width: 1ch; text-align: right;">S</th>
                 </tr>
@@ -250,7 +251,7 @@
                   <tr>
                     <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
                     <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
-                    <td style="text-align: right;">{{.OldRate}}</td>
+                    <td style="text-align: right;">{{fs .OldRate}}</td>
                     <td style="text-align: right; 
                       {{if gt .NewRate .OldRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
@@ -258,7 +259,7 @@
                       {{if gt .OldRate .NewRate}}
                         background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
                       {{end}}">
-                      {{.NewRate}}</td>
+                      {{fs .NewRate}}</td>
                     <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
                     <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
                   </tr>
@@ -275,7 +276,7 @@
                   <th>In</th>
                   <th>Out</th>
                   <th style="width: 5ch; text-align: right;">Amt</th>
-                  <th style="width: 7ch; text-align: right;">Fee</th>
+                  <th style="width: 7ch; text-align: right;">PPM</th>
                 </tr>
               </thead>
               <tbody>
@@ -285,7 +286,7 @@
                     <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
                     <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
                     <td title="{{fmt .Amount}} sats" style="text-align: right;">{{m .Amount}}</td>
-                    <td title="PPM: {{.PPM}}" style="text-align: right;">{{fmt .Fee}}</td>
+                    <td title="Fee: {{ff .Fee}}" style="text-align: right;">{{fmt .PPM}}</td>
                   </tr>
                 {{end}}
               </tbody>
@@ -367,6 +368,34 @@
       </div>
     </form>
     <script>
+      // highlight changed values as thay are typed
+      document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('myForm');
+        const elements = form.elements;
+        const initialValues = {};
+
+        // Store initial values
+        for (let i = 0; i < elements.length; i++) {
+          const element = elements[i];
+
+          // Skip buttons
+          if (element.type === 'submit' || element.type === 'hidden') {
+            continue;
+          }
+
+          initialValues[element.name] = element.value;
+
+          // Add input event listener to each element
+          element.addEventListener('input', function() {
+            if (element.value !== initialValues[element.name]) {
+              element.classList.add('highlight');
+            } else {
+              element.classList.remove('highlight');
+            }
+          });
+        }
+      });
+  
       // toggles all individual enable/disable 
       function toggleAll(value) {
         document.getElementById("enabledAll").checked = value;
