@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -1513,10 +1514,119 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			var newRule ln.AutoFeeParams
+
+			newRule.FailedBumpPPM, err = strconv.Atoi(r.FormValue("failBump"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.FailedMoveThreshold, err = strconv.Atoi(r.FormValue("failedMoveThreshold"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.LowLiqPct, err = strconv.Atoi(r.FormValue("lowLiqPct"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.LowLiqRate, err = strconv.Atoi(r.FormValue("lowLiqRate"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.NormalRate, err = strconv.Atoi(r.FormValue("normalRate"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.ExcessPct, err = strconv.Atoi(r.FormValue("excessPct"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.ExcessRate, err = strconv.Atoi(r.FormValue("excessRate"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.InactivityDays, err = strconv.Atoi(r.FormValue("inactivityDays"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.InactivityDropPPM, err = strconv.Atoi(r.FormValue("inactivityDropPPM"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.InactivityDropPct, err = strconv.Atoi(r.FormValue("inactivityDropPct"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			newRule.CoolOffHours, err = strconv.Atoi(r.FormValue("coolOffHours"))
+			if err != nil {
+				redirectWithError(w, r, "/af?", err)
+				return
+			}
+
+			if ln.HasInboundFees() {
+				newRule.LowLiqDiscount, err = strconv.Atoi(r.FormValue("lowLiqDiscount"))
+				if err != nil {
+					redirectWithError(w, r, "/af?", err)
+					return
+				}
+			}
 			rule := &ln.AutoFeeDefaults
 			msg := ""
+			updateAll := false
 
-			if r.FormValue("update_button") != "" {
+			if _, isCustom := ln.AutoFeeRule(channelId); isCustom {
+				updateAll = r.FormValue("update_all") != ""
+			}
+
+			if updateAll {
+				msg = "All custom rules updated:"
+				old := reflect.ValueOf(*ln.AutoFee[channelId])
+				new := reflect.ValueOf(newRule)
+
+				for _, rulePtr := range ln.AutoFee {
+					if rulePtr == nil {
+						continue
+					}
+					// Use Elem() to get the underlying struct from the pointer
+					current := reflect.ValueOf(rulePtr).Elem()
+					typeOfS := current.Type()
+					// find what was updated
+					for i := 0; i < old.NumField(); i++ {
+						if old.Field(i).Int() != new.Field(i).Int() {
+							if current.Field(i).CanSet() {
+								current.Field(i).SetInt(new.Field(i).Int())
+								msg += fmt.Sprintf(" %s=%v", typeOfS.Field(i).Name, new.Field(i).Interface())
+							} else {
+								redirectWithError(w, r, "/af?", errors.New("unable to set the value of "+typeOfS.Field(i).Name))
+								return
+							}
+						}
+					}
+				}
+
+				// persist to db
+				db.Save("AutoFees", "AutoFee", ln.AutoFee)
+
+			} else if r.FormValue("update_button") != "" {
 				// channelId == 0 means default rule
 				msg = "Default rule updated"
 
@@ -1531,79 +1641,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					rule = ln.AutoFee[channelId]
 				}
 
-				rule.FailedBumpPPM, err = strconv.Atoi(r.FormValue("failBump"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.FailedMoveThreshold, err = strconv.Atoi(r.FormValue("failedMoveThreshold"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.LowLiqPct, err = strconv.Atoi(r.FormValue("lowLiqPct"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.LowLiqRate, err = strconv.Atoi(r.FormValue("lowLiqRate"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.NormalRate, err = strconv.Atoi(r.FormValue("normalRate"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.ExcessPct, err = strconv.Atoi(r.FormValue("excessPct"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.ExcessRate, err = strconv.Atoi(r.FormValue("excessRate"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.InactivityDays, err = strconv.Atoi(r.FormValue("inactivityDays"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.InactivityDropPPM, err = strconv.Atoi(r.FormValue("inactivityDropPPM"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.InactivityDropPct, err = strconv.Atoi(r.FormValue("inactivityDropPct"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				rule.CoolOffHours, err = strconv.Atoi(r.FormValue("coolOffHours"))
-				if err != nil {
-					redirectWithError(w, r, "/af?", err)
-					return
-				}
-
-				if ln.HasInboundFees() {
-					rule.LowLiqDiscount, err = strconv.Atoi(r.FormValue("lowLiqDiscount"))
-					if err != nil {
-						redirectWithError(w, r, "/af?", err)
-						return
-					}
-				}
+				// clone the new data
+				*rule = newRule
 
 				// persist to db
 				if channelId > 0 {

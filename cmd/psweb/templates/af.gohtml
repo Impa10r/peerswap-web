@@ -75,7 +75,7 @@
                       style="color:{{if eq .ColorScheme "dark"}}pink{{else}}red{{end}}"
                     {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
             {{end}}   
-            <form autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
+            <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
               <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
                 <tr>
@@ -218,7 +218,8 @@
                 <input type="hidden" name="channelId" value="{{.ChannelId}}">
                 <input class="button is-large" type="submit" name="update_button" value="{{if .ChannelId}}{{if .CustomRule}}Update{{else}}Add{{end}} Custom{{else}}Update Default{{end}} Rule">
                 {{if and .CustomRule .ChannelId}}
-                  <input class="button is-large" type="submit" name="delete_button" value="Delete Custom Rule">
+                  <input title="Apply specific changed value(s) to all custom rules" class="button is-large" type="submit" name="update_all" value="Update All">
+                  <input title="Delete custom rule for this channel" class="button is-large" type="submit" name="delete_button" value="Delete">
                 {{end}}
               </div>
             </form>
@@ -367,6 +368,34 @@
       </div>
     </form>
     <script>
+      // highlight changed values as thay are typed
+      document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('myForm');
+        const elements = form.elements;
+        const initialValues = {};
+
+        // Store initial values
+        for (let i = 0; i < elements.length; i++) {
+          const element = elements[i];
+
+          // Skip buttons
+          if (element.type === 'submit' || element.type === 'hidden') {
+            continue;
+          }
+
+          initialValues[element.name] = element.value;
+
+          // Add input event listener to each element
+          element.addEventListener('input', function() {
+            if (element.value !== initialValues[element.name]) {
+              element.classList.add('highlight');
+            } else {
+              element.classList.remove('highlight');
+            }
+          });
+        }
+      });
+  
       // toggles all individual enable/disable 
       function toggleAll(value) {
         document.getElementById("enabledAll").checked = value;

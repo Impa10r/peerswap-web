@@ -230,7 +230,7 @@ func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 func AutoFeeRule(channelId uint64) (*AutoFeeParams, bool) {
 	params := &AutoFeeDefaults
 	isCustom := false
-	if AutoFee[channelId] != nil {
+	if channelId > 0 && AutoFee[channelId] != nil {
 		// channel has custom parameters
 		params = AutoFee[channelId]
 		isCustom = true
