@@ -1602,21 +1602,26 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				old := reflect.ValueOf(*ln.AutoFee[channelId])
 				new := reflect.ValueOf(newRule)
 
+				// find what will be updated
+				for i := 0; i < old.NumField(); i++ {
+					if old.Field(i).Int() != new.Field(i).Int() {
+						msg += fmt.Sprintf(" %s=%v", new.Type().Field(i).Name, new.Field(i).Interface())
+					}
+				}
+
 				for _, rulePtr := range ln.AutoFee {
 					if rulePtr == nil {
 						continue
 					}
 					// Use Elem() to get the underlying struct from the pointer
 					current := reflect.ValueOf(rulePtr).Elem()
-					typeOfS := current.Type()
-					// find what was updated
+
 					for i := 0; i < old.NumField(); i++ {
 						if old.Field(i).Int() != new.Field(i).Int() {
 							if current.Field(i).CanSet() {
 								current.Field(i).SetInt(new.Field(i).Int())
-								msg += fmt.Sprintf(" %s=%v", typeOfS.Field(i).Name, new.Field(i).Interface())
 							} else {
-								redirectWithError(w, r, "/af?", errors.New("unable to set the value of "+typeOfS.Field(i).Name))
+								redirectWithError(w, r, "/af?", errors.New("unable to set the value of "+current.Type().Field(i).Name))
 								return
 							}
 						}
