@@ -2,7 +2,7 @@
 
 ## 1.6.1
 
-- AutoFee: add Update All to set a paramereter to all custom rules
+- AutoFee: add Update All to set paramereter(s) to all custom rules
 - Fix forwards subscription to add channel IDs
 
 ## 1.6.0
