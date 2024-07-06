@@ -1,5 +1,9 @@
 # Versions
 
+## 1.6.2
+
+-
+
 ## 1.6.1
 
 - AutoFee: add Update All to set paramereter(s) to all custom rules

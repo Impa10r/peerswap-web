@@ -87,7 +87,7 @@ func telegramStart() {
 			case "/pegin":
 				t := ""
 				if config.Config.PeginTxId == "" {
-					t = "No pending peg-in"
+					t = "No pending peg-in or BTC withdrawal"
 				} else {
 					cl, clean, er := ln.GetClient()
 					if er != nil {
@@ -96,7 +96,10 @@ func telegramStart() {
 						confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 						duration := time.Duration(10*(102-confs)) * time.Minute
 						formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-						t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs)) + "/102, Time left: " + formattedDuration
+						t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+						if config.Config.PeginClaimScript != "" {
+							t += "/102, Time left: " + formattedDuration
+						}
 						clean()
 					}
 				}
@@ -145,15 +148,15 @@ func telegramConnect() {
 			},
 			tgbotapi.BotCommand{
 				Command:     "backup",
-				Description: "Get Liquid wallet backup",
+				Description: "Elements wallet backup",
 			},
 			tgbotapi.BotCommand{
 				Command:     "pegin",
-				Description: "Get status of peg-in",
+				Description: "Status of peg-in or BTC withdrawal",
 			},
 			tgbotapi.BotCommand{
 				Command:     "auto",
-				Description: "Get status of auto swap-ins",
+				Description: "Status of auto swap-ins",
 			},
 			tgbotapi.BotCommand{
 				Command:     "version",

@@ -349,8 +349,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		sumLocal += ch.GetLocalBalance()
 		sumRemote += ch.GetRemoteBalance()
 
-		// should not be less than both Min HTLC setting
-		keysendSats = max(keysendSats, info.PeerMinHtlc)
+		// should not be less than our Min HTLC setting
 		keysendSats = max(keysendSats, info.OurMinHtlc)
 
 		// add AF info
