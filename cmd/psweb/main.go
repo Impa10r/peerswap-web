@@ -1248,7 +1248,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastTimestamp))
 
 				ppm := uint64(0)
-				if stats.RoutedOut > 1_000_000 { // ignore small results
+				if stats.RoutedOut > 1_000 { // ignore small results
 					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
 				}
 
