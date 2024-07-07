@@ -932,11 +932,12 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 							// save rebate payment
 							saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
 						}
-					} else {
-						// only account for non-peerswap related
-						invoicedMsat += htlc.AmountMsat
+						continue
 					}
 				}
+
+				// only account for non-peerswap related
+				invoicedMsat += htlc.AmountMsat
 			}
 
 		case "RCVD_REMOVE_ACK_REVOCATION":
