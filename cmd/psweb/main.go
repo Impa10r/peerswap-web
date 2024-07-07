@@ -1221,14 +1221,14 @@ func findSwapInCandidate(candidate *SwapParams) error {
 				continue
 			}
 
-			// only consider sink channels (net routing > 1m)
+			// only consider sink channels (net routing > 1k)
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 			}
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
-			if stats.RoutedOut <= stats.RoutedIn {
+			if stats.RoutedOut-stats.RoutedIn <= 1000 {
 				continue
 			}
 
