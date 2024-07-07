@@ -1228,7 +1228,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			}
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
-			if stats.RoutedOut > stats.RoutedIn {
+			if stats.RoutedOut <= stats.RoutedIn {
 				continue
 			}
 
