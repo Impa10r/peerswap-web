@@ -349,8 +349,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		sumLocal += ch.GetLocalBalance()
 		sumRemote += ch.GetRemoteBalance()
 
-		// should not be less than both Min HTLC setting
-		keysendSats = max(keysendSats, info.PeerMinHtlc)
+		// should not be less than our Min HTLC setting
 		keysendSats = max(keysendSats, info.OurMinHtlc)
 
 		// add AF info
@@ -2077,9 +2076,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
-				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
+				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
-				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
+				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
 			}
 
 			if err != nil {
