@@ -1179,10 +1179,16 @@ func findSwapInCandidate(candidate *SwapParams) error {
 
 	// find last swap timestamps per channel
 	swapTimestamps := make(map[uint64]int64)
+	// true if initiated swap out or received swap in
+	lastWasSwapOut := make(map[uint64]bool)
 
 	for _, swap := range swaps {
 		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
 			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+			lastWasSwapOut[swap.LndChanId] = false
+			if swap.Asset == "lbtc" && (swap.Type+swap.Role == "swap-outsender" || swap.Type+swap.Role == "swap-inreceiver") {
+				lastWasSwapOut[swap.LndChanId] = true
+			}
 		}
 	}
 
@@ -1198,6 +1204,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			continue
 		}
 		for _, channel := range peer.Channels {
+			// ignore if there was an opposite peerswap
+			if lastWasSwapOut[channel.ChannelId] {
+				continue
+			}
+
 			chanInfo := ln.GetChannelInfo(cl, channel.ChannelId, peer.NodeId)
 			// find the potential swap amount to bring balance to target
 			targetBalance := chanInfo.Capacity * config.Config.AutoSwapTargetPct / 100
@@ -1207,6 +1218,17 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			targetBalance = min(targetBalance, chanInfo.Capacity-reserve)
 
 			if targetBalance < channel.LocalBalance {
+				continue
+			}
+
+			// only consider sink channels (net routing > 1m)
+			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
+			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
+				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+			}
+
+			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
+			if stats.RoutedOut > stats.RoutedIn {
 				continue
 			}
 

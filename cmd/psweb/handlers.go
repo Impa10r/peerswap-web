@@ -2076,9 +2076,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
-				id, err = ps.SwapIn(client, swapAmount, channelId, r.FormValue("asset"), false)
+				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
-				id, err = ps.SwapOut(client, swapAmount, channelId, r.FormValue("asset"), false)
+				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
 			}
 
 			if err != nil {

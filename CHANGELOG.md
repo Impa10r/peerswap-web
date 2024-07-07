@@ -2,7 +2,9 @@
 
 ## 1.6.2
 
--
+- Fix 'invalid asset' bug
+- AutoSwap: disallow spending LBTC gained last in the same channel
+- AutoSwap: only consider channels with routed out > routed in
 
 ## 1.6.1
 
