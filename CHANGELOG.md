@@ -1,5 +1,9 @@
 # Versions
 
+## 1.6.4
+
+-
+
 ## 1.6.3
 
 - Fix bug in accounting for non-peerswap related invoices
