@@ -2,7 +2,7 @@
 
 ## 1.6.3
 
--
+- Fix bug in accounting for non-peerswap related invoices
 
 ## 1.6.2
 
