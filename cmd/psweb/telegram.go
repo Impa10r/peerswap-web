@@ -100,6 +100,7 @@ func telegramStart() {
 						if config.Config.PeginClaimScript != "" {
 							t += "/102, Time left: " + formattedDuration
 						}
+						t += ". TxId: `" + config.Config.PeginTxId + "`"
 						clean()
 					}
 				}
@@ -177,6 +178,8 @@ func telegramSendMessage(msgText string) bool {
 		return false
 	}
 	msg := tgbotapi.NewMessage(chatId, msgText)
+	msg.ParseMode = "MarkdownV2"
+
 	_, err := bot.Send(msg)
 	if err != nil {
 		log.Println(err)

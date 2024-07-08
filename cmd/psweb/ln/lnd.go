@@ -1120,13 +1120,13 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 					// save rebate payment
 					saveSwapRabate(parts[4], invoice.AmtPaidMsat/1000)
 				}
-			} else {
 				// skip peerswap-related
-				for _, htlc := range invoice.Htlcs {
-					if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
-						invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
-					}
-				}
+				return
+			}
+		}
+		for _, htlc := range invoice.Htlcs {
+			if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
+				invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
 			}
 		}
 	}

@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.2"
+	version = "v1.6.3"
 )
 
 type SwapParams struct {
@@ -1057,8 +1057,8 @@ func checkPegin() {
 
 	if confs > 0 {
 		if config.Config.PeginClaimScript == "" {
-			log.Println("BTC withdrawal complete")
-			telegramSendMessage("BTC withdrawal complete")
+			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
+			telegramSendMessage("BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
 		} else if confs > 101 {
 			// claim pegin
 			failed := false
@@ -1089,7 +1089,7 @@ func checkPegin() {
 				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 			} else {
 				log.Println("Peg-in success! Liquid TxId:", txid)
-				telegramSendMessage("💸 Peg-in success!")
+				telegramSendMessage("💸 Peg-in success! Liquid TxId: `" + txid + "`")
 			}
 		} else {
 			return
