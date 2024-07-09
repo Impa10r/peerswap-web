@@ -64,6 +64,8 @@ var (
 	// catch a pending Auto Swap Id to check the state later
 	autoSwapPending bool
 	autoSwapId      string
+	// store peer pub mapped to channel Id
+	peerNodeId = make(map[uint64]string)
 )
 
 func main() {
@@ -1447,6 +1449,7 @@ func cacheSwapCosts() {
 
 	// load from db
 	db.Load("Swaps", "txFee", &txFee)
+	db.Load("Peers", "NodeId", &peerNodeId)
 
 	swaps := res.GetSwaps()
 

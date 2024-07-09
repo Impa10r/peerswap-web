@@ -852,8 +852,6 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
-	// store peer pub mapped to channel Id
-	peerNodeId := make(map[uint64]string)
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
@@ -862,13 +860,19 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	feeRate := outboundFeeRates[channelId]
 	inboundRate := inboundFeeRates[channelId]
 	currentTime := time.Now()
+	persistNodeIds := false
 
 	for _, peer := range res.GetPeers() {
 		alias := getNodeAlias(peer.NodeId)
 		for _, ch := range peer.Channels {
 			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
 			af, _ := ln.AutoFeeRule(ch.ChannelId)
-			peerNodeId[ch.ChannelId] = peer.NodeId
+
+			if peerNodeId[ch.ChannelId] == "" {
+				peerNodeId[ch.ChannelId] = peer.NodeId
+				persistNodeIds = true
+			}
+
 			daysNoFlow := 999
 			ts, ok := ln.LastForwardTS[ch.ChannelId]
 			if ok {
@@ -899,6 +903,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 				anyEnabled = true
 			}
 		}
+	}
+
+	// persist Node Ids to db for offline and closed channels retrieval
+	if persistNodeIds {
+		db.Save("Peers", "NodeId", peerNodeId)
 	}
 
 	if peerId == "" {

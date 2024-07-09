@@ -2,7 +2,7 @@
 
 ## 1.6.4
 
--
+- Persist NodeId per ChannelId map for forwards history
 
 ## 1.6.3
 
