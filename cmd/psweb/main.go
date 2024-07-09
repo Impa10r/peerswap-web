@@ -117,10 +117,12 @@ func main() {
 	}
 	defer cleanup()
 
-	// Load persisted data from database (synchronous to protect map writes)
+	// Load persisted data from database
 	ln.LoadDB()
+	db.Load("Peers", "NodeId", &peerNodeId)
+	db.Load("Swaps", "txFee", &txFee)
 
-	// fetch all chain costs (synchronous to protect map writes)
+	// fetch all chain costs
 	cacheSwapCosts()
 
 	// Get all HTML template files from the embedded filesystem
@@ -1446,10 +1448,6 @@ func cacheSwapCosts() {
 	if err != nil {
 		return
 	}
-
-	// load from db
-	db.Load("Swaps", "txFee", &txFee)
-	db.Load("Peers", "NodeId", &peerNodeId)
 
 	swaps := res.GetSwaps()
 
