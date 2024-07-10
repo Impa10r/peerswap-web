@@ -1298,7 +1298,7 @@ func SendCustomMessage(client *glightning.Lightning, peerId string, message *Mes
 	// Copy the JSON data to the buffer
 	copy(data[2:], jsonData)
 
-	_, err = client.SendCustomMessage(peerId, string(data))
+	_, err = client.SendCustomMessage(peerId, hex.EncodeToString(data))
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,9 @@
 
 ## 1.6.4
 
-- Persist NodeId per ChannelId map for forwards history
+- Implement advertizing L-BTC balance: LND send and receive, CLN send
+- Pre-fill swap amount to return the channel closer to 50/50
+- Persist NodeId per ChannelId map to avoid *closed channel*
 
 ## 1.6.3
 

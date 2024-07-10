@@ -67,7 +67,7 @@ var (
 	// store peer pub mapped to channel Id
 	peerNodeId = make(map[uint64]string)
 	// global setting
-	advertizeLiquidBalance = true
+	advertizeLiquidBalance = false
 )
 
 func main() {
@@ -674,22 +674,21 @@ func convertPeersToHTMLTable(
 			}
 			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
-		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 
 		if stringIsInSlice("btc", peer.SupportedAssets) {
-			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
+			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>"
 		}
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
-			peerTable += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
+			peerTable += "<span title=\"L-BTC swaps enabled\">&nbsp🌊</span>"
 		}
 
-		ptr := ln.LiquidBalances[peer.NodeId]
-		if ptr != nil {
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 			lbtcBalance := ptr.Amount
 			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
 			flooredBalance := "0.0m"
 			if lbtcBalance > 100_000 {
-				flooredBalance = "<a href=\"/peer?id=" + toMil(lbtcBalance) + "\">"
+				flooredBalance = "<a href=\"/peer?id=" + peer.NodeId + "&out\">" + toMil(lbtcBalance) + "</a>"
 			}
 			peerTable += "<span title=\"Peer's L-BTC balance: " + formatWithThousandSeparators(lbtcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 		}
@@ -1676,5 +1675,12 @@ func advertizeBalance() {
 			Asset:   "lbtc",
 			Amount:  satAmount,
 		})
+
+		// delete stale received balances over 24 hours ago
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+				ln.LiquidBalances[peer.NodeId] = nil
+			}
+		}
 	}
 }
