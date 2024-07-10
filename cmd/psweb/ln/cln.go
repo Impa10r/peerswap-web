@@ -3,7 +3,9 @@
 package ln
 
 import (
+	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1278,4 +1280,28 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	})
 
 	return &log
+}
+
+func SendCustomMessage(client *glightning.Lightning, peerId string, message *Message) error {
+	// Marshal the Message struct to JSON
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	// Create a buffer for the final output
+	data := make([]byte, 2+len(jsonData))
+
+	// Write the message type prefix
+	binary.BigEndian.PutUint16(data[:2], uint16(messageType))
+
+	// Copy the JSON data to the buffer
+	copy(data[2:], jsonData)
+
+	_, err = client.SendCustomMessage(peerId, string(data))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1061,6 +1062,8 @@ func SubscribeAll() {
 		return
 	}
 
+	downloadComplete = true
+
 	routerClient := routerrpc.NewRouterClient(conn)
 
 	go func() {
@@ -1090,7 +1093,14 @@ func SubscribeAll() {
 		}
 	}()
 
-	downloadComplete = true
+	go func() {
+		// subscribe to Messages
+		for {
+			if subscribeMessages(ctx, client) != nil {
+				time.Sleep(60 * time.Second)
+			}
+		}
+	}()
 
 	// subscribe to Invoices
 	for {
@@ -1151,6 +1161,68 @@ func subscribeInvoices(ctx context.Context, client lnrpc.LightningClient) error 
 		appendInvoice(invoice)
 		lastInvoiceSettleIndex = invoice.SettleIndex
 	}
+}
+
+func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error {
+	stream, err := client.SubscribeCustomMessages(ctx, &lnrpc.SubscribeCustomMessagesRequest{})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to messages")
+
+	for {
+		data, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		if data.Type == messageType {
+			var msg Message
+			err := json.Unmarshal(data.Data, &msg)
+			if err != nil {
+				continue
+			}
+			if msg.Version != MessageVersion {
+				continue
+			}
+
+			nodeId := hex.EncodeToString(data.Peer)
+
+			if msg.Memo == "balance" && msg.Asset == "lbtc" {
+				ts := time.Now().Unix()
+				if LiquidBalances[nodeId] == nil {
+					LiquidBalances[nodeId] = new(BalanceInfo)
+				}
+				LiquidBalances[nodeId].Amount = msg.Amount
+				LiquidBalances[nodeId].TimeStamp = ts
+			}
+		}
+	}
+}
+
+func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Message) error {
+	peerByte, err := hex.DecodeString(peerId)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	req := &lnrpc.SendCustomMessageRequest{
+		Peer: peerByte,
+		Type: messageType,
+		Data: data,
+	}
+
+	_, err = client.SendCustomMessage(context.Background(), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // get routing statistics for a channel
