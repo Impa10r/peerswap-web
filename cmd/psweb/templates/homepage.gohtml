@@ -18,7 +18,11 @@
                     {{if .PeginPending}}
                       <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
                     {{else}}
-                      <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                      {{if and .AdvertizeEnabled .AllowSwapRequests}}
+                        <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                      {{else}}
+                        <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                      {{end}}
                     {{end}}
                     {{if .AutoSwapEnabled}}
                       <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
