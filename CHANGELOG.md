@@ -1,5 +1,12 @@
 # Versions
 
+## 1.6.4
+
+- Implement advertizing L-BTC balance: LND send and receive, CLN send
+- Pre-fill swap amount to return the channel closer to 50/50 if viable
+- Persist NodeId per ChannelId map to avoid *closed channel*
+- Apply AutoFees even while HTLC is pending
+
 ## 1.6.3
 
 - Fix bug in accounting for non-peerswap related invoices

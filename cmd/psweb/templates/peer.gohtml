@@ -45,7 +45,7 @@
                           <div class="select is-medium is-fullwidth">
                             <select name="channelId">
                               {{range .Peer.Channels}}
-                                <option value="{{.ChannelId}}">L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
+                                <option value="{{.ChannelId}}" {{if eq .ChannelId $.SelectedChannel}}selected{{end}}>L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
                               {{end}}
                             </select>
                           </div>
@@ -124,9 +124,11 @@
                       
                       function fromChanged() {
                         if (document.getElementById("from").value == "ln") {
-                          document.getElementById("to").value = "lbtc";
+                          document.getElementById("to").value = "lbtc";   
+                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
                         } else {
                           document.getElementById("to").value = "ln";
+                          document.getElementById("swapAmount").value = {{.MaxLiquidSwapIn}};
                         }
                         calculateTransactionFee();
                       }
@@ -134,8 +136,10 @@
                       function toChanged() {
                         if (document.getElementById("to").value == "ln") {
                           document.getElementById("from").value = "lbtc";
+                          document.getElementById("swapAmount").value = {{.MaxLiquidSwapIn}};                     
                         } else {
                           document.getElementById("from").value = "ln";
+                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
                         }
                         calculateTransactionFee();
                       }
@@ -313,6 +317,9 @@
                           // Set a new timer to execute after 300 milliseconds
                           timerId = setTimeout(calculateTransactionFee, 300);
                       }
+
+                      // on load
+                      fromChanged();
                     </script>
                   {{end}}
                 {{end}}
@@ -368,6 +375,9 @@ Sincerely,
               </div>
             </div>
             {{if .PeerSwapPeer}}
+              {{if gt .PeerLiquidBalance -1}}
+                <p>Peer's L-BTC balance: {{fs .PeerLiquidBalance}}, max swap-out: {{fmt .MaxLiquidSwapOut}}</p>
+              {{end}}
               <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
                 <tr>
                   <th style="text-align: center">Swaps</th>

@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1061,6 +1062,8 @@ func SubscribeAll() {
 		return
 	}
 
+	downloadComplete = true
+
 	routerClient := routerrpc.NewRouterClient(conn)
 
 	go func() {
@@ -1090,7 +1093,14 @@ func SubscribeAll() {
 		}
 	}()
 
-	downloadComplete = true
+	go func() {
+		// subscribe to Messages
+		for {
+			if subscribeMessages(ctx, client) != nil {
+				time.Sleep(60 * time.Second)
+			}
+		}
+	}()
 
 	// subscribe to Invoices
 	for {
@@ -1151,6 +1161,68 @@ func subscribeInvoices(ctx context.Context, client lnrpc.LightningClient) error 
 		appendInvoice(invoice)
 		lastInvoiceSettleIndex = invoice.SettleIndex
 	}
+}
+
+func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error {
+	stream, err := client.SubscribeCustomMessages(ctx, &lnrpc.SubscribeCustomMessagesRequest{})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to messages")
+
+	for {
+		data, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		if data.Type == messageType {
+			var msg Message
+			err := json.Unmarshal(data.Data, &msg)
+			if err != nil {
+				continue
+			}
+			if msg.Version != MessageVersion {
+				continue
+			}
+
+			nodeId := hex.EncodeToString(data.Peer)
+
+			if msg.Memo == "balance" && msg.Asset == "lbtc" {
+				ts := time.Now().Unix()
+				if LiquidBalances[nodeId] == nil {
+					LiquidBalances[nodeId] = new(BalanceInfo)
+				}
+				LiquidBalances[nodeId].Amount = msg.Amount
+				LiquidBalances[nodeId].TimeStamp = ts
+			}
+		}
+	}
+}
+
+func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Message) error {
+	peerByte, err := hex.DecodeString(peerId)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	req := &lnrpc.SendCustomMessageRequest{
+		Peer: peerByte,
+		Type: messageType,
+		Data: data,
+	}
+
+	_, err = client.SendCustomMessage(context.Background(), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // get routing statistics for a channel
@@ -1744,12 +1816,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	localBalance := int64(0)
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
-			if ch.UnsettledBalance != 0 {
-				// skip af while htlcs are pending
-				autoFeeIsRunning = false
-				return
-			}
-			localBalance = ch.LocalBalance
+			localBalance = ch.LocalBalance + ch.UnsettledBalance
 			break
 		}
 	}
@@ -1815,8 +1882,7 @@ func ApplyAutoFees() {
 	}
 
 	for _, ch := range res.Channels {
-		if ch.UnsettledBalance != 0 || !AutoFeeEnabled[ch.ChanId] {
-			// skip af while htlcs are pending
+		if !AutoFeeEnabled[ch.ChanId] {
 			continue
 		}
 
@@ -1844,7 +1910,7 @@ func ApplyAutoFees() {
 
 		oldFee := int(policy.FeeRateMilliMsat)
 		newFee := oldFee
-		liqPct := int(ch.LocalBalance * 100 / r.Capacity)
+		liqPct := int((ch.LocalBalance + ch.UnsettledBalance) * 100 / r.Capacity)
 
 		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
 

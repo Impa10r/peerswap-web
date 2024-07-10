@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.3"
+	version = "v1.6.4"
 )
 
 type SwapParams struct {
@@ -64,6 +64,10 @@ var (
 	// catch a pending Auto Swap Id to check the state later
 	autoSwapPending bool
 	autoSwapId      string
+	// store peer pub mapped to channel Id
+	peerNodeId = make(map[uint64]string)
+	// global setting
+	advertizeLiquidBalance = false
 )
 
 func main() {
@@ -115,10 +119,13 @@ func main() {
 	}
 	defer cleanup()
 
-	// Load persisted data from database (synchronous to protect map writes)
+	// Load persisted data from database
 	ln.LoadDB()
+	db.Load("Peers", "NodeId", &peerNodeId)
+	db.Load("Peers", "AdvertizeLiquidBalance", &advertizeLiquidBalance)
+	db.Load("Swaps", "txFee", &txFee)
 
-	// fetch all chain costs (synchronous to protect map writes)
+	// fetch all chain costs
 	cacheSwapCosts()
 
 	// Get all HTML template files from the embedded filesystem
@@ -360,6 +367,9 @@ func onTimer() {
 
 	// execute auto fee
 	go ln.ApplyAutoFees()
+
+	// advertize Liquid balance
+	go advertizeBalance()
 }
 
 func liquidBackup(force bool) {
@@ -373,6 +383,7 @@ func liquidBackup(force bool) {
 		return
 	}
 	defer cleanup()
+
 	res, err := ps.ListActiveSwaps(client)
 	if err != nil {
 		return
@@ -414,10 +425,8 @@ func liquidBackup(force bool) {
 		log.Println("Error deleting zip file:", err)
 	}
 
-	// save the wallet amount
+	// save the last wallet amount
 	config.Config.ElementsBackupAmount = satAmount
-
-	// Save config
 	config.Save()
 }
 
@@ -665,14 +674,25 @@ func convertPeersToHTMLTable(
 			}
 			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
-		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:8ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
 
-		if stringIsInSlice("lbtc", peer.SupportedAssets) {
-			peerTable += "<span title=\"L-BTC swaps enabled\"> 🌊&nbsp</span>"
-		}
 		if stringIsInSlice("btc", peer.SupportedAssets) {
-			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
+			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>"
 		}
+		if stringIsInSlice("lbtc", peer.SupportedAssets) {
+			peerTable += "<span title=\"L-BTC swaps enabled\">&nbsp🌊</span>"
+		}
+
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+			lbtcBalance := ptr.Amount
+			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
+			flooredBalance := "0.0m"
+			if lbtcBalance > 100_000 {
+				flooredBalance = "<a href=\"/peer?id=" + peer.NodeId + "&out\">" + toMil(lbtcBalance) + "</a>"
+			}
+			peerTable += "<span title=\"Peer's L-BTC balance: " + formatWithThousandSeparators(lbtcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
+		}
+
 		if peer.SwapsAllowed {
 			peerTable += "<span title=\"Peer whilelisted us\">✅</span>"
 		} else {
@@ -1445,9 +1465,6 @@ func cacheSwapCosts() {
 		return
 	}
 
-	// load from db
-	db.Load("Swaps", "txFee", &txFee)
-
 	swaps := res.GetSwaps()
 
 	for _, swap := range swaps {
@@ -1609,4 +1626,61 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 // Template function to check if the element is the last one in the slice
 func last(x int, a interface{}) bool {
 	return x == len(*(a.(*[]ln.DataPoint)))-1
+}
+
+func advertizeBalance() {
+
+	if !advertizeLiquidBalance {
+		return
+	}
+
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListActiveSwaps(client)
+	if err != nil {
+		return
+	}
+
+	// do not advertize while a swap is pending
+	if len(res.GetSwaps()) > 0 {
+		return
+	}
+
+	res2, err := ps.LiquidGetBalance(client)
+	if err != nil {
+		return
+	}
+
+	satAmount := res2.GetSatAmount()
+
+	res3, err := ps.ListPeers(client)
+	if err != nil {
+		return
+	}
+
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		return
+	}
+	defer clean()
+
+	for _, peer := range res3.GetPeers() {
+		ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+			Version: ln.MessageVersion,
+			Memo:    "balance",
+			Asset:   "lbtc",
+			Amount:  satAmount,
+		})
+
+		// delete stale received balances over 24 hours ago
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+				ln.LiquidBalances[peer.NodeId] = nil
+			}
+		}
+	}
 }

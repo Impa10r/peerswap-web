@@ -168,7 +168,7 @@ func toMil(num uint64) string {
 		return fmt.Sprintf("%.1f", float32(num)/1_000_000) + "m"
 	}
 	if num >= 500 {
-		return fmt.Sprintf("%.1f", float32(num)/1_000) + "k"
+		return fmt.Sprintf("%d", num/1_000) + "k"
 	}
 	return formatWithThousandSeparators(num)
 }

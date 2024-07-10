@@ -180,6 +180,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate    float64
 		AutoSwapEnabled   bool
 		PeginPending      bool
+		AdvertizeEnabled  bool
 	}
 
 	data := Page{
@@ -198,6 +199,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
+		AdvertizeEnabled:  advertizeLiquidBalance,
 	}
 
 	// executing template named "homepage" with retries
@@ -334,14 +336,34 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	var utxosLBTC []liquid.UTXO
 	liquid.ListUnspent(&utxosLBTC)
 
+	// to find a channel for swap-out
+	maxLocalBalance := uint64(0)
+	maxLocalBalanceIndex := 0
+
+	// to find a channel for swap-in
+	maxRemoteBalance := uint64(0)
+	maxRemoteBalanceIndex := 0
+	channelCapacity := uint64(0)
+
 	// get routing stats
-	for _, ch := range peer.Channels {
+	for i, ch := range peer.Channels {
 		stat := ln.GetForwardingStats(ch.ChannelId)
 		stats = append(stats, stat)
 
 		info := ln.GetChannelInfo(cl, ch.ChannelId, peer.NodeId)
 		info.LocalBalance = ch.GetLocalBalance()
+		if info.LocalBalance > maxLocalBalance {
+			maxLocalBalance = info.LocalBalance
+			maxLocalBalanceIndex = i
+		}
+
 		info.RemoteBalance = ch.GetRemoteBalance()
+		if info.RemoteBalance > maxRemoteBalance {
+			maxRemoteBalance = info.RemoteBalance
+			maxRemoteBalanceIndex = i
+			channelCapacity = info.RemoteBalance + info.LocalBalance
+		}
+
 		info.Active = ch.GetActive()
 		info.LocalPct = info.LocalBalance * 100 / info.Capacity
 		channelInfo = append(channelInfo, info)
@@ -384,43 +406,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		popupMessage = keys[0]
 	}
 
-	type Page struct {
-		Authenticated     bool
-		ErrorMessage      string
-		PopUpMessage      string
-		MempoolFeeRate    float64
-		BtcFeeRate        float64
-		ColorScheme       string
-		Peer              *peerswaprpc.PeerSwapPeer
-		PeerAlias         string
-		NodeUrl           string
-		Allowed           bool
-		Suspicious        bool
-		LBTC              bool
-		BTC               bool
-		LiquidBalance     uint64
-		BitcoinBalance    uint64
-		ActiveSwaps       string
-		DirectionIn       bool
-		Stats             []*ln.ForwardingStats
-		ChannelInfo       []*ln.ChanneInfo
-		PeerSwapPeer      bool
-		MyAlias           string
-		SenderOutFeePPM   int64
-		SenderInFee       int64
-		ReceiverInFee     int64
-		ReceiverOutFee    int64
-		SenderInFeePPM    int64
-		ReceiverInFeePPM  int64
-		ReceiverOutFeePPM int64
-		KeysendSats       uint64
-		OutputsBTC        *[]ln.UTXO
-		OutputsLBTC       *[]liquid.UTXO
-		ReserveLBTC       uint64
-		ReserveBTC        uint64
-		HasInboundFees    bool
-	}
-
 	feeRate := liquid.EstimateFee()
 	if !psPeer {
 		feeRate = mempoolFeeRate
@@ -429,41 +414,122 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// to be conservative
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
+	// arbitrary haircut to avoid 'no matching outgoing channel available'
+	maxLiquidSwapIn := min(satAmount-2000, maxRemoteBalance-10000)
+
+	peerLiquidBalance := int64(-1)
+	maxLiquidSwapOut := uint64(0)
+	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
+	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+		peerLiquidBalance = int64(ptr.Amount)
+		// reserves are hardcoded here:
+		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
+		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300)))
+		if maxLiquidSwapOut >= 100_000 {
+			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		}
+	}
+
+	recommendLiquidSwapOut := maxLiquidSwapOut
+
+	// assumed direction of the swap
+	directionIn := sumLocal < sumRemote
+	if _, ok = r.URL.Query()["out"]; ok {
+		directionIn = false
+		// assume return to 50/50 channel
+		if directionIn && maxLocalBalance > channelCapacity/2 {
+			recommendLiquidSwapOut = min(maxLiquidSwapOut, maxLocalBalance-channelCapacity/2)
+		}
+	}
+
+	// assume return to 50/50 channel
+	if directionIn && maxRemoteBalance > channelCapacity/2 {
+		maxLiquidSwapIn = min(maxLiquidSwapIn, maxRemoteBalance-channelCapacity/2)
+	}
+
+	type Page struct {
+		Authenticated          bool
+		ErrorMessage           string
+		PopUpMessage           string
+		MempoolFeeRate         float64
+		BtcFeeRate             float64
+		ColorScheme            string
+		Peer                   *peerswaprpc.PeerSwapPeer
+		PeerAlias              string
+		NodeUrl                string
+		Allowed                bool
+		Suspicious             bool
+		LBTC                   bool
+		BTC                    bool
+		LiquidBalance          uint64
+		BitcoinBalance         uint64
+		ActiveSwaps            string
+		DirectionIn            bool
+		Stats                  []*ln.ForwardingStats
+		ChannelInfo            []*ln.ChanneInfo
+		PeerSwapPeer           bool
+		MyAlias                string
+		SenderOutFeePPM        int64
+		SenderInFee            int64
+		ReceiverInFee          int64
+		ReceiverOutFee         int64
+		SenderInFeePPM         int64
+		ReceiverInFeePPM       int64
+		ReceiverOutFeePPM      int64
+		KeysendSats            uint64
+		OutputsBTC             *[]ln.UTXO
+		OutputsLBTC            *[]liquid.UTXO
+		ReserveLBTC            uint64
+		ReserveBTC             uint64
+		HasInboundFees         bool
+		PeerLiquidBalance      int64 // -1 means no data
+		MaxLiquidSwapOut       uint64
+		RecommendLiquidSwapOut uint64
+		MaxLiquidSwapIn        uint64
+		SelectedChannel        uint64
+	}
+
 	data := Page{
-		Authenticated:     config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:      errorMessage,
-		PopUpMessage:      popupMessage,
-		BtcFeeRate:        bitcoinFeeRate,
-		MempoolFeeRate:    feeRate,
-		ColorScheme:       config.Config.ColorScheme,
-		Peer:              peer,
-		PeerAlias:         getNodeAlias(peer.NodeId),
-		NodeUrl:           config.Config.NodeApi,
-		Allowed:           stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:        stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:               stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:              stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance:     satAmount,
-		BitcoinBalance:    uint64(btcBalance),
-		ActiveSwaps:       convertSwapsToHTMLTable(activeSwaps, "", "", ""),
-		DirectionIn:       sumLocal < sumRemote,
-		Stats:             stats,
-		ChannelInfo:       channelInfo,
-		PeerSwapPeer:      psPeer,
-		MyAlias:           ln.GetMyAlias(),
-		SenderOutFeePPM:   senderOutFeePPM,
-		SenderInFee:       senderInFee,
-		ReceiverInFee:     receiverInFee,
-		ReceiverOutFee:    receiverOutFee,
-		SenderInFeePPM:    senderInFeePPM,
-		ReceiverInFeePPM:  receiverInFeePPM,
-		ReceiverOutFeePPM: receiverOutFeePPM,
-		KeysendSats:       keysendSats,
-		OutputsBTC:        &utxosBTC,
-		OutputsLBTC:       &utxosLBTC,
-		ReserveLBTC:       ln.SwapFeeReserveLBTC,
-		ReserveBTC:        ln.SwapFeeReserveBTC,
-		HasInboundFees:    ln.HasInboundFees(),
+		Authenticated:          config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:           errorMessage,
+		PopUpMessage:           popupMessage,
+		BtcFeeRate:             bitcoinFeeRate,
+		MempoolFeeRate:         feeRate,
+		ColorScheme:            config.Config.ColorScheme,
+		Peer:                   peer,
+		PeerAlias:              getNodeAlias(peer.NodeId),
+		NodeUrl:                config.Config.NodeApi,
+		Allowed:                stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:             stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:                    stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:                   stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance:          satAmount,
+		BitcoinBalance:         uint64(btcBalance),
+		ActiveSwaps:            convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		DirectionIn:            directionIn,
+		Stats:                  stats,
+		ChannelInfo:            channelInfo,
+		PeerSwapPeer:           psPeer,
+		MyAlias:                ln.GetMyAlias(),
+		SenderOutFeePPM:        senderOutFeePPM,
+		SenderInFee:            senderInFee,
+		ReceiverInFee:          receiverInFee,
+		ReceiverOutFee:         receiverOutFee,
+		SenderInFeePPM:         senderInFeePPM,
+		ReceiverInFeePPM:       receiverInFeePPM,
+		ReceiverOutFeePPM:      receiverOutFeePPM,
+		KeysendSats:            keysendSats,
+		OutputsBTC:             &utxosBTC,
+		OutputsLBTC:            &utxosLBTC,
+		ReserveLBTC:            ln.SwapFeeReserveLBTC,
+		ReserveBTC:             ln.SwapFeeReserveBTC,
+		HasInboundFees:         ln.HasInboundFees(),
+		PeerLiquidBalance:      peerLiquidBalance,
+		MaxLiquidSwapOut:       maxLiquidSwapOut,
+		RecommendLiquidSwapOut: recommendLiquidSwapOut,
+		MaxLiquidSwapIn:        maxLiquidSwapIn,
+		SelectedChannel:        selectedChannel,
 	}
 
 	// executing template named "peer"
@@ -852,8 +918,6 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
-	// store peer pub mapped to channel Id
-	peerNodeId := make(map[uint64]string)
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
@@ -862,13 +926,19 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	feeRate := outboundFeeRates[channelId]
 	inboundRate := inboundFeeRates[channelId]
 	currentTime := time.Now()
+	persistNodeIds := false
 
 	for _, peer := range res.GetPeers() {
 		alias := getNodeAlias(peer.NodeId)
 		for _, ch := range peer.Channels {
 			rule, custom := ln.AutoFeeRatesSummary(ch.ChannelId)
 			af, _ := ln.AutoFeeRule(ch.ChannelId)
-			peerNodeId[ch.ChannelId] = peer.NodeId
+
+			if peerNodeId[ch.ChannelId] == "" {
+				peerNodeId[ch.ChannelId] = peer.NodeId
+				persistNodeIds = true
+			}
+
 			daysNoFlow := 999
 			ts, ok := ln.LastForwardTS[ch.ChannelId]
 			if ok {
@@ -899,6 +969,11 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 				anyEnabled = true
 			}
 		}
+	}
+
+	// persist Node Ids to db for offline and closed channels retrieval
+	if persistNodeIds {
+		db.Save("Peers", "NodeId", peerNodeId)
 	}
 
 	if peerId == "" {
@@ -1452,6 +1527,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdPPM    uint64
 		AutoSwapCandidate       *SwapParams
 		AutoSwapTargetPct       uint64
+		AdvertizeEnabled        bool
 	}
 
 	data := Page{
@@ -1471,6 +1547,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
+		AdvertizeEnabled:        advertizeLiquidBalance,
 	}
 
 	// executing template named "liquid"
@@ -1495,6 +1572,22 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "advertizeLiquidBalance":
+			advertizeLiquidBalance = r.FormValue("enabled") == "on"
+			db.Save("Peers", "AdvertizeLiquidBalance", advertizeLiquidBalance)
+
+			msg := "Broadcasting Liquid Balance is "
+
+			if advertizeLiquidBalance {
+				msg += "Enabled"
+			} else {
+				msg += "Disabled"
+			}
+
+			// all done, display confirmation
+			http.Redirect(w, r, "/liquid?msg="+msg, http.StatusSeeOther)
+			return
+
 		case "deleteTxId":
 			// acknowledges BTC withdrawal
 			config.Config.PeginTxId = ""

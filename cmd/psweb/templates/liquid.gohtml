@@ -9,7 +9,7 @@
                 <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
               </div>
               <div style="display: flex; justify-content: flex-end;">
-                <button title="Backup Elements wallet" class="button is-small" onclick="window.location.href = '/backup';">Backup</button>
+                <button title="Backup Elements wallet" class="button is-small" onclick="window.location.href = '/backup';">Backup Wallet</button>
               </div>
             </div>
           </div>       
@@ -96,6 +96,30 @@
           </div>
         </div>
         <div class="column">
+          <div class="box has-text-left">
+            <div style="display: grid; grid-template-columns: auto auto;">
+              <div style="text-align: left;">
+                <h4 class="title is-4">Advertize L-BTC Balance</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <form id="toggleForm_0" action="/submit" method="post">
+                  <input type="hidden" name="action" value="advertizeLiquidBalance">
+                  <label class="checkbox is-large" style="padding-top: .5em;">
+                    <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" id="advertizeEnabled" type="checkbox" name="enabled" {{if .AdvertizeEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    {{if .AdvertizeEnabled}}
+                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" for="advertizeEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        ON
+                      </label>
+                    {{else}}
+                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" for="advertizeEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        OFF
+                      </label>
+                    {{end}}
+                  </label>
+                </form>
+              </div>
+            </div>
+          </div>         
           {{if eq .TxId ""}}
             <div class="box has-text-left">
               <h4 class="title is-4">Send Liquid</h4> 
@@ -158,6 +182,10 @@
                 function setMax() {
                   document.getElementById("sendAmount").value = {{.LiquidBalance}};
                   document.getElementById("subtractfee").checked = true;
+                }
+                // submits enable/disable toggle 
+                function submitForm(formId) {
+                  document.getElementById(formId).submit();
                 }
               </script>
             </div>     

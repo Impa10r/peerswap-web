@@ -144,8 +144,26 @@ type DataPoint struct {
 	TimeUTC   string
 }
 
+// sent/received as json
+type Message struct {
+	Version int    `json:"version"`
+	Memo    string `json:"memo"`
+	Asset   string `json:"asset"`
+	Amount  uint64 `json:"amount"`
+}
+
+type BalanceInfo struct {
+	Amount    uint64
+	TimeStamp int64
+}
+
 // ignore small forwards
-const ignoreForwardsMsat = 1_000_000
+const (
+	ignoreForwardsMsat = 1_000_000
+	// one custom type for peeswap web
+	messageType    = uint32(42067)
+	MessageVersion = 1
+)
 
 var (
 	// lightning payments from swap out initiator to receiver
@@ -177,6 +195,9 @@ var (
 
 	// prevents starting another fee update while the first still running
 	autoFeeIsRunning = false
+
+	// received via custom messages, per peer nodeId
+	LiquidBalances = make(map[string]*BalanceInfo)
 )
 
 func toSats(amount float64) int64 {
