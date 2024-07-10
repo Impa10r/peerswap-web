@@ -1816,12 +1816,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	localBalance := int64(0)
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
-			if ch.UnsettledBalance != 0 {
-				// skip af while htlcs are pending
-				autoFeeIsRunning = false
-				return
-			}
-			localBalance = ch.LocalBalance
+			localBalance = ch.LocalBalance + ch.UnsettledBalance
 			break
 		}
 	}
@@ -1887,8 +1882,7 @@ func ApplyAutoFees() {
 	}
 
 	for _, ch := range res.Channels {
-		if ch.UnsettledBalance != 0 || !AutoFeeEnabled[ch.ChanId] {
-			// skip af while htlcs are pending
+		if !AutoFeeEnabled[ch.ChanId] {
 			continue
 		}
 
@@ -1916,7 +1910,7 @@ func ApplyAutoFees() {
 
 		oldFee := int(policy.FeeRateMilliMsat)
 		newFee := oldFee
-		liqPct := int(ch.LocalBalance * 100 / r.Capacity)
+		liqPct := int((ch.LocalBalance + ch.UnsettledBalance) * 100 / r.Capacity)
 
 		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
 

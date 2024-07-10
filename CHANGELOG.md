@@ -5,6 +5,7 @@
 - Implement advertizing L-BTC balance: LND send and receive, CLN send
 - Pre-fill swap amount to return the channel closer to 50/50
 - Persist NodeId per ChannelId map to avoid *closed channel*
+- Apply AutoFees even while HTLC is pending
 
 ## 1.6.3
 
