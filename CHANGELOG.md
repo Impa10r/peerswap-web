@@ -3,6 +3,7 @@
 ## 1.6.4
 
 - Persist NodeId per ChannelId map for forwards history
+- Apply AutoFees even while HTLC is pending
 
 ## 1.6.3
 

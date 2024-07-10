@@ -1838,7 +1838,7 @@ func ApplyAutoFees() {
 
 		oldFee := int(policy.FeeRateMilliMsat)
 		newFee := oldFee
-		liqPct := int(ch.LocalBalance * 100 / r.Capacity)
+		liqPct := int((ch.LocalBalance + ch.UnsettledBalance) * 100 / r.Capacity)
 
 		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
 
