@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.4"
+	version = "v1.6.5"
 )
 
 type SwapParams struct {
@@ -66,8 +66,6 @@ var (
 	autoSwapId      string
 	// store peer pub mapped to channel Id
 	peerNodeId = make(map[uint64]string)
-	// global setting
-	advertizeLiquidBalance = false
 )
 
 func main() {
@@ -122,7 +120,6 @@ func main() {
 	// Load persisted data from database
 	ln.LoadDB()
 	db.Load("Peers", "NodeId", &peerNodeId)
-	db.Load("Peers", "AdvertizeLiquidBalance", &advertizeLiquidBalance)
 	db.Load("Swaps", "txFee", &txFee)
 
 	// fetch all chain costs
@@ -219,6 +216,11 @@ func main() {
 
 	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
+
+	// request balance refresh from peers
+	if ln.Implementation == "LND" {
+		go pollBalances()
+	}
 
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -1630,7 +1632,7 @@ func last(x int, a interface{}) bool {
 
 func advertizeBalance() {
 
-	if !advertizeLiquidBalance {
+	if !ln.AdvertizeLiquidBalance {
 		return
 	}
 
@@ -1657,6 +1659,9 @@ func advertizeBalance() {
 
 	satAmount := res2.GetSatAmount()
 
+	// store for replies to poll requests
+	ln.LiquidBalance = satAmount
+
 	res3, err := ps.ListPeers(client)
 	if err != nil {
 		return
@@ -1669,18 +1674,68 @@ func advertizeBalance() {
 	defer clean()
 
 	for _, peer := range res3.GetPeers() {
-		ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+		// refresh balances received over 24 hours ago
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+				ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+					Version: ln.MessageVersion,
+					Memo:    "poll",
+					Asset:   "lbtc",
+				})
+				// delete stale information
+				ln.LiquidBalances[peer.NodeId] = nil
+			}
+		}
+
+		ptr := ln.SentLiquidBalances[peer.NodeId]
+		if ptr != nil {
+			if ptr.Amount == satAmount && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
+				// do not repeat within 24 hours unless changed
+				continue
+			}
+		}
+
+		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
 			Version: ln.MessageVersion,
 			Memo:    "balance",
 			Asset:   "lbtc",
 			Amount:  satAmount,
-		})
-
-		// delete stale received balances over 24 hours ago
-		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
-			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
-				ln.LiquidBalances[peer.NodeId] = nil
+		}) == nil {
+			// save announcement details
+			if ptr == nil {
+				ln.SentLiquidBalances[peer.NodeId] = new(ln.BalanceInfo)
 			}
+			ln.SentLiquidBalances[peer.NodeId].Amount = satAmount
+			ln.SentLiquidBalances[peer.NodeId].TimeStamp = time.Now().Unix()
+		}
+	}
+}
+
+func pollBalances() {
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
+	if err != nil {
+		return
+	}
+
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		return
+	}
+	defer clean()
+
+	for _, peer := range res.GetPeers() {
+		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+			Version: ln.MessageVersion,
+			Memo:    "poll",
+			Asset:   "lbtc",
+		}) != nil {
+			log.Println("Failed to poll L-BTC balance from", getNodeAlias(peer.NodeId))
 		}
 	}
 }

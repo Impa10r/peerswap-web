@@ -199,7 +199,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
-		AdvertizeEnabled:  advertizeLiquidBalance,
+		AdvertizeEnabled:  ln.AdvertizeLiquidBalance,
 	}
 
 	// executing template named "homepage" with retries
@@ -416,6 +416,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
 	maxLiquidSwapIn := min(satAmount-2000, maxRemoteBalance-10000)
+	if maxLiquidSwapIn < 100_000 {
+		maxLiquidSwapIn = 0
+	}
 
 	peerLiquidBalance := int64(-1)
 	maxLiquidSwapOut := uint64(0)
@@ -428,6 +431,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300)))
 		if maxLiquidSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		} else {
+			maxLiquidSwapOut = 0
 		}
 	}
 
@@ -1547,7 +1552,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
-		AdvertizeEnabled:        advertizeLiquidBalance,
+		AdvertizeEnabled:        ln.AdvertizeLiquidBalance,
 	}
 
 	// executing template named "liquid"
@@ -1573,12 +1578,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "advertizeLiquidBalance":
-			advertizeLiquidBalance = r.FormValue("enabled") == "on"
-			db.Save("Peers", "AdvertizeLiquidBalance", advertizeLiquidBalance)
+			ln.AdvertizeLiquidBalance = r.FormValue("enabled") == "on"
+			db.Save("Peers", "AdvertizeLiquidBalance", ln.AdvertizeLiquidBalance)
 
 			msg := "Broadcasting Liquid Balance is "
 
-			if advertizeLiquidBalance {
+			if ln.AdvertizeLiquidBalance {
 				msg += "Enabled"
 			} else {
 				msg += "Disabled"

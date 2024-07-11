@@ -1188,6 +1188,25 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			nodeId := hex.EncodeToString(data.Peer)
 
+			// received request for information
+			if msg.Memo == "poll" && msg.Asset == "lbtc" && AdvertizeLiquidBalance {
+				if SendCustomMessage(client, nodeId, &Message{
+					Version: MessageVersion,
+					Memo:    "balance",
+					Asset:   "lbtc",
+					Amount:  LiquidBalance,
+				}) == nil {
+					// save announcement
+					ptr := SentLiquidBalances[nodeId]
+					if ptr == nil {
+						SentLiquidBalances[nodeId] = new(BalanceInfo)
+					}
+					SentLiquidBalances[nodeId].Amount = LiquidBalance
+					SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
+				}
+			}
+
+			// received information
 			if msg.Memo == "balance" && msg.Asset == "lbtc" {
 				ts := time.Now().Unix()
 				if LiquidBalances[nodeId] == nil {
@@ -1514,7 +1533,7 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 			if channel.RemotePubkey == lndPeer.PubKey {
 				peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
 					ChannelId:     channel.ChanId,
-					LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
+					LocalBalance:  uint64(channel.LocalBalance),
 					RemoteBalance: uint64(channel.RemoteBalance),
 					Active:        channel.Active,
 				})
@@ -1816,7 +1835,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	localBalance := int64(0)
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
-			localBalance = ch.LocalBalance + ch.UnsettledBalance
+			localBalance = ch.LocalBalance
 			break
 		}
 	}
@@ -1910,7 +1929,7 @@ func ApplyAutoFees() {
 
 		oldFee := int(policy.FeeRateMilliMsat)
 		newFee := oldFee
-		liqPct := int((ch.LocalBalance + ch.UnsettledBalance) * 100 / r.Capacity)
+		liqPct := int(ch.LocalBalance * 100 / r.Capacity)
 
 		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
 

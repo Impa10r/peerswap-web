@@ -1,8 +1,13 @@
 # Versions
 
+## 1.6.5
+
+- Reduce frequency of balance announcements to 24hr unless changed
+- Pre-fill 0 if possible swap amount is below 100,000
+
 ## 1.6.4
 
-- Implement advertizing L-BTC balance: LND send and receive, CLN send
+- Implement advertising L-BTC balance: LND send and receive, CLN send
 - Pre-fill swap amount to return the channel closer to 50/50 if viable
 - Persist NodeId per ChannelId map to avoid *closed channel*
 - Apply AutoFees even while HTLC is pending
