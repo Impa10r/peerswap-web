@@ -1669,12 +1669,28 @@ func advertizeBalance() {
 	defer clean()
 
 	for _, peer := range res3.GetPeers() {
-		ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+
+		ptr := ln.SentLiquidBalances[peer.NodeId]
+		if ptr != nil {
+			if ptr.Amount == satAmount && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
+				// do not repeat within 24 hours
+				continue
+			}
+		}
+
+		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
 			Version: ln.MessageVersion,
 			Memo:    "balance",
 			Asset:   "lbtc",
 			Amount:  satAmount,
-		})
+		}) == nil {
+			// save announcement
+			if ptr == nil {
+				ln.SentLiquidBalances[peer.NodeId] = new(ln.BalanceInfo)
+			}
+			ln.SentLiquidBalances[peer.NodeId].Amount = satAmount
+			ln.SentLiquidBalances[peer.NodeId].TimeStamp = time.Now().Unix()
+		}
 
 		// delete stale received balances over 24 hours ago
 		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {

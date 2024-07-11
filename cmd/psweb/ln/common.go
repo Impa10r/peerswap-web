@@ -198,6 +198,9 @@ var (
 
 	// received via custom messages, per peer nodeId
 	LiquidBalances = make(map[string]*BalanceInfo)
+
+	// sent via custom messages
+	SentLiquidBalances = make(map[string]*BalanceInfo)
 )
 
 func toSats(amount float64) int64 {
