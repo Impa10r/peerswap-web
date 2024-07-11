@@ -1659,7 +1659,7 @@ func advertizeBalance() {
 
 	satAmount := res2.GetSatAmount()
 
-	// save to poll replies
+	// store for replies to poll requests
 	ln.LiquidBalance = satAmount
 
 	res3, err := ps.ListPeers(client)
@@ -1674,11 +1674,23 @@ func advertizeBalance() {
 	defer clean()
 
 	for _, peer := range res3.GetPeers() {
+		// refresh balances received over 24 hours ago
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+				ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+					Version: ln.MessageVersion,
+					Memo:    "poll",
+					Asset:   "lbtc",
+				})
+				// delete stale information
+				ln.LiquidBalances[peer.NodeId] = nil
+			}
+		}
 
 		ptr := ln.SentLiquidBalances[peer.NodeId]
 		if ptr != nil {
 			if ptr.Amount == satAmount && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
-				// do not repeat within 24 hours
+				// do not repeat within 24 hours unless changed
 				continue
 			}
 		}
@@ -1689,25 +1701,17 @@ func advertizeBalance() {
 			Asset:   "lbtc",
 			Amount:  satAmount,
 		}) == nil {
-			// save announcement
+			// save announcement details
 			if ptr == nil {
 				ln.SentLiquidBalances[peer.NodeId] = new(ln.BalanceInfo)
 			}
 			ln.SentLiquidBalances[peer.NodeId].Amount = satAmount
 			ln.SentLiquidBalances[peer.NodeId].TimeStamp = time.Now().Unix()
 		}
-
-		// delete stale received balances over 24 hours ago
-		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
-			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
-				ln.LiquidBalances[peer.NodeId] = nil
-			}
-		}
 	}
 }
 
 func pollBalances() {
-
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return

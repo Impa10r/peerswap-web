@@ -1188,6 +1188,7 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			nodeId := hex.EncodeToString(data.Peer)
 
+			// received request for information
 			if msg.Memo == "poll" && msg.Asset == "lbtc" && AdvertizeLiquidBalance {
 				if SendCustomMessage(client, nodeId, &Message{
 					Version: MessageVersion,
@@ -1205,6 +1206,7 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 				}
 			}
 
+			// received information
 			if msg.Memo == "balance" && msg.Asset == "lbtc" {
 				ts := time.Now().Unix()
 				if LiquidBalances[nodeId] == nil {
