@@ -66,8 +66,6 @@ var (
 	autoSwapId      string
 	// store peer pub mapped to channel Id
 	peerNodeId = make(map[uint64]string)
-	// global setting
-	advertizeLiquidBalance = false
 )
 
 func main() {
@@ -122,7 +120,6 @@ func main() {
 	// Load persisted data from database
 	ln.LoadDB()
 	db.Load("Peers", "NodeId", &peerNodeId)
-	db.Load("Peers", "AdvertizeLiquidBalance", &advertizeLiquidBalance)
 	db.Load("Swaps", "txFee", &txFee)
 
 	// fetch all chain costs
@@ -1635,7 +1632,7 @@ func last(x int, a interface{}) bool {
 
 func advertizeBalance() {
 
-	if !advertizeLiquidBalance {
+	if !ln.AdvertizeLiquidBalance {
 		return
 	}
 

@@ -199,7 +199,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
-		AdvertizeEnabled:  advertizeLiquidBalance,
+		AdvertizeEnabled:  ln.AdvertizeLiquidBalance,
 	}
 
 	// executing template named "homepage" with retries
@@ -1552,7 +1552,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
-		AdvertizeEnabled:        advertizeLiquidBalance,
+		AdvertizeEnabled:        ln.AdvertizeLiquidBalance,
 	}
 
 	// executing template named "liquid"
@@ -1578,12 +1578,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "advertizeLiquidBalance":
-			advertizeLiquidBalance = r.FormValue("enabled") == "on"
-			db.Save("Peers", "AdvertizeLiquidBalance", advertizeLiquidBalance)
+			ln.AdvertizeLiquidBalance = r.FormValue("enabled") == "on"
+			db.Save("Peers", "AdvertizeLiquidBalance", ln.AdvertizeLiquidBalance)
 
 			msg := "Broadcasting Liquid Balance is "
 
-			if advertizeLiquidBalance {
+			if ln.AdvertizeLiquidBalance {
 				msg += "Enabled"
 			} else {
 				msg += "Disabled"

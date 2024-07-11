@@ -204,6 +204,9 @@ var (
 
 	// current LiquidBalance
 	LiquidBalance uint64
+
+	// global setting
+	AdvertizeLiquidBalance = false
 )
 
 func toSats(amount float64) int64 {
@@ -290,6 +293,9 @@ func LoadDB() {
 	db.Load("AutoFees", "AutoFeeEnabled", &AutoFeeEnabled)
 	db.Load("AutoFees", "AutoFee", &AutoFee)
 	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
+
+	// on or off
+	db.Load("Peers", "AdvertizeLiquidBalance", &AdvertizeLiquidBalance)
 
 	// drop non-array legacy log
 	var log map[uint64]interface{}
