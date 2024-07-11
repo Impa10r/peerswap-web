@@ -220,6 +220,11 @@ func main() {
 	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
 
+	// request balance refresh from peers
+	if ln.Implementation == "LND" {
+		go pollBalances()
+	}
+
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -1657,6 +1662,9 @@ func advertizeBalance() {
 
 	satAmount := res2.GetSatAmount()
 
+	// save to poll replies
+	ln.LiquidBalance = satAmount
+
 	res3, err := ps.ListPeers(client)
 	if err != nil {
 		return
@@ -1697,6 +1705,36 @@ func advertizeBalance() {
 			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
 				ln.LiquidBalances[peer.NodeId] = nil
 			}
+		}
+	}
+}
+
+func pollBalances() {
+
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
+	if err != nil {
+		return
+	}
+
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		return
+	}
+	defer clean()
+
+	for _, peer := range res.GetPeers() {
+		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+			Version: ln.MessageVersion,
+			Memo:    "poll",
+			Asset:   "lbtc",
+		}) != nil {
+			log.Println("Failed to poll L-BTC balance from", getNodeAlias(peer.NodeId))
 		}
 	}
 }

@@ -201,6 +201,9 @@ var (
 
 	// sent via custom messages
 	SentLiquidBalances = make(map[string]*BalanceInfo)
+
+	// current LiquidBalance
+	LiquidBalance uint64
 )
 
 func toSats(amount float64) int64 {
