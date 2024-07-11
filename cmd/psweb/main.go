@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.5"
+	version = "v1.6.6"
 )
 
 type SwapParams struct {
@@ -66,6 +66,8 @@ var (
 	autoSwapId      string
 	// store peer pub mapped to channel Id
 	peerNodeId = make(map[uint64]string)
+	// only poll all peers once after peerswap initializes
+	initalPollComplete = false
 )
 
 func main() {
@@ -217,11 +219,6 @@ func main() {
 	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
 
-	// request balance refresh from peers
-	if ln.Implementation == "LND" {
-		go pollBalances()
-	}
-
 	// Handle termination signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -372,6 +369,9 @@ func onTimer() {
 
 	// advertize Liquid balance
 	go advertizeBalance()
+
+	// try every minute after startup until completed
+	go pollBalances()
 }
 
 func liquidBackup(force bool) {
@@ -676,19 +676,19 @@ func convertPeersToHTMLTable(
 			}
 			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
-		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:12ch;\">"
 
 		if stringIsInSlice("btc", peer.SupportedAssets) {
 			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>"
 		}
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
-			peerTable += "<span title=\"L-BTC swaps enabled\">&nbsp🌊</span>"
+			peerTable += "<span title=\"L-BTC swaps enabled\">🌊</span>"
 		}
 
 		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 			lbtcBalance := ptr.Amount
 			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
-			flooredBalance := "0.0m"
+			flooredBalance := "<span style=\"color:grey\">0m</span>"
 			if lbtcBalance > 100_000 {
 				flooredBalance = "<a href=\"/peer?id=" + peer.NodeId + "&out\">" + toMil(lbtcBalance) + "</a>"
 			}
@@ -1712,6 +1712,11 @@ func advertizeBalance() {
 }
 
 func pollBalances() {
+
+	if initalPollComplete || ln.Implementation != "LND" {
+		return
+	}
+
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return
@@ -1735,7 +1740,13 @@ func pollBalances() {
 			Memo:    "poll",
 			Asset:   "lbtc",
 		}) != nil {
-			log.Println("Failed to poll L-BTC balance from", getNodeAlias(peer.NodeId))
+			log.Println("Failed to poll L-BTC balance from", getNodeAlias(peer.NodeId), err)
+		} else {
+			initalPollComplete = true
 		}
+	}
+
+	if initalPollComplete {
+		log.Println("Polled peers for L-BTC balances")
 	}
 }

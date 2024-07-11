@@ -1578,7 +1578,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "advertizeLiquidBalance":
-			ln.AdvertizeLiquidBalance = r.FormValue("enabled") == "on"
+			enabled := r.FormValue("enabled") == "on"
+			if enabled && !config.Config.AllowSwapRequests {
+				redirectWithError(w, r, "/liquid", errors.New("swap requests are disabled"))
+				return
+			}
+
+			ln.AdvertizeLiquidBalance = enabled
 			db.Save("Peers", "AdvertizeLiquidBalance", ln.AdvertizeLiquidBalance)
 
 			msg := "Broadcasting Liquid Balance is "
