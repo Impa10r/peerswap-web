@@ -1833,9 +1833,15 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	}
 
 	localBalance := int64(0)
+
+	var channel *lnrpc.Channel
+
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
 			localBalance = ch.LocalBalance
+
+			channel = ch
+
 			break
 		}
 	}
@@ -1860,6 +1866,9 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 			// log the last change
 			LogFee(channelId, old, newFee, false, false)
+
+			log.Println(channel, liqPct, oldFee, newFee)
+
 		}
 	}
 
