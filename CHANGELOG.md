@@ -2,6 +2,7 @@
 
 ## 1.6.5
 
+- Reduce frequency of balance announcements to 24hr unless changed
 - Pre-fill 0 if possible swap amount is below 100,000
 
 ## 1.6.4
