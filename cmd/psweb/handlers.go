@@ -416,6 +416,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
 	maxLiquidSwapIn := min(satAmount-2000, maxRemoteBalance-10000)
+	if maxLiquidSwapIn < 100_000 {
+		maxLiquidSwapIn = 0
+	}
 
 	peerLiquidBalance := int64(-1)
 	maxLiquidSwapOut := uint64(0)
@@ -428,6 +431,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300)))
 		if maxLiquidSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		} else {
+			maxLiquidSwapOut = 0
 		}
 	}
 
