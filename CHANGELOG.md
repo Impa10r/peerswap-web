@@ -2,7 +2,8 @@
 
 ## 1.6.6
 
-- Retry polling peers for L-BTC balances after peerswap initializes
+- Allow advertising BTC balance to peers
+- Retry polling peers for balances after peerswap initializes
 
 ## 1.6.5
 

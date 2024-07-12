@@ -367,8 +367,8 @@ func onTimer() {
 	// execute auto fee
 	go ln.ApplyAutoFees()
 
-	// advertize Liquid balance
-	go advertizeBalance()
+	// advertise Liquid balance
+	go advertiseBalances()
 
 	// try every minute after startup until completed
 	go pollBalances()
@@ -676,11 +676,22 @@ func convertPeersToHTMLTable(
 			}
 			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
 		}
-		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:12ch;\">"
+		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; \">"
 
 		if stringIsInSlice("btc", peer.SupportedAssets) {
-			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>"
+			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
 		}
+
+		if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
+			btcBalance := ptr.Amount
+			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
+			flooredBalance := "<span style=\"color:grey\">0m</span>"
+			if btcBalance > 100_000 {
+				flooredBalance = toMil(btcBalance)
+			}
+			peerTable += "<span title=\"Peer's BTC balance: " + formatWithThousandSeparators(btcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
+		}
+
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			peerTable += "<span title=\"L-BTC swaps enabled\">🌊</span>"
 		}
@@ -690,7 +701,7 @@ func convertPeersToHTMLTable(
 			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
 			flooredBalance := "<span style=\"color:grey\">0m</span>"
 			if lbtcBalance > 100_000 {
-				flooredBalance = "<a href=\"/peer?id=" + peer.NodeId + "&out\">" + toMil(lbtcBalance) + "</a>"
+				flooredBalance = toMil(lbtcBalance)
 			}
 			peerTable += "<span title=\"Peer's L-BTC balance: " + formatWithThousandSeparators(lbtcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 		}
@@ -1630,11 +1641,7 @@ func last(x int, a interface{}) bool {
 	return x == len(*(a.(*[]ln.DataPoint)))-1
 }
 
-func advertizeBalance() {
-
-	if !ln.AdvertizeLiquidBalance {
-		return
-	}
+func advertiseBalances() {
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
@@ -1642,25 +1649,10 @@ func advertizeBalance() {
 	}
 	defer cleanup()
 
-	res, err := ps.ListActiveSwaps(client)
-	if err != nil {
-		return
-	}
-
-	// do not advertize while a swap is pending
-	if len(res.GetSwaps()) > 0 {
-		return
-	}
-
 	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		return
 	}
-
-	satAmount := res2.GetSatAmount()
-
-	// store for replies to poll requests
-	ln.LiquidBalance = satAmount
 
 	res3, err := ps.ListPeers(client)
 	if err != nil {
@@ -1673,40 +1665,83 @@ func advertizeBalance() {
 	}
 	defer clean()
 
+	// store for replies to poll requests
+	ln.LiquidBalance = res2.GetSatAmount()
+	ln.BitcoinBalance = uint64(ln.ConfirmedWalletBalance(cl))
+
 	for _, peer := range res3.GetPeers() {
-		// refresh balances received over 24 hours ago
-		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
-			if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+		if ln.Implementation == "LND" {
+			// refresh balances received over 24 hours ago
+			pollPeer := false
+			if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+				if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+					pollPeer = true
+					// delete stale information
+					ln.LiquidBalances[peer.NodeId] = nil
+				}
+			}
+			if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
+				if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+					pollPeer = true
+					// delete stale information
+					ln.BitcoinBalances[peer.NodeId] = nil
+				}
+			}
+
+			if pollPeer {
 				ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
 					Version: ln.MessageVersion,
 					Memo:    "poll",
-					Asset:   "lbtc",
 				})
-				// delete stale information
-				ln.LiquidBalances[peer.NodeId] = nil
 			}
 		}
 
-		ptr := ln.SentLiquidBalances[peer.NodeId]
-		if ptr != nil {
-			if ptr.Amount == satAmount && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
-				// do not repeat within 24 hours unless changed
-				continue
+		if ln.AdvertiseLiquidBalance {
+			ptr := ln.SentLiquidBalances[peer.NodeId]
+			if ptr != nil {
+				if ptr.Amount == ln.LiquidBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
+					// do not repeat within 24 hours unless changed
+					continue
+				}
+			}
+
+			if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+				Version: ln.MessageVersion,
+				Memo:    "balance",
+				Asset:   "lbtc",
+				Amount:  ln.LiquidBalance,
+			}) == nil {
+				// save announcement details
+				if ptr == nil {
+					ln.SentLiquidBalances[peer.NodeId] = new(ln.BalanceInfo)
+				}
+				ln.SentLiquidBalances[peer.NodeId].Amount = ln.LiquidBalance
+				ln.SentLiquidBalances[peer.NodeId].TimeStamp = time.Now().Unix()
 			}
 		}
 
-		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
-			Version: ln.MessageVersion,
-			Memo:    "balance",
-			Asset:   "lbtc",
-			Amount:  satAmount,
-		}) == nil {
-			// save announcement details
-			if ptr == nil {
-				ln.SentLiquidBalances[peer.NodeId] = new(ln.BalanceInfo)
+		if ln.AdvertiseBitcoinBalance {
+			ptr := ln.SentBitcoinBalances[peer.NodeId]
+			if ptr != nil {
+				if ptr.Amount == ln.BitcoinBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
+					// do not repeat within 24 hours unless changed
+					continue
+				}
 			}
-			ln.SentLiquidBalances[peer.NodeId].Amount = satAmount
-			ln.SentLiquidBalances[peer.NodeId].TimeStamp = time.Now().Unix()
+
+			if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+				Version: ln.MessageVersion,
+				Memo:    "balance",
+				Asset:   "btc",
+				Amount:  ln.BitcoinBalance,
+			}) == nil {
+				// save announcement details
+				if ptr == nil {
+					ln.SentBitcoinBalances[peer.NodeId] = new(ln.BalanceInfo)
+				}
+				ln.SentBitcoinBalances[peer.NodeId].Amount = ln.BitcoinBalance
+				ln.SentBitcoinBalances[peer.NodeId].TimeStamp = time.Now().Unix()
+			}
 		}
 	}
 }
@@ -1738,15 +1773,14 @@ func pollBalances() {
 		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
 			Version: ln.MessageVersion,
 			Memo:    "poll",
-			Asset:   "lbtc",
 		}) != nil {
-			log.Println("Failed to poll L-BTC balance from", getNodeAlias(peer.NodeId), err)
+			log.Println("Failed to poll balances from", getNodeAlias(peer.NodeId), err)
 		} else {
 			initalPollComplete = true
 		}
 	}
 
 	if initalPollComplete {
-		log.Println("Polled peers for L-BTC balances")
+		log.Println("Polled peers for balances")
 	}
 }

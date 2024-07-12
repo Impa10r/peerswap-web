@@ -9,7 +9,15 @@
                 <td style="padding: 0px; text-align: left;">
                   <h4 class="title is-4" style="white-space: nowrap">
                     <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
-                    <span style="font-size: 0.7em;" title="Bitcoin swaps {{if and .AllowSwapRequests .BitcoinSwaps}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                    {{if and .AllowSwapRequests .BitcoinSwaps}} 
+                      {{if .AdvertiseBitcoin}}
+                        <a href="/bitcoin" title="Broadcasting BTC balance to peers">📡</a>
+                      {{else}}
+                        <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
+                      {{end}}
+                    {{else}}
+                      <span style="font-size: 0.7em;" title="Bitcoin swaps disabled">❌</span>
+                    {{end}}
                   </h4>
                 </td>
                 <td style="padding: 0px; text-align: left;">
@@ -18,7 +26,7 @@
                     {{if .PeginPending}}
                       <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
                     {{else}}
-                      {{if and .AdvertizeEnabled .AllowSwapRequests}}
+                      {{if and .AdvertiseLiquid .AllowSwapRequests}}
                         <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
                       {{else}}
                         <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>

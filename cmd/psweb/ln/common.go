@@ -197,16 +197,20 @@ var (
 	autoFeeIsRunning = false
 
 	// received via custom messages, per peer nodeId
-	LiquidBalances = make(map[string]*BalanceInfo)
+	LiquidBalances  = make(map[string]*BalanceInfo)
+	BitcoinBalances = make(map[string]*BalanceInfo)
 
 	// sent via custom messages
-	SentLiquidBalances = make(map[string]*BalanceInfo)
+	SentLiquidBalances  = make(map[string]*BalanceInfo)
+	SentBitcoinBalances = make(map[string]*BalanceInfo)
 
-	// current LiquidBalance
-	LiquidBalance uint64
+	// current Balance
+	LiquidBalance  uint64
+	BitcoinBalance uint64
 
-	// global setting
-	AdvertizeLiquidBalance = false
+	// global settings
+	AdvertiseLiquidBalance  = false
+	AdvertiseBitcoinBalance = false
 )
 
 func toSats(amount float64) int64 {
@@ -295,7 +299,8 @@ func LoadDB() {
 	db.Load("AutoFees", "AutoFeeDefaults", &AutoFeeDefaults)
 
 	// on or off
-	db.Load("Peers", "AdvertizeLiquidBalance", &AdvertizeLiquidBalance)
+	db.Load("Peers", "AdvertiseLiquidBalance", &AdvertiseLiquidBalance)
+	db.Load("Peers", "AdvertiseBitcoinBalance", &AdvertiseBitcoinBalance)
 
 	// drop non-array legacy log
 	var log map[uint64]interface{}

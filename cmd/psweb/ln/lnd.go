@@ -1189,31 +1189,57 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 			nodeId := hex.EncodeToString(data.Peer)
 
 			// received request for information
-			if msg.Memo == "poll" && msg.Asset == "lbtc" && AdvertizeLiquidBalance {
-				if SendCustomMessage(client, nodeId, &Message{
-					Version: MessageVersion,
-					Memo:    "balance",
-					Asset:   "lbtc",
-					Amount:  LiquidBalance,
-				}) == nil {
-					// save announcement
-					ptr := SentLiquidBalances[nodeId]
-					if ptr == nil {
-						SentLiquidBalances[nodeId] = new(BalanceInfo)
+			if msg.Memo == "poll" {
+				if AdvertiseLiquidBalance {
+					if SendCustomMessage(client, nodeId, &Message{
+						Version: MessageVersion,
+						Memo:    "balance",
+						Asset:   "lbtc",
+						Amount:  LiquidBalance,
+					}) == nil {
+						// save announcement
+						if SentLiquidBalances[nodeId] == nil {
+							SentLiquidBalances[nodeId] = new(BalanceInfo)
+						}
+						SentLiquidBalances[nodeId].Amount = LiquidBalance
+						SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
 					}
-					SentLiquidBalances[nodeId].Amount = LiquidBalance
-					SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
+
+					if AdvertiseBitcoinBalance {
+						if SendCustomMessage(client, nodeId, &Message{
+							Version: MessageVersion,
+							Memo:    "balance",
+							Asset:   "btc",
+							Amount:  BitcoinBalance,
+						}) == nil {
+							// save announcement
+							if SentBitcoinBalances[nodeId] == nil {
+								SentBitcoinBalances[nodeId] = new(BalanceInfo)
+							}
+							SentBitcoinBalances[nodeId].Amount = BitcoinBalance
+							SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
+						}
+					}
 				}
 			}
 
 			// received information
-			if msg.Memo == "balance" && msg.Asset == "lbtc" {
+			if msg.Memo == "balance" {
 				ts := time.Now().Unix()
-				if LiquidBalances[nodeId] == nil {
-					LiquidBalances[nodeId] = new(BalanceInfo)
+				if msg.Asset == "lbtc" {
+					if LiquidBalances[nodeId] == nil {
+						LiquidBalances[nodeId] = new(BalanceInfo)
+					}
+					LiquidBalances[nodeId].Amount = msg.Amount
+					LiquidBalances[nodeId].TimeStamp = ts
 				}
-				LiquidBalances[nodeId].Amount = msg.Amount
-				LiquidBalances[nodeId].TimeStamp = ts
+				if msg.Asset == "btc" {
+					if BitcoinBalances[nodeId] == nil {
+						BitcoinBalances[nodeId] = new(BalanceInfo)
+					}
+					BitcoinBalances[nodeId].Amount = msg.Amount
+					BitcoinBalances[nodeId].TimeStamp = ts
+				}
 			}
 		}
 	}

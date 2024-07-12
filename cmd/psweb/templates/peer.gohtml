@@ -81,7 +81,7 @@
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
-                          <label class="label">Amount</label>
+                          <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
                         </div>
                         <div class="field-body">
                           <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
@@ -122,13 +122,34 @@
                           return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
                       }
                       
+                      function setMax() {
+                        if (document.getElementById("to").value == "ln") {
+                          if (document.getElementById("from").value == "lbtc") {
+                            document.getElementById("swapAmount").value = {{.MaxLiquidSwapIn}}; 
+                          } else {
+                            document.getElementById("swapAmount").value = {{.MaxBitcoinSwapIn}};
+                          }                      
+                        } else {
+                          if (document.getElementById("to").value == "btc") {
+                            document.getElementById("swapAmount").value = {{.MaxBitcoinSwapOut}};                     
+                          } else {
+                            document.getElementById("swapAmount").value = {{.MaxLiquidSwapOut}};
+                          }
+                        }
+                        calculateTransactionFee();
+                      }
+
                       function fromChanged() {
                         if (document.getElementById("from").value == "ln") {
                           document.getElementById("to").value = "lbtc";   
                           document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
                         } else {
                           document.getElementById("to").value = "ln";
-                          document.getElementById("swapAmount").value = {{.MaxLiquidSwapIn}};
+                          if (document.getElementById("from").value == "btc") {
+                            document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};                     
+                          } else {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
+                          }
                         }
                         calculateTransactionFee();
                       }
@@ -136,10 +157,14 @@
                       function toChanged() {
                         if (document.getElementById("to").value == "ln") {
                           document.getElementById("from").value = "lbtc";
-                          document.getElementById("swapAmount").value = {{.MaxLiquidSwapIn}};                     
+                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};                     
                         } else {
                           document.getElementById("from").value = "ln";
-                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          if (document.getElementById("to").value == "btc") {
+                            document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};                     
+                          } else {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          }
                         }
                         calculateTransactionFee();
                       }
@@ -375,9 +400,20 @@ Sincerely,
               </div>
             </div>
             {{if .PeerSwapPeer}}
-              {{if gt .PeerLiquidBalance -1}}
-                <p>Peer's L-BTC balance: {{fs .PeerLiquidBalance}}, max swap-out: {{fmt .MaxLiquidSwapOut}}</p>
-              {{end}}
+              <table style="width:100%; table-layout:fixed;">
+                <tr>
+                  {{if gt .PeerBitcoinBalance -1}}
+                    <td style="text-align: center;">
+                      <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fs .PeerBitcoinBalance}}</p>
+                    </td>
+                  {{end}}
+                  {{if gt .PeerLiquidBalance -1}}
+                    <td style="text-align: center;">
+                      <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{fs .PeerLiquidBalance}}</p>
+                    </td>
+                  {{end}}
+                </tr> 
+              </table>
               <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
                 <tr>
                   <th style="text-align: center">Swaps</th>

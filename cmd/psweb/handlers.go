@@ -180,7 +180,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate    float64
 		AutoSwapEnabled   bool
 		PeginPending      bool
-		AdvertizeEnabled  bool
+		AdvertiseLiquid   bool
+		AdvertiseBitcoin  bool
 	}
 
 	data := Page{
@@ -199,7 +200,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
-		AdvertizeEnabled:  ln.AdvertizeLiquidBalance,
+		AdvertiseLiquid:   ln.AdvertiseLiquidBalance,
+		AdvertiseBitcoin:  ln.AdvertiseBitcoinBalance,
 	}
 
 	// executing template named "homepage" with retries
@@ -415,7 +417,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(satAmount-2000, maxRemoteBalance-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-2000, int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -436,105 +438,138 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	recommendLiquidSwapOut := maxLiquidSwapOut
-
-	// assumed direction of the swap
-	directionIn := sumLocal < sumRemote
-	if _, ok = r.URL.Query()["out"]; ok {
-		directionIn = false
-		// assume return to 50/50 channel
-		if directionIn && maxLocalBalance > channelCapacity/2 {
-			recommendLiquidSwapOut = min(maxLiquidSwapOut, maxLocalBalance-channelCapacity/2)
+	peerBitcoinBalance := int64(-1)
+	maxBitcoinSwapOut := uint64(0)
+	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
+		peerBitcoinBalance = int64(ptr.Amount)
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerBitcoinBalance-20300)))
+		if maxBitcoinSwapOut >= 100_000 {
+			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		} else {
+			maxBitcoinSwapOut = 0
 		}
 	}
 
+	// arbitrary haircut to avoid 'no matching outgoing channel available'
+	maxBitcoinSwapIn := min(btcBalance-2000, int64(maxRemoteBalance)-10000)
+	if maxBitcoinSwapIn < 100_000 {
+		maxBitcoinSwapIn = 0
+	}
+
+	// assumed direction of the swap
+	directionIn := false
+
 	// assume return to 50/50 channel
-	if directionIn && maxRemoteBalance > channelCapacity/2 {
-		maxLiquidSwapIn = min(maxLiquidSwapIn, maxRemoteBalance-channelCapacity/2)
+	recommendLiquidSwapOut := maxLiquidSwapOut
+	recommendBitcoinSwapOut := maxBitcoinSwapOut
+	if maxLocalBalance > channelCapacity/2 {
+		recommendLiquidSwapOut = min(maxLiquidSwapOut, maxLocalBalance-channelCapacity/2)
+		recommendBitcoinSwapOut = min(recommendBitcoinSwapOut, maxLocalBalance-channelCapacity/2)
+	}
+
+	// assume return to 50/50 channel
+	recommendLiquidSwapIn := maxLiquidSwapIn
+	recommendBitcoinSwapIn := maxBitcoinSwapIn
+	if maxRemoteBalance > channelCapacity/2 {
+		directionIn = true
+		recommendLiquidSwapIn = min(recommendLiquidSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+		recommendBitcoinSwapIn = min(recommendBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
 	}
 
 	type Page struct {
-		Authenticated          bool
-		ErrorMessage           string
-		PopUpMessage           string
-		MempoolFeeRate         float64
-		BtcFeeRate             float64
-		ColorScheme            string
-		Peer                   *peerswaprpc.PeerSwapPeer
-		PeerAlias              string
-		NodeUrl                string
-		Allowed                bool
-		Suspicious             bool
-		LBTC                   bool
-		BTC                    bool
-		LiquidBalance          uint64
-		BitcoinBalance         uint64
-		ActiveSwaps            string
-		DirectionIn            bool
-		Stats                  []*ln.ForwardingStats
-		ChannelInfo            []*ln.ChanneInfo
-		PeerSwapPeer           bool
-		MyAlias                string
-		SenderOutFeePPM        int64
-		SenderInFee            int64
-		ReceiverInFee          int64
-		ReceiverOutFee         int64
-		SenderInFeePPM         int64
-		ReceiverInFeePPM       int64
-		ReceiverOutFeePPM      int64
-		KeysendSats            uint64
-		OutputsBTC             *[]ln.UTXO
-		OutputsLBTC            *[]liquid.UTXO
-		ReserveLBTC            uint64
-		ReserveBTC             uint64
-		HasInboundFees         bool
-		PeerLiquidBalance      int64 // -1 means no data
-		MaxLiquidSwapOut       uint64
-		RecommendLiquidSwapOut uint64
-		MaxLiquidSwapIn        uint64
-		SelectedChannel        uint64
+		Authenticated           bool
+		ErrorMessage            string
+		PopUpMessage            string
+		MempoolFeeRate          float64
+		BtcFeeRate              float64
+		ColorScheme             string
+		Peer                    *peerswaprpc.PeerSwapPeer
+		PeerAlias               string
+		NodeUrl                 string
+		Allowed                 bool
+		Suspicious              bool
+		LBTC                    bool
+		BTC                     bool
+		LiquidBalance           uint64
+		BitcoinBalance          uint64
+		ActiveSwaps             string
+		DirectionIn             bool
+		Stats                   []*ln.ForwardingStats
+		ChannelInfo             []*ln.ChanneInfo
+		PeerSwapPeer            bool
+		MyAlias                 string
+		SenderOutFeePPM         int64
+		SenderInFee             int64
+		ReceiverInFee           int64
+		ReceiverOutFee          int64
+		SenderInFeePPM          int64
+		ReceiverInFeePPM        int64
+		ReceiverOutFeePPM       int64
+		KeysendSats             uint64
+		OutputsBTC              *[]ln.UTXO
+		OutputsLBTC             *[]liquid.UTXO
+		ReserveLBTC             uint64
+		ReserveBTC              uint64
+		HasInboundFees          bool
+		PeerBitcoinBalance      int64 // -1 means no data
+		MaxBitcoinSwapOut       uint64
+		RecommendBitcoinSwapOut uint64
+		MaxBitcoinSwapIn        int64
+		RecommendBitcoinSwapIn  int64
+		PeerLiquidBalance       int64 // -1 means no data
+		MaxLiquidSwapOut        uint64
+		RecommendLiquidSwapOut  uint64
+		MaxLiquidSwapIn         int64
+		RecommendLiquidSwapIn   int64
+		SelectedChannel         uint64
 	}
 
 	data := Page{
-		Authenticated:          config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:           errorMessage,
-		PopUpMessage:           popupMessage,
-		BtcFeeRate:             bitcoinFeeRate,
-		MempoolFeeRate:         feeRate,
-		ColorScheme:            config.Config.ColorScheme,
-		Peer:                   peer,
-		PeerAlias:              getNodeAlias(peer.NodeId),
-		NodeUrl:                config.Config.NodeApi,
-		Allowed:                stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:             stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:                    stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:                   stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance:          satAmount,
-		BitcoinBalance:         uint64(btcBalance),
-		ActiveSwaps:            convertSwapsToHTMLTable(activeSwaps, "", "", ""),
-		DirectionIn:            directionIn,
-		Stats:                  stats,
-		ChannelInfo:            channelInfo,
-		PeerSwapPeer:           psPeer,
-		MyAlias:                ln.GetMyAlias(),
-		SenderOutFeePPM:        senderOutFeePPM,
-		SenderInFee:            senderInFee,
-		ReceiverInFee:          receiverInFee,
-		ReceiverOutFee:         receiverOutFee,
-		SenderInFeePPM:         senderInFeePPM,
-		ReceiverInFeePPM:       receiverInFeePPM,
-		ReceiverOutFeePPM:      receiverOutFeePPM,
-		KeysendSats:            keysendSats,
-		OutputsBTC:             &utxosBTC,
-		OutputsLBTC:            &utxosLBTC,
-		ReserveLBTC:            ln.SwapFeeReserveLBTC,
-		ReserveBTC:             ln.SwapFeeReserveBTC,
-		HasInboundFees:         ln.HasInboundFees(),
-		PeerLiquidBalance:      peerLiquidBalance,
-		MaxLiquidSwapOut:       maxLiquidSwapOut,
-		RecommendLiquidSwapOut: recommendLiquidSwapOut,
-		MaxLiquidSwapIn:        maxLiquidSwapIn,
-		SelectedChannel:        selectedChannel,
+		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:            errorMessage,
+		PopUpMessage:            popupMessage,
+		BtcFeeRate:              bitcoinFeeRate,
+		MempoolFeeRate:          feeRate,
+		ColorScheme:             config.Config.ColorScheme,
+		Peer:                    peer,
+		PeerAlias:               getNodeAlias(peer.NodeId),
+		NodeUrl:                 config.Config.NodeApi,
+		Allowed:                 stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:              stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:                     stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:                    stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance:           satAmount,
+		BitcoinBalance:          uint64(btcBalance),
+		ActiveSwaps:             convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		DirectionIn:             directionIn,
+		Stats:                   stats,
+		ChannelInfo:             channelInfo,
+		PeerSwapPeer:            psPeer,
+		MyAlias:                 ln.GetMyAlias(),
+		SenderOutFeePPM:         senderOutFeePPM,
+		SenderInFee:             senderInFee,
+		ReceiverInFee:           receiverInFee,
+		ReceiverOutFee:          receiverOutFee,
+		SenderInFeePPM:          senderInFeePPM,
+		ReceiverInFeePPM:        receiverInFeePPM,
+		ReceiverOutFeePPM:       receiverOutFeePPM,
+		KeysendSats:             keysendSats,
+		OutputsBTC:              &utxosBTC,
+		OutputsLBTC:             &utxosLBTC,
+		ReserveLBTC:             ln.SwapFeeReserveLBTC,
+		ReserveBTC:              ln.SwapFeeReserveBTC,
+		HasInboundFees:          ln.HasInboundFees(),
+		PeerBitcoinBalance:      peerBitcoinBalance,
+		MaxBitcoinSwapOut:       maxBitcoinSwapOut,
+		RecommendBitcoinSwapOut: recommendBitcoinSwapOut,
+		MaxBitcoinSwapIn:        maxBitcoinSwapIn,
+		RecommendBitcoinSwapIn:  recommendBitcoinSwapIn,
+		PeerLiquidBalance:       peerLiquidBalance,
+		MaxLiquidSwapOut:        maxLiquidSwapOut,
+		RecommendLiquidSwapOut:  recommendLiquidSwapOut,
+		MaxLiquidSwapIn:         maxLiquidSwapIn,
+		RecommendLiquidSwapIn:   recommendLiquidSwapIn,
+		SelectedChannel:         selectedChannel,
 	}
 
 	// executing template named "peer"
@@ -594,6 +629,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		CanRBF           bool
 		IsCLN            bool
 		BitcoinAddress   string
+		AdvertiseEnabled bool
+		BitcoinSwaps     bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -648,6 +685,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		CanRBF:           ln.CanRBF(),
 		IsCLN:            ln.Implementation == "CLN",
 		BitcoinAddress:   addr,
+		AdvertiseEnabled: ln.AdvertiseBitcoinBalance,
+		BitcoinSwaps:     config.Config.BitcoinSwaps,
 	}
 
 	// executing template named "bitcoin"
@@ -1532,7 +1571,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdPPM    uint64
 		AutoSwapCandidate       *SwapParams
 		AutoSwapTargetPct       uint64
-		AdvertizeEnabled        bool
+		AdvertiseEnabled        bool
 	}
 
 	data := Page{
@@ -1552,7 +1591,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
-		AdvertizeEnabled:        ln.AdvertizeLiquidBalance,
+		AdvertiseEnabled:        ln.AdvertiseLiquidBalance,
 	}
 
 	// executing template named "liquid"
@@ -1577,19 +1616,19 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
-		case "advertizeLiquidBalance":
+		case "advertiseLiquidBalance":
 			enabled := r.FormValue("enabled") == "on"
 			if enabled && !config.Config.AllowSwapRequests {
-				redirectWithError(w, r, "/liquid", errors.New("swap requests are disabled"))
+				redirectWithError(w, r, "/liquid?", errors.New("liquid swap requests are disabled"))
 				return
 			}
 
-			ln.AdvertizeLiquidBalance = enabled
-			db.Save("Peers", "AdvertizeLiquidBalance", ln.AdvertizeLiquidBalance)
+			ln.AdvertiseLiquidBalance = enabled
+			db.Save("Peers", "AdvertiseLiquidBalance", ln.AdvertiseLiquidBalance)
 
 			msg := "Broadcasting Liquid Balance is "
 
-			if ln.AdvertizeLiquidBalance {
+			if ln.AdvertiseLiquidBalance {
 				msg += "Enabled"
 			} else {
 				msg += "Disabled"
@@ -1597,6 +1636,28 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			// all done, display confirmation
 			http.Redirect(w, r, "/liquid?msg="+msg, http.StatusSeeOther)
+			return
+
+		case "advertiseBitcoinBalance":
+			enabled := r.FormValue("enabled") == "on"
+			if enabled && (!config.Config.AllowSwapRequests || !config.Config.BitcoinSwaps) {
+				redirectWithError(w, r, "/bitcoin?", errors.New("bitcoin swap requests are disabled"))
+				return
+			}
+
+			ln.AdvertiseBitcoinBalance = enabled
+			db.Save("Peers", "AdvertiseBitcoinBalance", ln.AdvertiseBitcoinBalance)
+
+			msg := "Broadcasting Bitcoin Balance is "
+
+			if ln.AdvertiseBitcoinBalance {
+				msg += "Enabled"
+			} else {
+				msg += "Disabled"
+			}
+
+			// all done, display confirmation
+			http.Redirect(w, r, "/bitcoin?msg="+msg, http.StatusSeeOther)
 			return
 
 		case "deleteTxId":
@@ -2296,6 +2357,17 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		bitcoinSwaps, err := strconv.ParseBool(r.FormValue("bitcoinSwaps"))
 		if err != nil {
 			bitcoinSwaps = false
+		}
+
+		// disable broadcasting
+		if !allowSwapRequests {
+			ln.AdvertiseLiquidBalance = false
+			db.Save("Peers", "AdvertiseLiquidBalance", ln.AdvertiseLiquidBalance)
+		}
+
+		if !allowSwapRequests || !bitcoinSwaps {
+			ln.AdvertiseBitcoinBalance = false
+			db.Save("Peers", "AdvertiseBitcoinBalance", ln.AdvertiseBitcoinBalance)
 		}
 
 		mustRestart := false
