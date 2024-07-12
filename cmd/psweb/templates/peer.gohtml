@@ -176,7 +176,7 @@
                             // Check amount
                             const maxAmount = {{.BitcoinBalance}} - {{.ReserveBTC}};
                             if (swapAmount > maxAmount) {
-                              document.getElementById('result').innerText = "Insufficient BTC balance (" + formatWithThousandSeparators(maxAmount) + " sats maximum)";
+                              document.getElementById('result').innerText = "Insufficient BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
                               return;
                             }
 
@@ -235,7 +235,7 @@
                             // Check amount
                             const maxAmount = {{.LiquidBalance}} - {{.ReserveLBTC}};
                             if (swapAmount > maxAmount) {
-                              document.getElementById('result').innerText = "Insufficient L-BTC balance (" + formatWithThousandSeparators(maxAmount) + " sats maximum)";
+                              document.getElementById('result').innerText = "Insufficient L-BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
                               return;
                             }
 

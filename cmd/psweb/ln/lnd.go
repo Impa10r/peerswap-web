@@ -1833,20 +1833,16 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	}
 
 	localBalance := int64(0)
-
-	var channel *lnrpc.Channel
-
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
 			localBalance = ch.LocalBalance
-
-			channel = ch
 
 			break
 		}
 	}
 
 	liqPct := int(localBalance * 100 / r.Capacity)
+
 	if htlcFail {
 		if liqPct < params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
@@ -1866,9 +1862,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 			// log the last change
 			LogFee(channelId, old, newFee, false, false)
-
-			log.Println(channel, liqPct, oldFee, newFee)
-
 		}
 	}
 
@@ -1948,6 +1941,9 @@ func ApplyAutoFees() {
 			if err == nil {
 				// log the last change
 				LogFee(ch.ChanId, oldFee, newFee, false, false)
+
+				log.Println(ch, liqPct, oldFee, newFee)
+
 			}
 		}
 
