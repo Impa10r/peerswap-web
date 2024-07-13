@@ -4,6 +4,7 @@
 
 - Allow advertising BTC balance to peers
 - Retry polling peers for balances after peerswap initializes
+- Fix peerswap config not updating on Umbrel
 
 ## 1.6.5
 

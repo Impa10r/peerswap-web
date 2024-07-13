@@ -78,7 +78,9 @@
                     }, 5000); // 5 seconds
                 }
                 {{if ne .ErrorMessage ""}}
-                    displayErrorMessage("{{.ErrorMessage}}");
+                    {{if ne .ErrorMessage "welcome"}}
+                        displayErrorMessage("{{.ErrorMessage}}");
+                    {{end}}
                 {{end}}
                 var dropdown = document.querySelector('.dropdown');
                 dropdown.addEventListener('click', function(event) {

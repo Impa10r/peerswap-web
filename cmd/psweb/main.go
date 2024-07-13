@@ -680,30 +680,30 @@ func convertPeersToHTMLTable(
 
 		if stringIsInSlice("btc", peer.SupportedAssets) {
 			peerTable += "<span title=\"BTC swaps enabled\" style=\"color: #FF9900; font-weight: bold;\">₿</span>&nbsp"
-		}
 
-		if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
-			btcBalance := ptr.Amount
-			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
-			flooredBalance := "<span style=\"color:grey\">0m</span>"
-			if btcBalance > 100_000 {
-				flooredBalance = toMil(btcBalance)
+			if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
+				btcBalance := ptr.Amount
+				tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
+				flooredBalance := "<span style=\"color:grey\">0m</span>"
+				if btcBalance > 100_000 {
+					flooredBalance = toMil(btcBalance)
+				}
+				peerTable += "<span title=\"Peer's BTC balance: " + formatWithThousandSeparators(btcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
-			peerTable += "<span title=\"Peer's BTC balance: " + formatWithThousandSeparators(btcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 		}
 
 		if stringIsInSlice("lbtc", peer.SupportedAssets) {
 			peerTable += "<span title=\"L-BTC swaps enabled\">🌊</span>"
-		}
 
-		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
-			lbtcBalance := ptr.Amount
-			tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
-			flooredBalance := "<span style=\"color:grey\">0m</span>"
-			if lbtcBalance > 100_000 {
-				flooredBalance = toMil(lbtcBalance)
+			if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+				lbtcBalance := ptr.Amount
+				tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
+				flooredBalance := "<span style=\"color:grey\">0m</span>"
+				if lbtcBalance > 100_000 {
+					flooredBalance = toMil(lbtcBalance)
+				}
+				peerTable += "<span title=\"Peer's L-BTC balance: " + formatWithThousandSeparators(lbtcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
-			peerTable += "<span title=\"Peer's L-BTC balance: " + formatWithThousandSeparators(lbtcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 		}
 
 		if peer.SwapsAllowed {
@@ -1669,19 +1669,21 @@ func advertiseBalances() {
 	ln.LiquidBalance = res2.GetSatAmount()
 	ln.BitcoinBalance = uint64(ln.ConfirmedWalletBalance(cl))
 
+	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
+
 	for _, peer := range res3.GetPeers() {
 		if ln.Implementation == "LND" {
-			// refresh balances received over 24 hours ago
+			// refresh balances received over 24 hours ago + 2 minutes
 			pollPeer := false
 			if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
-				if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+				if ptr.TimeStamp < cutOff {
 					pollPeer = true
 					// delete stale information
 					ln.LiquidBalances[peer.NodeId] = nil
 				}
 			}
 			if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
-				if ptr.TimeStamp < time.Now().AddDate(0, 0, -1).Unix() {
+				if ptr.TimeStamp < cutOff {
 					pollPeer = true
 					// delete stale information
 					ln.BitcoinBalances[peer.NodeId] = nil
@@ -1700,7 +1702,7 @@ func advertiseBalances() {
 			ptr := ln.SentLiquidBalances[peer.NodeId]
 			if ptr != nil {
 				if ptr.Amount == ln.LiquidBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
-					// do not repeat within 24 hours unless changed
+					// do not resend within 24 hours unless changed
 					continue
 				}
 			}
@@ -1724,7 +1726,7 @@ func advertiseBalances() {
 			ptr := ln.SentBitcoinBalances[peer.NodeId]
 			if ptr != nil {
 				if ptr.Amount == ln.BitcoinBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
-					// do not repeat within 24 hours unless changed
+					// do not resend within 24 hours unless changed
 					continue
 				}
 			}

@@ -12,7 +12,7 @@ This source code is free speech. The contributors do not solicit its use for any
 
 ## Install dependencies
 
-PeerSwap requires Bitcoin Core, Elements Core and LND or Core Lightning installed.
+PeerSwap requires Bitcoin Core installed and synced, Elements Core installed and synced, LND or Core Lightning installed.
 
 ## Docker (LND only)
 

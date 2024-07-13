@@ -1799,7 +1799,7 @@ func SetHtlcSize(peerNodeId string,
 	return nil
 }
 
-// for failed HTLC only
+// called after individual HTLC settles or fails
 func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool) {
 
 	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] || autoFeeIsRunning {
@@ -1873,8 +1873,8 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		if liqPct < params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
 			newFee += params.FailedBumpPPM
-		} else {
-			// move threshold or do nothing
+		} else if liqPct > params.LowLiqPct {
+			// move threshold
 			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
 			autoFeeIsRunning = false
 			return
@@ -1894,6 +1894,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	autoFeeIsRunning = false
 }
 
+// review all fees on timer
 func ApplyAutoFees() {
 
 	if !AutoFeeEnabledAll || autoFeeIsRunning {

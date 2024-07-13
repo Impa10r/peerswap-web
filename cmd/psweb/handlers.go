@@ -2416,6 +2416,8 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if mustRestart {
+			// update peerswap config
+			config.SavePS()
 			// show progress bar and log
 			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
 			ps.Stop()
