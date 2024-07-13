@@ -1,5 +1,9 @@
 # Versions
 
+## 1.6.7
+
+- 
+
 ## 1.6.6
 
 - Allow advertising BTC balance to peers
