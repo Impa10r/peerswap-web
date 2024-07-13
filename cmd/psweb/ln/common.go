@@ -330,8 +330,9 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 		if lastLog != nil {
 			lastUpdate = lastLog.TimeStamp
 		}
-		// see if cool-off period has passed
-		if lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
+
+		// must be definitely above threshold and cool-off period passed
+		if liqPct > params.LowLiqPct && lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the inactivity period
 			if LastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
