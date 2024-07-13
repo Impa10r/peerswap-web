@@ -1,8 +1,14 @@
 # Versions
 
+## 1.6.6
+
+- Allow advertising BTC balance to peers
+- Retry polling peers for balances after peerswap initializes
+- Fix peerswap config not updating on Umbrel
+
 ## 1.6.5
 
-- Reduce frequency of balance announcements to 24hr unless changed
+- Reduce frequency of balance announcements to daily unless changed
 - Pre-fill 0 if possible swap amount is below 100,000
 
 ## 1.6.4

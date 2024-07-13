@@ -4,7 +4,34 @@
       <div class="columns">
         <div class="column">
           <div class="box has-text-left">
-            <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
+            <div style="display: grid; grid-template-columns: auto auto;">
+                <div style="text-align: left;">
+                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}
+                    {{if .BitcoinSwaps}} 
+                      <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
+                    {{else}}
+                      <span style="font-size: 0.7em;" title="Bitcoin swaps disabled">❌</span>
+                    {{end}}
+                  </h4>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                  <form id="toggleForm_0" action="/submit" method="post">
+                    <input type="hidden" name="action" value="advertiseBitcoinBalance">
+                    <label class="checkbox is-large" style="padding-top: .5em;">
+                      <input title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="document.getElementById('toggleForm_0').submit()">
+                      {{if .AdvertiseEnabled}}
+                        <label title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                          📡 ON
+                        </label>
+                      {{else}}
+                        <label title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                          📡 OFF
+                        </label>
+                      {{end}}
+                    </label>
+                  </form>
+                </div>
+              </div>
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box has-text-left">
