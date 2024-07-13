@@ -1673,7 +1673,7 @@ func advertiseBalances() {
 
 	for _, peer := range res3.GetPeers() {
 		if ln.Implementation == "LND" {
-			// refresh balances received over 24 hours ago + 2 minutes
+			// refresh balances received over 24 hours ago + 2 minutes ago
 			pollPeer := false
 			if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 				if ptr.TimeStamp < cutOff {
