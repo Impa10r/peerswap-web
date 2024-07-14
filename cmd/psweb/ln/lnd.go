@@ -1968,9 +1968,6 @@ func ApplyAutoFees() {
 			if err == nil {
 				// log the last change
 				LogFee(ch.ChanId, oldFee, newFee, false, false)
-
-				log.Println(ch, liqPct, oldFee, newFee)
-
 			}
 		}
 
