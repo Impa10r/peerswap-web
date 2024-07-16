@@ -45,8 +45,9 @@ const (
 	Implementation = "LND"
 	// Liquid balance to reserve in auto swap-ins
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
-	SwapFeeReserveLBTC = uint64(1000)
-	SwapFeeReserveBTC  = uint64(2000)
+	// extra 1000 reserve to avoid no-change tx spending all on fees
+	SwapFeeReserveLBTC = uint64(2000)
+	SwapFeeReserveBTC  = uint64(3000)
 )
 
 type InflightHTLC struct {

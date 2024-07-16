@@ -30,8 +30,9 @@ const (
 	fileRPC        = "lightning-rpc"
 	// Liquid balance to reserve in auto swap-ins
 	// https://github.com/ElementsProject/peerswap/blob/master/clightning/clightning_commands.go#L392
-	SwapFeeReserveLBTC = uint64(0)
-	SwapFeeReserveBTC  = uint64(2000)
+	// extra 1000 reserve to avoid no-change tx spending all on fees
+	SwapFeeReserveLBTC = uint64(1000)
+	SwapFeeReserveBTC  = uint64(3000)
 )
 
 type Forwarding struct {

@@ -41,7 +41,7 @@ const (
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	swapOutChannelReserve = 5000
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
-	// increaased by extra 1000 sats to avoid huge fee rate
+	// increased by extra 1000 sats to avoid huge fee rate
 	swapOutChainReserve = 21300
 )
 
@@ -1392,8 +1392,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	// extra 1000 reserve to avoid no-change tx spending all on fees
-	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC-1000)
+	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC)
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

@@ -2254,15 +2254,53 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
+				// reserve depends on asset and LND/CLN implementation
+				var reserve uint64
+				var amountAvailable uint64
+
+				if asset == "btc" {
+					cl, clean, er := ln.GetClient()
+					if er != nil {
+						redirectWithError(w, r, "/config?", er)
+						return
+					}
+					defer clean()
+
+					amountAvailable = uint64(ln.ConfirmedWalletBalance(cl))
+					reserve = ln.SwapFeeReserveBTC
+				} else if asset == "lbtc" {
+					client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+					if err != nil {
+						redirectWithError(w, r, "/config?", err)
+						return
+					}
+					defer cleanup()
+
+					res, err := ps.LiquidGetBalance(client)
+					if err != nil {
+						log.Printf("unable to connect to RPC server: %v", err)
+						redirectWithError(w, r, "/config?", err)
+						return
+					}
+
+					amountAvailable = res.GetSatAmount()
+					reserve = ln.SwapFeeReserveLBTC
+				}
+
+				if amountAvailable < reserve || swapAmount > amountAvailable-reserve {
+					redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds wallet balance less reserve "+formatWithThousandSeparators(reserve)+" sats"))
+					return
+				}
+
 				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
-				id := peerNodeId[channelId]
+				peerId := peerNodeId[channelId]
 				var ptr *ln.BalanceInfo
 
 				if asset == "btc" {
-					ptr = ln.BitcoinBalances[id]
+					ptr = ln.BitcoinBalances[peerId]
 				} else if asset == "lbtc" {
-					ptr = ln.LiquidBalances[id]
+					ptr = ln.LiquidBalances[peerId]
 				}
 
 				if ptr != nil {
