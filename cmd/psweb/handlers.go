@@ -460,20 +460,36 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	directionIn := false
 
 	// assume return to 50/50 channel
-	recommendLiquidSwapOut := maxLiquidSwapOut
-	recommendBitcoinSwapOut := maxBitcoinSwapOut
+	recommendLiquidSwapOut := uint64(0)
+	recommendBitcoinSwapOut := uint64(0)
 	if maxLocalBalance > channelCapacity/2 {
 		recommendLiquidSwapOut = min(maxLiquidSwapOut, maxLocalBalance-channelCapacity/2)
-		recommendBitcoinSwapOut = min(recommendBitcoinSwapOut, maxLocalBalance-channelCapacity/2)
+		recommendBitcoinSwapOut = min(maxBitcoinSwapOut, maxLocalBalance-channelCapacity/2)
+	}
+
+	if recommendLiquidSwapOut < 100_000 {
+		recommendLiquidSwapOut = 0
+	}
+
+	if recommendBitcoinSwapOut < 100_000 {
+		recommendBitcoinSwapOut = 0
 	}
 
 	// assume return to 50/50 channel
-	recommendLiquidSwapIn := maxLiquidSwapIn
-	recommendBitcoinSwapIn := maxBitcoinSwapIn
+	recommendLiquidSwapIn := int64(0)
+	recommendBitcoinSwapIn := int64(0)
 	if maxRemoteBalance > channelCapacity/2 {
 		directionIn = true
-		recommendLiquidSwapIn = min(recommendLiquidSwapIn, int64(maxRemoteBalance-channelCapacity/2))
-		recommendBitcoinSwapIn = min(recommendBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+		recommendLiquidSwapIn = min(maxLiquidSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+		recommendBitcoinSwapIn = min(maxBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+	}
+
+	if recommendBitcoinSwapIn < 100_000 {
+		recommendBitcoinSwapIn = 0
+	}
+
+	if recommendBitcoinSwapIn < 100_000 {
+		recommendBitcoinSwapIn = 0
 	}
 
 	type Page struct {

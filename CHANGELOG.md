@@ -2,7 +2,7 @@
 
 ## 1.6.7
 
-- 
+- Pre-fill 0 if recommended swap amount is below 100,000
 
 ## 1.6.6
 
