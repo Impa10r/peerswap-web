@@ -427,11 +427,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		peerLiquidBalance = int64(ptr.Amount)
-		// reserves are hardcoded here:
-		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
-		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
-		// reduce balance by extra 1000 sats to avoid huge fee rate
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300-1000)))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-swapOutChainReserve)))
 		if maxLiquidSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
 		} else {
@@ -443,7 +439,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	maxBitcoinSwapOut := uint64(0)
 	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 		peerBitcoinBalance = int64(ptr.Amount)
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerBitcoinBalance-21300)))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-swapOutChainReserve)))
 		if maxBitcoinSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
 		} else {
@@ -2260,6 +2256,22 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			case "in":
 				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
+				id := peerNodeId[channelId]
+				var ptr *ln.BalanceInfo
+
+				if asset == "btc" {
+					ptr = ln.BitcoinBalances[id]
+				} else if asset == "lbtc" {
+					ptr = ln.LiquidBalances[id]
+				}
+
+				if ptr != nil {
+					if ptr.Amount < swapOutChainReserve || swapAmount > ptr.Amount-swapOutChainReserve {
+						redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds peer's wallet balance less reserve "+formatWithThousandSeparators(swapOutChainReserve)+" sats"))
+						return
+					}
+				}
+
 				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
 			}
 

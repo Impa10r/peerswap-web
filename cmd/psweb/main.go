@@ -36,6 +36,13 @@ import (
 const (
 	// App version tag
 	version = "v1.6.7"
+
+	// Swap Out reserves are hardcoded here:
+	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
+	swapOutChannelReserve = 5000
+	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
+	// increaased by extra 1000 sats to avoid huge fee rate
+	swapOutChainReserve = 21300
 )
 
 type SwapParams struct {

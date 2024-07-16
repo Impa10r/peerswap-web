@@ -3,7 +3,7 @@
 ## 1.6.7
 
 - Pre-fill 0 if recommended swap amount is below 100,000
-- Set max swap out amount to peer's balance less 21,300 to avoid high fee
+- Limit max swap out amount to peer's balance less 21,300 to avoid high fee
 
 ## 1.6.6
 
