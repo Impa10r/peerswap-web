@@ -430,7 +430,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		// reserves are hardcoded here:
 		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
 		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300)))
+		// reduce balance by extra 1000 sats to avoid huge fee rate
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300-1000)))
 		if maxLiquidSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
 		} else {
@@ -442,7 +443,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	maxBitcoinSwapOut := uint64(0)
 	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 		peerBitcoinBalance = int64(ptr.Amount)
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerBitcoinBalance-20300)))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerBitcoinBalance-21300)))
 		if maxBitcoinSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
 		} else {
@@ -484,8 +485,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		recommendBitcoinSwapIn = min(maxBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
 	}
 
-	if recommendBitcoinSwapIn < 100_000 {
-		recommendBitcoinSwapIn = 0
+	if recommendLiquidSwapIn < 100_000 {
+		recommendLiquidSwapIn = 0
 	}
 
 	if recommendBitcoinSwapIn < 100_000 {
