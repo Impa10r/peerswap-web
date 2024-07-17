@@ -1803,11 +1803,9 @@ func SetHtlcSize(peerNodeId string,
 // called after individual HTLC settles or fails
 func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool) {
 
-	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] || autoFeeIsRunning {
+	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
 		return
 	}
-
-	autoFeeIsRunning = true
 
 	params := &AutoFeeDefaults
 	if AutoFee[channelId] != nil {
@@ -1820,7 +1818,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
-			autoFeeIsRunning = false
 			return
 		}
 		myNodeId = res.GetIdentityPubkey()
@@ -1829,7 +1826,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		ChanId: channelId,
 	})
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1847,7 +1843,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	// get balances
 	bytePeer, err := hex.DecodeString(peerId)
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1855,7 +1850,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		Peer: bytePeer,
 	})
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1877,7 +1871,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		} else if liqPct > params.LowLiqPct {
 			// move threshold
 			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
-			autoFeeIsRunning = false
 			return
 		}
 	} else {
@@ -1891,22 +1884,17 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 			LogFee(channelId, old, newFee, false, false)
 		}
 	}
-
-	autoFeeIsRunning = false
 }
 
 // review all fees on timer
 func ApplyAutoFees() {
 
-	if !AutoFeeEnabledAll || autoFeeIsRunning {
+	if !AutoFeeEnabledAll {
 		return
 	}
 
-	autoFeeIsRunning = true
-
 	client, cleanup, err := GetClient()
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 	defer cleanup()
@@ -1916,7 +1904,6 @@ func ApplyAutoFees() {
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
-			autoFeeIsRunning = false
 			return
 		}
 		myNodeId = res.GetIdentityPubkey()
@@ -1926,7 +1913,6 @@ func ApplyAutoFees() {
 		ActiveOnly: true,
 	})
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1945,7 +1931,6 @@ func ApplyAutoFees() {
 			ChanId: ch.ChanId,
 		})
 		if err != nil {
-			autoFeeIsRunning = false
 			return
 		}
 
@@ -1999,8 +1984,6 @@ func ApplyAutoFees() {
 			}
 		}
 	}
-
-	autoFeeIsRunning = false
 }
 
 func PlotPPM(channelId uint64) *[]DataPoint {

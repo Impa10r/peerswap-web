@@ -193,9 +193,6 @@ var (
 	// track timestamp of the last outbound forward per channel
 	LastForwardTS = make(map[uint64]int64)
 
-	// prevents starting another fee update while the first still running
-	autoFeeIsRunning = false
-
 	// received via custom messages, per peer nodeId
 	LiquidBalances  = make(map[string]*BalanceInfo)
 	BitcoinBalances = make(map[string]*BalanceInfo)

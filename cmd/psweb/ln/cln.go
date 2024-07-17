@@ -1134,17 +1134,14 @@ func HasInboundFees() bool {
 }
 
 func ApplyAutoFees() {
-	if !AutoFeeEnabledAll || autoFeeIsRunning {
+	if !AutoFeeEnabledAll {
 		return
 	}
-
-	autoFeeIsRunning = true
 
 	CacheForwards()
 
 	client, cleanup, err := GetClient()
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 	defer cleanup()
@@ -1152,7 +1149,6 @@ func ApplyAutoFees() {
 	var response map[string]interface{}
 
 	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1195,7 +1191,6 @@ func ApplyAutoFees() {
 			} else {
 				// move threshold or do nothing
 				moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
-				autoFeeIsRunning = false
 				return
 			}
 		}
@@ -1214,8 +1209,6 @@ func ApplyAutoFees() {
 			}
 		}
 	}
-
-	autoFeeIsRunning = false
 }
 
 func PlotPPM(channelId uint64) *[]DataPoint {
