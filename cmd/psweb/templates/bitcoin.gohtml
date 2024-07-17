@@ -38,7 +38,7 @@
               <div class="tabs is-large is-boxed">
                 <ul>
                   <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-In</a></li>
-                  <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send Bitcoin</a></li>
+                  <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send BTC</a></li>
                 </ul>
               </div>
               <form id="myForm" autocomplete="off" action="/pegin" method="post" onsubmit="return confirmSubmit()">
