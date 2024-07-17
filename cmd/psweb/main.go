@@ -42,7 +42,7 @@ const (
 	swapOutChannelReserve = 5000
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
 	// increased by extra 1000 sats to avoid huge fee rate
-	swapOutChainReserve = 21300
+	swapOutChainReserve = 20300
 	// for Swap In reserves see /ln
 )
 

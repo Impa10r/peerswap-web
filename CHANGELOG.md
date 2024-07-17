@@ -2,9 +2,6 @@
 
 ## 1.6.7
 
-- Pre-fill 0 if recommended swap amount is below 100,000
-- Limit max swap out amount to peer's balance less 21,300 to avoid high fee
-- Limit max swap in amount to own balance less reserve to avoid high fee
 - Fix AutoFees stop working bug
 - Fix AutoFees applied on startup before forwards history was downloaded
 - Highlight outputs to be used for peg-in or BTC withdrawal
