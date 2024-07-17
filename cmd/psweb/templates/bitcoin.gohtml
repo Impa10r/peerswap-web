@@ -241,12 +241,12 @@
               </thead>
               <tbody>
               {{range .Outputs}}
-                <tr>
+                <tr id="{{.TxidStr}}:{{.OutputIndex}}">
                   <td id="utxoAddress" class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
                   <td style="text-align: right;">{{fmt (u .Confirmations)}}</td>
                   <td id="utxoAmount" style="text-align: right;">{{fmt (u .AmountSat)}}</td>
                   {{if eq $.PeginTxId ""}}
-                    <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}})" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
+                    <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}}, '{{.TxidStr}}:{{.OutputIndex}}')" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
                   {{end}}
                 </tr>
               {{end}}
@@ -282,6 +282,7 @@
                 var fields = document.querySelectorAll('#select');
                 fields.forEach(function(element) {
                   element.checked = true
+                  document.getElementById(element.value).classList.add('is-selected');
                 });
                 calculateTransactionFee();
               }
@@ -291,16 +292,18 @@
                 delayedCalculateTransactionFee();
               }
 
-              function onSelect(checked, amountStr) {
+              function onSelect(checked, amountStr, rowId) {
                 var amountInt = Number(amountStr);
                 if (checked) {
                   document.getElementById("peginAmount").value = Number(document.getElementById("peginAmount").value) + amountInt;
                   document.getElementById("subtractfee").checked = true;
+                  document.getElementById(rowId).classList.add('is-selected');
                 } else {
                   document.getElementById("peginAmount").value = Number(document.getElementById("peginAmount").value) - amountInt;
                   if (Number(document.getElementById("peginAmount").value)<=0) {
                     document.getElementById("peginAmount").value = "";
                   }
+                  document.getElementById(rowId).classList.remove('is-selected');
                 }
                 calculateTransactionFee();
               }
@@ -309,6 +312,7 @@
                 var fields = document.querySelectorAll('#select');
                 fields.forEach(function(element) {
                   element.checked = false
+                  document.getElementById(element.value).classList.remove('is-selected');
                 });
                 document.getElementById("unselectAll").style.visibility = "hidden";
                 document.getElementById("peginAmount").value = "";
@@ -358,6 +362,14 @@
 
               // Function to execute after a delay
               function delayedCalculateTransactionFee() {
+                  // unselect UTXOs
+                  var fields = document.querySelectorAll('#select');
+                  fields.forEach(function(element) {
+                    element.checked = false
+                    document.getElementById(element.value).classList.remove('is-selected');
+                  });
+                  document.getElementById("unselectAll").style.visibility = "hidden";
+
                   // Clear previous timer if it exists
                   clearTimeout(timerId);
 
@@ -366,7 +378,7 @@
               }
 
               function calculateTransactionFee() {
-                const peginAmount = Number(document.getElementById("peginAmount").value);
+                let peginAmount = Number(document.getElementById("peginAmount").value);
                 if (peginAmount < 1) {
                   document.getElementById("subtractfee").checked = false;
                 }
@@ -395,6 +407,12 @@
                   return;
                 }
 
+                // amount cannot exceed available balance
+                if (peginAmount > {{.BitcoinBalance}}) {
+                  document.getElementById('result').innerText = "Amount exceeds available BTC balance";
+                  return;
+                }
+
                 {{if .CanRBF}} 
                   // change is P2TR
                   let outputsP2TR = change; // Number of P2TR outputs
@@ -416,6 +434,7 @@
                 
                 // Get all table rows and convert NodeList to an array
                 let tableArray = Array.from(document.querySelectorAll("#utxoTable tbody tr"));  
+                let selectedAmount = 0;
 
                 // Iterate through table rows
                 tableArray.forEach(function(row) {
@@ -424,6 +443,9 @@
                     if (checkbox && checkbox.checked) {
                       // Increment selected UTXO count
                       selectedUtxoCount++;
+
+                      // increment selected amount
+                      selectedAmount += parseFloat(row.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
                       
                       // identify P2TR vs P2WPKH address
                       const address = row.querySelector("#utxoAddress").textContent
@@ -434,6 +456,9 @@
                         // Increment P2WPKH UTXO count
                         inputsP2WPKH++;
                       }
+                    } else {
+                      // do not highlight what is not selected
+                      row.classList.remove('is-selected');
                     }
                 });
 
@@ -459,6 +484,9 @@
                     if (amountToAllocate > 0) {
                         // Reduce unallocated amount by UTXO size
                         amountToAllocate -= parseFloat(row.querySelector("#utxoAmount").textContent.replace(/,/g, ''));
+                        
+                        // highlight what is selected
+                        row.classList.add('is-selected');
 
                         // identify P2TR vs P2WPKH address
                         const address = row.querySelector("#utxoAddress").textContent
@@ -469,9 +497,16 @@
                           // Increment P2WPKH UTXO count
                           inputsP2WPKH++;
                         }
+                    } else {
+                      // do not highlight what is not selected
+                      row.classList.remove('is-selected');
                     }
                   });
                 } else {
+                  // reset peginAmount to selectedAmount
+                  peginAmount = selectedAmount;
+                  document.getElementById("peginAmount").value = selectedAmount;
+
                   // allow unselect all with one click
                   document.getElementById("unselectAll").textContent = selectedUtxoCount;
                   document.getElementById("unselectAll").style.visibility = "visible";
