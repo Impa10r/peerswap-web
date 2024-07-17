@@ -43,6 +43,7 @@ const (
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
 	// increased by extra 1000 sats to avoid huge fee rate
 	swapOutChainReserve = 21300
+	// for Swap In reserves see /ln
 )
 
 type SwapParams struct {
@@ -649,7 +650,11 @@ func convertPeersToHTMLTable(
 		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page
-		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		if len(peer.Channels) > 0 {
+			peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		} else {
+			peerTable += "<a href=\"" + config.Config.NodeApi + "/" + peer.NodeId + "\" target=\"_blank\">"
+		}
 
 		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
 			peerTable += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
