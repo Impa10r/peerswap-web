@@ -447,7 +447,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// arbitrary haircut to avoid 'no matching outgoing channel available'
+	// arbitrary haircuts to avoid 'no matching outgoing channel available'
 	maxBitcoinSwapIn := min(btcBalance-2000, int64(maxRemoteBalance)-10000)
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
@@ -465,11 +465,19 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if recommendLiquidSwapOut < 100_000 {
-		recommendLiquidSwapOut = 0
+		if maxLiquidSwapOut >= 100_000 {
+			recommendLiquidSwapOut = 100_000
+		} else {
+			recommendLiquidSwapOut = 0
+		}
 	}
 
 	if recommendBitcoinSwapOut < 100_000 {
-		recommendBitcoinSwapOut = 0
+		if maxBitcoinSwapOut >= 100_000 {
+			recommendBitcoinSwapOut = 100_000
+		} else {
+			recommendBitcoinSwapOut = 0
+		}
 	}
 
 	// assume return to 50/50 channel
@@ -482,11 +490,19 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if recommendLiquidSwapIn < 100_000 {
-		recommendLiquidSwapIn = 0
+		if maxLiquidSwapIn >= 100_000 {
+			recommendLiquidSwapIn = 100_000
+		} else {
+			recommendLiquidSwapIn = 0
+		}
 	}
 
 	if recommendBitcoinSwapIn < 100_000 {
-		recommendBitcoinSwapIn = 0
+		if maxBitcoinSwapIn >= 100_000 {
+			recommendBitcoinSwapIn = 100_000
+		} else {
+			recommendBitcoinSwapIn = 0
+		}
 	}
 
 	type Page struct {
