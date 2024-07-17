@@ -379,6 +379,8 @@
 
               function calculateTransactionFee() {
                 let peginAmount = Number(document.getElementById("peginAmount").value);
+                const isPegin = document.getElementById("isPegin").value == "true";
+
                 if (peginAmount < 1) {
                   document.getElementById("subtractfee").checked = false;
                 }
@@ -506,7 +508,7 @@
                   // reset peginAmount to selectedAmount
                   peginAmount = selectedAmount;
                   document.getElementById("peginAmount").value = selectedAmount;
-
+                  
                   // allow unselect all with one click
                   document.getElementById("unselectAll").textContent = selectedUtxoCount;
                   document.getElementById("unselectAll").style.visibility = "visible";
@@ -519,8 +521,7 @@
                   return;
                 }
                 
-                const sendAddress = document.getElementById("sendAddress").value;      
-                const isPegin = document.getElementById("isPegin").value == "true";
+                const sendAddress = document.getElementById("sendAddress").value;
                 
                 if (!isPegin) {
                   // identify send address type

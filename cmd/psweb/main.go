@@ -328,16 +328,16 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 
 func startTimer() {
 	// first run immediately
-	onTimer()
+	onTimer(true)
 
 	// then every minute
 	for range time.Tick(60 * time.Second) {
-		onTimer()
+		onTimer(false)
 	}
 }
 
 // tasks that run every minute
-func onTimer() {
+func onTimer(firstRun bool) {
 	// Start Telegram bot if not already running
 	go telegramStart()
 
@@ -373,7 +373,10 @@ func onTimer() {
 	go ln.SubscribeAll()
 
 	// execute auto fee
-	go ln.ApplyAutoFees()
+	if !firstRun {
+		// skip first run so that forwards have time to download
+		go ln.ApplyAutoFees()
+	}
 
 	// advertise Liquid balance
 	go advertiseBalances()
