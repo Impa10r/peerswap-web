@@ -28,9 +28,9 @@ import (
 const (
 	Implementation = "CLN"
 	fileRPC        = "lightning-rpc"
-	// Liquid balance to reserve in auto swap-ins
 	// https://github.com/ElementsProject/peerswap/blob/master/clightning/clightning_commands.go#L392
-	SwapFeeReserveLBTC = uint64(0)
+	// 2000 to avoid high fee
+	SwapFeeReserveLBTC = uint64(2000)
 	SwapFeeReserveBTC  = uint64(2000)
 )
 

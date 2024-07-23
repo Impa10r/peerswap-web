@@ -5,6 +5,8 @@
 - Fix AutoFees stop working bug
 - Fix AutoFees applied on startup before forwards history was downloaded
 - Highlight outputs to be used for peg-in or BTC withdrawal
+- Calculate max swap in and swap out amount
+- Warn when BTC swap-in amount is unlikely to cover chain fee 
 
 ## 1.6.6
 

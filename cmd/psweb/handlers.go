@@ -417,7 +417,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-2000, int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-int64(ln.SwapFeeReserveLBTC), int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -448,7 +448,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// arbitrary haircuts to avoid 'no matching outgoing channel available'
-	maxBitcoinSwapIn := min(btcBalance-2000, int64(maxRemoteBalance)-10000)
+	maxBitcoinSwapIn := min(btcBalance-int64(ln.SwapFeeReserveBTC), int64(maxRemoteBalance)-10000)
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
 	}

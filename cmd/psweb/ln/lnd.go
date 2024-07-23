@@ -43,9 +43,9 @@ import (
 
 const (
 	Implementation = "LND"
-	// Liquid balance to reserve in auto swap-ins
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
-	SwapFeeReserveLBTC = uint64(1000)
+	// 2000 to avoid high fee
+	SwapFeeReserveLBTC = uint64(2000)
 	SwapFeeReserveBTC  = uint64(2000)
 )
 
@@ -1853,10 +1853,11 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	}
 
 	localBalance := int64(0)
+	unsettledBalance := int64(0)
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
 			localBalance = ch.LocalBalance + ch.UnsettledBalance
-
+			unsettledBalance = ch.UnsettledBalance
 			break
 		}
 	}
@@ -1878,6 +1879,10 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	// set the new rate
 	if newFee != oldFee {
+		if unsettledBalance > 0 && newFee < oldFee {
+			// do not lower fees for temporary balance spikes due to pending HTLCs
+			return
+		}
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 			// log the last change
 			LogFee(channelId, old, newFee, false, false)
@@ -1949,6 +1954,10 @@ func ApplyAutoFees() {
 
 		// set the new rate
 		if newFee != oldFee {
+			if ch.UnsettledBalance > 0 && newFee < oldFee {
+				// do not lower fees for temporary balance spikes due to pending HTLCs
+				continue
+			}
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
 			if err == nil {
 				// log the last change
