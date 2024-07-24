@@ -4,7 +4,7 @@
 
 - Fix AutoFees stop working bug
 - Fix AutoFees applied on startup before forwards history has been downloaded
-- LND: Fix AutoFees reacting to temporary balance increase due to pendinng HTLCs
+- LND 0.18: Fix AutoFees reacting to temporary balance increase due to pendinng HTLCs
 - Highlight outputs to be used for peg-in or BTC withdrawal
 - Warn when BTC swap-in amount is unlikely to cover chain fee 
 - Limit L-BTC swap-in amount to avoid excessive fee rate
