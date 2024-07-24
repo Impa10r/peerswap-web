@@ -35,7 +35,15 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.6"
+	version = "v1.6.7"
+
+	// Swap Out reserves are hardcoded here:
+	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
+	swapOutChannelReserve = 5000
+	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
+	// increased by extra 1000 sats to avoid huge fee rate
+	swapOutChainReserve = 20300
+	// for Swap In reserves see /ln
 )
 
 type SwapParams struct {
@@ -320,16 +328,16 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 
 func startTimer() {
 	// first run immediately
-	onTimer()
+	onTimer(true)
 
 	// then every minute
 	for range time.Tick(60 * time.Second) {
-		onTimer()
+		onTimer(false)
 	}
 }
 
 // tasks that run every minute
-func onTimer() {
+func onTimer(firstRun bool) {
 	// Start Telegram bot if not already running
 	go telegramStart()
 
@@ -365,7 +373,10 @@ func onTimer() {
 	go ln.SubscribeAll()
 
 	// execute auto fee
-	go ln.ApplyAutoFees()
+	if !firstRun {
+		// skip first run so that forwards have time to download
+		go ln.ApplyAutoFees()
+	}
 
 	// advertise Liquid balance
 	go advertiseBalances()
@@ -642,7 +653,11 @@ func convertPeersToHTMLTable(
 		peerTable += "<td class=\"truncate\" id=\"scramble\" style=\"padding: 0px; padding-left: 1px; float: left; text-align: left; width: 70%;\">"
 
 		// alias is a link to open peer details page
-		peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		if len(peer.Channels) > 0 {
+			peerTable += "<a href=\"/peer?id=" + peer.NodeId + "\">"
+		} else {
+			peerTable += "<a href=\"" + config.Config.NodeApi + "/" + peer.NodeId + "\" target=\"_blank\">"
+		}
 
 		if stringIsInSlice(peer.NodeId, allowlistedPeers) {
 			peerTable += "<span title=\"Peer is whitelisted\">✅&nbsp</span>"
@@ -1385,8 +1400,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	// extra 1000 reserve to avoid no-change tx spending all on fees
-	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC-1000)
+	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC)
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
@@ -1673,7 +1687,7 @@ func advertiseBalances() {
 
 	for _, peer := range res3.GetPeers() {
 		if ln.Implementation == "LND" {
-			// refresh balances received over 24 hours ago + 2 minutes
+			// refresh balances received over 24 hours ago + 2 minutes ago
 			pollPeer := false
 			if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 				if ptr.TimeStamp < cutOff {

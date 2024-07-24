@@ -417,7 +417,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-2000, int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-int64(ln.SwapFeeReserveLBTC), int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -427,10 +427,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		peerLiquidBalance = int64(ptr.Amount)
-		// reserves are hardcoded here:
-		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
-		// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerLiquidBalance-20300)))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-swapOutChainReserve)))
 		if maxLiquidSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
 		} else {
@@ -442,7 +439,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	maxBitcoinSwapOut := uint64(0)
 	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 		peerBitcoinBalance = int64(ptr.Amount)
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-5000, peerBitcoinBalance-20300)))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-swapOutChainReserve)))
 		if maxBitcoinSwapOut >= 100_000 {
 			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
 		} else {
@@ -450,8 +447,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxBitcoinSwapIn := min(btcBalance-2000, int64(maxRemoteBalance)-10000)
+	// arbitrary haircuts to avoid 'no matching outgoing channel available'
+	maxBitcoinSwapIn := min(btcBalance-int64(ln.SwapFeeReserveBTC), int64(maxRemoteBalance)-10000)
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
 	}
@@ -460,20 +457,52 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	directionIn := false
 
 	// assume return to 50/50 channel
-	recommendLiquidSwapOut := maxLiquidSwapOut
-	recommendBitcoinSwapOut := maxBitcoinSwapOut
+	recommendLiquidSwapOut := uint64(0)
+	recommendBitcoinSwapOut := uint64(0)
 	if maxLocalBalance > channelCapacity/2 {
 		recommendLiquidSwapOut = min(maxLiquidSwapOut, maxLocalBalance-channelCapacity/2)
-		recommendBitcoinSwapOut = min(recommendBitcoinSwapOut, maxLocalBalance-channelCapacity/2)
+		recommendBitcoinSwapOut = min(maxBitcoinSwapOut, maxLocalBalance-channelCapacity/2)
+	}
+
+	if recommendLiquidSwapOut < 100_000 {
+		if maxLiquidSwapOut >= 100_000 {
+			recommendLiquidSwapOut = 100_000
+		} else {
+			recommendLiquidSwapOut = 0
+		}
+	}
+
+	if recommendBitcoinSwapOut < 100_000 {
+		if maxBitcoinSwapOut >= 100_000 {
+			recommendBitcoinSwapOut = 100_000
+		} else {
+			recommendBitcoinSwapOut = 0
+		}
 	}
 
 	// assume return to 50/50 channel
-	recommendLiquidSwapIn := maxLiquidSwapIn
-	recommendBitcoinSwapIn := maxBitcoinSwapIn
+	recommendLiquidSwapIn := int64(0)
+	recommendBitcoinSwapIn := int64(0)
 	if maxRemoteBalance > channelCapacity/2 {
 		directionIn = true
-		recommendLiquidSwapIn = min(recommendLiquidSwapIn, int64(maxRemoteBalance-channelCapacity/2))
-		recommendBitcoinSwapIn = min(recommendBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+		recommendLiquidSwapIn = min(maxLiquidSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+		recommendBitcoinSwapIn = min(maxBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+	}
+
+	if recommendLiquidSwapIn < 100_000 {
+		if maxLiquidSwapIn >= 100_000 {
+			recommendLiquidSwapIn = 100_000
+		} else {
+			recommendLiquidSwapIn = 0
+		}
+	}
+
+	if recommendBitcoinSwapIn < 100_000 {
+		if maxBitcoinSwapIn >= 100_000 {
+			recommendBitcoinSwapIn = 100_000
+		} else {
+			recommendBitcoinSwapIn = 0
+		}
 	}
 
 	type Page struct {
@@ -2241,8 +2270,62 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
+				// reserve depends on asset and LND/CLN implementation
+				var reserve uint64
+				var amountAvailable uint64
+
+				if asset == "btc" {
+					cl, clean, er := ln.GetClient()
+					if er != nil {
+						redirectWithError(w, r, "/config?", er)
+						return
+					}
+					defer clean()
+
+					amountAvailable = uint64(ln.ConfirmedWalletBalance(cl))
+					reserve = ln.SwapFeeReserveBTC
+				} else if asset == "lbtc" {
+					client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+					if err != nil {
+						redirectWithError(w, r, "/config?", err)
+						return
+					}
+					defer cleanup()
+
+					res, err := ps.LiquidGetBalance(client)
+					if err != nil {
+						log.Printf("unable to connect to RPC server: %v", err)
+						redirectWithError(w, r, "/config?", err)
+						return
+					}
+
+					amountAvailable = res.GetSatAmount()
+					reserve = ln.SwapFeeReserveLBTC
+				}
+
+				if amountAvailable < reserve || swapAmount > amountAvailable-reserve {
+					redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds wallet balance less reserve "+formatWithThousandSeparators(reserve)+" sats"))
+					return
+				}
+
 				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
+				peerId := peerNodeId[channelId]
+				var ptr *ln.BalanceInfo
+
+				if asset == "btc" {
+					ptr = ln.BitcoinBalances[peerId]
+				} else if asset == "lbtc" {
+					ptr = ln.LiquidBalances[peerId]
+				}
+
+				if ptr != nil {
+					if ptr.Amount < swapOutChainReserve || swapAmount > ptr.Amount-swapOutChainReserve {
+						redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds peer's wallet balance less reserve "+formatWithThousandSeparators(swapOutChainReserve)+" sats"))
+						return
+					}
+				}
+
 				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
 			}
 

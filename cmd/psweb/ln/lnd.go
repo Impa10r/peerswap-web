@@ -43,9 +43,9 @@ import (
 
 const (
 	Implementation = "LND"
-	// Liquid balance to reserve in auto swap-ins
 	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
-	SwapFeeReserveLBTC = uint64(1000)
+	// 2000 to avoid high fee
+	SwapFeeReserveLBTC = uint64(2000)
 	SwapFeeReserveBTC  = uint64(2000)
 )
 
@@ -1802,11 +1802,9 @@ func SetHtlcSize(peerNodeId string,
 // called after individual HTLC settles or fails
 func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool) {
 
-	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] || autoFeeIsRunning {
+	if !AutoFeeEnabledAll || !AutoFeeEnabled[channelId] {
 		return
 	}
-
-	autoFeeIsRunning = true
 
 	params := &AutoFeeDefaults
 	if AutoFee[channelId] != nil {
@@ -1819,7 +1817,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
-			autoFeeIsRunning = false
 			return
 		}
 		myNodeId = res.GetIdentityPubkey()
@@ -1828,7 +1825,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		ChanId: channelId,
 	})
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1846,7 +1842,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	// get balances
 	bytePeer, err := hex.DecodeString(peerId)
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1854,15 +1849,15 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		Peer: bytePeer,
 	})
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
 	localBalance := int64(0)
+	unsettledBalance := int64(0)
 	for _, ch := range res.Channels {
 		if ch.ChanId == channelId {
 			localBalance = ch.LocalBalance + ch.UnsettledBalance
-
+			unsettledBalance = ch.UnsettledBalance
 			break
 		}
 	}
@@ -1876,7 +1871,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		} else if liqPct > params.LowLiqPct {
 			// move threshold
 			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
-			autoFeeIsRunning = false
 			return
 		}
 	} else {
@@ -1885,27 +1879,26 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	// set the new rate
 	if newFee != oldFee {
+		if unsettledBalance > 0 && newFee < oldFee {
+			// do not lower fees for temporary balance spikes due to pending HTLCs
+			return
+		}
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 			// log the last change
 			LogFee(channelId, old, newFee, false, false)
 		}
 	}
-
-	autoFeeIsRunning = false
 }
 
 // review all fees on timer
 func ApplyAutoFees() {
 
-	if !AutoFeeEnabledAll || autoFeeIsRunning {
+	if !AutoFeeEnabledAll {
 		return
 	}
 
-	autoFeeIsRunning = true
-
 	client, cleanup, err := GetClient()
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 	defer cleanup()
@@ -1915,7 +1908,6 @@ func ApplyAutoFees() {
 		// get my node id
 		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
-			autoFeeIsRunning = false
 			return
 		}
 		myNodeId = res.GetIdentityPubkey()
@@ -1925,7 +1917,6 @@ func ApplyAutoFees() {
 		ActiveOnly: true,
 	})
 	if err != nil {
-		autoFeeIsRunning = false
 		return
 	}
 
@@ -1944,7 +1935,6 @@ func ApplyAutoFees() {
 			ChanId: ch.ChanId,
 		})
 		if err != nil {
-			autoFeeIsRunning = false
 			return
 		}
 
@@ -1964,6 +1954,10 @@ func ApplyAutoFees() {
 
 		// set the new rate
 		if newFee != oldFee {
+			if ch.UnsettledBalance > 0 && newFee < oldFee {
+				// do not lower fees for temporary balance spikes due to pending HTLCs
+				continue
+			}
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
 			if err == nil {
 				// log the last change
@@ -1998,8 +1992,6 @@ func ApplyAutoFees() {
 			}
 		}
 	}
-
-	autoFeeIsRunning = false
 }
 
 func PlotPPM(channelId uint64) *[]DataPoint {

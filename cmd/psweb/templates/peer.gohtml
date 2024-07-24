@@ -231,6 +231,9 @@
                                   const utxoAmount = parseFloat(row.querySelector("#utxoAmountBTC").textContent);
                                   amountToAllocate -= utxoAmount;
 
+                                  // each used UTXO increases total fee, which may need more UTXOs
+                                  amountToAllocate += 84 * feeRate;
+
                                   // identify P2TR vs P2WPKH address
                                   const address = row.querySelector("#utxoAddressBTC").textContent
                                   if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
@@ -254,6 +257,10 @@
                             // peerswap spends dust change as extra fee
                             change = {{.BitcoinBalance}} - swapAmount - fee;
                             if (change < 1000) {
+                              if (change < 0) {
+                                document.getElementById('result').innerText = "Insufficient BTC balance to cover expected fee of " + formatWithThousandSeparators(fee) + " sats";
+                                return;
+                              }
                               fee += change;
                             }
                           } else {
@@ -288,6 +295,9 @@
                                   // Reduce unallocated amount by UTXO size
                                   const utxoAmount = Math.round(parseFloat(row.querySelector("#utxoAmountLBTC").textContent)*100000000, 0);
                                   amountToAllocate -= utxoAmount;
+
+                                  // each used UTXO increases total fee, which may need more UTXOs
+                                  amountToAllocate += 84 * feeRate;
 
                                   // increment inputs
                                   inputs++;
