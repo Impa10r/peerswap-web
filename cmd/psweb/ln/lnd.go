@@ -21,6 +21,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
@@ -1868,6 +1869,18 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		if liqPct < params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
 			newFee += params.FailedBumpPPM
+
+			// bump LowLiqRate
+			if AutoFee[channelId] == nil {
+				// add custom parameters
+				AutoFee[channelId] = new(AutoFeeParams)
+				// clone default values
+				*AutoFee[channelId] = AutoFeeDefaults
+			}
+
+			AutoFee[channelId].LowLiqRate = newFee
+			// persist to db
+			db.Save("AutoFees", "AutoFee", AutoFee)
 		} else if liqPct > params.LowLiqPct {
 			// move threshold
 			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
@@ -1955,7 +1968,7 @@ func ApplyAutoFees() {
 		// set the new rate
 		if newFee != oldFee {
 			if ch.UnsettledBalance > 0 && newFee < oldFee {
-				// do not lower fees for temporary balance spikes due to pending HTLCs
+				// do not lower fees during pending HTLCs
 				continue
 			}
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
@@ -1965,7 +1978,8 @@ func ApplyAutoFees() {
 			}
 		}
 
-		if HasInboundFees() {
+		// do not change inbound fee during pending HTLCs
+		if HasInboundFees() && ch.UnsettledBalance == 0 {
 			toSet := false
 			discountRate := int64(0)
 
