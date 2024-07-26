@@ -1971,6 +1971,15 @@ func ApplyAutoFees() {
 				// do not lower fees during pending HTLCs
 				continue
 			}
+
+			// check if the fee was already set
+			lastFee := LastAutoFeeLog(ch.ChanId, false)
+			if lastFee != nil {
+				if newFee == lastFee.NewRate {
+					continue
+				}
+			}
+
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
 			if err == nil {
 				// log the last change
