@@ -1896,6 +1896,15 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 			// do not lower fees for temporary balance spikes due to pending HTLCs
 			return
 		}
+
+		// check if the fee was already set
+		lastFee := LastAutoFeeLog(channelId, false)
+		if lastFee != nil {
+			if newFee == lastFee.NewRate {
+				return
+			}
+		}
+
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
 			// log the last change
 			LogFee(channelId, old, newFee, false, false)
