@@ -1710,6 +1710,10 @@ func SetFeeRate(peerNodeId string,
 		}
 	}
 
+	if oldRate == int(feeRate) {
+		return oldRate, errors.New("rate was already set")
+	}
+
 	_, err = client.UpdateChannelPolicy(context.Background(), &req)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1969,10 +1973,9 @@ func ApplyAutoFees() {
 		}
 
 		oldFee := int(policy.FeeRateMilliMsat)
-		newFee := oldFee
 		liqPct := int((ch.LocalBalance + ch.UnsettledBalance) * 100 / r.Capacity)
 
-		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
+		newFee := calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
 
 		// set the new rate
 		if newFee != oldFee {

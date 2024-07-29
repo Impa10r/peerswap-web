@@ -1087,6 +1087,10 @@ func SetFeeRate(peerNodeId string,
 		req.FeePPM = feeRate
 	}
 
+	if oldRate == int(feeRate) {
+		return oldRate, errors.New("rate was already set")
+	}
+
 	err = client.Request(&req, &res)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
