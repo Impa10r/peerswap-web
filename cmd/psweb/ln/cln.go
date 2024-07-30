@@ -1206,15 +1206,13 @@ func ApplyAutoFees() {
 		// set the new rate
 		if newFee != oldFee {
 			// check if the fee was already set
-			lastFee := LastAutoFeeLog(channelId, false)
-			if lastFee != nil {
-				if newFee == lastFee.NewRate {
-					continue
-				}
+			if lastFeeIsTheSame(channelId, newFee, false) {
+				continue
 			}
 
 			peerId := channelMap["peer_id"].(string)
-			if _, err = SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
+			_, err = SetFeeRate(peerId, channelId, int64(newFee), false, false)
+			if err == nil && !lastFeeIsTheSame(channelId, newFee, false) {
 				// log the last change
 				LogFee(channelId, oldFee, newFee, false, false)
 			}

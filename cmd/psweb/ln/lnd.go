@@ -1902,16 +1902,15 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		}
 
 		// check if the fee was already set
-		lastFee := LastAutoFeeLog(channelId, false)
-		if lastFee != nil {
-			if newFee == lastFee.NewRate {
-				return
-			}
+		if lastFeeIsTheSame(channelId, newFee, false) {
+			return
 		}
 
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
-			// log the last change
-			LogFee(channelId, old, newFee, false, false)
+			if !lastFeeIsTheSame(channelId, newFee, false) {
+				// log the last change
+				LogFee(channelId, old, newFee, false, false)
+			}
 		}
 	}
 }
@@ -1985,15 +1984,12 @@ func ApplyAutoFees() {
 			}
 
 			// check if the fee was already set
-			lastFee := LastAutoFeeLog(ch.ChanId, false)
-			if lastFee != nil {
-				if newFee == lastFee.NewRate {
-					continue
-				}
+			if lastFeeIsTheSame(ch.ChanId, newFee, false) {
+				continue
 			}
 
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
-			if err == nil {
+			if err == nil && !lastFeeIsTheSame(ch.ChanId, newFee, false) {
 				// log the last change
 				LogFee(ch.ChanId, oldFee, newFee, false, false)
 			}
@@ -2018,9 +2014,9 @@ func ApplyAutoFees() {
 				}
 			}
 
-			if toSet {
+			if toSet && !lastFeeIsTheSame(ch.ChanId, int(discountRate), true) {
 				oldRate, err := SetFeeRate(peerId, ch.ChanId, discountRate, true, false)
-				if err == nil {
+				if err == nil && !lastFeeIsTheSame(ch.ChanId, int(discountRate), true) {
 					// log the last change
 					LogFee(ch.ChanId, oldRate, int(discountRate), true, false)
 				}

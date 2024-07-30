@@ -3,7 +3,8 @@
 ## 1.6.8
 
 - AutoFees: do not change inbound fee during pending HTLCs
-- AutoFees: bump Low Liq Rate of the channel's rule on failed HTLCs  
+- AutoFees: bump Low Liq Rate of the channel's rule on failed HTLCs
+- AutoFees: avoid redundant fee rate updates
 
 ## 1.6.7
 
