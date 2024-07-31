@@ -21,6 +21,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/db"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
@@ -1709,6 +1710,10 @@ func SetFeeRate(peerNodeId string,
 		}
 	}
 
+	if oldRate == int(feeRate) {
+		return oldRate, errors.New("rate was already set")
+	}
+
 	_, err = client.UpdateChannelPolicy(context.Background(), &req)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1868,6 +1873,18 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 		if liqPct < params.LowLiqPct {
 			// increase fee to help prevent further failed HTLCs
 			newFee += params.FailedBumpPPM
+
+			// bump LowLiqRate
+			if AutoFee[channelId] == nil {
+				// add custom parameters
+				AutoFee[channelId] = new(AutoFeeParams)
+				// clone default values
+				*AutoFee[channelId] = AutoFeeDefaults
+			}
+
+			AutoFee[channelId].LowLiqRate = newFee
+			// persist to db
+			db.Save("AutoFees", "AutoFee", AutoFee)
 		} else if liqPct > params.LowLiqPct {
 			// move threshold
 			moveLowLiqThreshold(channelId, params.FailedMoveThreshold)
@@ -1883,9 +1900,17 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 			// do not lower fees for temporary balance spikes due to pending HTLCs
 			return
 		}
+
+		// check if the fee was already set
+		if lastFeeIsTheSame(channelId, newFee, false) {
+			return
+		}
+
 		if old, err := SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
-			// log the last change
-			LogFee(channelId, old, newFee, false, false)
+			if !lastFeeIsTheSame(channelId, newFee, false) {
+				// log the last change
+				LogFee(channelId, old, newFee, false, false)
+			}
 		}
 	}
 }
@@ -1947,25 +1972,31 @@ func ApplyAutoFees() {
 		}
 
 		oldFee := int(policy.FeeRateMilliMsat)
-		newFee := oldFee
 		liqPct := int((ch.LocalBalance + ch.UnsettledBalance) * 100 / r.Capacity)
 
-		newFee = calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
+		newFee := calculateAutoFee(ch.ChanId, params, liqPct, oldFee)
 
 		// set the new rate
 		if newFee != oldFee {
 			if ch.UnsettledBalance > 0 && newFee < oldFee {
-				// do not lower fees for temporary balance spikes due to pending HTLCs
+				// do not lower fees during pending HTLCs
 				continue
 			}
+
+			// check if the fee was already set
+			if lastFeeIsTheSame(ch.ChanId, newFee, false) {
+				continue
+			}
+
 			_, err := SetFeeRate(peerId, ch.ChanId, int64(newFee), false, false)
-			if err == nil {
+			if err == nil && !lastFeeIsTheSame(ch.ChanId, newFee, false) {
 				// log the last change
 				LogFee(ch.ChanId, oldFee, newFee, false, false)
 			}
 		}
 
-		if HasInboundFees() {
+		// do not change inbound fee during pending HTLCs
+		if HasInboundFees() && ch.UnsettledBalance == 0 {
 			toSet := false
 			discountRate := int64(0)
 
@@ -1983,9 +2014,9 @@ func ApplyAutoFees() {
 				}
 			}
 
-			if toSet {
+			if toSet && !lastFeeIsTheSame(ch.ChanId, int(discountRate), true) {
 				oldRate, err := SetFeeRate(peerId, ch.ChanId, discountRate, true, false)
-				if err == nil {
+				if err == nil && !lastFeeIsTheSame(ch.ChanId, int(discountRate), true) {
 					// log the last change
 					LogFee(ch.ChanId, oldRate, int(discountRate), true, false)
 				}

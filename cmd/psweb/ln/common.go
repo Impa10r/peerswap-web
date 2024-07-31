@@ -410,3 +410,14 @@ func saveSwapRabate(swapId string, rebate int64) {
 	// save rebate payment
 	SwapRebates[swapId] = rebate
 }
+
+// check if the last logged fee rate is the same as newFee
+func lastFeeIsTheSame(channelId uint64, newFee int, isInbound bool) bool {
+	lastFee := LastAutoFeeLog(channelId, isInbound)
+	if lastFee != nil {
+		if newFee == lastFee.NewRate {
+			return true
+		}
+	}
+	return false
+}

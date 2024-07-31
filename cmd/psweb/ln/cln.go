@@ -1087,6 +1087,10 @@ func SetFeeRate(peerNodeId string,
 		req.FeePPM = feeRate
 	}
 
+	if oldRate == int(feeRate) {
+		return oldRate, errors.New("rate was already set")
+	}
+
 	err = client.Request(&req, &res)
 	if err != nil {
 		log.Println("SetFeeRate:", err)
@@ -1201,8 +1205,14 @@ func ApplyAutoFees() {
 
 		// set the new rate
 		if newFee != oldFee {
+			// check if the fee was already set
+			if lastFeeIsTheSame(channelId, newFee, false) {
+				continue
+			}
+
 			peerId := channelMap["peer_id"].(string)
-			if _, err = SetFeeRate(peerId, channelId, int64(newFee), false, false); err == nil {
+			_, err = SetFeeRate(peerId, channelId, int64(newFee), false, false)
+			if err == nil && !lastFeeIsTheSame(channelId, newFee, false) {
 				// log the last change
 				LogFee(channelId, oldFee, newFee, false, false)
 			}

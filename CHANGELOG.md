@@ -1,5 +1,12 @@
 # Versions
 
+## 1.6.8
+
+- AutoFees: do not change inbound fee during pending HTLCs
+- AutoFees: bump Low Liq Rate of the channel's rule on failed HTLCs
+- AutoFees: avoid redundant fee rate updates
+- Fix telegram bot errors by escaping message text as MarkdownV2
+
 ## 1.6.7
 
 - Fix AutoFees stop working bug
