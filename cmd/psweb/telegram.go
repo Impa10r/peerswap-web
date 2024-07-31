@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"peerswap-web/cmd/psweb/config"
@@ -105,7 +106,7 @@ func telegramStart() {
 					}
 				}
 				telegramSendMessage(t)
-			case "/auto":
+			case "/autoswaps":
 				t := "🤖 Auto swap-ins are "
 				if config.Config.AutoSwapEnabled {
 					t += "Enabled"
@@ -156,7 +157,7 @@ func telegramConnect() {
 				Description: "Status of peg-in or BTC withdrawal",
 			},
 			tgbotapi.BotCommand{
-				Command:     "auto",
+				Command:     "autoswaps",
 				Description: "Status of auto swap-ins",
 			},
 			tgbotapi.BotCommand{
@@ -177,7 +178,7 @@ func telegramSendMessage(msgText string) bool {
 	if chatId == 0 {
 		return false
 	}
-	msg := tgbotapi.NewMessage(chatId, msgText)
+	msg := tgbotapi.NewMessage(chatId, EscapeMarkdownV2(msgText))
 	msg.ParseMode = "MarkdownV2"
 
 	_, err := bot.Send(msg)
@@ -211,4 +212,29 @@ func telegramSendFile(folder, fileName, satAmount string) error {
 	}
 
 	return nil
+}
+
+// EscapeMarkdownV2 escapes special characters for MarkdownV2
+func EscapeMarkdownV2(text string) string {
+	replacer := strings.NewReplacer(
+		"_", "\\_",
+		"*", "\\*",
+		"[", "\\[",
+		"]", "\\]",
+		"(", "\\(",
+		")", "\\)",
+		"~", "\\~",
+		"`", "\\`",
+		">", "\\>",
+		"#", "\\#",
+		"+", "\\+",
+		"-", "\\-",
+		"=", "\\=",
+		"|", "\\|",
+		"{", "\\{",
+		"}", "\\}",
+		".", "\\.",
+		"!", "\\!",
+	)
+	return replacer.Replace(text)
 }
