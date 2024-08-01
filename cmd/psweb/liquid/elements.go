@@ -482,11 +482,11 @@ func CreateClaimPSBT(peginTxId string,
 	outputs := []map[string]interface{}{
 		{
 			liquidAddress:   toBitcoin(peginAmount),
-			"blinder_index": 1,
+			"blinder_index": 0,
 		},
 		{
 			liquidAddress2:  toBitcoin(peginAmount2),
-			"blinder_index": 0,
+			"blinder_index": 1,
 		},
 		{
 			"fee": toBitcoin(fee),
@@ -561,14 +561,14 @@ func CombinePSBT(psbt []string) (string, error) {
 	return response, nil
 }
 
-func FinalizePSBT(psbt, wallet string) (string, bool, error) {
+func FinalizePSBT(psbt string) (string, bool, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
 
 	params := []interface{}{psbt}
 
-	r, err := service.client.call("finalizepsbt", params, "/wallet/"+wallet)
+	r, err := service.client.call("finalizepsbt", params, "")
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Failed to finalize PSBT: %v", err)
 		return "", false, err
@@ -582,5 +582,9 @@ func FinalizePSBT(psbt, wallet string) (string, bool, error) {
 		return "", false, err
 	}
 
-	return response["hex"].(string), response["complete"].(bool), nil
+	if response["complete"].(bool) {
+		return response["hex"].(string), true, nil
+	}
+
+	return response["psbt"].(string), false, nil
 }

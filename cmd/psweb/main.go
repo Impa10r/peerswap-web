@@ -147,7 +147,7 @@ func main() {
 	peginClaimScript2 := "0014e6f7021314806b914a45cce95680b1377f0b7003"
 	peginAmount2 := uint64(200_000)
 	liquidAddress2 := "el1qqfun028g4f2nen6a5zj8t20jrsg258k023azkp075rx529g95nf2vysemv6qhkzlntx4gw3tn9ptc0ynr86nqvfaxkar73zzw"
-	fee := uint64(100)
+	fee := uint64(33) // per pegin!
 
 	psbt, err := liquid.CreateClaimPSBT(peginTxId,
 		peginVout,
@@ -168,28 +168,35 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	signed1, complete, err := liquid.ProcessPSBT(psbt, "swaplnd")
+	blinded1, complete, err := liquid.ProcessPSBT(psbt, "swaplnd")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(blinded1, complete)
+
+	blinded2, complete, err := liquid.ProcessPSBT(blinded1, "swaplnd2")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(blinded2, complete)
+
+	signed1, complete, err := liquid.ProcessPSBT(blinded2, "swaplnd")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	log.Println(signed1, complete)
 
-	signed2, complete, err := liquid.ProcessPSBT(psbt, "swaplnd2")
+	signed2, complete, err := liquid.ProcessPSBT(signed1, "swaplnd2")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	log.Println(signed2, complete)
 
-	combined, err := liquid.CombinePSBT([]string{signed1, signed2})
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println(combined)
-
-	hexTx, complete, err := liquid.FinalizePSBT(combined, "swaplnd2")
+	hexTx, complete, err := liquid.FinalizePSBT(signed2)
 	if err != nil {
 		log.Fatalln(err)
 	}
