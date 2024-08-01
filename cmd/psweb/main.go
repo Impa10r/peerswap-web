@@ -155,41 +155,50 @@ func main() {
 		peginRawTx,
 		peginTxoutProof,
 		peginClaimScript,
-		peginAmount,
+		peginAmount-fee,
 		liquidAddress,
 		peginTxId2,
 		peginVout2,
 		peginRawTx2,
 		peginTxoutProof2,
 		peginClaimScript2,
-		peginAmount2,
+		peginAmount2-fee,
 		liquidAddress2,
-		fee)
-
+		fee*2)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	log.Println(psbt)
-
-	signed1, err := liquid.ProcessPSBT(psbt, config.Config.ElementsWallet)
+	signed1, complete, err := liquid.ProcessPSBT(psbt, config.Config.ElementsWallet)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	log.Println(signed1)
+	log.Println(signed1, complete)
 
-	signed2, err := liquid.ProcessPSBT(signed1, "swaplnd2")
+	signed2, complete, err := liquid.ProcessPSBT(psbt, "swaplnd2")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	//combined, err := liquid.CombinePSBT(signed1, signed2)
-	//if err != nil {
-	//	log.Fatalln(err)
-	//}
+	log.Println(signed2, complete)
 
-	log.Println(signed2)
+	combined, complete, err := liquid.CombinePSBT([]string{signed1, signed2})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(combined, complete)
+
+	hexTx, complete, err := liquid.FinalizePSBT(combined)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(hexTx, complete)
+
+	// Exit the program gracefully
+	os.Exit(0)
 
 	// Load persisted data from database
 	ln.LoadDB()
