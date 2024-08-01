@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.0
+
+- 
+
 ## 1.6.8
 
 - AutoFees: do not change inbound fee during pending HTLCs

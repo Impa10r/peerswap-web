@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.8"
+	version = "v1.7.0"
 
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
@@ -75,6 +75,8 @@ var (
 	peerNodeId = make(map[uint64]string)
 	// only poll all peers once after peerswap initializes
 	initalPollComplete = false
+	// identifies if this version of Elements Core supports discounted vSize
+	hasDiscountedvSize = false
 )
 
 func main() {
@@ -125,6 +127,69 @@ func main() {
 		log.Fatal(err)
 	}
 	defer cleanup()
+
+	hasDiscountedvSize = liquid.HasDiscountedvSize()
+
+	// first pegin
+	peginTxId := "0b387c3b7a8d9fad4d7a1ac2cba4958451c03d6c4fe63dfbe10cdb86d666cdd7"
+	peginVout := uint(0)
+	peginRawTx := "0200000000010159c1a062851325f301282b8ae1124c98228ea7b100eb82e907c6c314001a11860100000000fdffffff03a08601000000000017a914c74490c48b105376e697925c314c47afb00f1303872b1400000000000017a914b5e28484d1f1a5d74878f6ef411d555ac170e62887400d03000000000017a9146ec12f7b07420d693b59c8e6c20b17fbe40503ae87024730440220687049a9caf086d6a2205534acde99e549bde1bb922cfb6f7a7f5204a48ccebc02201c0d84dff34c3ce455fc6806015c160fa35eee86d2fddc7ceebdc3eb4d3d18d20121038d432d6aa857671ed9b7c67d62b0d2ae3c930e203024978c92a0de8b84142ce58a910000"
+	peginTxoutProof := "0000002015fa046cecb94e68d91a1c9410d3a220c34a738121b56f17270000000000000036a1af20a2d5bd8c81ddd4b1444f14b28c9c3d049fb2ae6280b0b1ebf19aca64ca4caa660793601934cfc0800e000000044934a86fa650c138bd770a4ca085d35118f433f02f7660ac8b77d4e99120a241cf9ddc148344fd9ed151ecc9b73697ac6d7ac34a2e1ae588f0b39e5b26e39841cd0c149927b444b7cfbb1c9a14f6f7b1e7e578ba2fb55d3999df736fc087e89fd7cd66d686db0ce1fb3de64f6c3dc0518495a4cbc21a7a4dad9f8d7a3b7c380b01b5"
+	peginClaimScript := "00142c72a18f520851c0da25c3b9a4a7be1daf65a7a3"
+	peginAmount := uint64(100_000)
+	liquidAddress := "el1qq2ssn76875d2624p8fmzlm4u959kasmuss0wl4hxdm6hrcz8syruxgx7esshkshs6rdxrrzru7ujw7ne6h3asd46hj3ruv8xh"
+
+	// second pegin
+	peginTxId2 := "0b387c3b7a8d9fad4d7a1ac2cba4958451c03d6c4fe63dfbe10cdb86d666cdd7"
+	peginVout2 := uint(2)
+	peginRawTx2 := "0200000000010159c1a062851325f301282b8ae1124c98228ea7b100eb82e907c6c314001a11860100000000fdffffff03a08601000000000017a914c74490c48b105376e697925c314c47afb00f1303872b1400000000000017a914b5e28484d1f1a5d74878f6ef411d555ac170e62887400d03000000000017a9146ec12f7b07420d693b59c8e6c20b17fbe40503ae87024730440220687049a9caf086d6a2205534acde99e549bde1bb922cfb6f7a7f5204a48ccebc02201c0d84dff34c3ce455fc6806015c160fa35eee86d2fddc7ceebdc3eb4d3d18d20121038d432d6aa857671ed9b7c67d62b0d2ae3c930e203024978c92a0de8b84142ce58a910000"
+	peginTxoutProof2 := "0000002015fa046cecb94e68d91a1c9410d3a220c34a738121b56f17270000000000000036a1af20a2d5bd8c81ddd4b1444f14b28c9c3d049fb2ae6280b0b1ebf19aca64ca4caa660793601934cfc0800e000000044934a86fa650c138bd770a4ca085d35118f433f02f7660ac8b77d4e99120a241cf9ddc148344fd9ed151ecc9b73697ac6d7ac34a2e1ae588f0b39e5b26e39841cd0c149927b444b7cfbb1c9a14f6f7b1e7e578ba2fb55d3999df736fc087e89fd7cd66d686db0ce1fb3de64f6c3dc0518495a4cbc21a7a4dad9f8d7a3b7c380b01b5"
+	peginClaimScript2 := "0014e6f7021314806b914a45cce95680b1377f0b7003"
+	peginAmount2 := uint64(200_000)
+	liquidAddress2 := "el1qqfun028g4f2nen6a5zj8t20jrsg258k023azkp075rx529g95nf2vysemv6qhkzlntx4gw3tn9ptc0ynr86nqvfaxkar73zzw"
+
+	fee := uint64(100)
+
+	psbt, err := liquid.CreateClaimPSBT(peginTxId,
+		peginVout,
+		peginRawTx,
+		peginTxoutProof,
+		peginClaimScript,
+		peginAmount,
+		liquidAddress,
+		peginTxId2,
+		peginVout2,
+		peginRawTx2,
+		peginTxoutProof2,
+		peginClaimScript2,
+		peginAmount2,
+		liquidAddress2,
+		fee)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(psbt)
+
+	signed1, err := liquid.ProcessPSBT(psbt, config.Config.ElementsWallet)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println(signed1)
+
+	signed2, err := liquid.ProcessPSBT(signed1, "swaplnd2")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	//combined, err := liquid.CombinePSBT(signed1, signed2)
+	//if err != nil {
+	//	log.Fatalln(err)
+	//}
+
+	log.Println(signed2)
 
 	// Load persisted data from database
 	ln.LoadDB()

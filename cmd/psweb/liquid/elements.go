@@ -379,7 +379,7 @@ func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 }
 
 func toBitcoin(amountSats uint64) float64 {
-	return float64(amountSats) / float64(100000000)
+	return float64(amountSats) / float64(100_000_000)
 }
 
 type MemPoolInfo struct {
@@ -415,4 +415,304 @@ func EstimateFee() float64 {
 	}
 
 	return math.Round(result.MemPoolMinFee*100_000_000) / 1000
+}
+
+// identifies if this version of Elements Core supports discounted vSize
+func HasDiscountedvSize() bool {
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+	params := &[]string{}
+
+	r, err := service.client.call("getnetworkinfo", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("getnetworkinfo: %v", err)
+		return false
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("getnetworkinfo unmarshall: %v", err)
+		return false
+	}
+
+	return response["version"].(float64) >= 230202
+}
+
+func CreateClaimRawTx(peginTxId string,
+	peginVout uint,
+	peginRawTx string,
+	peginTxoutProof string,
+	peginClaimScript string,
+	peginAmount uint64,
+	liquidAddress string,
+	liquidAddress2 string,
+	fee uint64) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+
+	// Create the inputs array
+	inputs := []map[string]interface{}{
+		{
+			"txid":               peginTxId,
+			"vout":               peginVout,
+			"pegin_bitcoin_tx":   peginRawTx,
+			"pegin_txout_proof":  peginTxoutProof,
+			"pegin_claim_script": peginClaimScript,
+		},
+	}
+
+	// Create the outputs array
+	outputs := []map[string]interface{}{
+		{
+			liquidAddress: toBitcoin(peginAmount - fee - 2000),
+		},
+		{
+			liquidAddress2: toBitcoin(2000),
+		},
+		{
+			"fee": toBitcoin(fee),
+		},
+	}
+
+	// Combine inputs and outputs into the parameters array
+	params := []interface{}{inputs, outputs}
+
+	r, err := service.client.call("createrawtransaction", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to create raw transaction: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CreateClaimRawTx unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func CreateClaimPSBT(peginTxId string,
+	peginVout uint,
+	peginRawTx string,
+	peginTxoutProof string,
+	peginClaimScript string,
+	peginAmount uint64,
+	liquidAddress string,
+	peginTxId2 string,
+	peginVout2 uint,
+	peginRawTx2 string,
+	peginTxoutProof2 string,
+	peginClaimScript2 string,
+	peginAmount2 uint64,
+	liquidAddress2 string,
+	fee uint64) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+
+	// Create the inputs array
+	inputs := []map[string]interface{}{
+		{
+			"txid":               peginTxId,
+			"vout":               peginVout,
+			"pegin_bitcoin_tx":   peginRawTx,
+			"pegin_txout_proof":  peginTxoutProof,
+			"pegin_claim_script": peginClaimScript,
+		},
+		{
+			"txid":               peginTxId2,
+			"vout":               peginVout2,
+			"pegin_bitcoin_tx":   peginRawTx2,
+			"pegin_txout_proof":  peginTxoutProof2,
+			"pegin_claim_script": peginClaimScript2,
+		},
+	}
+
+	// Create the outputs array
+	outputs := []map[string]interface{}{
+		{
+			liquidAddress:   toBitcoin(peginAmount - fee/2),
+			"blinder_index": 0,
+		},
+		{
+			liquidAddress2:  toBitcoin(peginAmount2 - fee/2),
+			"blinder_index": 1,
+		},
+		{
+			"fee": toBitcoin(fee),
+		},
+	}
+
+	// Combine inputs and outputs into the parameters array
+	params := []interface{}{inputs, outputs}
+
+	r, err := service.client.call("createpsbt", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to create raw transaction: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CreateClaimRawTx unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func BlindRawTx(hexRawTx, wallet string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{hexRawTx, false}
+
+	r, err := service.client.call("blindrawtransaction", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to blind raw transaction: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("BlindRawTx unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func ConvertToPsbt(hexRawTx string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+
+	params := []interface{}{hexRawTx}
+
+	r, err := service.client.call("converttopsbt", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to convert to psbt: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("ConvertToPsbt unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func SignRawTx(hexRawTx, wallet string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{hexRawTx}
+
+	r, err := service.client.call("signrawtransactionwithwallet", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to sign raw transaction: %v", err)
+		return "", err
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("SignRawTx unmarshall: %v", err)
+		return "", err
+	}
+
+	return response["hex"].(string), nil
+}
+
+func CombineRawTx(hexRawTx, haxRawTx2 string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{[]string{hexRawTx, haxRawTx2}}
+
+	r, err := service.client.call("combinerawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to combine raw transaction: %v", err)
+		return "", err
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CombineRawTx unmarshall: %v", err)
+		return "", err
+	}
+
+	return response["hex"].(string), nil
+}
+
+func CombinePSBT(base64Tx1, base64Tx2 string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{[]string{base64Tx1, base64Tx2}}
+
+	r, err := service.client.call("combinepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to combine PSBT: %v", err)
+		return "", err
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CombinePSBT unmarshall: %v", err)
+		return "", err
+	}
+
+	return response["hex"].(string), nil
+}
+
+func ProcessPSBT(base64psbt, wallet string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{base64psbt}
+
+	r, err := service.client.call("walletprocesspsbt", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to process PSBT: %v", err)
+		return "", err
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("ProcessPSBT unmarshall: %v", err)
+		return "", err
+	}
+
+	return response["psbt"].(string), nil
 }
