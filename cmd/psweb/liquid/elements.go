@@ -482,18 +482,15 @@ func CreateClaimPSBT(peginTxId string,
 	outputs := []map[string]interface{}{
 		{
 			liquidAddress:   toBitcoin(peginAmount),
-			"blinder_index": 0,
+			"blinder_index": 1,
 		},
 		{
 			liquidAddress2:  toBitcoin(peginAmount2),
-			"blinder_index": 1,
+			"blinder_index": 0,
 		},
-	}
-
-	if fee > 0 {
-		outputs = append(outputs, map[string]interface{}{
+		{
 			"fee": toBitcoin(fee),
-		})
+		},
 	}
 
 	// Combine inputs and outputs into the parameters array
@@ -540,7 +537,7 @@ func ProcessPSBT(base64psbt, wallet string) (string, bool, error) {
 	return response["psbt"].(string), response["complete"].(bool), nil
 }
 
-func CombinePSBT(psbt []string) (string, bool, error) {
+func CombinePSBT(psbt []string) (string, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
@@ -550,28 +547,28 @@ func CombinePSBT(psbt []string) (string, bool, error) {
 	r, err := service.client.call("combinepsbt", params, "")
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Failed to combine PSBT: %v", err)
-		return "", false, err
+		return "", err
 	}
 
-	var response map[string]interface{}
+	var response string
 
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
 		log.Printf("CombinePSBT unmarshall: %v", err)
-		return "", false, err
+		return "", err
 	}
 
-	return response["hex"].(string), response["complete"].(bool), nil
+	return response, nil
 }
 
-func FinalizePSBT(psbt string) (string, bool, error) {
+func FinalizePSBT(psbt, wallet string) (string, bool, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
 
 	params := []interface{}{psbt}
 
-	r, err := service.client.call("finalizepsbt", params, "")
+	r, err := service.client.call("finalizepsbt", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Failed to finalize PSBT: %v", err)
 		return "", false, err

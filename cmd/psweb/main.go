@@ -147,7 +147,6 @@ func main() {
 	peginClaimScript2 := "0014e6f7021314806b914a45cce95680b1377f0b7003"
 	peginAmount2 := uint64(200_000)
 	liquidAddress2 := "el1qqfun028g4f2nen6a5zj8t20jrsg258k023azkp075rx529g95nf2vysemv6qhkzlntx4gw3tn9ptc0ynr86nqvfaxkar73zzw"
-
 	fee := uint64(100)
 
 	psbt, err := liquid.CreateClaimPSBT(peginTxId,
@@ -169,7 +168,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	signed1, complete, err := liquid.ProcessPSBT(psbt, config.Config.ElementsWallet)
+	signed1, complete, err := liquid.ProcessPSBT(psbt, "swaplnd")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -183,14 +182,14 @@ func main() {
 
 	log.Println(signed2, complete)
 
-	combined, complete, err := liquid.CombinePSBT([]string{signed1, signed2})
+	combined, err := liquid.CombinePSBT([]string{signed1, signed2})
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	log.Println(combined, complete)
+	log.Println(combined)
 
-	hexTx, complete, err := liquid.FinalizePSBT(combined)
+	hexTx, complete, err := liquid.FinalizePSBT(combined, "swaplnd2")
 	if err != nil {
 		log.Fatalln(err)
 	}
