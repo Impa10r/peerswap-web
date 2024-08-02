@@ -146,10 +146,15 @@ type DataPoint struct {
 
 // sent/received as json
 type Message struct {
+	// cleartext announcements
 	Version int    `json:"version"`
 	Memo    string `json:"memo"`
 	Asset   string `json:"asset"`
 	Amount  uint64 `json:"amount"`
+	// for encrypted communications via peer relay
+	Sender      string `json:"sender"`
+	Destination string `json:"destination"`
+	Payload     []byte `json:"payload"`
 }
 
 type BalanceInfo struct {

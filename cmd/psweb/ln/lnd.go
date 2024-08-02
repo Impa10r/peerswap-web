@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"peerswap-web/cmd/psweb/bitcoin"
+	"peerswap-web/cmd/psweb/cj"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
 
@@ -1181,13 +1182,21 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 			var msg Message
 			err := json.Unmarshal(data.Data, &msg)
 			if err != nil {
+				log.Println("Received an incorrectly formed message")
 				continue
 			}
 			if msg.Version != MessageVersion {
+				log.Println("Received a message with wrong version number")
 				continue
 			}
 
 			nodeId := hex.EncodeToString(data.Peer)
+
+			// received broadcast of begin status
+			// msg.Asset = "pegin_started" or "pegin_ended"
+			if msg.Memo == "broadcast" {
+				cj.BroadcastMessage(nodeId, &msg)
+			}
 
 			// received request for information
 			if msg.Memo == "poll" {
@@ -1528,13 +1537,16 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	ctx := context.Background()
 
-	res, err := client.ListPeers(ctx, &lnrpc.ListPeersRequest{})
+	res, err := client.ListPeers(ctx, &lnrpc.ListPeersRequest{
+		LatestError: true,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	res2, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
-		// PublicOnly: true,
+		ActiveOnly: false,
+		PublicOnly: false,
 	})
 	if err != nil {
 		return nil, err
@@ -1570,6 +1582,7 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 		peer.AsSender = &peerswaprpc.SwapStats{}
 		peer.AsReceiver = &peerswaprpc.SwapStats{}
 
+		// skip peers with no channels with us
 		if len(peer.Channels) > 0 {
 			peers = append(peers, &peer)
 		}
