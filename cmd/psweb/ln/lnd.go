@@ -669,9 +669,21 @@ func getLndVersion() float64 {
 		}
 
 		LndVerson += b / 100
+
+		// save myNodeId
+		myNodeId = res.GetIdentityPubkey()
 	}
 
 	return LndVerson
+}
+
+func GetBlockHeight(client lnrpc.LightningClient) uint32 {
+	res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+	if err != nil {
+		return 0
+	}
+
+	return res.GetBlockHeight()
 }
 
 func GetMyAlias() string {
@@ -1838,12 +1850,10 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	ctx := context.Background()
 	if myNodeId == "" {
-		// get my node id
-		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-		if err != nil {
+		// populates myNodeId
+		if getLndVersion() == 0 {
 			return
 		}
-		myNodeId = res.GetIdentityPubkey()
 	}
 	r, err := client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
@@ -1949,12 +1959,10 @@ func ApplyAutoFees() {
 
 	ctx := context.Background()
 	if myNodeId == "" {
-		// get my node id
-		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-		if err != nil {
+		// populates myNodeId
+		if getLndVersion() == 0 {
 			return
 		}
-		myNodeId = res.GetIdentityPubkey()
 	}
 
 	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{

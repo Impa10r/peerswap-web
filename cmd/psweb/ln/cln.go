@@ -141,16 +141,22 @@ func ListUnspent(client *glightning.Lightning, list *[]UTXO, minConfs int32) err
 
 	return nil
 }
-
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
+func GetBlockHeight(client *glightning.Lightning) uint32 {
 	res, err := client.GetInfo()
 	if err != nil {
 		log.Println("GetInfo:", err)
-		return 0, true
+		return 0
 	}
 
-	tip := int32(res.Blockheight)
+	tip := uint32(res.Blockheight)
+}
+
+// returns number of confirmations and whether the tx can be fee bumped
+func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
+	blockHeight := GetBlockHeight()
+	if blockHeight == 0 {
+		return 0, false
+	}
 
 	height := internet.GetTxHeight(txid)
 
@@ -164,7 +170,7 @@ func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool)
 
 		return result.Confirmations, true
 	}
-	return tip - height, true
+	return int32(blockHeight) - height, true
 }
 
 func GetAlias(nodeKey string) string {

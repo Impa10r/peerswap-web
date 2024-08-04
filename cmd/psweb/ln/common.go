@@ -323,18 +323,7 @@ func LoadDB() {
 	}
 
 	// init ClaimJoin
-	db.Load("ClaimJoin", "pemToNodeId", &pemToNodeId)
-	db.Load("ClaimJoin", "PeginHandler", &PeginHandler)
-	db.Load("ClaimJoin", "ClaimBlockHeight", &ClaimBlockHeight)
-	db.Load("ClaimJoin", "ClaimStatus", &ClaimStatus)
-	db.Load("ClaimJoin", "PrivateKey", &myPrivateKey)
-	db.Load("ClaimJoin", "MyRole", &MyRole)
-	db.Load("ClaimJoin", "claimParties", &claimParties)
-
-	if MyRole == "joiner" && PeginHandler != "" {
-		// ask to send again the last transmission
-		sayAgain = true
-	}
+	loadClaimJoinDB()
 }
 
 func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {

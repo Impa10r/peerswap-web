@@ -37,6 +37,7 @@ type Configuration struct {
 	PeginAddress            string
 	PeginAmount             int64
 	PeginFeeRate            uint32
+	PeginClaimJoin          bool
 	LightningDir            string
 	BitcoinHost             string
 	BitcoinUser             string

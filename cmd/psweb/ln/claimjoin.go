@@ -11,6 +11,7 @@ import (
 	"log"
 	"time"
 
+	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/ps"
@@ -30,7 +31,7 @@ var (
 	// none, initiator or joiner
 	MyRole = "none"
 	// array of initiator + joiners, for initiator only
-	claimParties []ClaimParty
+	claimParties []*ClaimParty
 	// requires repeat of the last transmission
 	sayAgain = false
 )
@@ -57,6 +58,8 @@ type ClaimParty struct {
 	ClaimScript string
 	// Liquid address to receive funds
 	Address string
+	// when can be claimed
+	ClaimBlockHeight uint32
 	// to be filled locally by initiator
 	RawTx       string
 	TxoutProof  string
@@ -133,12 +136,26 @@ type ClaimParty struct {
 */
 
 // runs after restart, to continue if pegin is ongoing
-func InitCJ() {
+func loadClaimJoinDB() {
+	db.Load("ClaimJoin", "pemToNodeId", &pemToNodeId)
+	db.Load("ClaimJoin", "PeginHandler", &PeginHandler)
+	db.Load("ClaimJoin", "ClaimBlockHeight", &ClaimBlockHeight)
+	db.Load("ClaimJoin", "ClaimStatus", &ClaimStatus)
+	db.Load("ClaimJoin", "PrivateKey", &myPrivateKey)
+	db.Load("ClaimJoin", "MyRole", &MyRole)
+	db.Load("ClaimJoin", "claimParties", &claimParties)
 
+	if MyRole == "joiner" && PeginHandler != "" {
+		// ask to send again the last transmission
+		sayAgain = true
+	}
 }
 
 // runs every minute
 func OnTimer() {
+
+	//
+
 	if sayAgain {
 		if SendCoordination(PeginHandler, &Coordination{Action: "say_again"}) == nil {
 			sayAgain = false
@@ -216,7 +233,8 @@ func SendCoordination(destinationPEM string, message *Coordination) error {
 
 	destinationNodeId := pemToNodeId[destinationPEM]
 	if destinationNodeId == "" {
-		return fmt.Errorf("Cannot send, destination PEM has no matching NodeId")
+		log.Println("Cannot send coordination, destination PEM has no matching NodeId")
+		return fmt.Errorf("destination PEM has no matching NodeId")
 	}
 
 	// Deserialize the received PEM string back to a public key
@@ -261,16 +279,18 @@ func Process(message *Message) error {
 		// Decrypt the message using my private key
 		plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, myPrivateKey, message.Payload, nil)
 		if err != nil {
-			return fmt.Errorf("Error decrypting message:", err)
+			return fmt.Errorf("Error decrypting message: %s", err)
 		}
 
 		// recover the struct
 		var msg Coordination
 		err = json.Unmarshal(plaintext, &msg)
 		if err != nil {
-			return fmt.Errorf("Received an incorrectly formed message:", err)
+			return fmt.Errorf("Received an incorrectly formed message: %s", err)
 
 		}
+
+		log.Println(msg)
 
 		if msg.ClaimBlockHeight > ClaimBlockHeight {
 			ClaimBlockHeight = msg.ClaimBlockHeight
@@ -283,7 +303,7 @@ func Process(message *Message) error {
 			}
 
 		case "remove":
-		case "process":
+		case "process": // blind or sign
 		case "process2": // process twice to blind and sign
 
 		}
@@ -356,4 +376,99 @@ func pemToPublicKey(pubPEM string) (*rsa.PublicKey, error) {
 	default:
 		return nil, fmt.Errorf("not an RSA public key")
 	}
+}
+
+// called by claim join initiator after his pegin funding tx confirms
+func InitiateClaimJoin(claimBlockHeight uint32) bool {
+	if myNodeId == "" {
+		// populates myNodeId
+		if getLndVersion() == 0 {
+			return false
+		}
+	}
+
+	if Broadcast(myNodeId, &Message{
+		Version: MessageVersion,
+		Memo:    "broadcast",
+		Asset:   "pegin_started",
+		Amount:  uint64(claimBlockHeight),
+	}) == nil {
+		ClaimBlockHeight = claimBlockHeight
+		party := createClaimParty(claimBlockHeight)
+		if party != nil {
+			// initiate array of claim parties
+			claimParties = nil
+			claimParties[0] = party
+			// persist to db
+			db.Save("ClaimJoin", "claimParties", claimParties)
+			return true
+		}
+	}
+	return false
+}
+
+// called by ClaimJoin joiner candidate after his pegin funding tx confirms
+func JoinClaimJoin(claimBlockHeight uint32) bool {
+	if myNodeId == "" {
+		// populates myNodeId
+		if getLndVersion() == 0 {
+			return false
+		}
+	}
+
+	party := createClaimParty(claimBlockHeight)
+	if party != nil {
+		if SendCoordination(PeginHandler, &Coordination{
+			Action:           "add",
+			Joiner:           *party,
+			ClaimBlockHeight: claimBlockHeight,
+		}) == nil {
+			ClaimBlockHeight = claimBlockHeight
+			return true
+		}
+	}
+	return false
+}
+
+func createClaimParty(claimBlockHeight uint32) *ClaimParty {
+	party := new(ClaimParty)
+	party.TxId = config.Config.PeginTxId
+	party.ClaimScript = config.Config.PeginClaimScript
+	party.ClaimBlockHeight = claimBlockHeight
+	party.Amount = uint64(config.Config.PeginAmount)
+
+	var err error
+	party.RawTx, err = bitcoin.GetRawTransaction(config.Config.PeginTxId, nil)
+	if err != nil {
+		log.Println("Cannot create ClaimParty: GetRawTransaction:", err)
+		return nil
+	}
+
+	party.Vout, err = bitcoin.FindVout(party.RawTx, uint64(config.Config.PeginAmount))
+	if err != nil {
+		log.Println("Cannot create ClaimParty: FindVout:", err)
+		return nil
+	}
+
+	party.TxoutProof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+	if err != nil {
+		log.Println("Cannot create ClaimParty: GetTxOutProof:", err)
+		return nil
+	}
+
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		log.Println("Cannot create ClaimParty: GetClient:", err)
+		return nil
+	}
+	defer cleanup()
+
+	res, err := ps.LiquidGetAddress(client)
+	if err != nil {
+		log.Println("Cannot create ClaimParty: LiquidGetAddress:", err)
+		return nil
+	}
+	party.Address = res.Address
+
+	return party
 }

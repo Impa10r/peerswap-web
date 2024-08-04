@@ -1119,8 +1119,8 @@ func checkPegin() {
 		if config.Config.PeginClaimScript == "" {
 			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
 			telegramSendMessage("BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
-		} else if confs > 101 {
-			// claim pegin
+		} else if confs > 101 && ln.MyRole == "none" {
+			// claim individual pegin
 			failed := false
 			proof := ""
 			txid := ""
@@ -1152,6 +1152,27 @@ func checkPegin() {
 				telegramSendMessage("💸 Peg-in success! Liquid TxId: `" + txid + "`")
 			}
 		} else {
+			if config.Config.PeginClaimJoin {
+				if ln.MyRole == "none" {
+					currentBlockHeight := ln.GetBlockHeight(cl)
+					claimHeight := currentBlockHeight + 102 - uint32(confs)
+					if ln.PeginHandler == "" {
+						// I become pegin handler
+						if ln.InitiateClaimJoin(claimHeight) {
+							ln.MyRole = "initiator"
+							// persist to db
+							db.Save("ClaimJoin", "MyRole", ln.MyRole)
+						}
+					} else {
+						// join by replying to initiator
+						if ln.JoinClaimJoin(claimHeight) {
+							ln.MyRole = "joiner"
+							// persist to db
+							db.Save("ClaimJoin", "MyRole", ln.MyRole)
+						}
+					}
+				}
+			}
 			return
 		}
 

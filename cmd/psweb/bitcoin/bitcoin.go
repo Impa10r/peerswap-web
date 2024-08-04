@@ -321,6 +321,21 @@ func DecodeRawTransaction(hexstring string) (*Transaction, error) {
 	return &transaction, nil
 }
 
+func FindVout(hexTx string, amount uint64) (uint, error) {
+	tx, err := DecodeRawTransaction(hexTx)
+	if err != nil {
+		return 0, err
+	}
+
+	for i, o := range tx.Vout {
+		if uint64(o.Value*100_000_000) == amount {
+			return uint(i), nil
+		}
+	}
+
+	return 0, fmt.Errorf("vout not found")
+}
+
 func SendRawTransaction(hexstring string) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
