@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"peerswap-web/cmd/psweb/bitcoin"
-	"peerswap-web/cmd/psweb/cj"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
 
@@ -45,10 +44,6 @@ import (
 
 const (
 	Implementation = "LND"
-	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
-	// 2000 to avoid high fee
-	SwapFeeReserveLBTC = uint64(2000)
-	SwapFeeReserveBTC  = uint64(2000)
 )
 
 type InflightHTLC struct {
@@ -1192,10 +1187,21 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			nodeId := hex.EncodeToString(data.Peer)
 
-			// received broadcast of begin status
-			// msg.Asset = "pegin_started" or "pegin_ended"
+			// received broadcast of pegin status
+			// msg.Asset: "pegin_started" or "pegin_ended"
 			if msg.Memo == "broadcast" {
-				cj.BroadcastMessage(nodeId, &msg)
+				err = Broadcast(nodeId, &msg)
+				if err != nil {
+					log.Println(err)
+				}
+			}
+
+			// messages related to pegin claim join
+			if msg.Memo == "process" {
+				err = Process(&msg)
+				if err != nil {
+					log.Println(err)
+				}
 			}
 
 			// received request for information

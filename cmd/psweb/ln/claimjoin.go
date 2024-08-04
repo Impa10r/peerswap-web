@@ -1,17 +1,18 @@
-package cj
+package ln
 
 import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log"
+	"time"
 
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
-	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/ps"
 )
 
@@ -22,7 +23,49 @@ var (
 	pemToNodeId map[string]string
 	// public key of the sender of pegin_started broadcast
 	PeginHandler string
+	// when currently pending pegin can be claimed
+	ClaimBlockHeight uint32
+	// human readable status of the claimjoin
+	ClaimStatus = "No third-party pegin is pending"
+	// none, initiator or joiner
+	MyRole = "none"
+	// array of initiator + joiners, for initiator only
+	claimParties []ClaimParty
+	// requires repeat of the last transmission
+	sayAgain = false
 )
+
+type Coordination struct {
+	// action required from the peer: "add", "remove", "process", "process2", "continue", "say_again"
+	Action string
+	// new joiner details
+	Joiner ClaimParty
+	// ETA of currently pending pegin claim
+	ClaimBlockHeight uint32
+	// human readable status of the claimjoin
+	Status string
+	// partially signed elements transaction
+	PSET string
+}
+
+type ClaimParty struct {
+	// pegin txid
+	TxId string
+	// pegin vout
+	Vout uint
+	// pegin claim script
+	ClaimScript string
+	// Liquid address to receive funds
+	Address string
+	// to be filled locally by initiator
+	RawTx       string
+	TxoutProof  string
+	Amount      uint64
+	FeeShare    uint64
+	PEM         string
+	LastMessage *Coordination
+	SentTime    time.Time
+}
 
 /*
 	// first pegin
@@ -89,11 +132,26 @@ var (
 	}
 */
 
-// Forward the announcement to all direct peers, unless the source PEM is known already
-func BroadcastMessage(fromNodeId string, message *ln.Message) error {
+// runs after restart, to continue if pegin is ongoing
+func InitCJ() {
 
-	if pemToNodeId[message.Sender] != "" {
-		// has been allready received from some nearer node
+}
+
+// runs every minute
+func OnTimer() {
+	if sayAgain {
+		if SendCoordination(PeginHandler, &Coordination{Action: "say_again"}) == nil {
+			sayAgain = false
+		}
+	}
+}
+
+// Forward the message to all direct peers, unless the source PEM is known already
+// (it means the message came back to you from a downstream peer)
+func Broadcast(fromNodeId string, message *Message) error {
+
+	if message.Asset == "pegin_started" && pemToNodeId[message.Sender] != "" || message.Asset == "pegin_ended" && pemToNodeId == nil {
+		// has been previously received from upstream
 		return nil
 	}
 
@@ -108,7 +166,7 @@ func BroadcastMessage(fromNodeId string, message *ln.Message) error {
 		return err
 	}
 
-	cl, clean, er := ln.GetClient()
+	cl, clean, er := GetClient()
 	if er != nil {
 		return err
 	}
@@ -117,7 +175,7 @@ func BroadcastMessage(fromNodeId string, message *ln.Message) error {
 	for _, peer := range res.GetPeers() {
 		// don't send back to where it came from
 		if peer.NodeId != fromNodeId {
-			ln.SendCustomMessage(cl, peer.NodeId, message)
+			SendCustomMessage(cl, peer.NodeId, message)
 		}
 	}
 
@@ -126,27 +184,39 @@ func BroadcastMessage(fromNodeId string, message *ln.Message) error {
 		PeginHandler = message.Sender
 		// store for relaying further encrypted messages
 		pemToNodeId[message.Sender] = fromNodeId
+		// currently expected ETA is communicated via Amount
+		ClaimBlockHeight = uint32(message.Amount)
+		ClaimStatus = "Pegin started, awaiting joiners"
 	} else if message.Asset == "pegin_ended" {
 		PeginHandler = ""
-		// delete key data from the map
-		delete(pemToNodeId, message.Sender)
+		// delete the routing map
+		pemToNodeId = nil
+		ClaimBlockHeight = 0
+		ClaimStatus = "No third-party pegin is pending"
 	}
 
 	// persist to db
-	db.Save("ClaimJoin", "PemToNodeId", &pemToNodeId)
-	db.Save("ClaimJoin", "PeginHandler", &PeginHandler)
+	db.Save("ClaimJoin", "pemToNodeId", pemToNodeId)
+	db.Save("ClaimJoin", "PeginHandler", PeginHandler)
+	db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
+	db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 
 	return nil
 }
 
-// Encrypt and send message to an anonymous peer identified only by his public key in PEM format
+// Encrypt and send message to an anonymous peer identified only by public key in PEM format
 // New keys are generated at the start of each pegin session
 // Peers track sources of encrypted messages to forward back the replies
-func SendEncryptedMessage(destinationPEM string, payload []byte) error {
+func SendCoordination(destinationPEM string, message *Coordination) error {
+
+	payload, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
 
 	destinationNodeId := pemToNodeId[destinationPEM]
 	if destinationNodeId == "" {
-		return fmt.Errorf("destination PEM has no matching NodeId")
+		return fmt.Errorf("Cannot send, destination PEM has no matching NodeId")
 	}
 
 	// Deserialize the received PEM string back to a public key
@@ -163,19 +233,71 @@ func SendEncryptedMessage(destinationPEM string, payload []byte) error {
 		return err
 	}
 
-	cl, clean, er := ln.GetClient()
+	cl, clean, er := GetClient()
 	if er != nil {
 		return er
 	}
 	defer clean()
 
-	return ln.SendCustomMessage(cl, destinationNodeId, &ln.Message{
-		Version:     ln.MessageVersion,
-		Memo:        "relay",
+	return SendCustomMessage(cl, destinationNodeId, &Message{
+		Version:     MessageVersion,
+		Memo:        "process",
 		Sender:      myPublicPEM,
 		Destination: destinationPEM,
 		Payload:     ciphertext,
 	})
+}
+
+// Either forward to final distination or decrypt and process
+func Process(message *Message) error {
+
+	cl, clean, er := GetClient()
+	if er != nil {
+		return er
+	}
+	defer clean()
+
+	if message.Destination == myPublicPEM {
+		// Decrypt the message using my private key
+		plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, myPrivateKey, message.Payload, nil)
+		if err != nil {
+			return fmt.Errorf("Error decrypting message:", err)
+		}
+
+		// recover the struct
+		var msg Coordination
+		err = json.Unmarshal(plaintext, &msg)
+		if err != nil {
+			return fmt.Errorf("Received an incorrectly formed message:", err)
+
+		}
+
+		if msg.ClaimBlockHeight > ClaimBlockHeight {
+			ClaimBlockHeight = msg.ClaimBlockHeight
+		}
+
+		switch msg.Action {
+		case "add":
+			if MyRole != "initiator" {
+				return fmt.Errorf("Cannot add a joiner, not a claim initiator")
+			}
+
+		case "remove":
+		case "process":
+		case "process2": // process twice to blind and sign
+
+		}
+
+		return nil
+	}
+
+	// relay further
+	destinationNodeId := pemToNodeId[message.Destination]
+	if destinationNodeId == "" {
+		return fmt.Errorf("Cannot relay, destination PEM has no matching NodeId")
+	}
+	return SendCustomMessage(cl, destinationNodeId, message)
+
 }
 
 // generates new message keys
@@ -196,7 +318,7 @@ func GenerateKeys() error {
 	}
 
 	// persist to db
-	db.Save("ClaimJoin", "PrivateKey", &myPrivateKey)
+	db.Save("ClaimJoin", "PrivateKey", myPrivateKey)
 
 	return nil
 }

@@ -2,7 +2,7 @@
 
 ## 1.7.0
 
-- 
+- Better estimate swap-in fee and maximum swap amount
 
 ## 1.6.8
 

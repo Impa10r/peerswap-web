@@ -42,7 +42,8 @@ const (
 	swapOutChannelReserve = 5000
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
 	swapOutChainReserve = 20300
-	// for Swap In reserves see /ln
+	// Swap In reserves
+	swapFeeReserveLBTC = uint64(300)
 )
 
 type SwapParams struct {
@@ -349,6 +350,9 @@ func onTimer(firstRun bool) {
 
 	// Check if pegin can be claimed
 	checkPegin()
+
+	// Handle ClaimJoin
+	go ln.OnTimer()
 
 	// check for updates
 	go func() {
@@ -1089,6 +1093,11 @@ func checkPegin() {
 		return
 	}
 
+	if ln.MyRole != "none" {
+		// claim is handled by ClaimJoin
+		return
+	}
+
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		return
@@ -1207,7 +1216,7 @@ func cacheAliases() {
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *SwapParams) error {
 	// extra 1000 to avoid no-change tx spending all on fees
-	minAmount := config.Config.AutoSwapThresholdAmount - ln.SwapFeeReserveLBTC - 1000
+	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1403,7 +1412,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-ln.SwapFeeReserveLBTC)
+	amount = min(amount, satAmount-swapFeeReserveLBTC)
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)

@@ -28,10 +28,6 @@ import (
 const (
 	Implementation = "CLN"
 	fileRPC        = "lightning-rpc"
-	// https://github.com/ElementsProject/peerswap/blob/master/clightning/clightning_commands.go#L392
-	// 2000 to avoid high fee
-	SwapFeeReserveLBTC = uint64(2000)
-	SwapFeeReserveBTC  = uint64(2000)
 )
 
 type Forwarding struct {

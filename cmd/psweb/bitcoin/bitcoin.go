@@ -207,6 +207,34 @@ func GetRawTransaction(txid string, result *Transaction) (string, error) {
 	return raw, nil
 }
 
+type FeeInfo struct {
+	Feerate float64 `json:"feerate"`
+	Blocks  int     `json:"blocks"`
+}
+
+// Estimate sat/vB fee rate from bitcoin core
+func EstimateSatvB(targetConf uint) float64 {
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+
+	params := []interface{}{targetConf}
+
+	r, err := service.client.call("estimatesmartfee", params, "")
+	if err = handleError(err, &r); err != nil {
+		return 0
+	}
+
+	var feeInfo FeeInfo
+
+	err = json.Unmarshal([]byte(r.Result), &feeInfo)
+	if err != nil {
+		log.Printf("GetRawTransaction unmarshall raw: %v", err)
+		return 0
+	}
+
+	return feeInfo.Feerate * 100_000
+}
+
 func GetTxOutProof(txid string) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
