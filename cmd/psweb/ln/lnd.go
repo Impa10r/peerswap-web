@@ -1218,6 +1218,16 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			// received request for information
 			if msg.Memo == "poll" {
+				if MyRole == "initiator" {
+					// repeat pegin start broadcast
+					SendCustomMessage(client, nodeId, &Message{
+						Version: MessageVersion,
+						Memo:    "broadcast",
+						Asset:   "pegin_started",
+						Amount:  uint64(ClaimBlockHeight),
+					})
+				}
+
 				if AdvertiseLiquidBalance {
 					if SendCustomMessage(client, nodeId, &Message{
 						Version: MessageVersion,

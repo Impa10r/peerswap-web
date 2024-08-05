@@ -148,12 +148,12 @@ func GetBlockHeight(client *glightning.Lightning) uint32 {
 		return 0
 	}
 
-	tip := uint32(res.Blockheight)
+	return uint32(res.Blockheight)
 }
 
 // returns number of confirmations and whether the tx can be fee bumped
 func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
-	blockHeight := GetBlockHeight()
+	blockHeight := GetBlockHeight(client)
 	if blockHeight == 0 {
 		return 0, false
 	}
@@ -163,7 +163,7 @@ func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool)
 	if height == 0 {
 		// mempool api error, use bitcoin core
 		var result bitcoin.Transaction
-		_, err = bitcoin.GetRawTransaction(txid, &result)
+		_, err := bitcoin.GetRawTransaction(txid, &result)
 		if err != nil {
 			return -1, true // signal tx not found
 		}
@@ -1310,3 +1310,14 @@ func SendCustomMessage(client *glightning.Lightning, peerId string, message *Mes
 
 	return nil
 }
+
+// ClaimJoin with CLN in not implemented, placeholder functions and variables:
+func loadClaimJoinDB()                          {}
+func OnTimer()                                  {}
+func InitiateClaimJoin(claimHeight uint32) bool { return false }
+func JoinClaimJoin(claimHeight uint32) bool     { return false }
+
+var (
+	PeginHandler = ""
+	MyRole       = "none"
+)

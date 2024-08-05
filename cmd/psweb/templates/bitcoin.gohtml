@@ -67,6 +67,25 @@
                     <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                   </div>
                 </div>
+                {{if .HasDiscountedvSize}}
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      ClaimJoin
+                    </div>
+                    <div class="field-body">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="claimJoin" onchange="calculateTransactionFee()" name="claimJoin" checked>
+                          {{if .HasClaimJoinPending}}
+                            <strong>&nbsp&nbspJoin an already pending claim for one confidential transaction</strong>
+                          {{else}}
+                            <strong>&nbsp&nbspInitiate joining several claims in one confidential transaction</strong>
+                          {{end}}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                {{end}}
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
                     <label class="label">Fee Estimate</label>
@@ -607,9 +626,14 @@
                 
                 if (isPegin) {
                   //liquid peg-in fee estimate
-                  liquidFee = Math.ceil({{.LiquidFeeRate}} * 450)
-                  fee += liquidFee; 
-                  text += "Liquid chain fee: " + formatWithThousandSeparators(liquidFee) + " sats\n";
+                  let liquidFee = "45";
+                  fee += 45; 
+                  {{if .HasDiscountedvSize}}
+                    if (document.getElementById("claimJoin").checked) {
+                      liquidFee = "32-45"
+                    }
+                  {{end}}
+                  text += "Liquid chain fee: " + liquidFee + " sats\n";
                 }
 
                 document.getElementById("totalFee").value = Number(fee);
@@ -620,9 +644,18 @@
                   netAmount -= fee;
                 }
 
-                text += "Estimated total fee: " + formatWithThousandSeparators(fee) + " sats\n";
-                text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
+                text += "Total fee: " + formatWithThousandSeparators(fee) + " sats\n";
+                text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
                 
+                let hours = "17 hours";
+                {{if .HasDiscountedvSize}}
+                    if (document.getElementById("claimJoin").checked) {
+                      hours = "17-34 hours";
+                    }
+                {{end}}
+
+                text += "\nClaim ETA: " + hours;
+
                 if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {
                   {{if .IsCLN}}
                     text += "\nReserve for anchor fee bumping will be returned as change."

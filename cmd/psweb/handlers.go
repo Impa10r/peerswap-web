@@ -641,30 +641,32 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	type Page struct {
-		Authenticated    bool
-		ErrorMessage     string
-		PopUpMessage     string
-		ColorScheme      string
-		BitcoinBalance   uint64
-		Outputs          *[]ln.UTXO
-		PeginTxId        string
-		IsPegin          bool // false for ordinary BTC withdrawal
-		PeginAmount      uint64
-		BitcoinApi       string
-		Confirmations    int32
-		Progress         int32
-		Duration         string
-		FeeRate          uint32
-		LiquidFeeRate    float64
-		MempoolFeeRate   float64
-		SuggestedFeeRate uint32
-		MinBumpFeeRate   uint32
-		CanBump          bool
-		CanRBF           bool
-		IsCLN            bool
-		BitcoinAddress   string
-		AdvertiseEnabled bool
-		BitcoinSwaps     bool
+		Authenticated       bool
+		ErrorMessage        string
+		PopUpMessage        string
+		ColorScheme         string
+		BitcoinBalance      uint64
+		Outputs             *[]ln.UTXO
+		PeginTxId           string
+		IsPegin             bool // false for ordinary BTC withdrawal
+		PeginAmount         uint64
+		BitcoinApi          string
+		Confirmations       int32
+		Progress            int32
+		Duration            string
+		FeeRate             uint32
+		LiquidFeeRate       float64
+		MempoolFeeRate      float64
+		SuggestedFeeRate    uint32
+		MinBumpFeeRate      uint32
+		CanBump             bool
+		CanRBF              bool
+		IsCLN               bool
+		BitcoinAddress      string
+		AdvertiseEnabled    bool
+		BitcoinSwaps        bool
+		HasDiscountedvSize  bool
+		HasClaimJoinPending bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -697,30 +699,32 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	ln.ListUnspent(cl, &utxos, minConfs)
 
 	data := Page{
-		Authenticated:    config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:     errorMessage,
-		PopUpMessage:     popupMessage,
-		ColorScheme:      config.Config.ColorScheme,
-		BitcoinBalance:   uint64(btcBalance),
-		Outputs:          &utxos,
-		PeginTxId:        config.Config.PeginTxId,
-		IsPegin:          config.Config.PeginClaimScript != "",
-		PeginAmount:      uint64(config.Config.PeginAmount),
-		BitcoinApi:       config.Config.BitcoinApi,
-		Confirmations:    confs,
-		Progress:         int32(confs * 100 / 102),
-		Duration:         formattedDuration,
-		FeeRate:          config.Config.PeginFeeRate,
-		MempoolFeeRate:   mempoolFeeRate,
-		LiquidFeeRate:    liquid.EstimateFee(),
-		SuggestedFeeRate: fee,
-		MinBumpFeeRate:   config.Config.PeginFeeRate + 2,
-		CanBump:          canBump,
-		CanRBF:           ln.CanRBF(),
-		IsCLN:            ln.Implementation == "CLN",
-		BitcoinAddress:   addr,
-		AdvertiseEnabled: ln.AdvertiseBitcoinBalance,
-		BitcoinSwaps:     config.Config.BitcoinSwaps,
+		Authenticated:       config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:        errorMessage,
+		PopUpMessage:        popupMessage,
+		ColorScheme:         config.Config.ColorScheme,
+		BitcoinBalance:      uint64(btcBalance),
+		Outputs:             &utxos,
+		PeginTxId:           config.Config.PeginTxId,
+		IsPegin:             config.Config.PeginClaimScript != "",
+		PeginAmount:         uint64(config.Config.PeginAmount),
+		BitcoinApi:          config.Config.BitcoinApi,
+		Confirmations:       confs,
+		Progress:            int32(confs * 100 / 102),
+		Duration:            formattedDuration,
+		FeeRate:             config.Config.PeginFeeRate,
+		MempoolFeeRate:      mempoolFeeRate,
+		LiquidFeeRate:       liquid.EstimateFee(),
+		SuggestedFeeRate:    fee,
+		MinBumpFeeRate:      config.Config.PeginFeeRate + 2,
+		CanBump:             canBump,
+		CanRBF:              ln.CanRBF(),
+		IsCLN:               ln.Implementation == "CLN",
+		BitcoinAddress:      addr,
+		AdvertiseEnabled:    ln.AdvertiseBitcoinBalance,
+		BitcoinSwaps:        config.Config.BitcoinSwaps,
+		HasDiscountedvSize:  hasDiscountedvSize,
+		HasClaimJoinPending: ln.PeginHandler != "",
 	}
 
 	// executing template named "bitcoin"
@@ -798,10 +802,14 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		claimScript := ""
 
 		if isPegin {
-			// test on pre-existing tx that bitcon core can complete the peg
+			// test on a pre-existing tx that bitcon core can complete the peg
 			tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
 			if config.Config.Chain == "testnet" {
-				tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+				if hasDiscountedvSize {
+					tx = "0b387c3b7a8d9fad4d7a1ac2cba4958451c03d6c4fe63dfbe10cdb86d666cdd7"
+				} else {
+					tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+				}
 			}
 
 			_, err = bitcoin.GetTxOutProof(tx)
@@ -866,6 +874,12 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
 		config.Config.PeginFeeRate = uint32(fee)
+
+		if hasDiscountedvSize {
+			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "true"
+		} else {
+			config.Config.PeginClaimJoin = false
+		}
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)

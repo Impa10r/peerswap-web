@@ -1,3 +1,5 @@
+//go:build !cln
+
 package ln
 
 import (
@@ -163,6 +165,7 @@ func OnTimer() {
 	}
 }
 
+// Called when received a broadcast custom message
 // Forward the message to all direct peers, unless the source PEM is known already
 // (it means the message came back to you from a downstream peer)
 func Broadcast(fromNodeId string, message *Message) error {
@@ -279,14 +282,14 @@ func Process(message *Message) error {
 		// Decrypt the message using my private key
 		plaintext, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, myPrivateKey, message.Payload, nil)
 		if err != nil {
-			return fmt.Errorf("Error decrypting message: %s", err)
+			return fmt.Errorf("error decrypting message: %s", err)
 		}
 
 		// recover the struct
 		var msg Coordination
 		err = json.Unmarshal(plaintext, &msg)
 		if err != nil {
-			return fmt.Errorf("Received an incorrectly formed message: %s", err)
+			return fmt.Errorf("received an incorrectly formed message: %s", err)
 
 		}
 
@@ -299,7 +302,7 @@ func Process(message *Message) error {
 		switch msg.Action {
 		case "add":
 			if MyRole != "initiator" {
-				return fmt.Errorf("Cannot add a joiner, not a claim initiator")
+				return fmt.Errorf("cannot add a joiner, not a claim initiator")
 			}
 
 		case "remove":
@@ -314,7 +317,7 @@ func Process(message *Message) error {
 	// relay further
 	destinationNodeId := pemToNodeId[message.Destination]
 	if destinationNodeId == "" {
-		return fmt.Errorf("Cannot relay, destination PEM has no matching NodeId")
+		return fmt.Errorf("cannot relay, destination PEM has no matching NodeId")
 	}
 	return SendCustomMessage(cl, destinationNodeId, message)
 
