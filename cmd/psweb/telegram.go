@@ -95,15 +95,34 @@ func telegramStart() {
 						t = "❗ Error: " + er.Error()
 					} else {
 						confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
-						duration := time.Duration(10*(102-confs)) * time.Minute
-						formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-						t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
-						if config.Config.PeginClaimScript != "" {
-							t += "/102, Time left: " + formattedDuration
+						if config.Config.PeginClaimJoin {
+							bh := ln.GetBlockHeight(cl)
+							duration := time.Duration(10*(ln.ClaimBlockHeight-bh)) * time.Minute
+							if ln.ClaimBlockHeight == 0 {
+								duration = time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
+							}
+							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+							if duration < 0 {
+								formattedDuration = "Past due!"
+							}
+							t = ln.ClaimStatus
+							if ln.MyRole == "none" && ln.PeginHandler != "" {
+								t += ". Time left to apply: " + formattedDuration
+							} else if confs > 0 {
+								t += ". Claim ETA: " + formattedDuration
+							}
+						} else {
+							// sole pegin
+							duration := time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
+							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+							t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+							if config.Config.PeginClaimScript != "" {
+								t += "/102, Time left: " + formattedDuration
+							}
+							t += ". TxId: `" + config.Config.PeginTxId + "`"
 						}
-						t += ". TxId: `" + config.Config.PeginTxId + "`"
-						clean()
 					}
+					clean()
 				}
 				telegramSendMessage(t)
 			case "/autoswaps":

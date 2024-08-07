@@ -1318,6 +1318,10 @@ func InitiateClaimJoin(claimHeight uint32) bool { return false }
 func JoinClaimJoin(claimHeight uint32) bool     { return false }
 
 var (
-	PeginHandler = ""
-	MyRole       = "none"
+	PeginHandler     = ""
+	MyRole           = "none"
+	ClaimStatus      = ""
+	ClaimBlockHeight = uint32(0)
 )
+
+const PeginBlocks = 102

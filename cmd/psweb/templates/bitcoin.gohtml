@@ -67,19 +67,19 @@
                     <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                   </div>
                 </div>
-                {{if .HasDiscountedvSize}}
-                  <div class="field is-horizontal">
+                {{if .CanClaimJoin}}
+                  <div id="claimJoinField" class="field is-horizontal">
                     <div class="field-label is-normal">
-                      ClaimJoin
+                      🧬 ClaimJoin
                     </div>
                     <div class="field-body">
                       <div class="control">
                         <label class="checkbox is-large">
                           <input type="checkbox" id="claimJoin" onchange="calculateTransactionFee()" name="claimJoin" checked>
                           {{if .HasClaimJoinPending}}
-                            <strong>&nbsp&nbspJoin an already pending claim for one confidential transaction</strong>
+                            <strong>&nbsp&nbspJoin a pending claim to create a single confidential transaction</strong>
                           {{else}}
-                            <strong>&nbsp&nbspInitiate joining several claims in one confidential transaction</strong>
+                            <strong>&nbsp&nbspInvite peers to join claims into a single confidential transaction</strong>
                           {{end}}
                         </label>
                       </div>
@@ -136,12 +136,12 @@
                   <td>
                     {{.Confirmations}} 
                     {{if .IsPegin}}
-                      / 102
+                      / {{.TargetConfirmations}}
                         </td>
                       </tr>
                       <tr>
                         <td style="text-align: right">
-                          T left: 
+                          ETA: 
                         </td>
                         <td>
                           {{.Duration}}
@@ -156,6 +156,16 @@
                     <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
                   </td>
                 </tr>
+                {{if .IsClaimJoin}}
+                  <tr title="ClaimJoin status">
+                    <td style="text-align: right">
+                      CJ: 
+                    </td>
+                    <td style="overflow-wrap: break-word;">
+                      {{.ClaimJoinStatus}}
+                    </td>
+                  </tr>
+                {{end}}
                 {{if .CanBump}}
                   <tr>
                     <td style="text-align: right">
@@ -282,6 +292,9 @@
                 document.getElementById('sendAddress').removeAttribute('required');
                 document.getElementById("sendButton").value = "Start Peg-In";
                 document.getElementById("isPegin").value = "true";
+                {{if .CanClaimJoin}}
+                  document.getElementById("claimJoinField").style.display = "";
+                {{end}}
                 calculateTransactionFee();
               }
 
@@ -292,6 +305,9 @@
                 document.getElementById('sendAddress').setAttribute('required', 'true');
                 document.getElementById("sendButton").value = "Send Bitcoin";
                 document.getElementById("isPegin").value = "false";
+                {{if .CanClaimJoin}}
+                  document.getElementById("claimJoinField").style.display = "none";
+                {{end}}
                 calculateTransactionFee();
               }
 
@@ -628,9 +644,9 @@
                   //liquid peg-in fee estimate
                   let liquidFee = "45";
                   fee += 45; 
-                  {{if .HasDiscountedvSize}}
+                  {{if .CanClaimJoin}}
                     if (document.getElementById("claimJoin").checked) {
-                      liquidFee = "32-45"
+                      liquidFee = "35-45"
                     }
                   {{end}}
                   text += "Liquid chain fee: " + liquidFee + " sats\n";
@@ -648,7 +664,7 @@
                 text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
                 
                 let hours = "17 hours";
-                {{if .HasDiscountedvSize}}
+                {{if .CanClaimJoin}}
                     if (document.getElementById("claimJoin").checked) {
                       hours = "17-34 hours";
                     }

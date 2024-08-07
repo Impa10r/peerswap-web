@@ -154,7 +154,7 @@ type Message struct {
 	// for encrypted communications via peer relay
 	Sender      string `json:"sender"`
 	Destination string `json:"destination"`
-	Payload     []byte `json:"payload"`
+	Payload     string `json:"payload"`
 }
 
 type BalanceInfo struct {
@@ -291,6 +291,9 @@ func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 }
 
 func LoadDB() {
+	// load ClaimJoin variables
+	loadClaimJoinDB()
+
 	// load rebates from db
 	db.Load("Swaps", "SwapRebates", &SwapRebates)
 
@@ -321,9 +324,6 @@ func LoadDB() {
 			return
 		}
 	}
-
-	// init ClaimJoin
-	loadClaimJoinDB()
 }
 
 func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFee int) int {

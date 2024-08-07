@@ -219,7 +219,7 @@ func SendToAddress(address string,
 
 	params := &SendParams{
 		Address:               address,
-		Amount:                toBitcoin(amountSats),
+		Amount:                ToBitcoin(amountSats),
 		Comment:               comment,
 		SubtractFeeFromAmount: subtractFeeFromAmount,
 		Replaceable:           replaceable,
@@ -365,7 +365,7 @@ func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 	return txid, nil
 }
 
-func toBitcoin(amountSats uint64) float64 {
+func ToBitcoin(amountSats uint64) float64 {
 	return float64(amountSats) / float64(100_000_000)
 }
 
@@ -428,64 +428,14 @@ func HasDiscountedvSize() bool {
 	return response["version"].(float64) >= 230202
 }
 
-func CreateClaimPSBT(peginTxId string,
-	peginVout uint,
-	peginRawTx string,
-	peginTxoutProof string,
-	peginClaimScript string,
-	peginAmount uint64,
-	liquidAddress string,
-	peginTxId2 string,
-	peginVout2 uint,
-	peginRawTx2 string,
-	peginTxoutProof2 string,
-	peginClaimScript2 string,
-	peginAmount2 uint64,
-	liquidAddress2 string,
-	fee uint64) (string, error) {
+func CreatePSET(params interface{}) (string, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
 
-	// Create the inputs array
-	inputs := []map[string]interface{}{
-		{
-			"txid":               peginTxId,
-			"vout":               peginVout,
-			"pegin_bitcoin_tx":   peginRawTx,
-			"pegin_txout_proof":  peginTxoutProof,
-			"pegin_claim_script": peginClaimScript,
-		},
-		{
-			"txid":               peginTxId2,
-			"vout":               peginVout2,
-			"pegin_bitcoin_tx":   peginRawTx2,
-			"pegin_txout_proof":  peginTxoutProof2,
-			"pegin_claim_script": peginClaimScript2,
-		},
-	}
-
-	// Create the outputs array
-	outputs := []map[string]interface{}{
-		{
-			liquidAddress:   toBitcoin(peginAmount),
-			"blinder_index": 0,
-		},
-		{
-			liquidAddress2:  toBitcoin(peginAmount2),
-			"blinder_index": 1,
-		},
-		{
-			"fee": toBitcoin(fee),
-		},
-	}
-
-	// Combine inputs and outputs into the parameters array
-	params := []interface{}{inputs, outputs}
-
 	r, err := service.client.call("createpsbt", params, "")
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Failed to create raw transaction: %v", err)
+		log.Printf("Failed to create PSET: %v", err)
 		return "", err
 	}
 
@@ -493,14 +443,14 @@ func CreateClaimPSBT(peginTxId string,
 
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
-		log.Printf("CreateClaimRawTx unmarshall: %v", err)
+		log.Printf("CreatePSET unmarshall: %v", err)
 		return "", err
 	}
 
 	return response, nil
 }
 
-func ProcessPSBT(base64psbt, wallet string) (string, bool, error) {
+func ProcessPSET(base64psbt, wallet string) (string, bool, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
@@ -509,7 +459,7 @@ func ProcessPSBT(base64psbt, wallet string) (string, bool, error) {
 
 	r, err := service.client.call("walletprocesspsbt", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Failed to process PSBT: %v", err)
+		log.Printf("Failed to process PSET: %v", err)
 		return "", false, err
 	}
 
@@ -517,38 +467,14 @@ func ProcessPSBT(base64psbt, wallet string) (string, bool, error) {
 
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
-		log.Printf("ProcessPSBT unmarshall: %v", err)
+		log.Printf("ProcessPSET unmarshall: %v", err)
 		return "", false, err
 	}
 
 	return response["psbt"].(string), response["complete"].(bool), nil
 }
 
-func CombinePSBT(psbt []string) (string, error) {
-
-	client := ElementsClient()
-	service := &Elements{client}
-
-	params := []interface{}{psbt}
-
-	r, err := service.client.call("combinepsbt", params, "")
-	if err = handleError(err, &r); err != nil {
-		log.Printf("Failed to combine PSBT: %v", err)
-		return "", err
-	}
-
-	var response string
-
-	err = json.Unmarshal([]byte(r.Result), &response)
-	if err != nil {
-		log.Printf("CombinePSBT unmarshall: %v", err)
-		return "", err
-	}
-
-	return response, nil
-}
-
-func FinalizePSBT(psbt string) (string, bool, error) {
+func FinalizePSET(psbt string) (string, bool, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
@@ -557,7 +483,7 @@ func FinalizePSBT(psbt string) (string, bool, error) {
 
 	r, err := service.client.call("finalizepsbt", params, "")
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Failed to finalize PSBT: %v", err)
+		log.Printf("Failed to finalize PSET: %v", err)
 		return "", false, err
 	}
 
@@ -565,7 +491,7 @@ func FinalizePSBT(psbt string) (string, bool, error) {
 
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
-		log.Printf("FinalizePSBT unmarshall: %v", err)
+		log.Printf("FinalizePSET unmarshall: %v", err)
 		return "", false, err
 	}
 
@@ -574,4 +500,228 @@ func FinalizePSBT(psbt string) (string, bool, error) {
 	}
 
 	return response["psbt"].(string), false, nil
+}
+
+type Missing struct {
+	Pubkeys []string `json:"pubkeys"`
+}
+
+type AnalyzeInput struct {
+	HasUTXO bool    `json:"has_utxo"`
+	IsFinal bool    `json:"is_final"`
+	Next    string  `json:"next"`
+	Missing Missing `json:"missing"`
+}
+
+type AnalyzeOutput struct {
+	Blind  bool   `json:"blind"`
+	Status string `json:"status"`
+}
+
+type AnalyzedPSET struct {
+	Inputs  []AnalyzeInput  `json:"inputs"`
+	Outputs []AnalyzeOutput `json:"outputs"`
+	Fee     float64         `json:"fee"`
+	Next    string          `json:"next"`
+}
+
+func AnalyzePSET(psbt string) (*AnalyzedPSET, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{psbt}
+
+	r, err := service.client.call("analyzepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to analyze PSET: %v", err)
+		return nil, err
+	}
+
+	var response AnalyzedPSET
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("AnalyzePSET unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type DecodedScript struct {
+	Asm     string `json:"asm"`
+	Desc    string `json:"desc"`
+	Hex     string `json:"hex"`
+	Address string `json:"address,omitempty"`
+	Type    string `json:"type"`
+}
+
+type DecodedOutput struct {
+	Amount         float64       `json:"amount"`
+	Script         DecodedScript `json:"script"`
+	Asset          string        `json:"asset"`
+	BlindingPubKey string        `json:"blinding_pubkey,omitempty"`
+	BlinderIndex   int           `json:"blinder_index,omitempty"`
+	Status         string        `json:"status,omitempty"`
+}
+
+type DecodedInput struct {
+	PreviousTxid       string   `json:"previous_txid"`
+	PreviousVout       int      `json:"previous_vout"`
+	Sequence           uint32   `json:"sequence"`
+	PeginBitcoinTx     string   `json:"pegin_bitcoin_tx"`
+	PeginTxoutProof    string   `json:"pegin_txout_proof"`
+	PeginClaimScript   string   `json:"pegin_claim_script"`
+	PeginGenesisHash   string   `json:"pegin_genesis_hash"`
+	PeginValue         float64  `json:"pegin_value"`
+	FinalScriptWitness []string `json:"final_scriptwitness,omitempty"`
+}
+
+type DecodedFees struct {
+	Bitcoin float64 `json:"bitcoin"`
+}
+
+type DecodedPSET struct {
+	GlobalXpubs      []interface{}          `json:"global_xpubs"`
+	TxVersion        int                    `json:"tx_version"`
+	FallbackLocktime int                    `json:"fallback_locktime"`
+	InputCount       int                    `json:"input_count"`
+	OutputCount      int                    `json:"output_count"`
+	PsbtVersion      int                    `json:"psbt_version"`
+	Proprietary      []interface{}          `json:"proprietary"`
+	Fees             DecodedFees            `json:"fees"`
+	Unknown          map[string]interface{} `json:"unknown"`
+	Inputs           []DecodedInput         `json:"inputs"`
+	Outputs          []DecodedOutput        `json:"outputs"`
+}
+
+func DecodePSET(psbt string) (*DecodedPSET, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{psbt}
+
+	r, err := service.client.call("decodepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to decode PSET: %v", err)
+		return nil, err
+	}
+
+	var response DecodedPSET
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("DecodePSET unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type ScriptSig struct {
+	Asm string `json:"asm"`
+	Hex string `json:"hex"`
+}
+
+type TxinWitness []string
+type PeginWitness []string
+
+type Vin struct {
+	Txid         string       `json:"txid"`
+	Vout         int          `json:"vout"`
+	ScriptSig    ScriptSig    `json:"scriptSig"`
+	IsPegin      bool         `json:"is_pegin"`
+	Sequence     uint32       `json:"sequence"`
+	TxinWitness  TxinWitness  `json:"txinwitness"`
+	PeginWitness PeginWitness `json:"pegin_witness"`
+}
+
+type ScriptPubKey struct {
+	Asm     string `json:"asm"`
+	Desc    string `json:"desc"`
+	Hex     string `json:"hex"`
+	Address string `json:"address"`
+	Type    string `json:"type"`
+}
+
+type Vout struct {
+	ValueMinimum         float64      `json:"value-minimum"`
+	ValueMaximum         float64      `json:"value-maximum"`
+	CtExponent           int          `json:"ct-exponent"`
+	CtBits               int          `json:"ct-bits"`
+	SurjectionProof      string       `json:"surjectionproof"`
+	ValueCommitment      string       `json:"valuecommitment"`
+	AssetCommitment      string       `json:"assetcommitment"`
+	CommitmentNonce      string       `json:"commitmentnonce"`
+	CommitmentNonceValid bool         `json:"commitmentnonce_fully_valid"`
+	N                    int          `json:"n"`
+	ScriptPubKey         ScriptPubKey `json:"scriptPubKey"`
+	Value                float64      `json:"value,omitempty"`
+	Asset                string       `json:"asset,omitempty"`
+}
+
+type Transaction struct {
+	Txid          string             `json:"txid"`
+	Hash          string             `json:"hash"`
+	Wtxid         string             `json:"wtxid"`
+	Withash       string             `json:"withash"`
+	Version       int                `json:"version"`
+	Size          int                `json:"size"`
+	Vsize         int                `json:"vsize"`
+	DiscountVsize int                `json:"discountvsize"`
+	Weight        int                `json:"weight"`
+	Locktime      int                `json:"locktime"`
+	Vin           []Vin              `json:"vin"`
+	Vout          []Vout             `json:"vout"`
+	Fee           map[string]float64 `json:"fee"`
+}
+
+func DecodeRawTransaction(hexTx string) (*Transaction, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{hexTx}
+
+	r, err := service.client.call("decoderawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to decode raw tx: %v", err)
+		return nil, err
+	}
+
+	var response Transaction
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("DecodeRawTransaction unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func SendRawTransaction(hexTx string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{hexTx}
+
+	r, err := service.client.call("sendrawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to send raw tx: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("SendRawTransaction unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
 }

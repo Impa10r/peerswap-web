@@ -1209,22 +1209,20 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 			}
 
 			// messages related to pegin claim join
-			if msg.Memo == "process" {
-				err = Process(&msg)
-				if err != nil {
-					log.Println(err)
-				}
+			if msg.Memo == "process" && config.Config.PeginClaimJoin {
+				Process(&msg, nodeId)
 			}
 
 			// received request for information
 			if msg.Memo == "poll" {
-				if MyRole == "initiator" {
+				if MyRole == "initiator" && myPublicKey() != "" && len(claimParties) < maxParties {
 					// repeat pegin start broadcast
 					SendCustomMessage(client, nodeId, &Message{
 						Version: MessageVersion,
 						Memo:    "broadcast",
 						Asset:   "pegin_started",
 						Amount:  uint64(ClaimBlockHeight),
+						Sender:  myPublicKey(),
 					})
 				}
 
@@ -1293,6 +1291,8 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 	if err != nil {
 		return err
 	}
+
+	log.Println("Message size:", len(data))
 
 	req := &lnrpc.SendCustomMessageRequest{
 		Peer: peerByte,

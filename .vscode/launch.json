@@ -9,11 +9,11 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "buildFlags": "-tags cln",
+            "buildFlags": "-tags lnd",
             "program": "${workspaceFolder}/cmd/psweb/",
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",
-            //"args": ["-datadir", "/home/vlad/.peerswap_t4"]
+            "args": ["-datadir", "/home/vlad/.peerswap_t4"]
             //"args": ["-datadir", "/home/vlad/.peerswap2"]
         }
     ]

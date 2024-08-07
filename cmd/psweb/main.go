@@ -348,9 +348,6 @@ func onTimer(firstRun bool) {
 	// Back up to Telegram if Liquid balance changed
 	liquidBackup(false)
 
-	// Check if pegin can be claimed
-	checkPegin()
-
 	// Handle ClaimJoin
 	go ln.OnTimer()
 
@@ -383,6 +380,8 @@ func onTimer(firstRun bool) {
 	if !firstRun {
 		// skip first run so that forwards have time to download
 		go ln.ApplyAutoFees()
+		// Check if pegin can be claimed or joined
+		go checkPegin()
 	}
 
 	// advertise Liquid balance
@@ -1093,16 +1092,55 @@ func checkPegin() {
 		return
 	}
 
-	if ln.MyRole != "none" {
-		// claim is handled by ClaimJoin
-		return
-	}
-
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		return
 	}
 	defer clean()
+
+	currentBlockHeight := ln.GetBlockHeight(cl)
+
+	if ln.MyRole == "none" && currentBlockHeight > ln.ClaimBlockHeight {
+		// invitation expired
+		ln.PeginHandler = ""
+		db.Save("ClaimJoin", "PeginHandler", ln.PeginHandler)
+	}
+
+	if config.Config.PeginClaimJoin {
+		if ln.MyRole != "none" {
+			if currentBlockHeight > ln.ClaimBlockHeight+10 {
+				// something is wrong, claim pegin individually
+				t := "🧬 ClaimJoin matured 10 blocks ago, switching to individual claim"
+				log.Println(t)
+				telegramSendMessage(t)
+				ln.MyRole = "none"
+				config.Config.PeginClaimJoin = false
+				config.Save()
+				ln.EndClaimJoin("", "Something went wrong")
+			}
+			return
+		}
+
+		t := ""
+		switch config.Config.PeginClaimScript {
+		case "done":
+			t = "🧬 ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`"
+		case "failed":
+			t = "🧬 ClaimJoin pegin failed: " + config.Config.PeginTxId
+		default:
+			goto singlePegin
+		}
+
+		// finish by sending telegram message
+		telegramSendMessage(t)
+		config.Config.PeginClaimScript = ""
+		config.Config.PeginTxId = ""
+		config.Config.PeginClaimJoin = false
+		config.Save()
+		return
+	}
+
+singlePegin:
 
 	confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 	if confs < 0 && config.Config.PeginReplacedTxId != "" {
@@ -1119,7 +1157,7 @@ func checkPegin() {
 		if config.Config.PeginClaimScript == "" {
 			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
 			telegramSendMessage("BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
-		} else if confs > 101 && ln.MyRole == "none" {
+		} else if confs >= ln.PeginBlocks && ln.MyRole == "none" {
 			// claim individual pegin
 			failed := false
 			proof := ""
@@ -1130,7 +1168,7 @@ func checkPegin() {
 				if err == nil {
 					txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
 					// claimpegin takes long time, allow it to timeout
-					if err != nil && err.Error() != "timeout reading data from server" {
+					if err != nil && err.Error() != "timeout reading data from server" && err.Error() != "-4: Error: The transaction was rejected! Reason given: pegin-already-claimed" {
 						failed = true
 					}
 				} else {
@@ -1148,27 +1186,38 @@ func checkPegin() {
 				log.Println("Claim Script:", config.Config.PeginClaimScript)
 				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 			} else {
-				log.Println("Peg-in success! Liquid TxId:", txid)
-				telegramSendMessage("💸 Peg-in success! Liquid TxId: `" + txid + "`")
+				log.Println("Peg-in successful! Liquid TxId:", txid)
+				telegramSendMessage("💸 Peg-in successfull! Liquid TxId: `" + txid + "`")
 			}
 		} else {
 			if config.Config.PeginClaimJoin {
 				if ln.MyRole == "none" {
-					currentBlockHeight := ln.GetBlockHeight(cl)
-					claimHeight := currentBlockHeight + 102 - uint32(confs)
+					claimHeight := currentBlockHeight + ln.PeginBlocks - uint32(confs)
 					if ln.PeginHandler == "" {
-						// I become pegin handler
+						// I will coordinate this handler
 						if ln.InitiateClaimJoin(claimHeight) {
+							t := "🧬 Sent ClaimJoin invitations"
+							log.Println(t)
+							telegramSendMessage(t)
+
 							ln.MyRole = "initiator"
 							// persist to db
 							db.Save("ClaimJoin", "MyRole", ln.MyRole)
+						} else {
+							log.Println("Failed to initiate ClaimJoin, continuing as a single pegin")
+							config.Config.PeginClaimJoin = false
+							config.Save()
 						}
-					} else {
+					} else if currentBlockHeight < ln.ClaimBlockHeight {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
-							ln.MyRole = "joiner"
-							// persist to db
-							db.Save("ClaimJoin", "MyRole", ln.MyRole)
+							t := "🧬 Applied to ClaimJoin group"
+							log.Println(t)
+							telegramSendMessage(t)
+						} else {
+							log.Println("Failed to apply to ClaimJoin, continuing as a single pegin")
+							config.Config.PeginClaimJoin = false
+							config.Save()
 						}
 					}
 				}

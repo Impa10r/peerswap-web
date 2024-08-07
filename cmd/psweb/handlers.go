@@ -632,7 +632,6 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	var utxos []ln.UTXO
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		redirectWithError(w, r, "/config?", er)
@@ -652,6 +651,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		PeginAmount         uint64
 		BitcoinApi          string
 		Confirmations       int32
+		TargetConfirmations int32
 		Progress            int32
 		Duration            string
 		FeeRate             uint32
@@ -666,15 +666,20 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		AdvertiseEnabled    bool
 		BitcoinSwaps        bool
 		HasDiscountedvSize  bool
+		CanClaimJoin        bool
+		IsClaimJoin         bool
+		ClaimJoinStatus     string
 		HasClaimJoinPending bool
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 	fee := uint32(mempoolFeeRate)
 	confs := int32(0)
-	minConfs := int32(1)
 	canBump := false
 	canCPFP := false
+
+	var utxos []ln.UTXO
+	ln.ListUnspent(cl, &utxos, int32(1))
 
 	if config.Config.PeginTxId != "" {
 		confs, canCPFP = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
@@ -694,9 +699,22 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	duration := time.Duration(10*(102-confs)) * time.Minute
+	duration := time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
+	maxConfs := int32(ln.PeginBlocks)
+
+	if config.Config.PeginClaimJoin && ln.MyRole != "none" {
+		bh := int32(ln.GetBlockHeight(cl))
+		target := int32(ln.ClaimBlockHeight)
+		maxConfs = target - bh + confs
+		duration = time.Duration(10*(target-bh)) * time.Minute
+	}
+
+	progress := confs * 100 / int32(maxConfs)
+
 	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-	ln.ListUnspent(cl, &utxos, minConfs)
+	if duration < 0 {
+		formattedDuration = "Past due"
+	}
 
 	data := Page{
 		Authenticated:       config.Config.SecureConnection && config.Config.Password != "",
@@ -710,7 +728,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		PeginAmount:         uint64(config.Config.PeginAmount),
 		BitcoinApi:          config.Config.BitcoinApi,
 		Confirmations:       confs,
-		Progress:            int32(confs * 100 / 102),
+		TargetConfirmations: maxConfs,
+		Progress:            progress,
 		Duration:            formattedDuration,
 		FeeRate:             config.Config.PeginFeeRate,
 		MempoolFeeRate:      mempoolFeeRate,
@@ -723,7 +742,9 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinAddress:      addr,
 		AdvertiseEnabled:    ln.AdvertiseBitcoinBalance,
 		BitcoinSwaps:        config.Config.BitcoinSwaps,
-		HasDiscountedvSize:  hasDiscountedvSize,
+		CanClaimJoin:        hasDiscountedvSize && ln.Implementation == "LND",
+		IsClaimJoin:         config.Config.PeginClaimJoin,
+		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.PeginHandler != "",
 	}
 
@@ -860,7 +881,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		if isPegin {
 			log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
-			duration := time.Duration(1020) * time.Minute
+			duration := time.Duration(10*ln.PeginBlocks) * time.Minute
 			formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 			telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
 		} else {
@@ -875,8 +896,12 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginReplacedTxId = ""
 		config.Config.PeginFeeRate = uint32(fee)
 
-		if hasDiscountedvSize {
-			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "true"
+		if hasDiscountedvSize && ln.Implementation == "LND" {
+			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
+			if config.Config.PeginClaimJoin {
+				ln.ClaimStatus = "Awaiting tx confirmation"
+				db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+			}
 		} else {
 			config.Config.PeginClaimJoin = false
 		}
