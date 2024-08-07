@@ -1110,9 +1110,9 @@ func checkPegin() {
 		if ln.MyRole != "none" {
 			if currentBlockHeight > ln.ClaimBlockHeight+10 {
 				// something is wrong, claim pegin individually
-				t := "🧬 ClaimJoin matured 10 blocks ago, switching to individual claim"
+				t := "ClaimJoin matured 10 blocks ago, switching to individual claim"
 				log.Println(t)
-				telegramSendMessage(t)
+				telegramSendMessage("🧬 " + t)
 				ln.MyRole = "none"
 				config.Config.PeginClaimJoin = false
 				config.Save()
@@ -1124,15 +1124,15 @@ func checkPegin() {
 		t := ""
 		switch config.Config.PeginClaimScript {
 		case "done":
-			t = "🧬 ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`"
+			t = "ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`"
 		case "failed":
-			t = "🧬 ClaimJoin pegin failed: " + config.Config.PeginTxId
+			t = "ClaimJoin pegin failed: " + config.Config.PeginTxId
 		default:
 			goto singlePegin
 		}
 
 		// finish by sending telegram message
-		telegramSendMessage(t)
+		telegramSendMessage("🧬 " + t)
 		config.Config.PeginClaimScript = ""
 		config.Config.PeginTxId = ""
 		config.Config.PeginClaimJoin = false
@@ -1196,7 +1196,7 @@ singlePegin:
 					if ln.PeginHandler == "" {
 						// I will coordinate this handler
 						if ln.InitiateClaimJoin(claimHeight) {
-							t := "🧬 Sent ClaimJoin invitations"
+							t := "Sent ClaimJoin invitations"
 							log.Println(t)
 							telegramSendMessage(t)
 
@@ -1211,7 +1211,7 @@ singlePegin:
 					} else if currentBlockHeight < ln.ClaimBlockHeight {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
-							t := "🧬 Applied to ClaimJoin group"
+							t := "Applied to ClaimJoin group"
 							log.Println(t)
 							telegramSendMessage(t)
 						} else {

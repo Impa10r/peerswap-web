@@ -331,7 +331,9 @@ func Broadcast(fromNodeId string, message *Message) error {
 			if len(claimParties) < 2 && mathRand.Intn(2) > 0 {
 				MyRole = "none"
 				db.Save("ClaimJoin", "MyRole", MyRole)
+				log.Println("Initiator collision, switching to none")
 			} else {
+				log.Println("Initiator collision, staying as initiator")
 				break
 			}
 		}
@@ -341,7 +343,7 @@ func Broadcast(fromNodeId string, message *Message) error {
 		keyToNodeId[message.Sender] = fromNodeId
 		// Time limit to apply is communicated via Amount
 		ClaimBlockHeight = uint32(message.Amount)
-		ClaimStatus = "🧬 Received invitation to ClaimJoin"
+		ClaimStatus = "Received invitation to ClaimJoin"
 		log.Println(ClaimStatus)
 	case "pegin_ended":
 		// only trust the message from the original handler
@@ -350,7 +352,7 @@ func Broadcast(fromNodeId string, message *Message) error {
 			if txId != "" {
 				ClaimStatus = "ClaimJoin pegin successful! Liquid TxId: " + txId
 			} else {
-				ClaimStatus = "Invitation to ClaimJoin revoked"
+				ClaimStatus = "Invitations to ClaimJoin revoked"
 			}
 			log.Println(ClaimStatus)
 			resetClaimJoin()
@@ -427,7 +429,7 @@ func Process(message *Message, senderNodeId string) {
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
 
-	log.Println("My pubKey:", myPublicKey())
+	// log.Println("My pubKey:", myPublicKey())
 
 	if message.Destination == myPublicKey() {
 		// Convert to []byte
@@ -470,6 +472,7 @@ func Process(message *Message, senderNodeId string) {
 					Status:           status,
 				}) {
 					ClaimStatus = "Added new joiner, total participants: " + strconv.Itoa(len(claimParties))
+					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 					log.Println(ClaimStatus)
 				}
 			} else {
@@ -571,7 +574,7 @@ func Process(message *Message, senderNodeId string) {
 						ClaimStatus = "Kicked from ClaimJoin"
 						log.Println(ClaimStatus)
 
-						db.Save("ClaimJoin", "PeginHandler", &PeginHandler)
+						db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 						db.Save("ClaimJoin", "PeginHandler", &PeginHandler)
 
 						// disable ClaimJoin
@@ -618,6 +621,7 @@ func Process(message *Message, senderNodeId string) {
 				EndClaimJoin("", "Coordination failure")
 			}
 		}
+		return
 	}
 
 	// message not to me, relay further
@@ -822,7 +826,7 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 	}
 
 	// verify claimBlockHeight
-	proof, err := bitcoin.GetTxOutProof(config.Config.PeginTxId)
+	proof, err := bitcoin.GetTxOutProof(newParty.TxId)
 	if err != nil {
 		return false, "Refused to join, TX not confirmed"
 	}
@@ -833,10 +837,11 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 	}
 
 	txHeight := uint32(internet.GetTxHeight(newParty.TxId))
+	claimHight := txHeight + PeginBlocks
 
-	if txHeight > 0 && txHeight+PeginBlocks != newParty.ClaimBlockHeight {
-		log.Printf("New joiner's ClaimBlockHeight was wrong")
-		newParty.ClaimBlockHeight = txHeight + PeginBlocks
+	if txHeight > 0 && claimHight != newParty.ClaimBlockHeight {
+		log.Printf("New joiner's ClaimBlockHeight was wrong: %d vs %d correct", newParty.ClaimBlockHeight, claimHight)
+		newParty.ClaimBlockHeight = claimHight
 	}
 
 	claimParties = append(claimParties, newParty)

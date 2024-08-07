@@ -105,7 +105,7 @@ func telegramStart() {
 							if duration < 0 {
 								formattedDuration = "Past due!"
 							}
-							t = ln.ClaimStatus
+							t = "🧬 " + ln.ClaimStatus
 							if ln.MyRole == "none" && ln.PeginHandler != "" {
 								t += ". Time left to apply: " + formattedDuration
 							} else if confs > 0 {
@@ -243,7 +243,6 @@ func EscapeMarkdownV2(text string) string {
 		"(", "\\(",
 		")", "\\)",
 		"~", "\\~",
-		"`", "\\`",
 		">", "\\>",
 		"#", "\\#",
 		"+", "\\+",
