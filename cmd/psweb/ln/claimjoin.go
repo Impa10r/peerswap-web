@@ -163,12 +163,14 @@ func OnTimer() {
 					EndClaimJoin("", "Coordination failure")
 					return
 				}
+				ClaimStatus += " done"
+				log.Println(ClaimStatus)
 			} else {
 				action := "process"
 				if i == len(ClaimParties)-1 {
 					// the final blinder can blind and sign at once
 					action = "process2"
-					ClaimStatus += " & Signing 1/" + total
+					ClaimStatus += " & Signing " + strconv.Itoa(blinder) + "/" + total
 				}
 
 				if checkPeerStatus(blinder) {
@@ -190,6 +192,8 @@ func OnTimer() {
 						EndClaimJoin("", "Coordination failure")
 					}
 				}
+
+				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				return
 			}
 		}
@@ -210,6 +214,8 @@ func OnTimer() {
 					EndClaimJoin("", "Initiator signing failure")
 					return
 				}
+				ClaimStatus += " done"
+				log.Println(ClaimStatus)
 			} else {
 				if checkPeerStatus(i) {
 					serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
@@ -228,7 +234,7 @@ func OnTimer() {
 						EndClaimJoin("", "Coordination failure")
 					}
 				}
-
+				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				return
 			}
 		}
@@ -286,6 +292,8 @@ func OnTimer() {
 			db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 		} else if GetBlockHeight(cl) >= ClaimBlockHeight {
 			// send raw transaction
+			log.Println("Posting final TX")
+
 			txId, err := liquid.SendRawTransaction(rawHex)
 			if err != nil {
 				if err.Error() == "-27: Transaction already in block chain" {
@@ -414,7 +422,6 @@ func Broadcast(fromNodeId string, message *Message) error {
 				txId := string(message.Payload)
 				if txId != "" {
 					ClaimStatus = "ClaimJoin pegin successful! Liquid TxId: " + txId
-					log.Println(ClaimStatus)
 					// signal to telegram bot
 					config.Config.PeginTxId = txId
 					config.Config.PeginClaimScript = "done"
@@ -660,6 +667,11 @@ func Process(message *Message, senderNodeId string) {
 					}
 				}
 
+				ClaimStatus = msg.Status
+				log.Println(ClaimStatus)
+
+				db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
+
 				// Save received claimPSET, execute OnTimer
 				db.Save("ClaimJoin", "claimPSET", &claimPSET)
 				OnTimer()
@@ -679,8 +691,7 @@ func Process(message *Message, senderNodeId string) {
 			}
 
 			ClaimBlockHeight = msg.ClaimBlockHeight
-			ClaimStatus = msg.Status
-
+			ClaimStatus = msg.Status + " done"
 			log.Println(ClaimStatus)
 
 			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
@@ -696,6 +707,7 @@ func Process(message *Message, senderNodeId string) {
 			if !SendCoordination(PeginHandler, &Coordination{
 				Action: "process",
 				PSET:   serializedPset,
+				Status: ClaimStatus,
 			}) {
 				log.Println("Unable to send blind coordination, cancelling ClaimJoin")
 				EndClaimJoin("", "Coordination failure")

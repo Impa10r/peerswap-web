@@ -1317,13 +1317,14 @@ func OnTimer()                                  {}
 func InitiateClaimJoin(claimHeight uint32) bool { return false }
 func JoinClaimJoin(claimHeight uint32) bool     { return false }
 func MyPublicKey() string                       { return "" }
+func EndClaimJoin(a, b string)                  {}
 
 var (
 	PeginHandler     = ""
 	MyRole           = "none"
 	ClaimStatus      = ""
 	ClaimBlockHeight = uint32(0)
-	ClaimParties     = []int
+	ClaimParties     []int
 )
 
 const PeginBlocks = 102
