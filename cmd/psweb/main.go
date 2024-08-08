@@ -1109,6 +1109,16 @@ func checkPegin() {
 	}
 
 	if config.Config.PeginClaimJoin {
+		if config.Config.PeginClaimScript == "done" {
+			// finish by sending telegram message
+			telegramSendMessage("🧬 ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			config.Config.PeginClaimScript = ""
+			config.Config.PeginTxId = ""
+			config.Config.PeginClaimJoin = false
+			config.Save()
+			return
+		}
+
 		if ln.MyRole != "none" {
 			// blocks to wait before switching back to indivicual claim
 			margin := uint32(2)
@@ -1123,18 +1133,8 @@ func checkPegin() {
 				ln.MyRole = "none"
 				config.Config.PeginClaimJoin = false
 				config.Save()
-				ln.EndClaimJoin("", "Something went wrong")
+				ln.EndClaimJoin("", "Claimed individually")
 			}
-			return
-		}
-
-		if config.Config.PeginClaimScript == "done" {
-			// finish by sending telegram message
-			telegramSendMessage("🧬 ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`")
-			config.Config.PeginClaimScript = ""
-			config.Config.PeginTxId = ""
-			config.Config.PeginClaimJoin = false
-			config.Save()
 			return
 		}
 	}
