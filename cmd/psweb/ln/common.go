@@ -146,17 +146,17 @@ type DataPoint struct {
 	TimeUTC   string
 }
 
-// sent/received as json
+// sent/received as GOB
 type Message struct {
 	// cleartext announcements
-	Version int    `json:"version"`
-	Memo    string `json:"memo"`
-	Asset   string `json:"asset"`
-	Amount  uint64 `json:"amount"`
-	// for encrypted communications via peer relay
-	Sender      string `json:"sender"`
-	Destination string `json:"destination"`
-	Payload     string `json:"payload"`
+	Version int
+	Memo    string
+	Asset   string
+	Amount  uint64
+	// encrypted communications via peer relay
+	Sender      string
+	Destination string
+	Payload     []byte
 }
 
 type BalanceInfo struct {
@@ -168,7 +168,7 @@ type BalanceInfo struct {
 const (
 	ignoreForwardsMsat = 1_000_000
 	// one custom type for peeswap web
-	messageType    = uint32(42067)
+	messageType    = uint32(42066)
 	MessageVersion = 1
 )
 

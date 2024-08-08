@@ -21,7 +21,7 @@ func GetNodeAlias(id string) string {
 				return id[:20] // shortened id
 			}
 			resp, err2 := cl.Do(req)
-			if err2 == nil {
+			if err2 == nil && resp.StatusCode == http.StatusOK {
 				defer resp.Body.Close()
 				buf := new(bytes.Buffer)
 				_, _ = buf.ReadFrom(resp.Body)

@@ -3,12 +3,11 @@
 package ln
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
@@ -30,7 +29,7 @@ import (
 
 // maximum number of participants in ClaimJoin
 const (
-	maxParties  = 5
+	maxParties  = 10
 	PeginBlocks = 10 //102
 )
 
@@ -63,7 +62,7 @@ type Coordination struct {
 	// human readable status of the claimjoin
 	Status string
 	// partially signed elements transaction
-	PSET string
+	PSET []byte
 }
 
 type ClaimParty struct {
@@ -117,12 +116,12 @@ func OnTimer() {
 	}
 	defer clean()
 
-	if GetBlockHeight(cl) < ClaimBlockHeight {
-		// not yet matured
+	if GetBlockHeight(cl) < ClaimBlockHeight-1 {
+		// start signing process one block before maturity
 		return
 	}
 
-	startingFee := 36*len(ClaimParties) - 1
+	startingFee := 36 * len(ClaimParties)
 
 	if claimPSET == "" {
 		var err error
@@ -146,12 +145,12 @@ func OnTimer() {
 	for i, output := range analyzed.Outputs {
 		if output.Blind && output.Status == "unblinded" {
 			blinder := decoded.Outputs[i].BlinderIndex
-			ClaimStatus = "Blinding " + strconv.Itoa(i+1) + "/" + strconv.Itoa(len(ClaimParties))
-
-			log.Println(ClaimStatus)
+			total := strconv.Itoa(len(ClaimParties))
+			ClaimStatus = "Blinding " + strconv.Itoa(i+1) + "/" + total
 
 			if blinder == 0 {
 				// my output
+				log.Println(ClaimStatus)
 				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
 				if err != nil {
 					log.Println("Unable to blind output, cancelling ClaimJoin:", err)
@@ -163,13 +162,21 @@ func OnTimer() {
 				if i == len(ClaimParties)-1 {
 					// the final blinder can blind and sign at once
 					action = "process2"
-					ClaimStatus = "Signing " + strconv.Itoa(len(ClaimParties)) + "/" + strconv.Itoa(len(ClaimParties))
+					ClaimStatus += " & Signing 1/" + total
 				}
 
 				if checkPeerStatus(blinder) {
+					serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
+					if err != nil {
+						log.Println("Unable to serialize PSET")
+						return
+					}
+
+					log.Println(ClaimStatus)
+
 					if !SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
 						Action:           action,
-						PSET:             claimPSET,
+						PSET:             serializedPset,
 						Status:           ClaimStatus,
 						ClaimBlockHeight: ClaimBlockHeight,
 					}) {
@@ -177,7 +184,6 @@ func OnTimer() {
 						EndClaimJoin("", "Coordination failure")
 					}
 				}
-
 				return
 			}
 		}
@@ -188,7 +194,6 @@ func OnTimer() {
 		input := decoded.Inputs[i]
 		if len(input.FinalScriptWitness) == 0 {
 			ClaimStatus = "Signing " + strconv.Itoa(len(ClaimParties)-i) + "/" + strconv.Itoa(len(ClaimParties))
-
 			log.Println(ClaimStatus)
 
 			if i == 0 {
@@ -201,9 +206,15 @@ func OnTimer() {
 				}
 			} else {
 				if checkPeerStatus(i) {
+					serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
+					if err != nil {
+						log.Println("Unable to serialize PSET")
+						return
+					}
+
 					if !SendCoordination(ClaimParties[i].PubKey, &Coordination{
 						Action:           "process",
-						PSET:             claimPSET,
+						PSET:             serializedPset,
 						Status:           ClaimStatus,
 						ClaimBlockHeight: ClaimBlockHeight,
 					}) {
@@ -267,7 +278,7 @@ func OnTimer() {
 
 			db.Save("ClaimJoin", "claimPSET", &claimPSET)
 			db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
-		} else {
+		} else if GetBlockHeight(cl) >= ClaimBlockHeight {
 			// send raw transaction
 			txId, err := liquid.SendRawTransaction(rawHex)
 			if err != nil {
@@ -331,32 +342,79 @@ func Broadcast(fromNodeId string, message *Message) error {
 		}
 	}
 
-	if fromNodeId != myNodeId && (message.Asset == "pegin_started" && keyToNodeId[message.Sender] != "" || message.Asset == "pegin_ended" && PeginHandler == "") {
-		// has been previously received from upstream, ignore
-		return nil
-	}
+	if fromNodeId == myNodeId || (fromNodeId != myNodeId && (message.Asset == "pegin_started" && keyToNodeId[message.Sender] == "" || message.Asset == "pegin_ended" && PeginHandler != "")) {
+		// forward to everyone else
 
-	res, err := ps.ListPeers(client)
-	if err != nil {
-		return err
-	}
-
-	cl, clean, er := GetClient()
-	if er != nil {
-		return err
-	}
-	defer clean()
-
-	for _, peer := range res.GetPeers() {
-		// don't send back to where it came from
-		if peer.NodeId != fromNodeId {
-			SendCustomMessage(cl, peer.NodeId, message)
+		res, err := ps.ListPeers(client)
+		if err != nil {
+			return err
 		}
-	}
 
-	if fromNodeId == myNodeId {
-		// do nothing more after sending the original broadcast
-		return nil
+		cl, clean, er := GetClient()
+		if er != nil {
+			return err
+		}
+		defer clean()
+
+		for _, peer := range res.GetPeers() {
+			// don't send it back to where it came from
+			if peer.NodeId != fromNodeId {
+				SendCustomMessage(cl, peer.NodeId, message)
+			}
+		}
+
+		if fromNodeId == myNodeId {
+			// do nothing more if this is my own broadcast
+			return nil
+		}
+
+		// react to received broadcast
+		switch message.Asset {
+		case "pegin_started":
+			if MyRole == "initiator" {
+				// two simultaneous initiators conflict
+				if len(ClaimParties) < 2 {
+					MyRole = "none"
+					db.Save("ClaimJoin", "MyRole", MyRole)
+					log.Println("Initiator collision, switching to none")
+				} else {
+					log.Println("Initiator collision, staying as initiator")
+					break
+				}
+			} else if MyRole == "joiner" {
+				// already joined another group, ignore
+				return nil
+			}
+
+			// where to forward claimjoin request
+			PeginHandler = message.Sender
+			// Time limit to apply is communicated via Amount
+			ClaimBlockHeight = uint32(message.Amount)
+			ClaimStatus = "Received invitation to ClaimJoin"
+			log.Println(ClaimStatus)
+
+			// persist to db
+			db.Save("ClaimJoin", "PeginHandler", PeginHandler)
+			db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
+			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
+
+		case "pegin_ended":
+			// only trust the message from the original handler
+			if MyRole == "joiner" && PeginHandler == message.Sender && config.Config.PeginClaimScript != "done" {
+				txId := string(message.Payload)
+				if txId != "" {
+					ClaimStatus = "ClaimJoin pegin successful! Liquid TxId: " + txId
+					log.Println(ClaimStatus)
+					// signal to telegram bot
+					config.Config.PeginTxId = txId
+					config.Config.PeginClaimScript = "done"
+				} else {
+					ClaimStatus = "Invitation to ClaimJoin revoked"
+				}
+				log.Println(ClaimStatus)
+				resetClaimJoin()
+			}
+		}
 	}
 
 	if keyToNodeId[message.Sender] != fromNodeId {
@@ -365,52 +423,6 @@ func Broadcast(fromNodeId string, message *Message) error {
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
 
-	switch message.Asset {
-	case "pegin_started":
-		if MyRole == "initiator" {
-			// two simultaneous initiators conflict
-			if len(ClaimParties) < 2 {
-				MyRole = "none"
-				db.Save("ClaimJoin", "MyRole", MyRole)
-				log.Println("Initiator collision, switching to none")
-			} else {
-				log.Println("Initiator collision, staying as initiator")
-				break
-			}
-		} else if MyRole == "joiner" {
-			// already joined another group, ignore
-			return nil
-		}
-
-		// where to forward claimjoin request
-		PeginHandler = message.Sender
-		// Time limit to apply is communicated via Amount
-		ClaimBlockHeight = uint32(message.Amount)
-		ClaimStatus = "Received invitation to ClaimJoin"
-		log.Println(ClaimStatus)
-
-		// persist to db
-		db.Save("ClaimJoin", "PeginHandler", PeginHandler)
-		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
-		db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
-
-	case "pegin_ended":
-		// only trust the message from the original handler
-		if MyRole == "joiner" && PeginHandler == message.Sender {
-			txId := message.Payload
-			if txId != "" {
-				ClaimStatus = "ClaimJoin pegin successful! Liquid TxId: " + txId
-				log.Println(ClaimStatus)
-				// signal to telegram bot
-				config.Config.PeginTxId = txId
-				config.Config.PeginClaimScript = "done"
-			} else {
-				ClaimStatus = "Invitations to ClaimJoin revoked"
-			}
-			log.Println(ClaimStatus)
-			resetClaimJoin()
-		}
-	}
 	return nil
 }
 
@@ -419,19 +431,22 @@ func Broadcast(fromNodeId string, message *Message) error {
 // Peers track sources of encrypted messages to forward back the replies
 func SendCoordination(destinationPubKey string, message *Coordination) bool {
 
-	payload, err := json.Marshal(message)
-	if err != nil {
-		return false
-	}
-
 	destinationNodeId := keyToNodeId[destinationPubKey]
 	if destinationNodeId == "" {
 		log.Println("Cannot send coordination, destination PubKey has no matching NodeId")
 		return false
 	}
 
+	// Serialize the message using gob
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if err := encoder.Encode(message); err != nil {
+		log.Println("Cannot encode with GOB:", err)
+		return false
+	}
+
 	// Encrypt the message using the base64 receiver's public key
-	ciphertext, err := eciesEncrypt(destinationPubKey, payload)
+	ciphertext, err := eciesEncrypt(destinationPubKey, buffer.Bytes())
 	if err != nil {
 		log.Println("Error encrypting message:", err)
 		return false
@@ -476,15 +491,8 @@ func Process(message *Message, senderNodeId string) {
 	// log.Println("My pubKey:", myPublicKey())
 
 	if message.Destination == myPublicKey() {
-		// Convert to []byte
-		payload, err := base64.StdEncoding.DecodeString(message.Payload)
-		if err != nil {
-			log.Printf("Error decoding payload: %s", err)
-			return
-		}
-
 		// Decrypt the message using my private key
-		plaintext, err := eciesDecrypt(myPrivateKey, payload)
+		plaintext, err := eciesDecrypt(myPrivateKey, message.Payload)
 		if err != nil {
 			log.Printf("Error decrypting payload: %s", err)
 			return
@@ -492,13 +500,19 @@ func Process(message *Message, senderNodeId string) {
 
 		// recover the struct
 		var msg Coordination
-		err = json.Unmarshal(plaintext, &msg)
-		if err != nil {
+		var buffer bytes.Buffer
+
+		// Write the byte slice into the buffer
+		buffer.Write(plaintext)
+
+		// Deserialize binary data
+		decoder := gob.NewDecoder(&buffer)
+		if err := decoder.Decode(&msg); err != nil {
 			log.Printf("Received an incorrectly formed Coordination: %s", err)
 			return
 		}
 
-		claimPSET = msg.PSET
+		claimPSET = base64.StdEncoding.EncodeToString(msg.PSET)
 
 		switch msg.Action {
 		case "add":
@@ -518,6 +532,17 @@ func Process(message *Message, senderNodeId string) {
 					ClaimStatus = "Added new joiner, total participants: " + strconv.Itoa(len(ClaimParties))
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 					log.Println(ClaimStatus)
+
+					if len(ClaimParties) > 2 {
+						// inform the other joiners of the new ClaimBlockHeight
+						for i := 1; i < len(ClaimParties)-2; i++ {
+							SendCoordination(ClaimParties[i].PubKey, &Coordination{
+								Action:           "confirm_add",
+								ClaimBlockHeight: ClaimBlockHeight,
+								Status:           "Another peer joined, total participants: " + strconv.Itoa(len(ClaimParties)),
+							})
+						}
+					}
 				}
 			} else {
 				if SendCoordination(msg.Joiner.PubKey, &Coordination{
@@ -556,6 +581,7 @@ func Process(message *Message, senderNodeId string) {
 			// persist to db
 			db.Save("ClaimJoin", "MyRole", MyRole)
 			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
+			db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 
 		case "refuse_add":
 			log.Println(msg.Status)
@@ -650,10 +676,16 @@ func Process(message *Message, senderNodeId string) {
 			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 			db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 
+			serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
+			if err != nil {
+				log.Println("Unable to serialize PSET")
+				return
+			}
+
 			// return PSET to Handler
 			if !SendCoordination(PeginHandler, &Coordination{
 				Action: "process",
-				PSET:   claimPSET,
+				PSET:   serializedPset,
 			}) {
 				log.Println("Unable to send blind coordination, cancelling ClaimJoin")
 				EndClaimJoin("", "Coordination failure")
@@ -731,7 +763,7 @@ func EndClaimJoin(txId string, status string) bool {
 		Asset:       "pegin_ended",
 		Amount:      uint64(0),
 		Sender:      myPublicKey(),
-		Payload:     txId,
+		Payload:     []byte(txId),
 		Destination: status,
 	}) == nil {
 		if txId != "" {
@@ -887,7 +919,7 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 	// persist to db
 	db.Save("ClaimJoin", "claimParties", ClaimParties)
 
-	return true, "Successfully joined as participant #" + strconv.Itoa(len(ClaimParties))
+	return true, "Successfully joined, total participants: " + strconv.Itoa(len(ClaimParties))
 }
 
 // remove claim party from the list by public key
@@ -938,50 +970,12 @@ func myPublicKey() string {
 	return publicKeyToBase64(myPrivateKey.PubKey())
 }
 
-// Payload is encrypted with a symmetric AES key and returned as base64 string
-// The AES key is encrypted using destination secp256k1 pubKey, returned as base64
-func encryptPayload(pubKeyString string, plaintext []byte) (string, string, error) {
-	// Generate AES key
-	aesKey := make([]byte, 32) // 256-bit key
-	if _, err := rand.Read(aesKey); err != nil {
-		return "", "", err
-	}
-
-	block, err := aes.NewCipher(aesKey)
-	if err != nil {
-		return "", "", err
-	}
-
-	nonce := make([]byte, aes.BlockSize)
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", "", err
-	}
-
-	stream := cipher.NewCTR(block, nonce)
-	ciphertext := make([]byte, len(plaintext))
-	stream.XORKeyStream(ciphertext, plaintext)
-
-	// Prepend the nonce to the ciphertext
-	finalCiphertext := append(nonce, ciphertext...)
-
-	// convert to base64
-	base64cypherText := base64.StdEncoding.EncodeToString(finalCiphertext)
-
-	// Encrypt the AES key using RSA public key and returns the encrypted key in base64
-	encryptedKey, err := eciesEncrypt(pubKeyString, aesKey)
-	if err != nil {
-		return "", "", err
-	}
-
-	return base64cypherText, encryptedKey, nil
-}
-
 // Encrypt with base64 public key
-func eciesEncrypt(pubKeyString string, message []byte) (string, error) {
+func eciesEncrypt(pubKeyString string, message []byte) ([]byte, error) {
 
 	pubKey, err := base64ToPublicKey(pubKeyString)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	ephemeralPrivKey := generatePrivateKey()
@@ -990,17 +984,17 @@ func eciesEncrypt(pubKeyString string, message []byte) (string, error) {
 	hkdf := hkdf.New(sha256.New, sharedSecret[:], nil, nil)
 	encryptionKey := make([]byte, chacha20poly1305.KeySize)
 	if _, err := io.ReadFull(hkdf, encryptionKey); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	aead, err := chacha20poly1305.New(encryptionKey)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	nonce := make([]byte, chacha20poly1305.NonceSize)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	ciphertext := aead.Seal(nil, nonce, message, nil)
@@ -1008,7 +1002,7 @@ func eciesEncrypt(pubKeyString string, message []byte) (string, error) {
 	result := append(ephemeralPrivKey.PubKey().SerializeCompressed(), nonce...)
 	result = append(result, ciphertext...)
 
-	return base64.StdEncoding.EncodeToString(result), nil
+	return result, nil
 }
 
 func eciesDecrypt(privKey *btcec.PrivateKey, ciphertext []byte) ([]byte, error) {

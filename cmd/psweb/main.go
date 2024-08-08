@@ -1121,7 +1121,7 @@ func checkPegin() {
 
 		if ln.MyRole != "none" {
 			// blocks to wait before switching back to indivicual claim
-			margin := uint32(2)
+			margin := uint32(20)
 			if ln.MyRole == "initiator" && len(ln.ClaimParties) < 2 {
 				margin = 1
 			}

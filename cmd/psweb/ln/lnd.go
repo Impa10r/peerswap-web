@@ -8,8 +8,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/gob"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1191,11 +1191,18 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 		}
 		if data.Type == messageType {
 			var msg Message
-			err := json.Unmarshal(data.Data, &msg)
-			if err != nil {
-				log.Println("Received an incorrectly formed message")
+			var buffer bytes.Buffer
+
+			// Write the byte slice into the buffer
+			buffer.Write(data.Data)
+
+			// Deserialize binary data
+			decoder := gob.NewDecoder(&buffer)
+			if err := decoder.Decode(&msg); err != nil {
+				log.Println("Cannot deserialize the received message ")
 				continue
 			}
+
 			if msg.Version != MessageVersion {
 				log.Println("Received a message with wrong version number")
 				continue
@@ -1291,17 +1298,17 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 		return err
 	}
 
-	data, err := json.Marshal(message)
-	if err != nil {
+	// Serialize the message using gob
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if err := encoder.Encode(message); err != nil {
 		return err
 	}
-
-	log.Println("Message size:", len(data))
 
 	req := &lnrpc.SendCustomMessageRequest{
 		Peer: peerByte,
 		Type: messageType,
-		Data: data,
+		Data: buffer.Bytes(),
 	}
 
 	_, err = client.SendCustomMessage(context.Background(), req)

@@ -21,7 +21,7 @@ func GetLiquidTxFee(txid string) int64 {
 			return 0
 		}
 		resp, err2 := cl.Do(req)
-		if err2 == nil {
+		if err2 == nil && resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 
 			var tx map[string]interface{}
