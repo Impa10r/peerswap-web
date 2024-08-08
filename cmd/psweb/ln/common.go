@@ -157,6 +157,7 @@ type Message struct {
 	Sender      string `json:"sender"`
 	Destination string `json:"destination"`
 	Payload     string `json:"payload"`
+	AesKey      string `json:"aeskey"`
 }
 
 type BalanceInfo struct {

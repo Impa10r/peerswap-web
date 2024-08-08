@@ -31,7 +31,7 @@ import (
 // maximum number of participants in ClaimJoin
 const (
 	maxParties  = 5
-	PeginBlocks = 10 //102
+	PeginBlocks = 2 //102
 )
 
 var (
@@ -431,7 +431,8 @@ func SendCoordination(destinationPubKey string, message *Coordination) bool {
 	}
 
 	// Encrypt the message using the base64 receiver's public key
-	ciphertext, err := eciesEncrypt(destinationPubKey, payload)
+	ciphertext, aesKey, err := encryptPayload(destinationPubKey, payload)
+
 	if err != nil {
 		log.Println("Error encrypting message:", err)
 		return false
@@ -449,6 +450,7 @@ func SendCoordination(destinationPubKey string, message *Coordination) bool {
 		Sender:      myPublicKey(),
 		Destination: destinationPubKey,
 		Payload:     ciphertext,
+		AesKey:      aesKey,
 	}) == nil
 }
 
@@ -473,18 +475,10 @@ func Process(message *Message, senderNodeId string) {
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
 
-	// log.Println("My pubKey:", myPublicKey())
-
 	if message.Destination == myPublicKey() {
-		// Convert to []byte
-		payload, err := base64.StdEncoding.DecodeString(message.Payload)
-		if err != nil {
-			log.Printf("Error decoding payload: %s", err)
-			return
-		}
+		// Decrypt the message
+		plaintext, err := decryptPayload(message.Payload, message.AesKey)
 
-		// Decrypt the message using my private key
-		plaintext, err := eciesDecrypt(myPrivateKey, payload)
 		if err != nil {
 			log.Printf("Error decrypting payload: %s", err)
 			return
@@ -974,6 +968,40 @@ func encryptPayload(pubKeyString string, plaintext []byte) (string, string, erro
 	}
 
 	return base64cypherText, encryptedKey, nil
+}
+
+// Decrypts a base64 message using AES encrypted with pubKey
+func decryptPayload(ciphertext string, encryptedAesKey string) ([]byte, error) {
+	// Decrypts the AES key using private key
+
+	decodedAesKey, err := base64.StdEncoding.DecodeString(encryptedAesKey)
+	if err != nil {
+		return nil, err
+	}
+
+	aesKey, err := eciesDecrypt(myPrivateKey, decodedAesKey)
+	if err != nil {
+		return nil, err
+	}
+
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(aesKey)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := decodedCiphertext[:aes.BlockSize]
+	encryptedMessage := decodedCiphertext[aes.BlockSize:]
+
+	stream := cipher.NewCTR(block, nonce)
+	plaintext := make([]byte, len(encryptedMessage))
+	stream.XORKeyStream(plaintext, encryptedMessage)
+
+	return plaintext, nil
 }
 
 // Encrypt with base64 public key
