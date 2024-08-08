@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -52,10 +53,12 @@ var (
 	ClaimParties []*ClaimParty
 	// PSET to be blinded and signed by all parties
 	claimPSET string
+	// final raw tx that can by published by any joiner if initiator defaults
+	finalRawTX string
 )
 
 type Coordination struct {
-	// possible actions: add, confirm_add, refuse_add, process, process2, remove
+	// possible actions: add, confirm_add, refuse_add, remove, process, process2, final
 	Action string
 	// new joiner details
 	Joiner ClaimParty
@@ -112,7 +115,7 @@ func loadClaimJoinDB() {
 
 // runs every minute
 func OnTimer() {
-	if !config.Config.PeginClaimJoin || MyRole != "initiator" || len(ClaimParties) < 2 {
+	if !config.Config.PeginClaimJoin || len(ClaimParties) < 2 {
 		return
 	}
 
@@ -124,6 +127,29 @@ func OnTimer() {
 
 	if GetBlockHeight(cl) < ClaimBlockHeight-1 {
 		// start signing process one block before maturity
+		return
+	}
+
+	// fallback to publish finalized TX if the initiator defaults for 10 blocks
+	if MyRole == "joiner" && GetBlockHeight(cl) > ClaimBlockHeight+10 && finalRawTX != "" {
+		log.Println("Posting final TX as a backup")
+		txId, err := liquid.SendRawTransaction(finalRawTX)
+		if err != nil {
+			if err.Error() == "-27: Transaction already in block chain" {
+				decodedTx, err := liquid.DecodeRawTransaction(finalRawTX)
+				if err == nil {
+					txId = decodedTx.Txid
+				}
+			} else {
+				EndClaimJoin("", "Final TX send failure")
+				return
+			}
+		}
+		EndClaimJoin(txId, "done")
+		return
+	}
+
+	if MyRole != "initiator" {
 		return
 	}
 
@@ -291,7 +317,7 @@ func OnTimer() {
 			db.Save("ClaimJoin", "claimPSET", &claimPSET)
 			db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 		} else if GetBlockHeight(cl) >= ClaimBlockHeight {
-			// send raw transaction
+			// post raw transaction
 			log.Println("Posting final TX")
 
 			txId, err := liquid.SendRawTransaction(rawHex)
@@ -304,6 +330,22 @@ func OnTimer() {
 				}
 			}
 			EndClaimJoin(txId, "done")
+		} else {
+			// Decode the hex string to []byte
+			bytes, err := hex.DecodeString(rawHex)
+			if err != nil {
+				log.Println("Error converting final TX to []byte")
+				return
+			}
+
+			// share rawTX with all the participants as a backup
+			for i := 1; i < len(ClaimParties); i++ {
+				SendCoordination(ClaimParties[i].PubKey, &Coordination{
+					Action:           "final",
+					PSET:             bytes,
+					ClaimBlockHeight: ClaimBlockHeight,
+				})
+			}
 		}
 	}
 }
@@ -712,6 +754,11 @@ func Process(message *Message, senderNodeId string) {
 				log.Println("Unable to send blind coordination, cancelling ClaimJoin")
 				EndClaimJoin("", "Coordination failure")
 			}
+
+		case "final": // hold on to final raw tx
+			finalRawTX = hex.EncodeToString(msg.PSET)
+			ClaimStatus = "Received final raw TX as a backup"
+			log.Println(ClaimStatus)
 		}
 		return
 	}
@@ -812,6 +859,7 @@ func resetClaimJoin() {
 	PeginHandler = ""
 	ClaimStatus = "No ClaimJoin peg-in is pending"
 	keyToNodeId = make(map[string]string)
+	finalRawTX = ""
 
 	// persist to db
 	db.Save("ClaimJoin", "claimParties", ClaimParties)

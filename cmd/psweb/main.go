@@ -1128,9 +1128,10 @@ func checkPegin() {
 		}
 
 		if ln.MyRole != "none" {
-			// blocks to wait before switching back to indivicual claim
+			// 20 blocks to wait before switching back to indivicual claim
 			margin := uint32(20)
 			if ln.MyRole == "initiator" && len(ln.ClaimParties) < 2 {
+				// noone has joined anyway
 				margin = 1
 			}
 			if currentBlockHeight > ln.ClaimBlockHeight+margin {
