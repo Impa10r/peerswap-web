@@ -3,6 +3,7 @@
 ## 1.7.0
 
 - Better estimate swap-in fee and maximum swap amount
+- {TODO] Account for circular rebalancing cost and PPM
 
 ## 1.6.8
 

@@ -725,3 +725,50 @@ func SendRawTransaction(hexTx string) (string, error) {
 
 	return response, nil
 }
+
+type AddressInfo struct {
+	Address             string   `json:"address"`
+	ScriptPubKey        string   `json:"scriptPubKey"`
+	IsMine              bool     `json:"ismine"`
+	Solvable            bool     `json:"solvable"`
+	Desc                string   `json:"desc"`
+	IsWatchOnly         bool     `json:"iswatchonly"`
+	IsScript            bool     `json:"isscript"`
+	IsWitness           bool     `json:"iswitness"`
+	WitnessVersion      int      `json:"witness_version"`
+	WitnessProgram      string   `json:"witness_program"`
+	Pubkey              string   `json:"pubkey"`
+	Confidential        string   `json:"confidential"`
+	ConfidentialKey     string   `json:"confidential_key"`
+	Unconfidential      string   `json:"unconfidential"`
+	IsChange            bool     `json:"ischange"`
+	Timestamp           int64    `json:"timestamp"`
+	HDKeyPath           string   `json:"hdkeypath"`
+	HDSeedID            string   `json:"hdseedid"`
+	HDMasterFingerprint string   `json:"hdmasterfingerprint"`
+	Labels              []string `json:"labels"`
+}
+
+func GetAddressInfo(addr, wallet string) (*AddressInfo, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{addr}
+
+	r, err := service.client.call("getaddressinfo", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to get address info: %v", err)
+		return nil, err
+	}
+
+	var response AddressInfo
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetAddressInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}

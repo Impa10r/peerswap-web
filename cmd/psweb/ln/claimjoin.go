@@ -3,6 +3,8 @@
 package ln
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -11,7 +13,6 @@ import (
 	"io"
 	"log"
 	"strconv"
-	"time"
 
 	mathRand "math/rand"
 
@@ -29,8 +30,8 @@ import (
 
 // maximum number of participants in ClaimJoin
 const (
-	maxParties  = 2
-	PeginBlocks = 10 //2
+	maxParties  = 5
+	PeginBlocks = 10 //102
 )
 
 var (
@@ -47,7 +48,7 @@ var (
 	// none, initiator or joiner
 	MyRole = "none"
 	// array of initiator + joiners, for initiator only
-	claimParties []*ClaimParty
+	ClaimParties []*ClaimParty
 	// PSET to be blinded and signed by all parties
 	claimPSET string
 )
@@ -77,13 +78,12 @@ type ClaimParty struct {
 	// when can be claimed
 	ClaimBlockHeight uint32
 	// to be filled locally by initiator
-	RawTx       string
-	TxoutProof  string
-	Amount      uint64
-	FeeShare    uint64
-	PubKey      string
-	LastMessage *Coordination
-	SentTime    time.Time
+	RawTx      string
+	TxoutProof string
+	Amount     uint64
+	FeeShare   uint64
+	PubKey     string
+	SentCount  uint
 }
 
 // runs after restart, to continue if pegin is ongoing
@@ -94,7 +94,7 @@ func loadClaimJoinDB() {
 
 	db.Load("ClaimJoin", "MyRole", &MyRole)
 	db.Load("ClaimJoin", "keyToNodeId", &keyToNodeId)
-	db.Load("ClaimJoin", "claimParties", &claimParties)
+	db.Load("ClaimJoin", "claimParties", &ClaimParties)
 
 	if MyRole == "initiator" {
 		db.Load("ClaimJoin", "claimPSET", &claimPSET)
@@ -107,7 +107,7 @@ func loadClaimJoinDB() {
 
 // runs every minute
 func OnTimer() {
-	if !config.Config.PeginClaimJoin || MyRole != "initiator" || len(claimParties) < 2 {
+	if !config.Config.PeginClaimJoin || MyRole != "initiator" || len(ClaimParties) < 2 {
 		return
 	}
 
@@ -122,7 +122,7 @@ func OnTimer() {
 		return
 	}
 
-	startingFee := 36 * len(claimParties)
+	startingFee := 36*len(ClaimParties) - 1
 
 	if claimPSET == "" {
 		var err error
@@ -146,7 +146,7 @@ func OnTimer() {
 	for i, output := range analyzed.Outputs {
 		if output.Blind && output.Status == "unblinded" {
 			blinder := decoded.Outputs[i].BlinderIndex
-			ClaimStatus = "Blinding " + strconv.Itoa(i+1) + "/" + strconv.Itoa(len(claimParties))
+			ClaimStatus = "Blinding " + strconv.Itoa(i+1) + "/" + strconv.Itoa(len(ClaimParties))
 
 			log.Println(ClaimStatus)
 
@@ -160,32 +160,34 @@ func OnTimer() {
 				}
 			} else {
 				action := "process"
-				if i == len(claimParties)-1 {
+				if i == len(ClaimParties)-1 {
 					// the final blinder can blind and sign at once
 					action = "process2"
-					ClaimStatus = "Signing " + strconv.Itoa(len(claimParties)) + "/" + strconv.Itoa(len(claimParties))
-					log.Println(ClaimStatus)
+					ClaimStatus = "Signing " + strconv.Itoa(len(ClaimParties)) + "/" + strconv.Itoa(len(ClaimParties))
 				}
 
-				if !SendCoordination(claimParties[blinder].PubKey, &Coordination{
-					Action:           action,
-					PSET:             claimPSET,
-					Status:           ClaimStatus,
-					ClaimBlockHeight: ClaimBlockHeight,
-				}) {
-					log.Println("Unable to send blind coordination, cancelling ClaimJoin")
-					EndClaimJoin("", "Coordination failure")
+				if checkPeerStatus(blinder) {
+					if !SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
+						Action:           action,
+						PSET:             claimPSET,
+						Status:           ClaimStatus,
+						ClaimBlockHeight: ClaimBlockHeight,
+					}) {
+						log.Println("Unable to send coordination, cancelling ClaimJoin")
+						EndClaimJoin("", "Coordination failure")
+					}
 				}
+
 				return
 			}
 		}
 	}
 
 	// Iterate through inputs in reverse order to sign
-	for i := len(claimParties) - 1; i >= 0; i-- {
+	for i := len(ClaimParties) - 1; i >= 0; i-- {
 		input := decoded.Inputs[i]
 		if len(input.FinalScriptWitness) == 0 {
-			ClaimStatus = "Signing " + strconv.Itoa(len(claimParties)-i) + "/" + strconv.Itoa(len(claimParties))
+			ClaimStatus = "Signing " + strconv.Itoa(len(ClaimParties)-i) + "/" + strconv.Itoa(len(ClaimParties))
 
 			log.Println(ClaimStatus)
 
@@ -198,15 +200,18 @@ func OnTimer() {
 					return
 				}
 			} else {
-				if !SendCoordination(claimParties[i].PubKey, &Coordination{
-					Action:           "process",
-					PSET:             claimPSET,
-					Status:           ClaimStatus,
-					ClaimBlockHeight: ClaimBlockHeight,
-				}) {
-					log.Println("Unable to send blind coordination, cancelling ClaimJoin")
-					EndClaimJoin("", "Coordination failure")
+				if checkPeerStatus(i) {
+					if !SendCoordination(ClaimParties[i].PubKey, &Coordination{
+						Action:           "process",
+						PSET:             claimPSET,
+						Status:           ClaimStatus,
+						ClaimBlockHeight: ClaimBlockHeight,
+					}) {
+						log.Println("Unable to send blind coordination, cancelling ClaimJoin")
+						EndClaimJoin("", "Coordination failure")
+					}
 				}
+
 				return
 			}
 		}
@@ -278,21 +283,58 @@ func OnTimer() {
 	}
 }
 
+func checkPeerStatus(i int) bool {
+	ClaimParties[i].SentCount++
+	if ClaimParties[i].SentCount > 10 {
+		// peer is offline, kick him
+		kickPeer(ClaimParties[i].PubKey, "being unresponsive")
+		return false
+	}
+	return true
+}
+
+func kickPeer(pubKey, reason string) {
+	if ok := removeClaimParty(pubKey); ok {
+		ClaimStatus = "Joiner " + pubKey + " kicked, total participants: " + strconv.Itoa(len(ClaimParties))
+		// persist to db
+		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
+		log.Println(ClaimStatus)
+		// erase PSET to start over
+		claimPSET = ""
+		// persist to db
+		db.Save("ClaimJoin", "claimPSET", claimPSET)
+		// inform the offender
+		SendCoordination(pubKey, &Coordination{
+			Action: "refuse_add",
+			Status: "Kicked for " + reason,
+		})
+	} else {
+		EndClaimJoin("", "Coordination failure")
+	}
+}
+
 // Called when received a broadcast custom message
 // Forward the message to all direct peers, unless the source key is known already
 // (it means the message came back to you from a downstream peer)
 func Broadcast(fromNodeId string, message *Message) error {
-
-	if message.Asset == "pegin_started" && keyToNodeId[message.Sender] != "" || message.Asset == "pegin_ended" && PeginHandler == "" {
-		// has been previously received from upstream
-		return nil
-	}
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
+
+	if myNodeId == "" {
+		// populates myNodeId
+		if getLndVersion() == 0 {
+			return fmt.Errorf("Broadcast: Cannot get myNodeId")
+		}
+	}
+
+	if fromNodeId != myNodeId && (message.Asset == "pegin_started" && keyToNodeId[message.Sender] != "" || message.Asset == "pegin_ended" && PeginHandler == "") {
+		// has been previously received from upstream, ignore
+		return nil
+	}
 
 	res, err := ps.ListPeers(client)
 	if err != nil {
@@ -312,23 +354,22 @@ func Broadcast(fromNodeId string, message *Message) error {
 		}
 	}
 
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return fmt.Errorf("Broadcast: Cannot get myNodeId")
-		}
-	}
-
 	if fromNodeId == myNodeId {
 		// do nothing more after sending the original broadcast
 		return nil
 	}
 
+	if keyToNodeId[message.Sender] != fromNodeId {
+		// store for relaying further encrypted messages
+		keyToNodeId[message.Sender] = fromNodeId
+		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
+	}
+
 	switch message.Asset {
 	case "pegin_started":
 		if MyRole == "initiator" {
-			// two simultaneous initiators conflict, agree if I have no joiners with 50% chance
-			if len(claimParties) < 2 && mathRand.Intn(2) > 0 {
+			// two simultaneous initiators conflict
+			if len(ClaimParties) < 2 {
 				MyRole = "none"
 				db.Save("ClaimJoin", "MyRole", MyRole)
 				log.Println("Initiator collision, switching to none")
@@ -336,37 +377,40 @@ func Broadcast(fromNodeId string, message *Message) error {
 				log.Println("Initiator collision, staying as initiator")
 				break
 			}
+		} else if MyRole == "joiner" {
+			// already joined another group, ignore
+			return nil
 		}
+
 		// where to forward claimjoin request
 		PeginHandler = message.Sender
-		// store for relaying further encrypted messages
-		keyToNodeId[message.Sender] = fromNodeId
 		// Time limit to apply is communicated via Amount
 		ClaimBlockHeight = uint32(message.Amount)
 		ClaimStatus = "Received invitation to ClaimJoin"
 		log.Println(ClaimStatus)
+
+		// persist to db
+		db.Save("ClaimJoin", "PeginHandler", PeginHandler)
+		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
+		db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
+
 	case "pegin_ended":
 		// only trust the message from the original handler
-		if PeginHandler == message.Sender {
+		if MyRole == "joiner" && PeginHandler == message.Sender {
 			txId := message.Payload
 			if txId != "" {
 				ClaimStatus = "ClaimJoin pegin successful! Liquid TxId: " + txId
+				log.Println(ClaimStatus)
+				// signal to telegram bot
+				config.Config.PeginTxId = txId
+				config.Config.PeginClaimScript = "done"
 			} else {
 				ClaimStatus = "Invitations to ClaimJoin revoked"
 			}
 			log.Println(ClaimStatus)
 			resetClaimJoin()
-			return nil
 		}
 	}
-
-	// persist to db
-	db.Save("ClaimJoin", "MyRole", MyRole)
-	db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
-	db.Save("ClaimJoin", "PeginHandler", PeginHandler)
-	db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
-	db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
-
 	return nil
 }
 
@@ -471,7 +515,7 @@ func Process(message *Message, senderNodeId string) {
 					ClaimBlockHeight: ClaimBlockHeight,
 					Status:           status,
 				}) {
-					ClaimStatus = "Added new joiner, total participants: " + strconv.Itoa(len(claimParties))
+					ClaimStatus = "Added new joiner, total participants: " + strconv.Itoa(len(ClaimParties))
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 					log.Println(ClaimStatus)
 				}
@@ -491,7 +535,7 @@ func Process(message *Message, senderNodeId string) {
 			}
 
 			if removeClaimParty(msg.Joiner.PubKey) {
-				ClaimStatus = "Removed a joiner, total participants: " + strconv.Itoa(len(claimParties))
+				ClaimStatus = "Removed a joiner, total participants: " + strconv.Itoa(len(ClaimParties))
 				// persist to db
 				db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 				log.Println(ClaimStatus)
@@ -544,36 +588,22 @@ func Process(message *Message, senderNodeId string) {
 				log.Println("PSET verification failure!")
 				if MyRole == "initiator" {
 					// kick the joiner who returned broken PSET
-					if ok := removeClaimParty(message.Sender); ok {
-						ClaimStatus = "Joiner " + message.Sender + " kicked, total participants: " + strconv.Itoa(len(claimParties))
-						// persist to db
-						db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
-						log.Println(ClaimStatus)
-						// erase PSET to start over
-						claimPSET = ""
-						// persist to db
-						db.Save("ClaimJoin", "claimPSET", claimPSET)
-
-						SendCoordination(message.Sender, &Coordination{
-							Action: "refuse_add",
-							Status: "Kicked for broken PSET return",
-						})
-					} else {
-						EndClaimJoin("", "Coordination failure")
-					}
+					kickPeer(message.Sender, "broken PSET return")
 					return
 				} else {
 					// remove yourself from ClaimJoin
 					if SendCoordination(PeginHandler, &Coordination{
 						Action: "remove",
-						Joiner: *claimParties[0],
+						Joiner: *ClaimParties[0],
 					}) {
 						ClaimBlockHeight = 0
 						// forget pegin handler, so that cannot initiate new ClaimJoin
 						PeginHandler = ""
-						ClaimStatus = "Kicked from ClaimJoin"
+						ClaimStatus = "Left ClaimJoin group"
+						MyRole = "none"
 						log.Println(ClaimStatus)
 
+						db.Save("ClaimJoin", "MyRole", &MyRole)
 						db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 						db.Save("ClaimJoin", "PeginHandler", &PeginHandler)
 
@@ -586,6 +616,14 @@ func Process(message *Message, senderNodeId string) {
 			}
 
 			if MyRole == "initiator" {
+				// reset SentCount
+				for i, party := range ClaimParties {
+					if party.PubKey == message.Sender {
+						ClaimParties[i].SentCount = 0
+						break
+					}
+				}
+
 				// Save received claimPSET, execute OnTimer
 				db.Save("ClaimJoin", "claimPSET", &claimPSET)
 				OnTimer()
@@ -665,13 +703,13 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		party := createClaimParty(claimBlockHeight)
 		if party != nil {
 			// initiate array of claim parties
-			claimParties = nil
-			claimParties = append(claimParties, party)
+			ClaimParties = nil
+			ClaimParties = append(ClaimParties, party)
 			ClaimStatus = "Invites sent, awaiting joiners"
 			// persist to db
 			db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
-			db.Save("ClaimJoin", "claimParties", claimParties)
+			db.Save("ClaimJoin", "claimParties", ClaimParties)
 			return true
 		}
 	}
@@ -702,9 +740,9 @@ func EndClaimJoin(txId string, status string) bool {
 			config.Config.PeginTxId = txId
 			config.Config.PeginClaimScript = "done"
 		} else {
-			log.Println("ClaimJoin failed")
-			// signal to telegram bot
-			config.Config.PeginClaimScript = "failed"
+			log.Println("ClaimJoin failed. Switching back to individual.")
+			config.Config.PeginClaimJoin = false
+			config.Save()
 		}
 		resetClaimJoin()
 		return true
@@ -715,14 +753,14 @@ func EndClaimJoin(txId string, status string) bool {
 func resetClaimJoin() {
 	// eraze all traces
 	ClaimBlockHeight = 0
-	claimParties = nil
+	ClaimParties = nil
 	MyRole = "none"
 	PeginHandler = ""
 	ClaimStatus = "No ClaimJoin peg-in is pending"
 	keyToNodeId = make(map[string]string)
 
 	// persist to db
-	db.Save("ClaimJoin", "claimParties", claimParties)
+	db.Save("ClaimJoin", "claimParties", ClaimParties)
 	db.Save("ClaimJoin", "PeginHandler", PeginHandler)
 	db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 	db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
@@ -755,12 +793,12 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 			ClaimBlockHeight: claimBlockHeight,
 		}) {
 			// initiate array of claim parties for single entry
-			claimParties = nil
-			claimParties = append(claimParties, party)
+			ClaimParties = nil
+			ClaimParties = append(ClaimParties, party)
 			ClaimStatus = "Responded to invitation, awaiting confirmation"
 			// persist to db
 			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
-			db.Save("ClaimJoin", "claimParties", claimParties)
+			db.Save("ClaimJoin", "claimParties", ClaimParties)
 			ClaimBlockHeight = claimBlockHeight
 			return true
 		}
@@ -814,14 +852,14 @@ func createClaimParty(claimBlockHeight uint32) *ClaimParty {
 
 // add claim party to the list
 func addClaimParty(newParty *ClaimParty) (bool, string) {
-	for _, party := range claimParties {
+	for _, party := range ClaimParties {
 		if party.ClaimScript == newParty.ClaimScript {
 			// is already in the list
-			return true, "Was already in the list, total participants: " + strconv.Itoa(len(claimParties))
+			return true, "Was already in the list, total participants: " + strconv.Itoa(len(ClaimParties))
 		}
 	}
 
-	if len(claimParties) == maxParties {
+	if len(ClaimParties) == maxParties {
 		return false, "Refused to join, over limit of " + strconv.Itoa(maxParties)
 	}
 
@@ -837,19 +875,19 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 	}
 
 	txHeight := uint32(internet.GetTxHeight(newParty.TxId))
-	claimHight := txHeight + PeginBlocks
+	claimHight := txHeight + PeginBlocks - 1
 
 	if txHeight > 0 && claimHight != newParty.ClaimBlockHeight {
 		log.Printf("New joiner's ClaimBlockHeight was wrong: %d vs %d correct", newParty.ClaimBlockHeight, claimHight)
 		newParty.ClaimBlockHeight = claimHight
 	}
 
-	claimParties = append(claimParties, newParty)
+	ClaimParties = append(ClaimParties, newParty)
 
 	// persist to db
-	db.Save("ClaimJoin", "claimParties", claimParties)
+	db.Save("ClaimJoin", "claimParties", ClaimParties)
 
-	return true, "Successfully joined, total participants: " + strconv.Itoa(len(claimParties))
+	return true, "Successfully joined as participant #" + strconv.Itoa(len(ClaimParties))
 }
 
 // remove claim party from the list by public key
@@ -858,7 +896,7 @@ func removeClaimParty(pubKey string) bool {
 	found := false
 	claimBlockHeight := uint32(0)
 
-	for _, party := range claimParties {
+	for _, party := range ClaimParties {
 		if party.PubKey == pubKey {
 			found = true
 		} else {
@@ -877,10 +915,10 @@ func removeClaimParty(pubKey string) bool {
 		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 	}
 
-	claimParties = newClaimParties
+	ClaimParties = newClaimParties
 
 	// persist to db
-	db.Save("ClaimJoin", "claimParties", claimParties)
+	db.Save("ClaimJoin", "claimParties", ClaimParties)
 
 	return true
 }
@@ -900,8 +938,7 @@ func myPublicKey() string {
 	return publicKeyToBase64(myPrivateKey.PubKey())
 }
 
-/*
-// Payload is encrypted with a new symmetric AES key and returned as base64 string
+// Payload is encrypted with a symmetric AES key and returned as base64 string
 // The AES key is encrypted using destination secp256k1 pubKey, returned as base64
 func encryptPayload(pubKeyString string, plaintext []byte) (string, string, error) {
 	// Generate AES key
@@ -938,8 +975,6 @@ func encryptPayload(pubKeyString string, plaintext []byte) (string, string, erro
 
 	return base64cypherText, encryptedKey, nil
 }
-
-*/
 
 // Encrypt with base64 public key
 func eciesEncrypt(pubKeyString string, message []byte) (string, error) {
@@ -1031,10 +1066,10 @@ func createClaimPSET(totalFee int) (string, error) {
 	var outputs []map[string]interface{}
 
 	feeToSplit := totalFee
-	feePart := totalFee / len(claimParties)
+	feePart := totalFee / len(ClaimParties)
 
 	// fill in the arrays
-	for i, party := range claimParties {
+	for i, party := range ClaimParties {
 		input := map[string]interface{}{
 			"txid":               party.TxId,
 			"vout":               party.Vout,
@@ -1043,7 +1078,7 @@ func createClaimPSET(totalFee int) (string, error) {
 			"pegin_claim_script": party.ClaimScript,
 		}
 
-		if i == len(claimParties)-1 {
+		if i == len(ClaimParties)-1 {
 			// the last joiner pays higher fee if it cannot be divided equally
 			feePart = feeToSplit
 		}
@@ -1096,11 +1131,19 @@ func verifyPSET() bool {
 		return false
 	}
 
+	addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
+	if err != nil {
+		return false
+	}
+
 	for _, output := range decoded.Outputs {
 		// 50 sats maximum fee allowed
-		if output.Script.Address == claimParties[0].Address && liquid.ToBitcoin(claimParties[0].Amount)-output.Amount < 0.0000005 {
+		if output.Script.Address == addressInfo.Unconfidential && liquid.ToBitcoin(ClaimParties[0].Amount)-output.Amount < 0.0000005 {
 			return true
 		}
 	}
+
+	log.Println(claimPSET)
+
 	return false
 }

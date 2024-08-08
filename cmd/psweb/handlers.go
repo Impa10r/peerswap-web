@@ -880,7 +880,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if isPegin {
-			log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
+			log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 			duration := time.Duration(10*ln.PeginBlocks) * time.Minute
 			formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 			telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")

@@ -380,9 +380,11 @@ func onTimer(firstRun bool) {
 	if !firstRun {
 		// skip first run so that forwards have time to download
 		go ln.ApplyAutoFees()
-		// Check if pegin can be claimed or joined
-		go checkPegin()
+
 	}
+
+	// Check if pegin can be claimed or joined
+	go checkPegin()
 
 	// advertise Liquid balance
 	go advertiseBalances()
@@ -1088,10 +1090,6 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 // Check Peg-in status
 func checkPegin() {
-	if config.Config.PeginTxId == "" {
-		return
-	}
-
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		return
@@ -1100,17 +1098,26 @@ func checkPegin() {
 
 	currentBlockHeight := ln.GetBlockHeight(cl)
 
-	if ln.MyRole == "none" && currentBlockHeight > ln.ClaimBlockHeight {
+	if currentBlockHeight > ln.ClaimBlockHeight && ln.MyRole == "none" && ln.PeginHandler != "" {
 		// invitation expired
 		ln.PeginHandler = ""
 		db.Save("ClaimJoin", "PeginHandler", ln.PeginHandler)
 	}
 
+	if config.Config.PeginTxId == "" {
+		return
+	}
+
 	if config.Config.PeginClaimJoin {
 		if ln.MyRole != "none" {
-			if currentBlockHeight > ln.ClaimBlockHeight+10 {
-				// something is wrong, claim pegin individually
-				t := "ClaimJoin matured 10 blocks ago, switching to individual claim"
+			// blocks to wait before switching back to indivicual claim
+			margin := uint32(2)
+			if ln.MyRole == "initiator" && len(ln.ClaimParties) < 2 {
+				margin = 1
+			}
+			if currentBlockHeight > ln.ClaimBlockHeight+margin {
+				// claim pegin individually
+				t := "ClaimJoin matured, switching to individual claim"
 				log.Println(t)
 				telegramSendMessage("🧬 " + t)
 				ln.MyRole = "none"
@@ -1121,26 +1128,16 @@ func checkPegin() {
 			return
 		}
 
-		t := ""
-		switch config.Config.PeginClaimScript {
-		case "done":
-			t = "ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`"
-		case "failed":
-			t = "ClaimJoin pegin failed: " + config.Config.PeginTxId
-		default:
-			goto singlePegin
+		if config.Config.PeginClaimScript == "done" {
+			// finish by sending telegram message
+			telegramSendMessage("🧬 ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			config.Config.PeginClaimScript = ""
+			config.Config.PeginTxId = ""
+			config.Config.PeginClaimJoin = false
+			config.Save()
+			return
 		}
-
-		// finish by sending telegram message
-		telegramSendMessage("🧬 " + t)
-		config.Config.PeginClaimScript = ""
-		config.Config.PeginTxId = ""
-		config.Config.PeginClaimJoin = false
-		config.Save()
-		return
 	}
-
-singlePegin:
 
 	confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
 	if confs < 0 && config.Config.PeginReplacedTxId != "" {
@@ -1156,7 +1153,7 @@ singlePegin:
 	if confs > 0 {
 		if config.Config.PeginClaimScript == "" {
 			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
-			telegramSendMessage("BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
+			telegramSendMessage("💸 BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
 		} else if confs >= ln.PeginBlocks && ln.MyRole == "none" {
 			// claim individual pegin
 			failed := false
@@ -1194,14 +1191,12 @@ singlePegin:
 				if ln.MyRole == "none" {
 					claimHeight := currentBlockHeight + ln.PeginBlocks - uint32(confs)
 					if ln.PeginHandler == "" {
-						// I will coordinate this handler
+						// I will coordinate this join
 						if ln.InitiateClaimJoin(claimHeight) {
 							t := "Sent ClaimJoin invitations"
 							log.Println(t)
-							telegramSendMessage(t)
-
+							telegramSendMessage("🧬 " + t)
 							ln.MyRole = "initiator"
-							// persist to db
 							db.Save("ClaimJoin", "MyRole", ln.MyRole)
 						} else {
 							log.Println("Failed to initiate ClaimJoin, continuing as a single pegin")
@@ -1213,7 +1208,7 @@ singlePegin:
 						if ln.JoinClaimJoin(claimHeight) {
 							t := "Applied to ClaimJoin group"
 							log.Println(t)
-							telegramSendMessage(t)
+							telegramSendMessage("🧬 " + t)
 						} else {
 							log.Println("Failed to apply to ClaimJoin, continuing as a single pegin")
 							config.Config.PeginClaimJoin = false

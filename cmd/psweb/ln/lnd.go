@@ -57,10 +57,11 @@ var (
 	LndVerson = float64(0) // must be 0.18+ for RBF ability
 
 	// arrays mapped per channel
-	forwardsIn   = make(map[uint64][]*lnrpc.ForwardingEvent)
-	forwardsOut  = make(map[uint64][]*lnrpc.ForwardingEvent)
-	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
-	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
+	forwardsIn     = make(map[uint64][]*lnrpc.ForwardingEvent)
+	forwardsOut    = make(map[uint64][]*lnrpc.ForwardingEvent)
+	paymentHtlcs   = make(map[uint64][]*lnrpc.HTLCAttempt)
+	rebalanceHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
+	invoiceHtlcs   = make(map[uint64][]*lnrpc.InvoiceHTLC)
 
 	// inflight HTLCs mapped per Incoming channel
 	inflightHTLCs = make(map[uint64][]*InflightHTLC)
@@ -895,6 +896,9 @@ func appendPayment(payment *lnrpc.Payment) {
 				// get channel from the first hop
 				chanId := htlc.Route.Hops[0].ChanId
 				paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+				// get destination from the last hop
+				chanId = htlc.Route.Hops[len(htlc.Route.Hops)-1].ChanId
+				rebalanceHtlcs[chanId] = append(rebalanceHtlcs[chanId], htlc)
 			}
 		}
 		// store the last timestamp
@@ -1215,8 +1219,8 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			// received request for information
 			if msg.Memo == "poll" {
-				if MyRole == "initiator" && myPublicKey() != "" && len(claimParties) < maxParties {
-					// repeat pegin start broadcast
+				if MyRole == "initiator" && myPublicKey() != "" && len(ClaimParties) < maxParties && GetBlockHeight(client) < ClaimBlockHeight {
+					// repeat pegin start info
 					SendCustomMessage(client, nodeId, &Message{
 						Version: MessageVersion,
 						Memo:    "broadcast",
@@ -1432,14 +1436,16 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	var (
-		result        ChannelStats
-		routedInMsat  uint64
-		routedOutMsat uint64
-		feeMsat       uint64
-		assistedMsat  uint64
-		paidOutMsat   int64
-		invoicedMsat  uint64
-		costMsat      int64
+		result            ChannelStats
+		routedInMsat      uint64
+		routedOutMsat     uint64
+		feeMsat           uint64
+		assistedMsat      uint64
+		paidOutMsat       int64
+		invoicedMsat      uint64
+		costMsat          int64
+		rebalanceMsat     int64
+		rebalanceCostMsat int64
 	)
 
 	timestampNs := timeStamp * 1_000_000_000
@@ -1450,21 +1456,31 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 			feeMsat += e.FeeMsat
 		}
 	}
+
 	for _, e := range forwardsIn[channelId] {
 		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
 			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
 	}
+
 	for _, e := range invoiceHtlcs[channelId] {
 		if uint64(e.AcceptTime) > timeStamp {
 			invoicedMsat += e.AmtMsat
 		}
 	}
+
 	for _, e := range paymentHtlcs[channelId] {
 		if uint64(e.AttemptTimeNs) > timestampNs {
 			paidOutMsat += e.Route.TotalAmtMsat
 			costMsat += e.Route.TotalFeesMsat
+		}
+	}
+
+	for _, e := range rebalanceHtlcs[channelId] {
+		if uint64(e.AttemptTimeNs) > timestampNs {
+			rebalanceMsat += e.Route.TotalAmtMsat
+			rebalanceCostMsat += e.Route.TotalFeesMsat
 		}
 	}
 
@@ -1475,6 +1491,8 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	result.InvoicedIn = invoicedMsat / 1000
 	result.PaidOut = uint64(paidOutMsat / 1000)
 	result.PaidCost = uint64(costMsat / 1000)
+	result.RebalanceIn = uint64(rebalanceMsat / 1000)
+	result.RebalanceCost = uint64(rebalanceCostMsat / 1000)
 
 	return &result
 }

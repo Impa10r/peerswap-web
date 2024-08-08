@@ -1322,6 +1322,7 @@ var (
 	MyRole           = "none"
 	ClaimStatus      = ""
 	ClaimBlockHeight = uint32(0)
+	ClaimParties     = []int
 )
 
 const PeginBlocks = 102

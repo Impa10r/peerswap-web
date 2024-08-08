@@ -116,7 +116,7 @@
           {{else}}
             <div class="box has-text-left">
               {{if .IsPegin}}
-                <div style="display: grid; grid-template-columns: auto auto; margin-bottom: 0.5em;">
+                <div style="display: grid; grid-template-columns: auto auto; margin-bottom: 1em;">
                   <div style="text-align: left;">
                     <h4 class="title is-4">Peg-In Progress</h4>
                   </div>
@@ -127,7 +127,7 @@
               {{else}}
                 <h4 class="title is-4">Bitcoin Withdrawal {{if gt .Confirmations 0}}(Complete){{else}}(Pending){{end}}</h4> 
               {{end}}
-              <table style="table-layout:fixed; width: 100%;">
+              <table style="table-layout:fixed; width: 100%; margin-bottom: 1em;">
                 <tr>
                   <td style="width: 8ch; text-align: right">
                     Amount: 
