@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strconv"
+	"time"
 
 	mathRand "math/rand"
 
@@ -99,9 +101,13 @@ func loadClaimJoinDB() {
 		db.Load("ClaimJoin", "claimPSET", &claimPSET)
 	}
 
-	var serializedKey []byte
-	db.Load("ClaimJoin", "serializedPrivateKey", &serializedKey)
-	myPrivateKey, _ = btcec.PrivKeyFromBytes(serializedKey)
+	if MyRole != "none" {
+		var serializedKey []byte
+		db.Load("ClaimJoin", "serializedPrivateKey", &serializedKey)
+		myPrivateKey, _ = btcec.PrivKeyFromBytes(serializedKey)
+		log.Println("Started as ClaimJoin " + MyRole + " with pubKey " + MyPublicKey())
+	}
+
 }
 
 // runs every minute
@@ -375,10 +381,14 @@ func Broadcast(fromNodeId string, message *Message) error {
 				// two simultaneous initiators conflict
 				if len(ClaimParties) < 2 {
 					MyRole = "none"
+					PeginHandler = ""
 					db.Save("ClaimJoin", "MyRole", MyRole)
-					log.Println("Initiator collision, switching to none")
+					db.Save("ClaimJoin", "PeginHandler", PeginHandler)
+					log.Println("Initiator collision, switching to 'none' and restarting with a random delay")
+					time.Sleep(time.Duration(mathRand.Intn(60)) * time.Second)
+					os.Exit(0)
 				} else {
-					log.Println("Initiator collision, staying as initiator")
+					log.Println("Initiator collision, staying as initiator because I have joiners")
 					break
 				}
 			} else if MyRole == "joiner" {
@@ -461,7 +471,7 @@ func SendCoordination(destinationPubKey string, message *Coordination) bool {
 	return SendCustomMessage(cl, destinationNodeId, &Message{
 		Version:     MessageVersion,
 		Memo:        "process",
-		Sender:      myPublicKey(),
+		Sender:      MyPublicKey(),
 		Destination: destinationPubKey,
 		Payload:     ciphertext,
 	}) == nil
@@ -490,7 +500,7 @@ func Process(message *Message, senderNodeId string) {
 
 	// log.Println("My pubKey:", myPublicKey())
 
-	if message.Destination == myPublicKey() {
+	if message.Destination == MyPublicKey() {
 		// Decrypt the message using my private key
 		plaintext, err := eciesDecrypt(myPrivateKey, message.Payload)
 		if err != nil {
@@ -521,8 +531,8 @@ func Process(message *Message, senderNodeId string) {
 				return
 			}
 
-			if ok, status := addClaimParty(&msg.Joiner); ok {
-				ClaimBlockHeight = max(ClaimBlockHeight, msg.ClaimBlockHeight)
+			if ok, newClaimBlockHeight, status := addClaimParty(&msg.Joiner); ok {
+				ClaimBlockHeight = max(ClaimBlockHeight, newClaimBlockHeight)
 
 				if SendCoordination(msg.Joiner.PubKey, &Coordination{
 					Action:           "confirm_add",
@@ -531,11 +541,11 @@ func Process(message *Message, senderNodeId string) {
 				}) {
 					ClaimStatus = "Added new joiner, total participants: " + strconv.Itoa(len(ClaimParties))
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
-					log.Println(ClaimStatus)
+					log.Println("Added "+msg.Joiner.PubKey+", total:", len(ClaimParties))
 
 					if len(ClaimParties) > 2 {
 						// inform the other joiners of the new ClaimBlockHeight
-						for i := 1; i < len(ClaimParties)-2; i++ {
+						for i := 1; i <= len(ClaimParties)-2; i++ {
 							SendCoordination(ClaimParties[i].PubKey, &Coordination{
 								Action:           "confirm_add",
 								ClaimBlockHeight: ClaimBlockHeight,
@@ -729,7 +739,7 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		Memo:    "broadcast",
 		Asset:   "pegin_started",
 		Amount:  uint64(claimBlockHeight),
-		Sender:  myPublicKey(),
+		Sender:  MyPublicKey(),
 	}) == nil {
 		ClaimBlockHeight = claimBlockHeight
 		party := createClaimParty(claimBlockHeight)
@@ -762,7 +772,7 @@ func EndClaimJoin(txId string, status string) bool {
 		Memo:        "broadcast",
 		Asset:       "pegin_ended",
 		Amount:      uint64(0),
-		Sender:      myPublicKey(),
+		Sender:      MyPublicKey(),
 		Payload:     []byte(txId),
 		Destination: status,
 	}) == nil {
@@ -809,12 +819,15 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 		}
 	}
 
-	myPrivateKey = generatePrivateKey()
-	if myPrivateKey != nil {
-		// persist to db
-		savePrivateKey()
-	} else {
-		return false
+	// preserve the same key for several join attempts
+	if myPrivateKey == nil {
+		myPrivateKey = generatePrivateKey()
+		if myPrivateKey != nil {
+			// persist to db
+			savePrivateKey()
+		} else {
+			return false
+		}
 	}
 
 	party := createClaimParty(claimBlockHeight)
@@ -877,28 +890,28 @@ func createClaimParty(claimBlockHeight uint32) *ClaimParty {
 		return nil
 	}
 	party.Address = res.Address
-	party.PubKey = myPublicKey()
+	party.PubKey = MyPublicKey()
 
 	return party
 }
 
 // add claim party to the list
-func addClaimParty(newParty *ClaimParty) (bool, string) {
+func addClaimParty(newParty *ClaimParty) (bool, uint32, string) {
 	for _, party := range ClaimParties {
 		if party.ClaimScript == newParty.ClaimScript {
 			// is already in the list
-			return true, "Was already in the list, total participants: " + strconv.Itoa(len(ClaimParties))
+			return true, 0, "Was already in the list, total participants: " + strconv.Itoa(len(ClaimParties))
 		}
 	}
 
 	if len(ClaimParties) == maxParties {
-		return false, "Refused to join, over limit of " + strconv.Itoa(maxParties)
+		return false, 0, "Refused to join, over limit of " + strconv.Itoa(maxParties)
 	}
 
 	// verify claimBlockHeight
 	proof, err := bitcoin.GetTxOutProof(newParty.TxId)
 	if err != nil {
-		return false, "Refused to join, TX not confirmed"
+		return false, 0, "Refused to join, TX not confirmed"
 	}
 
 	if proof != newParty.TxoutProof {
@@ -911,7 +924,6 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 
 	if txHeight > 0 && claimHight != newParty.ClaimBlockHeight {
 		log.Printf("New joiner's ClaimBlockHeight was wrong: %d vs %d correct", newParty.ClaimBlockHeight, claimHight)
-		newParty.ClaimBlockHeight = claimHight
 	}
 
 	ClaimParties = append(ClaimParties, newParty)
@@ -919,7 +931,7 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 	// persist to db
 	db.Save("ClaimJoin", "claimParties", ClaimParties)
 
-	return true, "Successfully joined, total participants: " + strconv.Itoa(len(ClaimParties))
+	return true, claimHight, "Successfully joined, total participants: " + strconv.Itoa(len(ClaimParties))
 }
 
 // remove claim party from the list by public key
@@ -966,7 +978,14 @@ func generatePrivateKey() *btcec.PrivateKey {
 	return privKey
 }
 
-func myPublicKey() string {
+func MyPublicKey() string {
+	if myPrivateKey == nil {
+		myPrivateKey = generatePrivateKey()
+		if myPrivateKey != nil {
+			// persist to db
+			savePrivateKey()
+		}
+	}
 	return publicKeyToBase64(myPrivateKey.PubKey())
 }
 

@@ -1316,6 +1316,7 @@ func loadClaimJoinDB()                          {}
 func OnTimer()                                  {}
 func InitiateClaimJoin(claimHeight uint32) bool { return false }
 func JoinClaimJoin(claimHeight uint32) bool     { return false }
+func MyPublicKey() string                       { return "" }
 
 var (
 	PeginHandler     = ""

@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	chatId int64
-	bot    *tgbotapi.BotAPI
+	chatId      int64
+	bot         *tgbotapi.BotAPI
+	peginInvite string
 )
 
 func telegramStart() {

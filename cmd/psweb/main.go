@@ -380,11 +380,9 @@ func onTimer(firstRun bool) {
 	if !firstRun {
 		// skip first run so that forwards have time to download
 		go ln.ApplyAutoFees()
-
+		// Check if pegin can be claimed, initiated or joined
+		go checkPegin()
 	}
-
-	// Check if pegin can be claimed or joined
-	go checkPegin()
 
 	// advertise Liquid balance
 	go advertiseBalances()
@@ -1105,6 +1103,16 @@ func checkPegin() {
 	}
 
 	if config.Config.PeginTxId == "" {
+		// send telegram if received new ClaimJoin invitation
+		if peginInvite != ln.PeginHandler {
+			t := "🧬 Someone has started a new ClaimJoin pegin"
+			if ln.PeginHandler == "" {
+				t = "🧬 ClaimJoin pegin has ended"
+			}
+			if telegramSendMessage(t) {
+				peginInvite = ln.PeginHandler
+			}
+		}
 		return
 	}
 
@@ -1194,7 +1202,7 @@ func checkPegin() {
 						// I will coordinate this join
 						if ln.InitiateClaimJoin(claimHeight) {
 							t := "Sent ClaimJoin invitations"
-							log.Println(t)
+							log.Println(t + " as " + ln.MyPublicKey())
 							telegramSendMessage("🧬 " + t)
 							ln.MyRole = "initiator"
 							db.Save("ClaimJoin", "MyRole", ln.MyRole)
@@ -1207,7 +1215,7 @@ func checkPegin() {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
 							t := "Applied to ClaimJoin group"
-							log.Println(t)
+							log.Println(t + " " + ln.PeginHandler + " as " + ln.MyPublicKey())
 							telegramSendMessage("🧬 " + t)
 						} else {
 							log.Println("Failed to apply to ClaimJoin, continuing as a single pegin")

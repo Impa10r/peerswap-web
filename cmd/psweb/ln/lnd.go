@@ -1226,14 +1226,14 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			// received request for information
 			if msg.Memo == "poll" {
-				if MyRole == "initiator" && myPublicKey() != "" && len(ClaimParties) < maxParties && GetBlockHeight(client) < ClaimBlockHeight {
+				if MyRole == "initiator" && MyPublicKey() != "" && len(ClaimParties) < maxParties && GetBlockHeight(client) < ClaimBlockHeight {
 					// repeat pegin start info
 					SendCustomMessage(client, nodeId, &Message{
 						Version: MessageVersion,
 						Memo:    "broadcast",
 						Asset:   "pegin_started",
 						Amount:  uint64(ClaimBlockHeight),
-						Sender:  myPublicKey(),
+						Sender:  MyPublicKey(),
 					})
 				}
 
