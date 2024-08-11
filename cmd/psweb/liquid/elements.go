@@ -322,7 +322,7 @@ type PeginAddress struct {
 	ClaimScript      string `json:"claim_script"`
 }
 
-func GetPeginAddress(address *PeginAddress) error {
+func GetPeginAddress() (*PeginAddress, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
@@ -332,16 +332,17 @@ func GetPeginAddress(address *PeginAddress) error {
 	r, err := service.client.call("getpeginaddress", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
 		log.Printf("getpeginaddress: %v", err)
-		return err
+		return nil, err
 	}
 
+	var address PeginAddress
 	err = json.Unmarshal([]byte(r.Result), &address)
 	if err != nil {
 		log.Printf("getpeginaddress unmarshall: %v", err)
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &address, nil
 }
 
 func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
@@ -404,8 +405,8 @@ func EstimateFee() float64 {
 	return math.Round(result.MemPoolMinFee*100_000_000) / 1000
 }
 
-// identifies if this version of Elements Core supports discounted vSize
-func HasDiscountedvSize() bool {
+// get version of Elements Core supports discounted vSize
+func GetVersion() float64 {
 	client := ElementsClient()
 	service := &Elements{client}
 	wallet := config.Config.ElementsWallet
@@ -414,7 +415,7 @@ func HasDiscountedvSize() bool {
 	r, err := service.client.call("getnetworkinfo", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
 		log.Printf("getnetworkinfo: %v", err)
-		return false
+		return 0
 	}
 
 	var response map[string]interface{}
@@ -422,10 +423,33 @@ func HasDiscountedvSize() bool {
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
 		log.Printf("getnetworkinfo unmarshall: %v", err)
-		return false
+		return 0
 	}
 
-	return response["version"].(float64) >= 230202
+	return response["version"].(float64)
+}
+
+// returns block hash
+func GetBlockHash(block uint32) (string, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]interface{}{block}
+
+	r, err := service.client.call("getblockhash", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetBlockHash: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetBlockHash unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
 }
 
 func CreatePSET(params interface{}) (string, error) {

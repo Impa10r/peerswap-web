@@ -3,7 +3,7 @@
 ## 1.7.0
 
 - Switched Custom Message serialization from JSON to GOB
-- Switched Custom Message type from 42067 to 42066
+- Switched Custom Message type from 42067 to 42065
 - Better estimate swap-in fee and maximum swap amount
 - {TODO] Account for circular rebalancing cost and PPM
 

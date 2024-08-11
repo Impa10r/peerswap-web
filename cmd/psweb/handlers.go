@@ -853,9 +853,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			var addr liquid.PeginAddress
-
-			err = liquid.GetPeginAddress(&addr)
+			addr, err := liquid.GetPeginAddress()
 			if err != nil {
 				redirectWithError(w, r, "/bitcoin?", err)
 				return

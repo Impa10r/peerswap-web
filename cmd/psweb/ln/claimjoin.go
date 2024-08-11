@@ -4,11 +4,11 @@ package ln
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/gob"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +21,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
+	"google.golang.org/grpc"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
@@ -28,6 +29,8 @@ import (
 	"peerswap-web/cmd/psweb/internet"
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ps"
+
+	"github.com/lightningnetwork/lnd/lnrpc/chainrpc"
 )
 
 // maximum number of participants in ClaimJoin
@@ -53,12 +56,12 @@ var (
 	ClaimParties []*ClaimParty
 	// PSET to be blinded and signed by all parties
 	claimPSET string
-	// final raw tx that can by published by any joiner if initiator defaults
-	finalRawTX string
+	// count how many times tried to join, to give up after 10
+	joinCounter int
 )
 
 type Coordination struct {
-	// possible actions: add, confirm_add, refuse_add, remove, process, process2, final
+	// possible actions: add, confirm_add, refuse_add, remove, process, process2
 	Action string
 	// new joiner details
 	Joiner ClaimParty
@@ -108,56 +111,26 @@ func loadClaimJoinDB() {
 		var serializedKey []byte
 		db.Load("ClaimJoin", "serializedPrivateKey", &serializedKey)
 		myPrivateKey, _ = btcec.PrivKeyFromBytes(serializedKey)
-		log.Println("Started as ClaimJoin " + MyRole + " with pubKey " + MyPublicKey())
+		log.Println("Continue as ClaimJoin " + MyRole + " with pubKey " + MyPublicKey())
 	}
 
 }
 
-// runs every minute
-func OnTimer() {
-	if !config.Config.PeginClaimJoin || len(ClaimParties) < 2 {
+// runs every block
+func onBlock(blockHeight uint32) {
+	if !config.Config.PeginClaimJoin || MyRole != "initiator" || len(ClaimParties) < 2 || blockHeight < ClaimBlockHeight {
 		return
 	}
 
-	cl, clean, er := GetClient()
-	if er != nil {
-		return
-	}
-	defer clean()
+	errorCounter := 0
+	totalFee := 36 * len(ClaimParties)
 
-	if GetBlockHeight(cl) < ClaimBlockHeight-1 {
-		// start signing process one block before maturity
-		return
-	}
-
-	// fallback to publish finalized TX if the initiator defaults for 10 blocks
-	if MyRole == "joiner" && GetBlockHeight(cl) > ClaimBlockHeight+10 && finalRawTX != "" {
-		log.Println("Posting final TX as a backup")
-		txId, err := liquid.SendRawTransaction(finalRawTX)
-		if err != nil {
-			if err.Error() == "-27: Transaction already in block chain" {
-				decodedTx, err := liquid.DecodeRawTransaction(finalRawTX)
-				if err == nil {
-					txId = decodedTx.Txid
-				}
-			} else {
-				EndClaimJoin("", "Final TX send failure")
-				return
-			}
-		}
-		EndClaimJoin(txId, "done")
-		return
-	}
-
-	if MyRole != "initiator" {
-		return
-	}
-
-	startingFee := 36 * len(ClaimParties)
+create_pset:
 
 	if claimPSET == "" {
 		var err error
-		claimPSET, err = createClaimPSET(startingFee)
+		// start with default fee
+		claimPSET, err = createClaimPSET(totalFee)
 		if err != nil {
 			return
 		}
@@ -171,6 +144,19 @@ func OnTimer() {
 
 	analyzed, err := liquid.AnalyzePSET(claimPSET)
 	if err != nil {
+		return
+	}
+
+	if len(analyzed.Outputs) != len(ClaimParties)+2 || len(decoded.Inputs) != len(ClaimParties) {
+		ClaimStatus = "Misformed PSET, trying again"
+		claimPSET = ""
+		db.Save("ClaimJoin", "claimPSET", &claimPSET)
+		db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
+		log.Println(ClaimStatus)
+		errorCounter++
+		if errorCounter < 10 {
+			goto create_pset
+		}
 		return
 	}
 
@@ -216,6 +202,7 @@ func OnTimer() {
 					}) {
 						log.Println("Unable to send coordination, cancelling ClaimJoin")
 						EndClaimJoin("", "Coordination failure")
+						return
 					}
 				}
 
@@ -242,6 +229,7 @@ func OnTimer() {
 				}
 				ClaimStatus += " done"
 				log.Println(ClaimStatus)
+				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 			} else {
 				if checkPeerStatus(i) {
 					serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
@@ -264,6 +252,12 @@ func OnTimer() {
 				return
 			}
 		}
+	}
+
+	// analyze again after I sign
+	analyzed, err = liquid.AnalyzePSET(claimPSET)
+	if err != nil {
+		return
 	}
 
 	if analyzed.Next == "extractor" {
@@ -304,19 +298,19 @@ func OnTimer() {
 		}
 
 		if feeValue != exactFee {
-
 			log.Printf("Paid fee: %d, required fee: %d, starting over", feeValue, exactFee)
 
 			// start over with the exact fee
-			claimPSET, err = createClaimPSET(exactFee)
-			if err != nil {
-				return
-			}
+			totalFee = exactFee
 			ClaimStatus = "Redo to improve fee"
+			claimPSET = ""
 
 			db.Save("ClaimJoin", "claimPSET", &claimPSET)
 			db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
-		} else if GetBlockHeight(cl) >= ClaimBlockHeight {
+
+			goto create_pset
+
+		} else {
 			// post raw transaction
 			log.Println("Posting final TX")
 
@@ -330,29 +324,13 @@ func OnTimer() {
 				}
 			}
 			EndClaimJoin(txId, "done")
-		} else {
-			// Decode the hex string to []byte
-			bytes, err := hex.DecodeString(rawHex)
-			if err != nil {
-				log.Println("Error converting final TX to []byte")
-				return
-			}
-
-			// share rawTX with all the participants as a backup
-			for i := 1; i < len(ClaimParties); i++ {
-				SendCoordination(ClaimParties[i].PubKey, &Coordination{
-					Action:           "final",
-					PSET:             bytes,
-					ClaimBlockHeight: ClaimBlockHeight,
-				})
-			}
 		}
 	}
 }
 
 func checkPeerStatus(i int) bool {
 	ClaimParties[i].SentCount++
-	if ClaimParties[i].SentCount > 10 {
+	if ClaimParties[i].SentCount > 3 {
 		// peer is offline, kick him
 		kickPeer(ClaimParties[i].PubKey, "being unresponsive")
 		return false
@@ -451,6 +429,9 @@ func Broadcast(fromNodeId string, message *Message) error {
 			// Time limit to apply is communicated via Amount
 			ClaimBlockHeight = uint32(message.Amount)
 			ClaimStatus = "Received invitation to ClaimJoin"
+			// reset counter of join attempts
+			joinCounter = 0
+
 			log.Println(ClaimStatus)
 
 			// persist to db
@@ -546,8 +527,6 @@ func Process(message *Message, senderNodeId string) {
 		// persist to db
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
-
-	// log.Println("My pubKey:", myPublicKey())
 
 	if message.Destination == MyPublicKey() {
 		// Decrypt the message using my private key
@@ -714,9 +693,9 @@ func Process(message *Message, senderNodeId string) {
 
 				db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 
-				// Save received claimPSET, execute OnTimer
+				// Save received claimPSET, execute onBlock to continue signing
 				db.Save("ClaimJoin", "claimPSET", &claimPSET)
-				OnTimer()
+				onBlock(ClaimBlockHeight)
 				return
 			}
 
@@ -754,11 +733,6 @@ func Process(message *Message, senderNodeId string) {
 				log.Println("Unable to send blind coordination, cancelling ClaimJoin")
 				EndClaimJoin("", "Coordination failure")
 			}
-
-		case "final": // hold on to final raw tx
-			finalRawTX = hex.EncodeToString(msg.PSET)
-			ClaimStatus = "Received final raw TX as a backup"
-			log.Println(ClaimStatus)
 		}
 		return
 	}
@@ -840,10 +814,6 @@ func EndClaimJoin(txId string, status string) bool {
 			// signal to telegram bot
 			config.Config.PeginTxId = txId
 			config.Config.PeginClaimScript = "done"
-		} else {
-			log.Println("ClaimJoin failed. Switching back to individual.")
-			config.Config.PeginClaimJoin = false
-			config.Save()
 		}
 		resetClaimJoin()
 		return true
@@ -859,7 +829,6 @@ func resetClaimJoin() {
 	PeginHandler = ""
 	ClaimStatus = "No ClaimJoin peg-in is pending"
 	keyToNodeId = make(map[string]string)
-	finalRawTX = ""
 
 	// persist to db
 	db.Save("ClaimJoin", "claimParties", ClaimParties)
@@ -872,6 +841,15 @@ func resetClaimJoin() {
 
 // called for ClaimJoin joiner candidate after his pegin funding tx confirms
 func JoinClaimJoin(claimBlockHeight uint32) bool {
+	if joinCounter > 3 {
+		ClaimStatus = "Initator does not respond, forget him"
+		log.Println(ClaimStatus)
+		PeginHandler = ""
+		db.Save("ClaimJoin", "PeginHandler", PeginHandler)
+		db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
+		return true
+	}
+
 	if myNodeId == "" {
 		// populates myNodeId
 		if getLndVersion() == 0 {
@@ -897,6 +875,8 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 			Joiner:           *party,
 			ClaimBlockHeight: claimBlockHeight,
 		}) {
+			// increment counter
+			joinCounter++
 			// initiate array of claim parties for single entry
 			ClaimParties = nil
 			ClaimParties = append(ClaimParties, party)
@@ -984,6 +964,9 @@ func addClaimParty(newParty *ClaimParty) (bool, uint32, string) {
 
 	if txHeight > 0 && claimHight != newParty.ClaimBlockHeight {
 		log.Printf("New joiner's ClaimBlockHeight was wrong: %d vs %d correct", newParty.ClaimBlockHeight, claimHight)
+	} else {
+		// cannot verify, have to trust the joiner
+		claimHight = newParty.ClaimBlockHeight
 	}
 
 	ClaimParties = append(ClaimParties, newParty)
@@ -1219,4 +1202,25 @@ func verifyPSET() bool {
 	log.Println(claimPSET)
 
 	return false
+}
+
+func subscribeBlocks(conn *grpc.ClientConn) error {
+
+	client := chainrpc.NewChainNotifierClient(conn)
+	ctx := context.Background()
+	stream, err := client.RegisterBlockEpochNtfn(ctx, &chainrpc.BlockEpoch{})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to blocks")
+
+	for {
+		blockEpoch, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		onBlock(blockEpoch.Height)
+	}
 }

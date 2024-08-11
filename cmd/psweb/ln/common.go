@@ -168,7 +168,7 @@ type BalanceInfo struct {
 const (
 	ignoreForwardsMsat = 1_000_000
 	// one custom type for peeswap web
-	messageType    = uint32(42066)
+	messageType    = uint32(42065)
 	MessageVersion = 1
 )
 

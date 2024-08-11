@@ -129,7 +129,13 @@ func main() {
 	}
 	defer cleanup()
 
-	hasDiscountedvSize = liquid.HasDiscountedvSize()
+	// identify if Elements Core supports CT discounts
+	hasDiscountedvSize = liquid.GetVersion() >= 230202
+	// identify if liquid blockchain supports CT discounts
+	liquidGenesisHash, err := liquid.GetBlockHash(0)
+	if err == nil {
+		hasDiscountedvSize = stringIsInSlice(liquidGenesisHash, []string{"6d955c95af04f1d14f5a6e6bd501508b37bddb6202aac6d99d0522a8cb7deef5"})
+	}
 
 	// Load persisted data from database
 	ln.LoadDB()
@@ -347,9 +353,6 @@ func onTimer(firstRun bool) {
 
 	// Back up to Telegram if Liquid balance changed
 	liquidBackup(false)
-
-	// Handle ClaimJoin
-	go ln.OnTimer()
 
 	// check for updates
 	go func() {
@@ -1128,15 +1131,15 @@ func checkPegin() {
 		}
 
 		if ln.MyRole != "none" {
-			// 20 blocks to wait before switching back to indivicual claim
-			margin := uint32(20)
+			// 10 blocks to wait before switching back to individual claim
+			margin := uint32(10)
 			if ln.MyRole == "initiator" && len(ln.ClaimParties) < 2 {
-				// noone has joined anyway
+				// if no one has joined, switch after 1 extra block
 				margin = 1
 			}
 			if currentBlockHeight > ln.ClaimBlockHeight+margin {
 				// claim pegin individually
-				t := "ClaimJoin matured, switching to individual claim"
+				t := "ClaimJoin failed, switching to individual claim"
 				log.Println(t)
 				telegramSendMessage("🧬 " + t)
 				ln.MyRole = "none"
@@ -1872,10 +1875,10 @@ func pollBalances() {
 	defer clean()
 
 	for _, peer := range res.GetPeers() {
-		if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
+		if err := ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
 			Version: ln.MessageVersion,
 			Memo:    "poll",
-		}) != nil {
+		}); err != nil {
 			log.Println("Failed to poll balances from", getNodeAlias(peer.NodeId), err)
 		} else {
 			initalPollComplete = true

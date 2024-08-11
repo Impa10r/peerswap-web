@@ -1115,6 +1115,15 @@ func SubscribeAll() {
 		}
 	}()
 
+	// subscribe to chain blocks
+	go func() {
+		for {
+			if subscribeBlocks(conn) != nil {
+				time.Sleep(60 * time.Second)
+			}
+		}
+	}()
+
 	// subscribe to Invoices
 	for {
 		if subscribeInvoices(ctx, client) != nil {
