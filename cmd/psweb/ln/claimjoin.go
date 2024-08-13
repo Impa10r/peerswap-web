@@ -126,10 +126,8 @@ func onBlock(blockHeight uint32) {
 	totalFee := 36 * len(ClaimParties)
 
 create_pset:
-
 	if claimPSET == "" {
 		var err error
-		// start with default fee
 		claimPSET, err = createClaimPSET(totalFee)
 		if err != nil {
 			return
