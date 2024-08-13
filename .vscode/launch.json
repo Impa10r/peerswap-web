@@ -13,7 +13,7 @@
             "program": "${workspaceFolder}/cmd/psweb/",
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",
-            "args": ["-datadir", "/home/vlad/.peerswap2_t4"]
+            "args": ["-datadir", "/home/vlad/.peerswap_t4"]
             //"args": ["-datadir", "/home/vlad/.peerswap2"]
         }
     ]

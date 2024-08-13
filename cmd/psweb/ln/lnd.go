@@ -269,7 +269,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	var psbtBytes []byte
 
 	if subtractFeeFromAmount && CanRBF() {
-		// new template since for LND 0.18+
+		// new template since LND 0.18+
 		// change lockID to custom and construct manual psbt
 		lockId = myLockId
 		psbtBytes, err = fundPsbtSpendAll(cl, utxos, addr, feeRate)
@@ -346,6 +346,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	_, err = cl.PublishTransaction(ctx, req)
 	if err != nil {
 		log.Println("PublishTransaction:", err)
+		log.Println("RawHex:", hex.EncodeToString(rawTx))
 		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
 	}
@@ -603,7 +604,7 @@ func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
 
 func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeRate uint64) error {
 	if len(outputs) == 1 {
-		return errors.New("peg-in transaction has no change output, not possible to CPFP")
+		return errors.New("pegin transaction has no change output, not possible to CPFP")
 	}
 
 	// find change output
@@ -1219,29 +1220,31 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			nodeId := hex.EncodeToString(data.Peer)
 
-			// received broadcast of pegin status
-			// msg.Asset: "pegin_started" or "pegin_ended"
-			if msg.Memo == "broadcast" {
+			switch msg.Memo {
+			case "broadcast":
+				// received broadcast of pegin status
+				// msg.Asset: "pegin_started" or "pegin_ended"
 				err = Broadcast(nodeId, &msg)
 				if err != nil {
 					log.Println(err)
 				}
-			}
 
-			// messages related to pegin claim join
-			if msg.Memo == "process" && config.Config.PeginClaimJoin {
+			case "unable":
+				forgetPubKey(msg.Destination)
+
+			case "process":
+				// messages related to pegin claimjoin
 				Process(&msg, nodeId)
-			}
 
-			// received request for information
-			if msg.Memo == "poll" {
-				if MyRole == "initiator" && MyPublicKey() != "" && len(ClaimParties) < maxParties && GetBlockHeight(client) < ClaimBlockHeight {
+			case "poll":
+				// received request for information
+				if MyRole == "initiator" && GetBlockHeight(client) < JoinBlockHeight {
 					// repeat pegin start info
 					SendCustomMessage(client, nodeId, &Message{
 						Version: MessageVersion,
 						Memo:    "broadcast",
 						Asset:   "pegin_started",
-						Amount:  uint64(ClaimBlockHeight),
+						Amount:  uint64(JoinBlockHeight),
 						Sender:  MyPublicKey(),
 					})
 				}
@@ -1277,10 +1280,9 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 						}
 					}
 				}
-			}
 
-			// received information
-			if msg.Memo == "balance" {
+			case "balance":
+				// received information
 				ts := time.Now().Unix()
 				if msg.Asset == "lbtc" {
 					if LiquidBalances[nodeId] == nil {

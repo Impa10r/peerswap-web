@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid pegins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 ### Disclaimer
 
@@ -137,7 +137,7 @@ sudo systemctl restart psweb
 
 ## Automatic Liquid Swap-Ins
 
-Liquid BTC is more custodial than Bitcoin and Lightning. We do not advise accumulating large balances for long-term holding. Once you gained Liquid in a peer swap-in or a peg-in process, it is better to initiate own swap in to rebalance a channel of your choice. 
+Liquid BTC is more custodial than Bitcoin and Lightning. We do not advise accumulating large balances for long-term holding. Once you gained Liquid in a peer swap-in or a pegin process, it is better to initiate own swap in to rebalance a channel of your choice. 
 
 Currently, it is not possible to prevent swap outs by other peers while allowing receipt of swap ins. You don't want your Liquid balance taken, because such a rebalancing may not be optimal for you (but optimal for your peer).
 
@@ -190,7 +190,7 @@ sudo systemctl stop psweb
 sudo systemctl disable psweb
 ```
 
-# Liquid Peg-In
+# Liquid Pegin
 
 Update: From v1.2.0 this is handled via UI on the Bitcoin page.
 

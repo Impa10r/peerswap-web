@@ -19,7 +19,7 @@
 - Fix AutoFees stop working bug
 - Fix AutoFees applied on startup before forwards history has been downloaded
 - LND 0.18: Fix AutoFees reacting to temporary balance increase due to pendinng HTLCs
-- Highlight outputs to be used for peg-in or BTC withdrawal
+- Highlight outputs to be used for pegin or BTC withdrawal
 - Warn when BTC swap-in amount is unlikely to cover chain fee 
 - Limit L-BTC swap-in amount to avoid excessive fee rate
 
@@ -189,7 +189,7 @@
 
 ## 1.3.5
 
-- Estimate peg-in transaction size, total fee and PPM
+- Estimate pegin transaction size, total fee and PPM
 - Add peer fee revenue stats to the main page
 
 ## 1.3.4
@@ -200,7 +200,7 @@
 - Display current fee rates for channels
 - Add help tooltips
 - CLN: implement incremental forwards history polling
-- LND 0.18+: exact fee when sending change-less peg-in tx (there was a bug in LND below 0.18)
+- LND 0.18+: exact fee when sending change-less pegin tx (there was a bug in LND below 0.18)
 
 ## 1.3.3
 
@@ -209,15 +209,15 @@
 
 ## 1.3.2
 
-- Add Bitcoin UTXOs selection for Liquid Peg-ins
-- Allow deducting peg-in chain fee from the amount to avoid change output
-- CLN: Can bump peg-in chain fees with RBF
-- LND 0.18+: Can bump peg-in chain fees with RBF
-- LND below 0.18: Can bump peg-in chain fees with CPFP
+- Add Bitcoin UTXOs selection for Liquid Pegins
+- Allow deducting pegin chain fee from the amount to avoid change output
+- CLN: Can bump pegin chain fees with RBF
+- LND 0.18+: Can bump pegin chain fees with RBF
+- LND below 0.18: Can bump pegin chain fees with CPFP
 
 ## 1.3.1
 
-- Enable peg-in transaction fee bumping for CLN
+- Enable pegin transaction fee bumping for CLN
 - Add LND log link
 - Various bug fixes
 
@@ -232,7 +232,7 @@
 
 ## 1.2.5
 
-- Bug fix for peg-in claim not working in v1.2.4
+- Bug fix for pegin claim not working in v1.2.4
 
 ## 1.2.4
 
@@ -242,8 +242,8 @@
 
 ## 1.2.3
 
-- Add fee rate estimate for peg-in
-- Allow fee bumping peg-in tx (first CPFP, then RBF)
+- Add fee rate estimate for pegin
+- Allow fee bumping pegin tx (first CPFP, then RBF)
 
 ## 1.2.2
 
@@ -259,7 +259,7 @@
 ## 1.2.0
 
 - Add Bitcoin balance and utxo list display
-- Implement Liquid Peg-In functionality
+- Implement Liquid Pegin functionality
 - Fallback to getblock.io if local Bitcoin Core unreachable
 
 ## 1.1.8

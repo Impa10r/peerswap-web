@@ -670,6 +670,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		IsClaimJoin         bool
 		ClaimJoinStatus     string
 		HasClaimJoinPending bool
+		ClaimJoinETA        int
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -701,12 +702,15 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
 	maxConfs := int32(ln.PeginBlocks)
+	cjETA := 34
 
-	if config.Config.PeginClaimJoin && ln.MyRole != "none" {
-		bh := int32(ln.GetBlockHeight(cl))
+	bh := int32(ln.GetBlockHeight(cl))
+	if ln.MyRole != "none" {
 		target := int32(ln.ClaimBlockHeight)
 		maxConfs = target - bh + confs
 		duration = time.Duration(10*(target-bh)) * time.Minute
+	} else {
+		cjETA = int((int32(ln.JoinBlockHeight) - bh + ln.PeginBlocks) / 6)
 	}
 
 	progress := confs * 100 / int32(maxConfs)
@@ -745,7 +749,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		CanClaimJoin:        hasDiscountedvSize && ln.Implementation == "LND",
 		IsClaimJoin:         config.Config.PeginClaimJoin,
 		ClaimJoinStatus:     ln.ClaimStatus,
-		HasClaimJoinPending: ln.PeginHandler != "",
+		HasClaimJoinPending: ln.ClaimJoinHandler != "",
+		ClaimJoinETA:        cjETA,
 	}
 
 	// executing template named "bitcoin"
@@ -866,7 +871,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			claimScript = ""
 		}
 
-		label := "Liquid Peg-in"
+		label := "Liquid Pegin"
 		if !isPegin {
 			label = "BTC Withdrawal"
 		}
@@ -878,10 +883,20 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if isPegin {
-			log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
+			log.Println("New Pegin TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 			duration := time.Duration(10*ln.PeginBlocks) * time.Minute
 			formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-			telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+			telegramSendMessage("⏰ Started pegin " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+
+			if hasDiscountedvSize && ln.Implementation == "LND" {
+				config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
+				if config.Config.PeginClaimJoin {
+					ln.ClaimStatus = "Awaiting tx confirmation"
+					db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+				}
+			} else {
+				config.Config.PeginClaimJoin = false
+			}
 		} else {
 			log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
 			telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
@@ -893,16 +908,6 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
 		config.Config.PeginFeeRate = uint32(fee)
-
-		if hasDiscountedvSize && ln.Implementation == "LND" {
-			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
-			if config.Config.PeginClaimJoin {
-				ln.ClaimStatus = "Awaiting tx confirmation"
-				db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
-			}
-		} else {
-			config.Config.PeginClaimJoin = false
-		}
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
@@ -931,7 +936,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if config.Config.PeginTxId == "" {
-			redirectWithError(w, r, "/bitcoin?", errors.New("no pending peg-in"))
+			redirectWithError(w, r, "/bitcoin?", errors.New("no pending pegin"))
 			return
 		}
 
@@ -949,7 +954,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		label := "Liquid Peg-in"
+		label := "Liquid Pegin"
 		if config.Config.PeginClaimScript == "" {
 			label = "BTC Withdrawal"
 		}

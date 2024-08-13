@@ -37,7 +37,7 @@
             <div class="box has-text-left">
               <div class="tabs is-large is-boxed">
                 <ul>
-                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-In</a></li>
+                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Pegin</a></li>
                   <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send BTC</a></li>
                 </ul>
               </div>
@@ -64,7 +64,7 @@
                     <label class="label">Fee Rate</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                    <input class="input is-medium" type="number" oninput="calculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                   </div>
                 </div>
                 {{if .CanClaimJoin}}
@@ -77,9 +77,9 @@
                         <label class="checkbox is-large">
                           <input type="checkbox" id="claimJoin" onchange="calculateTransactionFee()" name="claimJoin" checked>
                           {{if .HasClaimJoinPending}}
-                            <strong>&nbsp&nbspJoin a pending claim to create a single confidential transaction</strong>
+                            <strong>&nbsp&nbspJoin a pending claim for a single confidential transaction</strong>
                           {{else}}
-                            <strong>&nbsp&nbspInvite peers to join claims into a single confidential transaction</strong>
+                            <strong>&nbsp&nbspInvite peers to join claims for a single confidential transaction</strong>
                           {{end}}
                         </label>
                       </div>
@@ -110,23 +110,23 @@
                 <!-- Hidden true/false element -->
                 <input type="hidden" id="isPegin" name="isPegin" value="true">
                 <div style="text-align: center;">
-                  <input id="sendButton" class="button is-large" type="submit" value="Start Peg-In">
+                  <input id="sendButton" class="button is-large" type="submit" value="Start Pegin">
                 </div>
             </div>
           {{else}}
             <div class="box has-text-left">
-              {{if .IsPegin}}
-                <div style="display: grid; grid-template-columns: auto auto; margin-bottom: 1em;">
-                  <div style="text-align: left;">
-                    <h4 class="title is-4">Peg-In Progress</h4>
-                  </div>
-                  <div style="display: flex; justify-content: flex-end;">
-                    <h4 class="title is-4" title="Refresh page"><a href="/bitcoin">⟳</a></h4>
-                  </div>
+              <div style="display: grid; grid-template-columns: auto auto; margin-bottom: 1em;">
+                <div style="text-align: left;">
+                  {{if .IsPegin}}
+                    <h4 class="title is-4">Pegin Progress</h4>
+                  {{else}}
+                     <h4 class="title is-4">Bitcoin Withdrawal {{if gt .Confirmations 0}}(Complete){{else}}(Pending){{end}}</h4> 
+                  {{end}}
                 </div>
-              {{else}}
-                <h4 class="title is-4">Bitcoin Withdrawal {{if gt .Confirmations 0}}(Complete){{else}}(Pending){{end}}</h4> 
-              {{end}}
+                <div style="display: flex; justify-content: flex-end;">
+                  <h4 class="title is-4" title="Refresh page"><a href="/bitcoin">⟳</a></h4>
+                </div>
+              </div>
               <table style="table-layout:fixed; width: 100%; margin-bottom: 1em;">
                 <tr>
                   <td style="width: 8ch; text-align: right">
@@ -291,7 +291,7 @@
                 document.getElementById('sendTab').classList.remove("is-active");
                 document.getElementById("sendAddressField").style.display = "none";
                 document.getElementById('sendAddress').removeAttribute('required');
-                document.getElementById("sendButton").value = "Start Peg-In";
+                document.getElementById("sendButton").value = "Start Pegin";
                 document.getElementById("isPegin").value = "true";
                 {{if .CanClaimJoin}}
                   document.getElementById("claimJoinField").style.display = "";
@@ -461,7 +461,7 @@
                   let outputsP2WPKH = change; // Number of P2WPKH outputs
                 {{end}}
 
-                // there is always one P2SH output for peg-in address
+                // there is always one P2SH output for pegin address
                 let outputsP2SH = 1;
                 
                 // Initialize total UTXO amount and UTXO counters
@@ -642,7 +642,7 @@
                 let text = "Transaction size: " + vbyteSize + " vBytes\n";
                 
                 if (isPegin) {
-                  //liquid peg-in fee estimate
+                  //liquid pegin fee estimate
                   let liquidFee = "45";
                   fee += 45; 
                   {{if .CanClaimJoin}}
@@ -667,7 +667,7 @@
                 let hours = "17 hours";
                 {{if .CanClaimJoin}}
                     if (document.getElementById("claimJoin").checked) {
-                      hours = "17-34 hours";
+                      hours = "17-{{.ClaimJoinETA}} hours";
                     }
                 {{end}}
 

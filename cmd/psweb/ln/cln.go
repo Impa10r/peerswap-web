@@ -338,7 +338,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	minConf := uint16(1)
 	multiplier := uint64(1000)
 	if !subtractFeeFromAmount && config.Config.Chain == "mainnet" {
-		multiplier = 935 // better sets fee rate for peg-in tx with change
+		multiplier = 935 // better sets fee rate for pegin tx with change
 	}
 
 	res, err := client.WithdrawWithUtxos(
@@ -1320,10 +1320,11 @@ func MyPublicKey() string                       { return "" }
 func EndClaimJoin(a, b string)                  {}
 
 var (
-	PeginHandler     = ""
+	ClaimJoinHandler = ""
 	MyRole           = "none"
 	ClaimStatus      = ""
-	ClaimBlockHeight = uint32(0)
+	ClaimBlockHeight uint32
+	JoinBlockHeight  uint32
 	ClaimParties     []int
 )
 

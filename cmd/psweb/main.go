@@ -92,7 +92,7 @@ func main() {
 	flag.Parse()
 
 	if *showHelp {
-		fmt.Println("A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins. PeerSwap with Liquid is a great cost efficient way to rebalance lightning channels.")
+		fmt.Println("A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid pegins. PeerSwap with Liquid is a great cost efficient way to rebalance lightning channels.")
 		fmt.Println("Usage:")
 		flag.PrintDefaults()
 		os.Exit(0)
@@ -384,7 +384,7 @@ func onTimer(firstRun bool) {
 		// skip first run so that forwards have time to download
 		go ln.ApplyAutoFees()
 		// Check if pegin can be claimed, initiated or joined
-		go checkPegin()
+		checkPegin()
 	}
 
 	// advertise Liquid balance
@@ -1089,7 +1089,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 	return table
 }
 
-// Check Peg-in status
+// Check Pegin status
 func checkPegin() {
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -1099,21 +1099,30 @@ func checkPegin() {
 
 	currentBlockHeight := ln.GetBlockHeight(cl)
 
-	if currentBlockHeight > ln.ClaimBlockHeight && ln.MyRole == "none" && ln.PeginHandler != "" {
+	if currentBlockHeight > ln.JoinBlockHeight && ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
 		// invitation expired
-		ln.PeginHandler = ""
-		db.Save("ClaimJoin", "PeginHandler", ln.PeginHandler)
+		ln.ClaimStatus = "No ClaimJoin pegin is pending"
+		log.Println("Invitation expired from", ln.ClaimJoinHandler)
+		telegramSendMessage("🧬 ClaimJoin Invitation expired")
+
+		ln.ClaimJoinHandler = ""
+		db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+		db.Save("ClaimJoin", "ClaimJoinHandler", ln.ClaimJoinHandler)
 	}
 
 	if config.Config.PeginTxId == "" {
 		// send telegram if received new ClaimJoin invitation
-		if peginInvite != ln.PeginHandler {
-			t := "🧬 Someone has started a new ClaimJoin pegin"
-			if ln.PeginHandler == "" {
+		if peginInvite != ln.ClaimJoinHandler {
+			t := "🧬 There is a ClaimJoin pegin pending"
+			if ln.ClaimJoinHandler == "" {
 				t = "🧬 ClaimJoin pegin has ended"
+			} else {
+				duration := time.Duration(10*(ln.JoinBlockHeight-currentBlockHeight)) * time.Minute
+				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+				t += ", time limit to join: " + formattedDuration
 			}
 			if telegramSendMessage(t) {
-				peginInvite = ln.PeginHandler
+				peginInvite = ln.ClaimJoinHandler
 			}
 		}
 		return
@@ -1145,7 +1154,7 @@ func checkPegin() {
 				ln.MyRole = "none"
 				config.Config.PeginClaimJoin = false
 				config.Save()
-				ln.EndClaimJoin("", "Claimed individually")
+				ln.EndClaimJoin("", "Claim Block Height has passed")
 			}
 			return
 		}
@@ -1188,21 +1197,21 @@ func checkPegin() {
 			}
 
 			if failed {
-				log.Println("Peg-in claim FAILED!")
+				log.Println("Pegin claim FAILED!")
 				log.Println("Mainchain TxId:", config.Config.PeginTxId)
 				log.Println("Raw tx:", rawTx)
 				log.Println("Proof:", proof)
 				log.Println("Claim Script:", config.Config.PeginClaimScript)
-				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+				telegramSendMessage("❗ Pegin claim FAILED! See log for details.")
 			} else {
-				log.Println("Peg-in successful! Liquid TxId:", txid)
-				telegramSendMessage("💸 Peg-in successfull! Liquid TxId: `" + txid + "`")
+				log.Println("Pegin successful! Liquid TxId:", txid)
+				telegramSendMessage("💸 Pegin successfull! Liquid TxId: `" + txid + "`")
 			}
 		} else {
 			if config.Config.PeginClaimJoin {
 				if ln.MyRole == "none" {
 					claimHeight := currentBlockHeight + ln.PeginBlocks - uint32(confs)
-					if ln.PeginHandler == "" {
+					if ln.ClaimJoinHandler == "" {
 						// I will coordinate this join
 						if ln.InitiateClaimJoin(claimHeight) {
 							t := "Sent ClaimJoin invitations"
@@ -1215,16 +1224,14 @@ func checkPegin() {
 							config.Config.PeginClaimJoin = false
 							config.Save()
 						}
-					} else if currentBlockHeight < ln.ClaimBlockHeight {
+					} else if currentBlockHeight <= ln.JoinBlockHeight {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
 							t := "Applied to ClaimJoin group"
-							log.Println(t + " " + ln.PeginHandler + " as " + ln.MyPublicKey())
+							log.Println(t + " " + ln.ClaimJoinHandler + " as " + ln.MyPublicKey())
 							telegramSendMessage("🧬 " + t)
 						} else {
-							log.Println("Failed to apply to ClaimJoin, continuing as a single pegin")
-							config.Config.PeginClaimJoin = false
-							config.Save()
+							log.Println("Failed to apply to ClaimJoin group", ln.ClaimJoinHandler)
 						}
 					}
 				}

@@ -89,7 +89,7 @@ func telegramStart() {
 			case "/pegin":
 				t := ""
 				if config.Config.PeginTxId == "" {
-					t = "No pending peg-in or BTC withdrawal"
+					t = "No pending pegin or BTC withdrawal"
 				} else {
 					cl, clean, er := ln.GetClient()
 					if er != nil {
@@ -107,7 +107,7 @@ func telegramStart() {
 								formattedDuration = "Past due!"
 							}
 							t = "🧬 " + ln.ClaimStatus
-							if ln.MyRole == "none" && ln.PeginHandler != "" {
+							if ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
 								t += ". Time left to apply: " + formattedDuration
 							} else if confs > 0 {
 								t += ". Claim ETA: " + formattedDuration
@@ -174,7 +174,7 @@ func telegramConnect() {
 			},
 			tgbotapi.BotCommand{
 				Command:     "pegin",
-				Description: "Status of peg-in or BTC withdrawal",
+				Description: "Status of pegin or BTC withdrawal",
 			},
 			tgbotapi.BotCommand{
 				Command:     "autoswaps",
