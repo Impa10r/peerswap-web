@@ -45,24 +45,6 @@ func LoadPS() {
 		Config.ElementsPort = port
 	}
 
-	// on first start without config there will be no elements user and password
-	if Config.ElementsPass == "" || Config.ElementsUser == "" {
-		// check in peerswap.conf
-		Config.ElementsPass = GetPeerswapLNDSetting("elementsd.rpcpass")
-		Config.ElementsUser = GetPeerswapLNDSetting("elementsd.rpcuser")
-
-		// check if they were passed as env
-		if Config.ElementsUser == "" && os.Getenv("ELEMENTS_USER") != "" {
-			Config.ElementsUser = os.Getenv("ELEMENTS_USER")
-		}
-		if Config.ElementsPass == "" && os.Getenv("ELEMENTS_PASS") != "" {
-			Config.ElementsPass = os.Getenv("ELEMENTS_PASS")
-		}
-
-		// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
-		SavePS()
-	}
-
 	// find LND path from peerswap.conf
 	certPath := GetPeerswapLNDSetting("lnd.tlscertpath")
 
