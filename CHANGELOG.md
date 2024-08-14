@@ -2,9 +2,9 @@
 
 ## 1.7.0
 
-- Implemented confidential joint pegin claims (ClaimJoin)
-- Switched Custom Message serialization from JSON to GOB
-- Switched Custom Message type from 42067 to 42065
+- Implement confidential joint pegin claims (Elements v23.2.2 & LND)
+- Switch Custom Message serialization from JSON to GOB
+- Switch Custom Message type from 42067 to 42065
 - Better estimate swap-in fee and maximum swap amount
 - {TODO] Account for circular rebalancing cost and PPM
 

@@ -55,7 +55,7 @@ var (
 	// none, initiator or joiner
 	MyRole = "none"
 	// array of initiator + joiners, for initiator only
-	ClaimParties []*ClaimParty
+	ClaimParties []ClaimParty
 	// PSET to be blinded and signed by all parties
 	claimPSET string
 	// count how many times tried to join, to give up after 10
@@ -105,14 +105,13 @@ func loadClaimJoinDB() {
 
 	db.Load("ClaimJoin", "MyRole", &MyRole)
 	db.Load("ClaimJoin", "keyToNodeId", &keyToNodeId)
+	db.Load("ClaimJoin", "ClaimParties", &ClaimParties)
 
 	if MyRole != "none" {
 		var serializedKey []byte
 		db.Load("ClaimJoin", "serializedPrivateKey", &serializedKey)
 		myPrivateKey, _ = btcec.PrivKeyFromBytes(serializedKey)
 		log.Println("Continue as ClaimJoin " + MyRole + " with pubKey " + MyPublicKey())
-
-		db.Load("ClaimJoin", "claimParties", &ClaimParties)
 
 		if MyRole == "initiator" {
 			db.Load("ClaimJoin", "claimPSET", &claimPSET)
@@ -680,7 +679,7 @@ func Process(message *Message, senderNodeId string) {
 					// remove yourself from ClaimJoin
 					if SendCoordination(ClaimJoinHandler, &Coordination{
 						Action: "remove",
-						Joiner: *ClaimParties[0],
+						Joiner: ClaimParties[0],
 					}) {
 						// forget pegin handler, so that cannot initiate new ClaimJoin
 						JoinBlockHeight = 0
@@ -834,12 +833,12 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		if party != nil {
 			// initiate array of claim parties
 			ClaimParties = nil
-			ClaimParties = append(ClaimParties, party)
+			ClaimParties = append(ClaimParties, *party)
 			ClaimBlockHeight = claimBlockHeight
 			JoinBlockHeight = claimBlockHeight - 1
 			db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 			db.Save("ClaimJoin", "JoinBlockHeight", JoinBlockHeight)
-			db.Save("ClaimJoin", "claimParties", ClaimParties)
+			db.Save("ClaimJoin", "ClaimParties", ClaimParties)
 			// new invitation timestamp
 			ts = uint64(time.Now().Unix())
 		} else {
@@ -909,7 +908,7 @@ func resetClaimJoin() {
 	keyToNodeId = make(map[string]string)
 
 	// persist to db
-	db.Save("ClaimJoin", "claimParties", ClaimParties)
+	db.Save("ClaimJoin", "ClaimParties", ClaimParties)
 	db.Save("ClaimJoin", "ClaimJoinHandler", ClaimJoinHandler)
 	db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 	db.Save("ClaimJoin", "JoinBlockHeight", JoinBlockHeight)
@@ -928,7 +927,7 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 		// no reply, remove yourself from ClaimJoin
 		SendCoordination(ClaimJoinHandler, &Coordination{
 			Action: "remove",
-			Joiner: *ClaimParties[0],
+			Joiner: ClaimParties[0],
 		})
 		forgetPubKey(ClaimJoinHandler)
 		ClaimStatus = "Initator does not respond, forget him"
@@ -983,7 +982,7 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 	if len(ClaimParties) != 1 || ClaimParties[0].PubKey != MyPublicKey() {
 		// initiate array of claim parties for single entry
 		ClaimParties = nil
-		ClaimParties = append(ClaimParties, createClaimParty(claimBlockHeight))
+		ClaimParties = append(ClaimParties, *createClaimParty(claimBlockHeight))
 		ClaimBlockHeight = claimBlockHeight
 		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 		db.Save("ClaimJoin", "ClaimParties", ClaimParties)
@@ -991,7 +990,7 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 
 	if SendCoordination(ClaimJoinHandler, &Coordination{
 		Action:           "add",
-		Joiner:           *ClaimParties[0],
+		Joiner:           ClaimParties[0],
 		ClaimBlockHeight: claimBlockHeight,
 	}) {
 		// increment counter
@@ -1074,17 +1073,17 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 		newParty.TxoutProof = proof
 	}
 
-	ClaimParties = append(ClaimParties, newParty)
+	ClaimParties = append(ClaimParties, *newParty)
 
 	// persist to db
-	db.Save("ClaimJoin", "claimParties", ClaimParties)
+	db.Save("ClaimJoin", "ClaimParties", ClaimParties)
 
 	return true, "Successfully joined, total participants: " + strconv.Itoa(len(ClaimParties))
 }
 
 // remove claim party from the list by public key
 func removeClaimParty(pubKey string) bool {
-	var newClaimParties []*ClaimParty
+	var newClaimParties []ClaimParty
 	found := false
 	claimBlockHeight := uint32(0)
 
@@ -1110,7 +1109,7 @@ func removeClaimParty(pubKey string) bool {
 	ClaimParties = newClaimParties
 
 	// persist to db
-	db.Save("ClaimJoin", "claimParties", ClaimParties)
+	db.Save("ClaimJoin", "ClaimParties", ClaimParties)
 
 	return true
 }

@@ -1146,9 +1146,9 @@ func checkPegin() {
 				// if no one has joined, switch after 1 extra block
 				margin = 1
 			}
-			if currentBlockHeight > ln.ClaimBlockHeight+margin {
+			if currentBlockHeight >= ln.ClaimBlockHeight+margin {
 				// claim pegin individually
-				t := "ClaimJoin failed, switching to individual claim"
+				t := "ClaimJoin failed, falling back to the individual claim"
 				log.Println(t)
 				telegramSendMessage("🧬 " + t)
 				ln.MyRole = "none"
