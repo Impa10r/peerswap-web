@@ -35,7 +35,7 @@ import (
 
 const (
 	// App version tag
-	version = "v1.6.8"
+	version = "v1.6.9"
 
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105

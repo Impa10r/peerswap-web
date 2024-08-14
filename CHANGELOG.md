@@ -1,5 +1,9 @@
 # Versions
 
+## 1.6.9
+
+- Fix bitcoinswaps=true persisting in peerswap.conf on psweb restart
+
 ## 1.6.8
 
 - AutoFees: do not change inbound fee during pending HTLCs
