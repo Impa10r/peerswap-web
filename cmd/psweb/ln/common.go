@@ -149,10 +149,11 @@ type DataPoint struct {
 // sent/received as GOB
 type Message struct {
 	// cleartext announcements
-	Version int
-	Memo    string
-	Asset   string
-	Amount  uint64
+	Version   int
+	Memo      string
+	Asset     string
+	Amount    uint64
+	TimeStamp uint64
 	// encrypted communications via peer relay
 	Sender      string
 	Destination string
