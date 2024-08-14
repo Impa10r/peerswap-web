@@ -149,10 +149,12 @@ func Load(dataDir string) {
 		if Config.ElementsPass == "" && os.Getenv("ELEMENTS_PASS") != "" {
 			Config.ElementsPass = os.Getenv("ELEMENTS_PASS")
 		}
-
-		// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
-		SavePS()
+		// save changes
+		Save()
 	}
+
+	// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
+	SavePS()
 }
 
 // saves PS Web config to pswebconfig.json
