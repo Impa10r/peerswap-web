@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -243,7 +244,7 @@ func GetRawTransaction(client lnrpc.LightningClient, txid string) (string, error
 }
 
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate float64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
@@ -272,12 +273,12 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		// new template since LND 0.18+
 		// change lockID to custom and construct manual psbt
 		lockId = myLockId
-		psbtBytes, err = fundPsbtSpendAll(cl, utxos, addr, feeRate)
+		psbtBytes, err = fundPsbtSpendAll(cl, utxos, addr, uint64(feeRate))
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+		psbtBytes, err = fundPsbt(cl, utxos, outputs, uint64(feeRate))
 		if err != nil {
 			log.Println("FundPsbt:", err)
 			return nil, err
@@ -286,7 +287,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		if subtractFeeFromAmount {
 			// trick for LND before 0.18
 			// replace output with correct address and amount
-			fee, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
+			fee, err := bitcoin.GetFeeFromPsbt(base64.StdEncoding.EncodeToString(psbtBytes))
 			if err != nil {
 				return nil, err
 			}
@@ -303,7 +304,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 				}
 
 				outputs[addr] = uint64(finalAmount)
-				psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+				psbtBytes, err = fundPsbt(cl, utxos, outputs, uint64(feeRate))
 
 				if err == nil {
 					// PFBT was funded successfully
@@ -318,7 +319,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		}
 	}
 
-	firstPass := true
+	pass := 0
 
 finalize:
 	// sign psbt
@@ -338,15 +339,17 @@ finalize:
 		return nil, err
 	}
 
-	feePaid, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
+	feePaid, err := bitcoin.GetFeeFromPsbt(base64.StdEncoding.EncodeToString(psbtBytes))
 	if err != nil {
 		return nil, err
 	}
 
-	requiredFee := int64(feeRate) * int64(decoded.VSize)
+	requiredFee := int64(feeRate * float64(decoded.VSize))
 
 	if requiredFee != toSats(feePaid) {
-		if firstPass {
+		if pass < 5 {
+			log.Println("Trying to fix fee paid:", toSats(feePaid), "vs required:", requiredFee)
+
 			releaseOutputs(cl, utxos, &lockId)
 
 			// Parse the PSBT
@@ -356,7 +359,7 @@ finalize:
 				return nil, err
 			}
 
-			// Output index to amend
+			// Output index to amend (destination or change)
 			outputIndex := len(p.UnsignedTx.TxOut) - 1
 
 			// Replace the value of the output
@@ -376,7 +379,7 @@ finalize:
 			// log.Println(base64.StdEncoding.EncodeToString(psbtBytes))
 
 			// avoid permanent loop
-			firstPass = false
+			pass++
 
 			goto finalize
 		}
@@ -412,9 +415,10 @@ finalize:
 	}
 
 	result := SentResult{
-		RawHex:    hex.EncodeToString(rawTx),
-		TxId:      msgTx.TxHash().String(),
-		AmountSat: finalAmount,
+		RawHex:     hex.EncodeToString(rawTx),
+		TxId:       msgTx.TxHash().String(),
+		AmountSat:  finalAmount,
+		ExactSatVb: math.Ceil(float64(toSats(feePaid)*1000)/float64(decoded.VSize)) / 1000,
 	}
 
 	return &result, nil
@@ -591,7 +595,7 @@ func fundPsbtSpendAll(cl walletrpc.WalletKitClient, utxoStrings *[]string, addre
 	return fundResp.FundedPsbt, nil
 }
 
-func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
+func BumpPeginFee(feeRate float64, label string) (*SentResult, error) {
 
 	client, cleanup, err := GetClient()
 	if err != nil {
@@ -612,14 +616,15 @@ func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
 	cl := walletrpc.NewWalletKitClient(conn)
 
 	if !CanRBF() {
-		err = doCPFP(cl, tx.GetOutputDetails(), feeRate)
+		err = doCPFP(cl, tx.GetOutputDetails(), uint64(feeRate))
 		if err != nil {
 			return nil, err
 		} else {
 			return &SentResult{
-				TxId:      config.Config.PeginTxId,
-				RawHex:    "",
-				AmountSat: config.Config.PeginAmount,
+				TxId:       config.Config.PeginTxId,
+				RawHex:     "",
+				AmountSat:  config.Config.PeginAmount,
+				ExactSatVb: float64(feeRate),
 			}, nil
 		}
 	}

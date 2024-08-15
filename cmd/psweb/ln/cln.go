@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -219,7 +220,7 @@ type UnreserveInputsResponse struct {
 	Reservations []Reservation `json:"reservations"`
 }
 
-func BumpPeginFee(newFeeRate uint64, label string) (*SentResult, error) {
+func BumpPeginFee(newFeeRate float64, label string) (*SentResult, error) {
 
 	client, clean, err := GetClient()
 	if err != nil {
@@ -306,8 +307,26 @@ func GetRawTransaction(client *glightning.Lightning, txid string) (string, error
 	return tx.RawTx, nil
 }
 
+type WithdrawRequest struct {
+	Destination string   `json:"destination"`
+	Satoshi     string   `json:"satoshi"`
+	FeeRate     string   `json:"feerate,omitempty"`
+	MinConf     uint16   `json:"minconf,omitempty"`
+	Utxos       []string `json:"utxos,omitempty"`
+}
+
+func (r WithdrawRequest) Name() string {
+	return "withdraw"
+}
+
+type WithdrawResult struct {
+	Tx   string `json:"tx"`
+	TxId string `json:"txid"`
+	PSBT string `json:"psbt"`
+}
+
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate float64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)
@@ -336,42 +355,74 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	}
 
 	minConf := uint16(1)
-	multiplier := uint64(1000)
+	multiplier := float64(1000)
 	if !subtractFeeFromAmount && config.Config.Chain == "mainnet" {
 		multiplier = 935 // better sets fee rate for pegin tx with change
 	}
 
-	res, err := client.WithdrawWithUtxos(
-		addr,
-		&glightning.Sat{
-			Value:   uint64(amount),
-			SendAll: subtractFeeFromAmount,
-		},
-		&glightning.FeeRate{
-			Rate: uint(feeRate * multiplier),
-		},
-		&minConf,
-		inputs)
+	amountStr := fmt.Sprintf("%d", amount)
+	if subtractFeeFromAmount {
+		amountStr = "all"
+	}
 
+	var res WithdrawResult
+	err = client.Request(&WithdrawRequest{
+		Destination: addr,
+		Satoshi:     amountStr,
+		FeeRate:     fmt.Sprint(uint(feeRate*multiplier)) + "perkb",
+		MinConf:     minConf,
+		Utxos:       *utxos,
+	}, &res)
 	if err != nil {
-		log.Println("WithdrawWithUtxos:", err)
+		log.Println("WithdrawRequest:", err)
+		return nil, err
+	}
+
+	// The returned res.Tx is UNSIGNED, ignore it
+	var decoded bitcoin.Transaction
+	_, err := bitcoin.GetRawTransaction(res.TxId, &decoded)
+	if err != nil {
 		return nil, err
 	}
 
 	amountSent := amount
-	if subtractFeeFromAmount {
-		decodedTx, err := bitcoin.DecodeRawTransaction(res.Tx)
-		if err == nil {
-			if len(decodedTx.Vout) == 1 {
-				amountSent = toSats(decodedTx.Vout[0].Value)
-			}
-		}
+	if subtractFeeFromAmount && len(decoded.Vout) == 1 {
+		amountSent = toSats(decoded.Vout[0].Value)
 	}
 
+	/* this fails with Unsupported version number
+	feePaid, err := bitcoin.GetFeeFromPsbt(res.PSBT)
+	if err != nil {
+		return nil, err
+	}
+	*/
+
+	// default value if exact calculation fails
+	feePaid := feeRate * float64(decoded.VSize)
+
+	fee := int64(0)
+	for _, input := range decoded.Vin {
+		var decodedIn bitcoin.Transaction
+		_, err = bitcoin.GetRawTransaction(input.TXID, &decodedIn)
+		if err != nil {
+			goto return_result
+		}
+		fee += toSats(decodedIn.Vout[input.Vout].Value)
+	}
+
+	for _, output := range decoded.Vout {
+		fee -= toSats(output.Value)
+	}
+
+	feePaid = float64(fee)
+
+return_result:
+
 	result := SentResult{
-		RawHex:    res.Tx,
-		TxId:      res.TxId,
-		AmountSat: amountSent,
+		RawHex:     decoded.Hex,
+		TxId:       res.TxId,
+		AmountSat:  amountSent,
+		ExactSatVb: math.Ceil(feePaid*1000/float64(decoded.VSize)) / 1000,
 	}
 
 	return &result, nil

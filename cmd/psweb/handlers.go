@@ -654,11 +654,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		TargetConfirmations int32
 		Progress            int32
 		Duration            string
-		FeeRate             uint32
+		FeeRate             float64
 		LiquidFeeRate       float64
 		MempoolFeeRate      float64
-		SuggestedFeeRate    uint32
-		MinBumpFeeRate      uint32
+		SuggestedFeeRate    float64
+		MinBumpFeeRate      float64
 		CanBump             bool
 		CanRBF              bool
 		IsCLN               bool
@@ -674,7 +674,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := uint32(mempoolFeeRate)
+	fee := float64(mempoolFeeRate)
 	confs := int32(0)
 	canBump := false
 	canCPFP := false
@@ -738,8 +738,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		FeeRate:             config.Config.PeginFeeRate,
 		MempoolFeeRate:      mempoolFeeRate,
 		LiquidFeeRate:       liquid.EstimateFee(),
-		SuggestedFeeRate:    fee,
-		MinBumpFeeRate:      config.Config.PeginFeeRate + 1,
+		SuggestedFeeRate:    math.Ceil(fee*1000) / 1000,
+		MinBumpFeeRate:      math.Ceil((config.Config.PeginFeeRate+1)*1000) / 1000,
 		CanBump:             canBump,
 		CanRBF:              ln.CanRBF(),
 		IsCLN:               ln.Implementation == "CLN",
@@ -772,7 +772,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
+		fee, err := strconv.ParseFloat(r.FormValue("feeRate"), 64)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -907,7 +907,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		config.Config.PeginAmount = res.AmountSat
 		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
-		config.Config.PeginFeeRate = uint32(fee)
+		config.Config.PeginFeeRate = res.ExactSatVb
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
@@ -929,7 +929,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
+		fee, err := strconv.ParseFloat(r.FormValue("feeRate"), 64)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
@@ -966,7 +966,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if ln.CanRBF() {
-			log.Println("RBF TxId:", res.TxId)
+			log.Println("RBF TxId:", res.TxId, "RawHex:", res.RawHex)
 			config.Config.PeginReplacedTxId = config.Config.PeginTxId
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
@@ -976,7 +976,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// save the new rate, so the next bump cannot be lower
-		config.Config.PeginFeeRate = uint32(fee)
+		config.Config.PeginFeeRate = res.ExactSatVb
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)

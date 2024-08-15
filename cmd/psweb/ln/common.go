@@ -19,9 +19,10 @@ type UTXO struct {
 }
 
 type SentResult struct {
-	RawHex    string
-	AmountSat int64
-	TxId      string
+	RawHex     string
+	AmountSat  int64
+	TxId       string
+	ExactSatVb float64
 }
 
 type ForwardingStats struct {
