@@ -384,3 +384,25 @@ func GetFeeFromPsbt(psbtBytes *[]byte) (float64, error) {
 
 	return fee, nil
 }
+
+func CreatePSBT(params interface{}) (string, error) {
+
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+
+	r, err := service.client.call("createpsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to create PSET: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CreatePSET unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}

@@ -712,14 +712,14 @@ func NewAddress() (string, error) {
 	}
 
 	err = client.Request(&glightning.NewAddrRequest{
-		AddressType: "bech32",
+		AddressType: "p2tr",
 	}, &res)
 	if err != nil {
 		log.Println("NewAddrRequest:", err)
 		return "", err
 	}
 
-	return res.Bech32, nil
+	return res.Taproot, nil
 }
 
 // Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes

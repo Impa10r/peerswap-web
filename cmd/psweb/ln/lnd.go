@@ -318,6 +318,9 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		}
 	}
 
+	firstPass := true
+
+finalize:
 	// sign psbt
 	res2, err := cl.FinalizePsbt(ctx, &walletrpc.FinalizePsbtRequest{
 		FundedPsbt: psbtBytes,
@@ -329,6 +332,58 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	}
 
 	rawTx := res2.GetRawFinalTx()
+
+	decoded, err := bitcoin.DecodeRawTransaction(hex.EncodeToString(rawTx))
+	if err != nil {
+		return nil, err
+	}
+
+	feePaid, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	requiredFee := int64(feeRate) * int64(decoded.VSize)
+
+	if requiredFee != toSats(feePaid) {
+		if firstPass {
+			releaseOutputs(cl, utxos, &lockId)
+
+			// Parse the PSBT
+			p, err := psbt.NewFromRawBytes(bytes.NewReader(psbtBytes), false)
+			if err != nil {
+				log.Println("NewFromRawBytes:", err)
+				return nil, err
+			}
+
+			// Output index to amend
+			outputIndex := len(p.UnsignedTx.TxOut) - 1
+
+			// Replace the value of the output
+			p.UnsignedTx.TxOut[outputIndex].Value -= requiredFee - toSats(feePaid)
+
+			// Serialize the PSBT back to raw bytes
+			var buf bytes.Buffer
+			err = p.Serialize(&buf)
+			if err != nil {
+				log.Println("Serialize:", err)
+				return nil, err
+			}
+
+			psbtBytes = buf.Bytes()
+
+			// Print the updated PSBT in hex
+			// log.Println(base64.StdEncoding.EncodeToString(psbtBytes))
+
+			// avoid permanent loop
+			firstPass = false
+
+			goto finalize
+		}
+
+		// did not fix in one pass, give up
+		log.Println("Unable to fix fee paid:", toSats(feePaid), "vs required:", requiredFee)
+	}
 
 	// Deserialize the transaction to get the transaction hash.
 	msgTx := &wire.MsgTx{}
@@ -1525,7 +1580,7 @@ func NewAddress() (string, error) {
 	defer cleanup()
 
 	res, err := client.NewAddress(ctx, &lnrpc.NewAddressRequest{
-		Type: lnrpc.AddressType_WITNESS_PUBKEY_HASH,
+		Type: lnrpc.AddressType_TAPROOT_PUBKEY,
 	})
 	if err != nil {
 		log.Println("NewAddress:", err)

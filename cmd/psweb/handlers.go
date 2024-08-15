@@ -694,8 +694,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 					fee = fee + fee/2
 				}
 			}
-			if fee < config.Config.PeginFeeRate+2 {
-				fee = config.Config.PeginFeeRate + 2 // min increment
+			if fee < config.Config.PeginFeeRate+1 {
+				fee = config.Config.PeginFeeRate + 1 // min increment
 			}
 		}
 	}
@@ -709,7 +709,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		target := int32(ln.ClaimBlockHeight)
 		maxConfs = target - bh + confs
 		duration = time.Duration(10*(target-bh)) * time.Minute
-	} else {
+	} else if ln.ClaimJoinHandler != "" {
 		cjETA = int((int32(ln.JoinBlockHeight) - bh + ln.PeginBlocks) / 6)
 	}
 
@@ -739,7 +739,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate:      mempoolFeeRate,
 		LiquidFeeRate:       liquid.EstimateFee(),
 		SuggestedFeeRate:    fee,
-		MinBumpFeeRate:      config.Config.PeginFeeRate + 2,
+		MinBumpFeeRate:      config.Config.PeginFeeRate + 1,
 		CanBump:             canBump,
 		CanRBF:              ln.CanRBF(),
 		IsCLN:               ln.Implementation == "CLN",

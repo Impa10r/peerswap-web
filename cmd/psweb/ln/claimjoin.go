@@ -453,7 +453,7 @@ func Broadcast(fromNodeId string, message *Message) error {
 
 			ClaimStatus = "Received invitation to ClaimJoin"
 
-			log.Println(ClaimStatus, "from", ClaimJoinHandler, "via", GetAlias(fromNodeId))
+			log.Println(ClaimStatus, "from", ClaimJoinHandler) // , "via", GetAlias(fromNodeId))
 
 			// persist to db
 			db.Save("ClaimJoin", "ClaimJoinHandler", ClaimJoinHandler)

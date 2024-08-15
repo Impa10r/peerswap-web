@@ -48,7 +48,7 @@
                     <label class="label">Address</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address" oninput="delayedCalculateTransactionFee()">
+                    <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address">
                   </div>
                 </div>
                 <div class="field is-horizontal">
@@ -398,14 +398,6 @@
 
               // Function to execute after a delay
               function delayedCalculateTransactionFee() {
-                  // unselect UTXOs
-                  var fields = document.querySelectorAll('#select');
-                  fields.forEach(function(element) {
-                    element.checked = false
-                    document.getElementById(element.value).classList.remove('is-selected');
-                  });
-                  document.getElementById("unselectAll").style.visibility = "hidden";
-
                   // Clear previous timer if it exists
                   clearTimeout(timerId);
 
@@ -541,10 +533,6 @@
                     }
                   });
                 } else {
-                  // reset peginAmount to selectedAmount
-                  peginAmount = selectedAmount;
-                  document.getElementById("peginAmount").value = selectedAmount;
-                  
                   // allow unselect all with one click
                   document.getElementById("unselectAll").textContent = selectedUtxoCount;
                   document.getElementById("unselectAll").style.visibility = "visible";
