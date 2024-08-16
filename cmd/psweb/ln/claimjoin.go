@@ -34,7 +34,7 @@ import (
 // maximum number of participants in ClaimJoin
 const (
 	maxParties  = 10
-	PeginBlocks = 10 //102
+	PeginBlocks = 2 //102
 )
 
 var (
@@ -193,25 +193,21 @@ create_pset:
 					signing++
 				}
 
-				if checkPeerStatus(blinder) {
-					serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
-					if err != nil {
-						log.Println("Unable to serialize PSET")
-						return
-					}
+				serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
+				if err != nil {
+					log.Println("Unable to serialize PSET")
+					return
+				}
 
-					log.Println(ClaimStatus)
+				log.Println(ClaimStatus)
 
-					if !SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
-						Action:           action,
-						PSET:             serializedPset,
-						Status:           ClaimStatus,
-						ClaimBlockHeight: ClaimBlockHeight,
-					}) {
-						log.Println("Unable to send coordination, cancelling ClaimJoin")
-						EndClaimJoin("", "Coordination failure")
-						return
-					}
+				if !SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
+					Action:           action,
+					PSET:             serializedPset,
+					Status:           ClaimStatus,
+					ClaimBlockHeight: ClaimBlockHeight,
+				}) {
+					sendFailure(blinder, action)
 				}
 
 				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
@@ -240,23 +236,21 @@ create_pset:
 				log.Println(ClaimStatus)
 				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 			} else {
-				if checkPeerStatus(i) {
-					serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
-					if err != nil {
-						log.Println("Unable to serialize PSET")
-						return
-					}
-
-					if !SendCoordination(ClaimParties[i].PubKey, &Coordination{
-						Action:           "process",
-						PSET:             serializedPset,
-						Status:           ClaimStatus,
-						ClaimBlockHeight: ClaimBlockHeight,
-					}) {
-						log.Println("Unable to send blind coordination, cancelling ClaimJoin")
-						EndClaimJoin("", "Coordination failure")
-					}
+				serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
+				if err != nil {
+					log.Println("Unable to serialize PSET")
+					return
 				}
+
+				if !SendCoordination(ClaimParties[i].PubKey, &Coordination{
+					Action:           "process",
+					PSET:             serializedPset,
+					Status:           ClaimStatus,
+					ClaimBlockHeight: ClaimBlockHeight,
+				}) {
+					sendFailure(i, "process")
+				}
+
 				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				return
 			}
@@ -337,19 +331,23 @@ create_pset:
 	}
 }
 
-func checkPeerStatus(i int) bool {
-	ClaimParties[i].SentCount++
-	if ClaimParties[i].SentCount > 2 {
+func sendFailure(peer int, action string) {
+	ClaimParties[peer].SentCount++
+	ClaimStatus = "Failed to send coordiantion"
+	log.Printf("Failure #%d to send '%s' to %s", ClaimParties[peer].SentCount, action, ClaimParties[peer].PubKey)
+	if ClaimParties[peer].SentCount > 4 {
 		// peer is not responding, kick him
-		kickPeer(ClaimParties[i].PubKey, "being unresponsive")
-		return false
+		kickPeer(ClaimParties[peer].PubKey, "being unresponsive")
+		if len(ClaimParties) < 2 {
+			log.Println("Unable to send coordination, cancelling ClaimJoin")
+			EndClaimJoin("", "Coordination failure")
+		}
 	}
-	return true
 }
 
 func kickPeer(pubKey, reason string) {
 	if ok := removeClaimParty(pubKey); ok {
-		ClaimStatus = "Joiner " + pubKey + " kicked, total participants: " + strconv.Itoa(len(ClaimParties))
+		ClaimStatus = "Peer " + pubKey + " kicked, total participants: " + strconv.Itoa(len(ClaimParties))
 		// persist to db
 		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 		log.Println(ClaimStatus)
@@ -453,7 +451,7 @@ func Broadcast(fromNodeId string, message *Message) error {
 
 			ClaimStatus = "Received invitation to ClaimJoin"
 
-			log.Println(ClaimStatus, "from", ClaimJoinHandler) // , "via", GetAlias(fromNodeId))
+			log.Println(ClaimStatus, "from", ClaimJoinHandler, "via", GetAlias(fromNodeId))
 
 			// persist to db
 			db.Save("ClaimJoin", "ClaimJoinHandler", ClaimJoinHandler)
@@ -514,17 +512,24 @@ func SendCoordination(destinationPubKey string, message *Coordination) bool {
 
 	cl, clean, er := GetClient()
 	if er != nil {
+		log.Println("Cannot get lightning client:", err)
 		return false
 	}
 	defer clean()
 
-	return SendCustomMessage(cl, destinationNodeId, &Message{
+	err = SendCustomMessage(cl, destinationNodeId, &Message{
 		Version:     MessageVersion,
 		Memo:        "process",
 		Sender:      MyPublicKey(),
 		Destination: destinationPubKey,
 		Payload:     ciphertext,
-	}) == nil
+	})
+
+	if err != nil {
+		log.Println("Cannot send custom message:", err)
+		return false
+	}
+	return true
 }
 
 // Either forward to final destination or decrypt and process
@@ -570,7 +575,7 @@ func Process(message *Message, senderNodeId string) {
 		switch msg.Action {
 		case "add":
 			if MyRole != "initiator" {
-				log.Printf("Cannot add a joiner, not a claim initiator")
+				log.Printf("Cannot add a peer, not a claim initiator")
 				return
 			}
 
@@ -583,7 +588,7 @@ func Process(message *Message, senderNodeId string) {
 					ClaimBlockHeight = max(ClaimBlockHeight, msg.ClaimBlockHeight)
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 
-					ClaimStatus = "Added new joiner, total participants: " + strconv.Itoa(len(ClaimParties))
+					ClaimStatus = "Added new peer, total participants: " + strconv.Itoa(len(ClaimParties))
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 					log.Println("Added "+msg.Joiner.PubKey+", total:", len(ClaimParties))
 
@@ -603,18 +608,18 @@ func Process(message *Message, senderNodeId string) {
 					Action: "refuse_add",
 					Status: status,
 				}) {
-					log.Println("Refused new joiner: ", status)
+					log.Println("Refused new peer: ", status)
 				}
 			}
 
 		case "remove":
 			if MyRole != "initiator" {
-				log.Printf("Cannot remove a joiner, not a claim initiator")
+				log.Printf("Cannot remove a peer, not a claim initiator")
 				return
 			}
 
 			if removeClaimParty(msg.Joiner.PubKey) {
-				ClaimStatus = "Removed a joiner, total participants: " + strconv.Itoa(len(ClaimParties))
+				ClaimStatus = "Removed a peer, total participants: " + strconv.Itoa(len(ClaimParties))
 				// persist to db
 				db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 				log.Println(ClaimStatus)
@@ -633,7 +638,7 @@ func Process(message *Message, senderNodeId string) {
 					}
 				}
 			} else {
-				log.Println("Cannot remove joiner, not in the list")
+				log.Println("Cannot remove peer, not in the list")
 			}
 
 		case "confirm_add":
@@ -656,7 +661,7 @@ func Process(message *Message, senderNodeId string) {
 
 		case "process2": // process twice to blind and sign
 			if MyRole != "joiner" {
-				log.Println("received process2 while not being a joiner")
+				log.Println("received process2 while did not join")
 				return
 			}
 
@@ -857,7 +862,7 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		if len(ClaimParties) == 1 {
 			// initial invite before everyone joined
 			ClaimJoinHandlerTS = ts
-			ClaimStatus = "Invites sent, awaiting joiners"
+			ClaimStatus = "Invites sent, awaiting peers to join"
 			// persist to db
 			db.Save("ClaimJoin", "ClaimJoinHandlerTS", ClaimJoinHandlerTS)
 			db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
@@ -1069,7 +1074,7 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 	}
 
 	if proof != newParty.TxoutProof {
-		log.Printf("New joiner's TxoutProof was wrong")
+		log.Printf("New peer's TxoutProof was wrong")
 		newParty.TxoutProof = proof
 	}
 
@@ -1284,7 +1289,7 @@ func savePrivateKey() {
 	db.Save("ClaimJoin", "serializedPrivateKey", data)
 }
 
-// checks that the output includes my address and amount
+// checks that outputs include my address and amount
 func verifyPSET() bool {
 	decoded, err := liquid.DecodePSET(claimPSET)
 	if err != nil {

@@ -192,7 +192,7 @@ sudo systemctl disable psweb
 
 # Liquid Pegin
 
-Update: From v1.2.0 this is handled via UI on the Bitcoin page.
+Update: Since v1.2.0 this is handled via UI on the Bitcoin page.
 
 To convert some BTC on your node into L-BTC you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
 
@@ -214,6 +214,16 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 ```
 
 (lookup Elements and Bitcoin rpc passwords in pswebconfig.com)
+
+# Confidential Liquid Pegin
+
+Elements Core v23.2.2 introduced vsize discount for confidential transactions. Now sending a Liquid payment with a blinded amount costs the same or cheaper than a publicly visible (explicit) one. For example, claiming a pegin with ```elements-cli claimpegin``` costs about 45 sats, but it is possible to manually construct the same transaction with confidential destination address, blind and sign it, then post and only pay 36 sats. However, from privacy perspective, blinding a single pegin claim makes little sense. The linked Bitcoin UTXO will still show an explicit amount, so it is easily traceable to your new Liquid address. To achieve a truly confidential pegin, it is necessary to mix two or more independent claims into one single transaction, a-la CoinJoin.
+
+We implemented such "ClaimJoin" as an option for PSWeb. If you opt in when starting your pegin, your node will send invitations to all other PSWeb nodes to join in while you wait for your 102 confirmations. To join your claim, they should opt in as well while starting their own pegins. They won't know which node initiated the ClaimJoin and who else will be joining. The initiator  also won't know which nodes responded. All communication happens blindly via fresh public/private key pairs. Nodes who do not directly participate act as blind relays of the messages, not being able to read them and not knowing the source and the final destination. This way the ClaimJoin coordination is not limited to direct peers. 
+
+When all N pegins mature, the initiator node prepares one large PSET with N pegin inputs and N CT outputs, shuffled randomly, and sends it secuentially to all participants: first to blind their Liquid output and then sign their pegin input. Before blinding/signing and returning the PSET, each joiner verifies that his output address is there for the correct amount (allowing for upto 50 sats fee haircut). Up to 10 claims can be joined this way, to fit into one custom message (64kb). The price for additional privacy is time. For the initiator the wait can take upto 34 hours, while for the last joiner the same 17 hours as a single pegin. In practice, the blinding and signing round needs to be done twice: first to find out the exact discount vsize of the final transaction, then to pay the correct fee at 0.1 sat/vb. If the fee cannot be divided equally, the last participant pays slightnly more as a small incentive to join early.
+
+The process bears no risk to the participants. If any joiner becomes unresponsive during the blinding/signing round, it is automatically kicked out. If the initiator fails to complete the process, each joiner reverts to single pegin claim 10 blocks after the final maturity. As the last resort, you can always [claim your pegin manually](#liquid-pegin) with ```elements-cli```. All the necessary details are in PSWeb log. Your claim script and pegin transaction can only be used by your own Liquid wallet (private key), so there is no risk to share them. 
 
 # Support
 

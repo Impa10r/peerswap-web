@@ -348,7 +348,7 @@ finalize:
 
 	if requiredFee != toSats(feePaid) {
 		if pass < 5 {
-			log.Println("Trying to fix fee paid:", toSats(feePaid), "vs required:", requiredFee)
+			// log.Println("Trying to fix fee paid", toSats(feePaid), "vs required", requiredFee)
 
 			releaseOutputs(cl, utxos, &lockId)
 
@@ -384,8 +384,8 @@ finalize:
 			goto finalize
 		}
 
-		// did not fix in one pass, give up
-		log.Println("Unable to fix fee paid:", toSats(feePaid), "vs required:", requiredFee)
+		// did not fix in 5 passes, give up
+		log.Println("Unable to fix fee paid", toSats(feePaid), "vs required", requiredFee)
 	}
 
 	// Deserialize the transaction to get the transaction hash.

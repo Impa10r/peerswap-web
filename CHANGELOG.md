@@ -2,10 +2,10 @@
 
 ## 1.7.0
 
-- LND: Implement confidential joint pegin claims (Elements v23.2.2 & LND)
-- LND: exact fee rate on pegins and BTC withdrawals, RBF with 1 s/vb bump
-- Switch Custom Message serialization from JSON to GOB (not compatible with old versions)
-- Switch Custom Message type from 42067 to 42065 (not compatible with old versions)
+- LND: Implement confidential joint pegin claims with Elements v23.2.2+
+- Record exact fee rates on pegins and BTC withdrawals for RBF with 1 s/vb bump
+- Switch Custom Message serialization from JSON to GOB
+- Switch Custom Message type from 42067 to 42065
 - Better estimate for swap-in fees and maximum swap amounts
 - {TODO] Account for circular rebalancing cost and PPM
 
