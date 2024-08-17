@@ -34,7 +34,7 @@ import (
 // maximum number of participants in ClaimJoin
 const (
 	maxParties  = 10
-	PeginBlocks = 2 //102
+	PeginBlocks = 10 //102
 )
 
 var (
@@ -411,7 +411,7 @@ func Broadcast(fromNodeId string, message *Message) error {
 	}
 
 	// store for relaying further encrypted messages
-	if keyToNodeId[message.Sender] != fromNodeId {
+	if keyToNodeId[message.Sender] == "" {
 		keyToNodeId[message.Sender] = fromNodeId
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
@@ -541,7 +541,7 @@ func Process(message *Message, senderNodeId string) {
 		}
 	}
 
-	if keyToNodeId[message.Sender] != senderNodeId && senderNodeId != myNodeId {
+	if keyToNodeId[message.Sender] == "" && senderNodeId != myNodeId {
 		// save source key map
 		keyToNodeId[message.Sender] = senderNodeId
 		// persist to db
@@ -786,7 +786,7 @@ func Process(message *Message, senderNodeId string) {
 		return
 	}
 
-	// log.Println("Relaying", message.Memo, "from", GetAlias(senderNodeId), "to", GetAlias(destinationNodeId))
+	log.Println("Relaying", message.Memo, "from", GetAlias(senderNodeId), "to", GetAlias(destinationNodeId))
 
 	err := SendCustomMessage(cl, destinationNodeId, message)
 	if err != nil {
