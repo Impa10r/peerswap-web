@@ -215,7 +215,7 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 
 (lookup Elements and Bitcoin rpc passwords in pswebconfig.com)
 
-# Confidential Liquid Pegin
+## Confidential Liquid Pegin
 
 Elements Core v23.2.2 introduced vsize discount for confidential transactions. Now sending a Liquid payment with a blinded amount costs the same or cheaper than a publicly visible (explicit) one. For example, claiming a pegin with ```elements-cli claimpegin``` costs about 45 sats, but it is possible to manually construct the same transaction (```elements-cli createrawtransaction```) with confidential destination address, blind and sign it, then post and only pay 36 sats. However, from privacy perspective, blinding a single pegin claim makes little sense. The linked Bitcoin UTXO will still show the explicit amount, so it is easily traceable to your new Liquid address. To achieve a truly confidential pegin, it is necessary to mix two or more independent claims into one single transaction, a-la CoinJoin.
 

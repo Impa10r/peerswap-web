@@ -141,17 +141,21 @@
                     Confs: 
                   </td>
                   <td>
-                    {{.Confirmations}} 
-                    {{if .IsPegin}}
-                      / {{.TargetConfirmations}}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="text-align: right">
-                          ETA: 
-                        </td>
-                        <td>
-                          {{.Duration}}
+                    {{if eq .Confirmations -1}}
+                      Transaction not found in local mempool
+                    {{else}}
+                      {{.Confirmations}} 
+                      {{if .IsPegin}}
+                        / {{.TargetConfirmations}}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="text-align: right">
+                            ETA: 
+                          </td>
+                          <td>
+                            {{.Duration}}
+                      {{end}}
                     {{end}}
                   </td>
                 </tr>
@@ -652,14 +656,16 @@
                 text += "Total fee: " + formatWithThousandSeparators(fee) + " sats\n";
                 text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
                 
-                let hours = "17 hours";
-                {{if .CanClaimJoin}}
-                    if (document.getElementById("claimJoin").checked) {
-                      hours = "17-{{.ClaimJoinETA}} hours";
-                    }
+                {{if .IsPegin}}
+                  let hours = "17 hours";
+                  {{if .CanClaimJoin}}
+                      if (document.getElementById("claimJoin").checked) {
+                        hours = "17-{{.ClaimJoinETA}} hours";
+                      }
+                  {{end}}
+    
+                  text += "\nClaim ETA: " + hours;
                 {{end}}
-
-                text += "\nClaim ETA: " + hours;
 
                 if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {
                   {{if .IsCLN}}

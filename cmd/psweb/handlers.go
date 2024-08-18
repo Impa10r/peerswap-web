@@ -738,8 +738,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		FeeRate:             config.Config.PeginFeeRate,
 		MempoolFeeRate:      mempoolFeeRate,
 		LiquidFeeRate:       liquid.EstimateFee(),
-		SuggestedFeeRate:    math.Ceil(fee*1000) / 1000,
-		MinBumpFeeRate:      math.Ceil((config.Config.PeginFeeRate+1)*1000) / 1000,
+		SuggestedFeeRate:    math.Ceil(fee*10) / 10,
+		MinBumpFeeRate:      math.Ceil((config.Config.PeginFeeRate+1)*10) / 10,
 		CanBump:             canBump,
 		CanRBF:              ln.CanRBF(),
 		IsCLN:               ln.Implementation == "CLN",
@@ -828,6 +828,17 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 		claimScript := ""
 
 		if isPegin {
+			// check that elements is fully synced
+			info, err := liquid.GetBlockchainInfo()
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+			if info.InitialBlockDownload {
+				redirectWithError(w, r, "/bitcoin?", errors.New("Elements Core initial block download is not done"))
+				return
+			}
+
 			// test on a pre-existing tx that bitcon core can complete the peg
 			tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
 			if config.Config.Chain == "testnet" {

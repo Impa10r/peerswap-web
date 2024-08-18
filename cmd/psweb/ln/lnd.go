@@ -348,7 +348,7 @@ finalize:
 
 	if requiredFee != toSats(feePaid) {
 		if pass < 5 {
-			// log.Println("Trying to fix fee paid", toSats(feePaid), "vs required", requiredFee)
+			log.Println("Trying to fix fee paid", toSats(feePaid), "vs required", requiredFee)
 
 			releaseOutputs(cl, utxos, &lockId)
 
@@ -648,18 +648,30 @@ func BumpPeginFee(feeRate float64, label string) (*SentResult, error) {
 		utxos = append(utxos, input.Outpoint)
 	}
 
-	// sometimes remove transaction is not enough
-	releaseOutputs(cl, &utxos, &internalLockId)
-	releaseOutputs(cl, &utxos, &myLockId)
+	var ress *SentResult
+	var errr error
 
-	return SendCoinsWithUtxos(
-		&utxos,
-		config.Config.PeginAddress,
-		config.Config.PeginAmount,
-		feeRate,
-		len(tx.OutputDetails) == 1,
-		label)
+	// extra bump may be necessary if the tx does not pay enough fee
+	for extraBump := float64(0); extraBump <= 1; extraBump += 0.1 {
+		// sometimes remove transaction is not enough
+		releaseOutputs(cl, &utxos, &internalLockId)
+		releaseOutputs(cl, &utxos, &myLockId)
 
+		ress, errr = SendCoinsWithUtxos(
+			&utxos,
+			config.Config.PeginAddress,
+			config.Config.PeginAmount,
+			feeRate+extraBump,
+			len(tx.OutputDetails) == 1,
+			label)
+		if errr != nil && errr.Error() == "rpc error: code = Unknown desc = insufficient fee" {
+			continue
+		} else {
+			break
+		}
+	}
+
+	return ress, errr
 }
 
 func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeRate uint64) error {

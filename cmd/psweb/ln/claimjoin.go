@@ -34,7 +34,7 @@ import (
 // maximum number of participants in ClaimJoin
 const (
 	maxParties  = 10
-	PeginBlocks = 10 //102
+	PeginBlocks = 2 //102
 )
 
 var (
@@ -111,7 +111,7 @@ func loadClaimJoinDB() {
 		var serializedKey []byte
 		db.Load("ClaimJoin", "serializedPrivateKey", &serializedKey)
 		myPrivateKey, _ = btcec.PrivKeyFromBytes(serializedKey)
-		log.Println("Continue as ClaimJoin " + MyRole + " with pubKey " + MyPublicKey())
+		log.Println("Continue as ClaimJoin", MyRole, MyPublicKey())
 
 		if MyRole == "initiator" {
 			db.Load("ClaimJoin", "claimPSET", &claimPSET)
@@ -548,7 +548,7 @@ func Process(message *Message, senderNodeId string) {
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
 
-	if message.Destination == MyPublicKey() && config.Config.PeginClaimJoin {
+	if message.Destination == MyPublicKey() && config.Config.PeginClaimJoin && len(ClaimParties) > 0 {
 		// Decrypt the message using my private key
 		plaintext, err := eciesDecrypt(myPrivateKey, message.Payload)
 		if err != nil {
@@ -570,7 +570,7 @@ func Process(message *Message, senderNodeId string) {
 			return
 		}
 
-		claimPSET = base64.StdEncoding.EncodeToString(msg.PSET)
+		newClaimPSET := base64.StdEncoding.EncodeToString(msg.PSET)
 
 		switch msg.Action {
 		case "add":
@@ -666,7 +666,7 @@ func Process(message *Message, senderNodeId string) {
 			}
 
 			// process my output
-			claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+			newClaimPSET, _, err = liquid.ProcessPSET(newClaimPSET, config.Config.ElementsWallet)
 			if err != nil {
 				log.Println("Unable to process PSET:", err)
 				return
@@ -674,7 +674,7 @@ func Process(message *Message, senderNodeId string) {
 			fallthrough // continue to second pass
 
 		case "process": // blind or sign
-			if !verifyPSET() {
+			if !verifyPSET(newClaimPSET) {
 				log.Println("PSET verification failure!")
 				if MyRole == "initiator" {
 					// kick the joiner who returned broken PSET
@@ -696,10 +696,6 @@ func Process(message *Message, senderNodeId string) {
 						db.Save("ClaimJoin", "MyRole", &MyRole)
 						db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 						db.Save("ClaimJoin", "ClaimJoinHandler", &ClaimJoinHandler)
-
-						// disable ClaimJoin
-						config.Config.PeginClaimJoin = false
-						config.Save()
 					}
 				}
 				return
@@ -726,7 +722,7 @@ func Process(message *Message, senderNodeId string) {
 			}
 
 			if MyRole != "joiner" {
-				log.Println("received 'process' unexpected")
+				log.Println("Received 'process' unexpected")
 				return
 			}
 
@@ -1289,11 +1285,29 @@ func savePrivateKey() {
 	db.Save("ClaimJoin", "serializedPrivateKey", data)
 }
 
-// checks that outputs include my address and amount
-func verifyPSET() bool {
-	decoded, err := liquid.DecodePSET(claimPSET)
+// checks that the new PSET has the same input/output count
+// checks that outputs include my address and correct amount
+func verifyPSET(newClaimPSET string) bool {
+	decodedNew, err := liquid.DecodePSET(newClaimPSET)
 	if err != nil {
 		return false
+	}
+
+	if MyRole == "Initiator" {
+		decodedOld, err := liquid.DecodePSET(claimPSET)
+		if err != nil {
+			return false
+		}
+
+		if decodedOld.InputCount != decodedNew.InputCount {
+			log.Println("PSET verification failed: wrong InputCount")
+			return false
+		}
+
+		if decodedOld.OutputCount != decodedNew.OutputCount {
+			log.Println("PSET verification failed: wrong OutputCount")
+			return false
+		}
 	}
 
 	addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
@@ -1301,16 +1315,20 @@ func verifyPSET() bool {
 		return false
 	}
 
-	for _, output := range decoded.Outputs {
+	ok := false
+	for _, output := range decodedNew.Outputs {
 		// 50 sats maximum fee allowed
 		if output.Script.Address == addressInfo.Unconfidential && liquid.ToBitcoin(ClaimParties[0].Amount)-output.Amount < 0.0000005 {
-			return true
+			ok = true
 		}
 	}
 
-	log.Println(ClaimParties[0].Address, addressInfo.Unconfidential, ClaimParties[0].Amount)
-	log.Println(claimPSET)
+	if ok {
+		claimPSET = newClaimPSET
+		return true
+	}
 
+	log.Println("PSET verification failed: output address not found or insufficient amount")
 	return false
 }
 

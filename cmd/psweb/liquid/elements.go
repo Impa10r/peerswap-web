@@ -796,3 +796,50 @@ func GetAddressInfo(addr, wallet string) (*AddressInfo, error) {
 
 	return &response, nil
 }
+
+type BlockchainInfo struct {
+	Chain                string   `json:"chain"`
+	Blocks               int      `json:"blocks"`
+	Headers              int      `json:"headers"`
+	BestBlockHash        string   `json:"bestblockhash"`
+	Time                 int64    `json:"time"`
+	Mediantime           int64    `json:"mediantime"`
+	VerificationProgress float64  `json:"verificationprogress"`
+	InitialBlockDownload bool     `json:"initialblockdownload"`
+	SizeOnDisk           int64    `json:"size_on_disk"`
+	Pruned               bool     `json:"pruned"`
+	CurrentParamsRoot    string   `json:"current_params_root"`
+	CurrentSignblockAsm  string   `json:"current_signblock_asm"`
+	CurrentSignblockHex  string   `json:"current_signblock_hex"`
+	MaxBlockWitness      int      `json:"max_block_witness"`
+	CurrentFedpegProgram string   `json:"current_fedpeg_program"`
+	CurrentFedpegScript  string   `json:"current_fedpeg_script"`
+	ExtensionSpace       []string `json:"extension_space"`
+	EpochLength          int      `json:"epoch_length"`
+	TotalValidEpochs     int      `json:"total_valid_epochs"`
+	EpochAge             int      `json:"epoch_age"`
+	Warnings             string   `json:"warnings"`
+}
+
+// returns block hash
+func GetBlockchainInfo() (*BlockchainInfo, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]interface{}{}
+
+	r, err := service.client.call("getblockchaininfo", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetBlockchainInfo: %v", err)
+		return nil, err
+	}
+
+	var response BlockchainInfo
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetBlockchainInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}

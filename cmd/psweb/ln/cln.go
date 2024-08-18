@@ -17,7 +17,6 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/internet"
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/elementsproject/glightning/glightning"
@@ -154,24 +153,14 @@ func GetBlockHeight(client *glightning.Lightning) uint32 {
 
 // returns number of confirmations and whether the tx can be fee bumped
 func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
-	blockHeight := GetBlockHeight(client)
-	if blockHeight == 0 {
-		return 0, false
+
+	var tx bitcoin.Transaction
+	_, err := bitcoin.GetRawTransaction(txid, &tx)
+	if err != nil {
+		return -1, false // signal tx not found
 	}
 
-	height := internet.GetTxHeight(txid)
-
-	if height == 0 {
-		// mempool api error, use bitcoin core
-		var result bitcoin.Transaction
-		_, err := bitcoin.GetRawTransaction(txid, &result)
-		if err != nil {
-			return -1, true // signal tx not found
-		}
-
-		return result.Confirmations, true
-	}
-	return int32(blockHeight) - height, true
+	return tx.Confirmations, true
 }
 
 func GetAlias(nodeKey string) string {
@@ -378,9 +367,9 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate floa
 		return nil, err
 	}
 
-	// The returned res.Tx is UNSIGNED, ignore it
+	// The returned res.Tx is UNSIGNED, ignore it and get new
 	var decoded bitcoin.Transaction
-	_, err := bitcoin.GetRawTransaction(res.TxId, &decoded)
+	_, err = bitcoin.GetRawTransaction(res.TxId, &decoded)
 	if err != nil {
 		return nil, err
 	}
