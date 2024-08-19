@@ -656,16 +656,15 @@
                 text += "Total fee: " + formatWithThousandSeparators(fee) + " sats\n";
                 text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
                 
-                {{if .IsPegin}}
+                if (isPegin) {
                   let hours = "17 hours";
                   {{if .CanClaimJoin}}
                       if (document.getElementById("claimJoin").checked) {
                         hours = "17-{{.ClaimJoinETA}} hours";
                       }
                   {{end}}
-    
                   text += "\nClaim ETA: " + hours;
-                {{end}}
+                }
 
                 if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {
                   {{if .IsCLN}}
