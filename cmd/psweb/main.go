@@ -1225,10 +1225,6 @@ func checkPegin() {
 							telegramSendMessage("🧬 " + t)
 							ln.MyRole = "initiator"
 							db.Save("ClaimJoin", "MyRole", ln.MyRole)
-						} else {
-							log.Println("Failed to initiate ClaimJoin, continuing as a single pegin")
-							config.Config.PeginClaimJoin = false
-							config.Save()
 						}
 					} else if currentBlockHeight <= ln.JoinBlockHeight {
 						// join by replying to initiator

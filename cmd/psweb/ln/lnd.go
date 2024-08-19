@@ -1296,10 +1296,7 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 			case "broadcast":
 				// received broadcast of pegin status
 				// msg.Asset: "pegin_started" or "pegin_ended"
-				err = Broadcast(nodeId, &msg)
-				if err != nil {
-					log.Println(err)
-				}
+				Broadcast(nodeId, &msg)
 
 			case "unable":
 				forgetPubKey(msg.Destination)
@@ -1310,16 +1307,7 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			case "poll":
 				// received request for information
-				if MyRole == "initiator" && GetBlockHeight(client) < JoinBlockHeight {
-					// repeat pegin start info
-					SendCustomMessage(client, nodeId, &Message{
-						Version: MessageVersion,
-						Memo:    "broadcast",
-						Asset:   "pegin_started",
-						Amount:  uint64(JoinBlockHeight),
-						Sender:  MyPublicKey(),
-					})
-				}
+				shareInvite(client, nodeId)
 
 				if AdvertiseLiquidBalance {
 					if SendCustomMessage(client, nodeId, &Message{

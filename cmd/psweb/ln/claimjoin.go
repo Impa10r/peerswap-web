@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/gob"
-	"fmt"
 	"io"
 	"log"
 	"strconv"
@@ -28,6 +27,7 @@ import (
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ps"
 
+	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/chainrpc"
 )
 
@@ -384,46 +384,49 @@ func kickPeer(pubKey, reason string) bool {
 // Called when received a broadcast custom message
 // Forward the message to all direct peers, unless the source key is known already
 // (it means the message came back to you from a downstream peer)
-func Broadcast(fromNodeId string, message *Message) error {
+func Broadcast(fromNodeId string, message *Message) bool {
 
 	if myNodeId == "" {
 		// populates myNodeId
 		if getLndVersion() == 0 {
-			return fmt.Errorf("Broadcast: Cannot get myNodeId")
+			return false
 		}
 	}
 
+	cl, clean, err := GetClient()
+	if err != nil {
+		return false
+	}
+	defer clean()
+
+	sent := false
+
 	if fromNodeId == myNodeId || (fromNodeId != myNodeId && (message.Asset == "pegin_started" && keyToNodeId[message.Sender] == "" || message.Asset == "pegin_ended" && keyToNodeId[message.Sender] != "")) {
 		// forward to everyone else
-
 		client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 		if err != nil {
-			return err
+			return false
 		}
 		defer cleanup()
 
 		res, err := ps.ListPeers(client)
 		if err != nil {
-			return err
+			return false
 		}
-
-		cl, clean, er := GetClient()
-		if er != nil {
-			return err
-		}
-		defer clean()
 
 		for _, peer := range res.GetPeers() {
 			// don't send it back to where it came from
 			if peer.NodeId != fromNodeId {
-				SendCustomMessage(cl, peer.NodeId, message)
+				if SendCustomMessage(cl, peer.NodeId, message) == nil {
+					sent = true
+				}
 			}
 		}
 	}
 
 	if fromNodeId == myNodeId || message.Sender == MyPublicKey() {
 		// do nothing more if this is my own broadcast
-		return nil
+		return sent
 	}
 
 	// store for relaying further encrypted messages
@@ -439,18 +442,28 @@ func Broadcast(fromNodeId string, message *Message) error {
 			// two simultaneous initiators conflict, the earlier wins
 			if len(ClaimParties) > 1 || ClaimJoinHandlerTS < message.TimeStamp {
 				log.Println("Initiator collision, staying as initiator")
-				return nil
+				// repeat pegin start info
+				SendCustomMessage(cl, fromNodeId, &Message{
+					Version: MessageVersion,
+					Memo:    "broadcast",
+					Asset:   "pegin_started",
+					Amount:  uint64(JoinBlockHeight),
+					Sender:  MyPublicKey(),
+				})
+				return false
 			} else {
 				log.Println("Initiator collision, switching to 'none'")
 				MyRole = "none"
+				ClaimJoinHandler = ""
 				db.Save("ClaimJoin", "MyRole", MyRole)
+				db.Save("ClaimJoin", "ClaimJoinHandler", ClaimJoinHandler)
 			}
 		} else if MyRole == "joiner" {
 			// already joined another group, ignore
-			return nil
+			return false
 		}
 
-		if ClaimJoinHandler != message.Sender {
+		if ClaimJoinHandler == "" {
 			// where to forward claimjoin request
 			ClaimJoinHandler = message.Sender
 			// Save timestamp of the announcement
@@ -481,12 +494,12 @@ func Broadcast(fromNodeId string, message *Message) error {
 				_, err := liquid.GetRawTransaction(txId, &decoded)
 				if err != nil {
 					ClaimStatus = "Error decoding posted transaction"
-					return err
+					return false
 				}
 
 				addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
 				if err != nil {
-					return nil
+					return false
 				}
 
 				ok := false
@@ -516,7 +529,7 @@ func Broadcast(fromNodeId string, message *Message) error {
 		}
 	}
 
-	return nil
+	return false
 }
 
 // Encrypt and send message to an anonymous peer identified by base64 public key
@@ -622,7 +635,7 @@ func Process(message *Message, senderNodeId string) {
 						Status:           status,
 					}) {
 						ClaimBlockHeight = max(ClaimBlockHeight, msg.ClaimBlockHeight)
-						db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
+						db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 
 						ClaimStatus = "Added new peer, total participants: " + strconv.Itoa(len(ClaimParties))
 						db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
@@ -887,7 +900,8 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		Amount:    uint64(JoinBlockHeight),
 		Sender:    MyPublicKey(),
 		TimeStamp: ts,
-	}) == nil {
+	}) {
+		// at least one peer received it
 		if len(ClaimParties) == 1 {
 			// initial invite before everyone joined
 			ClaimJoinHandlerTS = ts
@@ -910,7 +924,7 @@ func EndClaimJoin(txId string, status string) bool {
 		}
 	}
 
-	if Broadcast(myNodeId, &Message{
+	Broadcast(myNodeId, &Message{
 		Version:     MessageVersion,
 		Memo:        "broadcast",
 		Asset:       "pegin_ended",
@@ -918,17 +932,16 @@ func EndClaimJoin(txId string, status string) bool {
 		Sender:      MyPublicKey(),
 		Payload:     []byte(txId),
 		Destination: status,
-	}) == nil {
-		if txId != "" {
-			log.Println("ClaimJoin pegin success! Liquid TxId:", txId)
-			// signal to telegram bot
-			config.Config.PeginTxId = txId
-			config.Config.PeginClaimScript = "done"
-		}
-		resetClaimJoin()
-		return true
+	})
+
+	if txId != "" {
+		log.Println("ClaimJoin pegin success! Liquid TxId:", txId)
+		// signal to telegram bot
+		config.Config.PeginTxId = txId
+		config.Config.PeginClaimScript = "done"
 	}
-	return false
+	resetClaimJoin()
+	return true
 }
 
 func resetClaimJoin() {
@@ -1036,6 +1049,26 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 	}
 
 	return false
+}
+
+func shareInvite(client lnrpc.LightningClient, nodeId string) {
+	sender := ClaimJoinHandler
+	if MyRole == "initiator" {
+		sender = MyPublicKey()
+	}
+	if sender != "" && GetBlockHeight(client) < JoinBlockHeight {
+		// repeat pegin start info
+		if SendCustomMessage(client, nodeId, &Message{
+			Version:   MessageVersion,
+			Memo:      "broadcast",
+			Asset:     "pegin_started",
+			Amount:    uint64(JoinBlockHeight),
+			Sender:    sender,
+			TimeStamp: ClaimJoinHandlerTS,
+		}) == nil {
+			log.Printf("Shared intite %s from %s with %s", sender, GetAlias(keyToNodeId[sender]), GetAlias(nodeId))
+		}
+	}
 }
 
 func createClaimParty(claimBlockHeight uint32) *ClaimParty {
