@@ -1353,7 +1353,7 @@ func SendCustomMessage(client *glightning.Lightning, peerId string, message *Mes
 
 // ClaimJoin with CLN in not implemented, placeholder functions and variables:
 func loadClaimJoinDB()                          {}
-func OnTimer()                                  {}
+func OnBlock()                                  {}
 func InitiateClaimJoin(claimHeight uint32) bool { return false }
 func JoinClaimJoin(claimHeight uint32) bool     { return false }
 func MyPublicKey() string                       { return "" }

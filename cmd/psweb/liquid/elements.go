@@ -726,6 +726,37 @@ func DecodeRawTransaction(hexTx string) (*Transaction, error) {
 	return &response, nil
 }
 
+func GetRawTransaction(txid string, result *Transaction) (string, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{txid, result != nil}
+
+	r, err := service.client.call("getrawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		return "", err
+	}
+
+	raw := ""
+	if result == nil {
+		// return raw hex
+		err = json.Unmarshal([]byte(r.Result), &raw)
+		if err != nil {
+			log.Printf("GetRawTransaction unmarshall raw: %v", err)
+			return "", err
+		}
+	} else {
+		// decode into result
+		err = json.Unmarshal([]byte(r.Result), &result)
+		if err != nil {
+			log.Printf("GetRawTransaction decode: %v", err)
+			return "", err
+		}
+	}
+
+	return raw, nil
+}
+
 func SendRawTransaction(hexTx string) (string, error) {
 
 	client := ElementsClient()

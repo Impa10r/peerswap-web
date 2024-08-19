@@ -1396,9 +1396,19 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 
 	_, err = client.SendCustomMessage(context.Background(), req)
 	if err != nil {
+		if err.Error() == "rpc error: code = NotFound desc = peer is not connected" {
+			// reconnect
+			reconnectPeer(peerId)
+			// try again
+			_, err = client.SendCustomMessage(context.Background(), req)
+			if err == nil {
+				goto success
+			}
+		}
 		return err
 	}
 
+success:
 	log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
 
 	return nil
@@ -2236,4 +2246,46 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	})
 
 	return &log
+}
+
+func reconnectPeer(nodeId string) {
+	cl, clean, er := GetClient()
+	if er != nil {
+		return
+	}
+	defer clean()
+
+	ctx := context.Background()
+	cl.DisconnectPeer(ctx, &lnrpc.DisconnectPeerRequest{PubKey: nodeId})
+	info, err := cl.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
+	if err != nil {
+		log.Println("GetNodeInfo:", err)
+		return
+	}
+	skipTor := true
+
+try_to_connect:
+	for _, addr := range info.Node.Addresses {
+		if skipTor && strings.Contains(addr.Addr, ".onion") {
+			continue
+		}
+		_, err := cl.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
+			Addr: &lnrpc.LightningAddress{
+				Pubkey: nodeId,
+				Host:   addr.Addr,
+			},
+			Perm:    false,
+			Timeout: 10,
+		})
+		if err == nil {
+			return
+		}
+	}
+
+	if skipTor {
+		skipTor = false
+		goto try_to_connect
+	} else {
+		log.Println("Failed to reconnect to", GetAlias(nodeId))
+	}
 }

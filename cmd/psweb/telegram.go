@@ -104,7 +104,7 @@ func telegramStart() {
 							}
 							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 							if duration < 0 {
-								formattedDuration = "Past due!"
+								formattedDuration = "Past due"
 							}
 							t = "🧬 " + ln.ClaimStatus
 							if ln.MyRole == "none" && ln.ClaimJoinHandler != "" {

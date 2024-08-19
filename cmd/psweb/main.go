@@ -479,6 +479,9 @@ func setLogging() (func(), error) {
 		}
 	}
 
+	// add new line after start up
+	log.Println("")
+
 	return cleanup, nil
 }
 
@@ -1143,18 +1146,21 @@ func checkPegin() {
 			// 10 blocks to wait before switching back to individual claim
 			margin := uint32(10)
 			if ln.MyRole == "initiator" && len(ln.ClaimParties) < 2 {
-				// if no one has joined, switch after 1 extra block
-				margin = 1
+				// if no one has joined, switch on mturity
+				margin = 0
 			}
 			if currentBlockHeight >= ln.ClaimBlockHeight+margin {
 				// claim pegin individually
-				t := "ClaimJoin failed, falling back to the individual claim"
+				t := "ClaimJoin expired, falling back to the individual claim"
 				log.Println(t)
 				telegramSendMessage("🧬 " + t)
 				ln.MyRole = "none"
 				config.Config.PeginClaimJoin = false
 				config.Save()
-				ln.EndClaimJoin("", "Claim Block Height has passed")
+				ln.EndClaimJoin("", "Reached Claim Block Height")
+			} else if currentBlockHeight >= ln.ClaimBlockHeight && ln.MyRole == "initiator" {
+				// proceed with
+				ln.OnBlock(currentBlockHeight)
 			}
 			return
 		}
