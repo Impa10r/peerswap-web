@@ -34,7 +34,7 @@ import (
 // maximum number of participants in ClaimJoin
 const (
 	maxParties  = 10
-	PeginBlocks = 2 //102
+	PeginBlocks = 10 //102
 )
 
 var (
@@ -46,6 +46,8 @@ var (
 	ClaimJoinHandler string
 	// timestamp of the pegin_started broadcast of the current ClaimJoinHandler
 	ClaimJoinHandlerTS uint64
+	// Pegin txid of the ClaimJoinHandler for rebroadcasts
+	ClaimJoinHandlerTxId string
 	// when currently pending pegin can be claimed
 	ClaimBlockHeight uint32
 	// time limit to join another claim
@@ -426,11 +428,13 @@ func Broadcast(fromNodeId string, message *Message) bool {
 				log.Println("Initiator collision, staying as initiator")
 				// repeat pegin start info
 				SendCustomMessage(cl, fromNodeId, &Message{
-					Version: MessageVersion,
-					Memo:    "broadcast",
-					Asset:   "pegin_started",
-					Amount:  uint64(JoinBlockHeight),
-					Sender:  MyPublicKey(),
+					Version:   MessageVersion,
+					Memo:      "broadcast",
+					Asset:     "pegin_started",
+					Amount:    uint64(JoinBlockHeight),
+					Sender:    MyPublicKey(),
+					TimeStamp: ClaimJoinHandlerTS,
+					Payload:   []byte(config.Config.PeginTxId),
 				})
 				return false
 			} else {
@@ -446,10 +450,16 @@ func Broadcast(fromNodeId string, message *Message) bool {
 		}
 
 		if ClaimJoinHandler == "" {
-			// where to forward claimjoin request
+			// verify that pegin has indeed started
+			_, err := bitcoin.GetTxOutProof(string(message.Payload))
+			if err != nil {
+				log.Println("Failed to get Initiator's TxOutProof, ignoring invite")
+				return false
+			}
+
 			ClaimJoinHandler = message.Sender
-			// Save timestamp of the announcement
 			ClaimJoinHandlerTS = message.TimeStamp
+			ClaimJoinHandlerTxId = string(message.Payload)
 			// Time limit to apply is communicated via Amount
 			JoinBlockHeight = uint32(message.Amount)
 			// reset counter of join attempts
@@ -912,6 +922,7 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		Amount:    uint64(JoinBlockHeight),
 		Sender:    MyPublicKey(),
 		TimeStamp: ts,
+		Payload:   []byte(config.Config.PeginTxId),
 	}) {
 		// at least one peer received it
 		if len(ClaimParties) == 1 {
@@ -1077,6 +1088,7 @@ func shareInvite(client lnrpc.LightningClient, nodeId string) {
 			Amount:    uint64(JoinBlockHeight),
 			Sender:    sender,
 			TimeStamp: ClaimJoinHandlerTS,
+			Payload:   []byte(ClaimJoinHandlerTxId),
 		}) == nil {
 			log.Printf("Shared intite %s from %s with %s", sender, GetAlias(keyToNodeId[sender]), GetAlias(nodeId))
 		}

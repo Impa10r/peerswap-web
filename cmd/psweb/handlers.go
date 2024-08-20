@@ -180,6 +180,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate    float64
 		AutoSwapEnabled   bool
 		PeginPending      bool
+		ClaimJoinInvite   bool
 		AdvertiseLiquid   bool
 		AdvertiseBitcoin  bool
 	}
@@ -200,6 +201,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
+		ClaimJoinInvite:   ln.ClaimJoinHandler != "",
 		AdvertiseLiquid:   ln.AdvertiseLiquidBalance,
 		AdvertiseBitcoin:  ln.AdvertiseBitcoinBalance,
 	}

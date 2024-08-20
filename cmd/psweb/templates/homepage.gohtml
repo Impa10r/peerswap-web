@@ -26,10 +26,14 @@
                     {{if .PeginPending}}
                       <a href="/bitcoin" title="Liquid pegin is pending">⏰</a>
                     {{else}}
-                      {{if and .AdvertiseLiquid .AllowSwapRequests}}
-                        <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                      {{if .ClaimJoinInvite}}
+                        <a href="/bitcoin" title="Received an invite to ClaimJoin">🧬</a>
                       {{else}}
-                        <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                        {{if and .AdvertiseLiquid .AllowSwapRequests}}
+                          <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                        {{else}}
+                          <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                        {{end}}
                       {{end}}
                     {{end}}
                     {{if .AutoSwapEnabled}}
