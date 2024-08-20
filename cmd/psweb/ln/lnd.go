@@ -67,6 +67,9 @@ var (
 	// inflight HTLCs mapped per Incoming channel
 	inflightHTLCs = make(map[uint64][]*InflightHTLC)
 
+	// cache peer addresses for reconnects
+	peerAddresses = make(map[string][]*lnrpc.NodeAddress)
+
 	// las index for invoice subscriptions
 	lastInvoiceSettleIndex uint64
 
@@ -1264,13 +1267,14 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 		return err
 	}
 
-	log.Println("Subscribed to messages")
+	log.Println("Subscribed to custom messages")
 
 	for {
 		data, err := stream.Recv()
 		if err != nil {
 			return err
 		}
+
 		if data.Type == messageType {
 			var msg Message
 			var buffer bytes.Buffer
@@ -1291,6 +1295,14 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 			}
 
 			nodeId := hex.EncodeToString(data.Peer)
+
+			if peerAddresses[nodeId] == nil {
+				// cache peer addresses
+				info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
+				if err == nil {
+					peerAddresses[nodeId] = info.Node.Addresses
+				}
+			}
 
 			switch msg.Memo {
 			case "broadcast":
@@ -1386,11 +1398,12 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 	if err != nil {
 		if err.Error() == "rpc error: code = NotFound desc = peer is not connected" {
 			// reconnect
-			reconnectPeer(peerId)
-			// try again
-			_, err = client.SendCustomMessage(context.Background(), req)
-			if err == nil {
-				goto success
+			if reconnectPeer(client, peerId) {
+				// try again
+				_, err = client.SendCustomMessage(context.Background(), req)
+				if err == nil {
+					goto success
+				}
 			}
 		}
 		return err
@@ -2236,28 +2249,28 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	return &log
 }
 
-func reconnectPeer(nodeId string) {
-	cl, clean, er := GetClient()
-	if er != nil {
-		return
-	}
-	defer clean()
-
+func reconnectPeer(client lnrpc.LightningClient, nodeId string) bool {
 	ctx := context.Background()
-	cl.DisconnectPeer(ctx, &lnrpc.DisconnectPeerRequest{PubKey: nodeId})
-	info, err := cl.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
-	if err != nil {
-		log.Println("GetNodeInfo:", err)
-		return
+	addresses := peerAddresses[nodeId]
+
+	if addresses == nil {
+		info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
+		if err == nil {
+			addresses = info.Node.Addresses
+		} else {
+			log.Printf("Cannot reconnect to %s: %s", GetAlias(nodeId), err)
+			return false
+		}
 	}
+
 	skipTor := true
 
 try_to_connect:
-	for _, addr := range info.Node.Addresses {
+	for _, addr := range addresses {
 		if skipTor && strings.Contains(addr.Addr, ".onion") {
 			continue
 		}
-		_, err := cl.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
+		_, err := client.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
 			Addr: &lnrpc.LightningAddress{
 				Pubkey: nodeId,
 				Host:   addr.Addr,
@@ -2266,7 +2279,7 @@ try_to_connect:
 			Timeout: 10,
 		})
 		if err == nil {
-			return
+			return true
 		}
 	}
 
@@ -2276,4 +2289,6 @@ try_to_connect:
 	} else {
 		log.Println("Failed to reconnect to", GetAlias(nodeId))
 	}
+
+	return false
 }

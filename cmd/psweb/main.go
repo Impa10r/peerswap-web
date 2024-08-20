@@ -36,14 +36,15 @@ import (
 const (
 	// App version tag
 	version = "v1.7.0"
-
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	swapOutChannelReserve = 5000
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
 	swapOutChainReserve = 20300
 	// Swap In reserves
-	swapFeeReserveLBTC = uint64(300)
+	swapFeeReserveLBTC = 300
+	// Elements v23.2.2 introduced vsize discount
+	elementsdFeeDiscountedVersion = 230202
 )
 
 type SwapParams struct {
@@ -130,7 +131,7 @@ func main() {
 	defer cleanup()
 
 	// identify if Elements Core supports CT discounts
-	hasDiscountedvSize = liquid.GetVersion() >= 230202
+	hasDiscountedvSize = liquid.GetVersion() >= elementsdFeeDiscountedVersion
 	// identify if liquid blockchain supports CT discounts
 	liquidGenesisHash, err := liquid.GetBlockHash(0)
 	if err == nil {

@@ -666,11 +666,13 @@
                   text += "\nClaim ETA: " + hours;
                 }
 
-                if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {
+                if ({{.BitcoinBalance}} - peginAmount < 25000) {
                   {{if .IsCLN}}
-                    text += "\nReserve for anchor fee bumping will be returned as change."
+                    if (subtractFee) {
+                      text += "\nReserve for anchor fee bumping will be returned as change."
+                    }
                   {{else}}
-                    text += "\nWARNING: No reserve is left for anchor fee bumping!"
+                    text += "\nWARNING: Not enough reserve left for anchor fee bumping!"
                   {{end}}
                 } 
                 document.getElementById('result').innerText = text;

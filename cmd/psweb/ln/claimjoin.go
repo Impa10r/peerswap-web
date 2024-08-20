@@ -34,7 +34,7 @@ import (
 // maximum number of participants in ClaimJoin
 const (
 	maxParties  = 10
-	PeginBlocks = 10 //102
+	PeginBlocks = 2 //102
 )
 
 var (
@@ -203,17 +203,16 @@ create_pset:
 					return
 				}
 
-				log.Println(ClaimStatus)
-
 				if !SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
 					Action:           action,
 					PSET:             serializedPset,
 					Status:           ClaimStatus,
 					ClaimBlockHeight: ClaimBlockHeight,
-				}) {
-					sendFailure(blinder, action)
+				}, true) {
+					ClaimStatus = "Failed to send coordination"
 				}
 
+				log.Println(ClaimStatus)
 				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				return
 			}
@@ -226,7 +225,6 @@ create_pset:
 		signing++
 		if len(input.FinalScriptWitness) == 0 {
 			ClaimStatus = "Signing " + strconv.Itoa(signing) + "/" + total
-			log.Println(ClaimStatus)
 
 			if i == 0 {
 				// my input, last to sign
@@ -251,10 +249,11 @@ create_pset:
 					PSET:             serializedPset,
 					Status:           ClaimStatus,
 					ClaimBlockHeight: ClaimBlockHeight,
-				}) {
-					sendFailure(i, "process")
+				}, true) {
+					ClaimStatus = "Failed to send coordination"
 				}
 
+				log.Println(ClaimStatus)
 				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				return
 			}
@@ -341,30 +340,12 @@ create_pset:
 	}
 }
 
-func sendFailure(peer int, action string) {
-	ClaimParties[peer].SentCount++
-	ClaimStatus = "Failed to send coordiantion"
-	peerNodeId := keyToNodeId[ClaimParties[peer].PubKey]
-	log.Printf("Failure #%d to send '%s' to %s via %s", ClaimParties[peer].SentCount, action, ClaimParties[peer].PubKey, GetAlias(peerNodeId))
-
-	if ClaimParties[peer].SentCount > 4 {
-		// peer is not responding, kick him
-		if kickPeer(ClaimParties[peer].PubKey, "being unresponsive") {
-			sendToGroup("One peer was kicked, total participants: " + strconv.Itoa(len(ClaimParties)))
-		}
-		if len(ClaimParties) < 2 {
-			log.Println("Unable to send coordination, cancelling ClaimJoin")
-			EndClaimJoin("", "Coordination failure")
-		}
-	}
-}
-
-func kickPeer(pubKey, reason string) bool {
+func kickPeer(pubKey, reason string) {
 	if ok := removeClaimParty(pubKey); ok {
-		ClaimStatus = "Peer " + pubKey + " kicked, total participants: " + strconv.Itoa(len(ClaimParties))
+		ClaimStatus = "Kicked out " + pubKey + ", total participants: " + strconv.Itoa(len(ClaimParties))
 		// persist to db
 		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
-		log.Println(ClaimStatus)
+		log.Println(ClaimStatus, "for", reason)
 		// erase PSET to start over
 		claimPSET = ""
 		// persist to db
@@ -372,13 +353,14 @@ func kickPeer(pubKey, reason string) bool {
 		// inform the offender
 		SendCoordination(pubKey, &Coordination{
 			Action: "refuse_add",
-			Status: "Kicked for " + reason,
-		})
-		return true
+			Status: "Kicked out for " + reason,
+		}, false)
+		// inform others
+		sendToGroup("One peer was kicked out, total participants: " + strconv.Itoa(len(ClaimParties)))
+		return
 	}
 
 	EndClaimJoin("", "Coordination failure")
-	return false
 }
 
 // Called when received a broadcast custom message
@@ -535,7 +517,7 @@ func Broadcast(fromNodeId string, message *Message) bool {
 // Encrypt and send message to an anonymous peer identified by base64 public key
 // New keys are generated at the start of each ClaimJoin session
 // Peers track sources of encrypted messages to forward back the replies
-func SendCoordination(destinationPubKey string, message *Coordination) bool {
+func SendCoordination(destinationPubKey string, message *Coordination, needsResponse bool) bool {
 
 	destinationNodeId := keyToNodeId[destinationPubKey]
 	if destinationNodeId == "" {
@@ -577,6 +559,21 @@ func SendCoordination(destinationPubKey string, message *Coordination) bool {
 		log.Println("Cannot send custom message:", err)
 		return false
 	}
+
+	if needsResponse {
+		// allow maximum 5 resends without a response
+		for i := 1; i < len(ClaimParties); i++ {
+			if ClaimParties[i].PubKey == destinationPubKey {
+				ClaimParties[i].SentCount++
+				if ClaimParties[i].SentCount > 4 {
+					// peer is not responding, kick him
+					kickPeer(destinationPubKey, "being unresponsive")
+					return false
+				}
+			}
+		}
+	}
+
 	return true
 }
 
@@ -597,6 +594,15 @@ func Process(message *Message, senderNodeId string) {
 	}
 
 	if message.Destination == MyPublicKey() {
+		// find the peer
+		for i := 1; i < len(ClaimParties); i++ {
+			if ClaimParties[i].PubKey == message.Sender {
+				// reset send conter
+				ClaimParties[i].SentCount = 0
+				break
+			}
+		}
+
 		if config.Config.PeginClaimJoin && len(ClaimParties) > 0 {
 			// Decrypt the message using my private key
 			plaintext, err := eciesDecrypt(myPrivateKey, message.Payload)
@@ -625,6 +631,10 @@ func Process(message *Message, senderNodeId string) {
 			case "add":
 				if MyRole != "initiator" {
 					log.Printf("Cannot add a peer, not a claim initiator")
+					SendCoordination(msg.Joiner.PubKey, &Coordination{
+						Action: "refuse_add",
+						Status: "Cannot add, no longer a claim initiator",
+					}, false)
 					return
 				}
 
@@ -633,7 +643,7 @@ func Process(message *Message, senderNodeId string) {
 						Action:           "confirm_add",
 						ClaimBlockHeight: max(ClaimBlockHeight, msg.ClaimBlockHeight),
 						Status:           status,
-					}) {
+					}, false) {
 						ClaimBlockHeight = max(ClaimBlockHeight, msg.ClaimBlockHeight)
 						db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 
@@ -646,7 +656,7 @@ func Process(message *Message, senderNodeId string) {
 					if SendCoordination(msg.Joiner.PubKey, &Coordination{
 						Action: "refuse_add",
 						Status: status,
-					}) {
+					}, false) {
 						log.Println("Refused new peer: ", status)
 					}
 				}
@@ -654,6 +664,10 @@ func Process(message *Message, senderNodeId string) {
 			case "remove":
 				if MyRole != "initiator" {
 					log.Printf("Cannot remove a peer, not a claim initiator")
+					SendCoordination(msg.Joiner.PubKey, &Coordination{
+						Action: "refuse_add",
+						Status: "Cannot remove, not a claim initiator",
+					}, false)
 					return
 				}
 
@@ -708,16 +722,14 @@ func Process(message *Message, senderNodeId string) {
 					log.Println("PSET verification failure!")
 					if MyRole == "initiator" {
 						// kick the joiner who returned broken PSET
-						if kickPeer(message.Sender, "broken PSET return") {
-							sendToGroup("One peer was kicked, total participants: " + strconv.Itoa(len(ClaimParties)))
-						}
+						kickPeer(message.Sender, "invalid PSET return")
 						return
 					} else {
 						// remove yourself from ClaimJoin
 						if SendCoordination(ClaimJoinHandler, &Coordination{
 							Action: "remove",
 							Joiner: ClaimParties[0],
-						}) {
+						}, false) {
 							// forget pegin handler, so that cannot initiate new ClaimJoin
 							JoinBlockHeight = 0
 							ClaimJoinHandler = ""
@@ -734,12 +746,9 @@ func Process(message *Message, senderNodeId string) {
 				}
 
 				if MyRole == "initiator" {
-					// reset SentCount
-					for i, party := range ClaimParties {
-						if party.PubKey == message.Sender {
-							ClaimParties[i].SentCount = 0
-							break
-						}
+					if msg.Status != ClaimStatus+" done" {
+						// not the expected reply, ignore
+						return
 					}
 
 					ClaimStatus = msg.Status
@@ -747,8 +756,10 @@ func Process(message *Message, senderNodeId string) {
 
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 
-					// Save received claimPSET, execute onBlock to continue signing
+					// Save received claimPSET
 					db.Save("ClaimJoin", "claimPSET", &claimPSET)
+
+					// execute onBlock to continue signing
 					OnBlock(ClaimBlockHeight)
 					return
 				}
@@ -783,8 +794,8 @@ func Process(message *Message, senderNodeId string) {
 					Action: "process",
 					PSET:   serializedPset,
 					Status: ClaimStatus,
-				}) {
-					log.Println("Unable to send blind coordination, cancelling ClaimJoin")
+				}, false) {
+					log.Println("Unable to send coordination, cancelling ClaimJoin")
 					EndClaimJoin("", "Coordination failure")
 				}
 			}
@@ -811,6 +822,7 @@ func Process(message *Message, senderNodeId string) {
 			Destination: message.Destination,
 			Sender:      MyPublicKey(),
 		})
+		return
 	}
 
 	log.Println("Relaying", message.Memo, "from", GetAlias(senderNodeId), "to", GetAlias(destinationNodeId))
@@ -831,7 +843,7 @@ func sendToGroup(status string) {
 				Action:           "confirm_add",
 				ClaimBlockHeight: ClaimBlockHeight,
 				Status:           status,
-			})
+			}, false)
 		}
 	}
 }
@@ -975,7 +987,7 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 		SendCoordination(ClaimJoinHandler, &Coordination{
 			Action: "remove",
 			Joiner: ClaimParties[0],
-		})
+		}, false)
 		forgetPubKey(ClaimJoinHandler)
 		ClaimStatus = "Initator does not respond, forget him"
 
@@ -1039,7 +1051,7 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 		Action:           "add",
 		Joiner:           ClaimParties[0],
 		ClaimBlockHeight: claimBlockHeight,
-	}) {
+	}, false) {
 		// increment counter
 		joinCounter++
 		ClaimStatus = "Responded to invitation, awaiting confirmation"
@@ -1359,7 +1371,12 @@ func verifyPSET(newClaimPSET string) bool {
 		return false
 	}
 
-	if MyRole == "Initiator" {
+	if MyRole == "initiator" {
+		if newClaimPSET == claimPSET {
+			log.Println("Peer returned identical PSET")
+			return false
+		}
+
 		decodedOld, err := liquid.DecodePSET(claimPSET)
 		if err != nil {
 			return false
