@@ -3,9 +3,10 @@
 package ln
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1328,36 +1329,38 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 }
 
 func SendCustomMessage(client *glightning.Lightning, peerId string, message *Message) error {
-	// Marshal the Message struct to JSON
-	jsonData, err := json.Marshal(message)
-	if err != nil {
+	// Serialize the message using gob
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if err := encoder.Encode(message); err != nil {
 		return err
 	}
 
 	// Create a buffer for the final output
-	data := make([]byte, 2+len(jsonData))
+	data := make([]byte, 2+len(buffer.Bytes()))
 
 	// Write the message type prefix
 	binary.BigEndian.PutUint16(data[:2], uint16(messageType))
 
 	// Copy the JSON data to the buffer
-	copy(data[2:], jsonData)
+	copy(data[2:], buffer.Bytes())
 
-	_, err = client.SendCustomMessage(peerId, hex.EncodeToString(data))
-	if err != nil {
+	if _, err := client.SendCustomMessage(peerId, hex.EncodeToString(data)); err != nil {
 		return err
 	}
+
+	log.Printf("Sent %d bytes %s to %s", len(buffer.Bytes()), message.Memo, GetAlias(peerId))
 
 	return nil
 }
 
 // ClaimJoin with CLN in not implemented, placeholder functions and variables:
-func loadClaimJoinDB()                          {}
-func OnBlock()                                  {}
-func InitiateClaimJoin(claimHeight uint32) bool { return false }
-func JoinClaimJoin(claimHeight uint32) bool     { return false }
-func MyPublicKey() string                       { return "" }
-func EndClaimJoin(a, b string)                  {}
+func loadClaimJoinDB()                {}
+func OnBlock(a uint32)                {}
+func InitiateClaimJoin(a uint32) bool { return false }
+func JoinClaimJoin(a uint32) bool     { return false }
+func MyPublicKey() string             { return "" }
+func EndClaimJoin(a, b string)        {}
 
 var (
 	ClaimJoinHandler = ""

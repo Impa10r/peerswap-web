@@ -132,11 +132,6 @@ func main() {
 
 	// identify if Elements Core supports CT discounts
 	hasDiscountedvSize = liquid.GetVersion() >= elementsdFeeDiscountedVersion
-	// identify if liquid blockchain supports CT discounts
-	liquidGenesisHash, err := liquid.GetBlockHash(0)
-	if err == nil {
-		hasDiscountedvSize = stringIsInSlice(liquidGenesisHash, []string{"6d955c95af04f1d14f5a6e6bd501508b37bddb6202aac6d99d0522a8cb7deef5"})
-	}
 
 	// Load persisted data from database
 	ln.LoadDB()
