@@ -11,7 +11,9 @@ import (
 	"encoding/gob"
 	"io"
 	"log"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	mathRand "math/rand"
@@ -95,6 +97,7 @@ type ClaimParty struct {
 	FeeShare   uint64
 	PubKey     string
 	SentCount  uint
+	SentTime   time.Time
 }
 
 // runs after restart, to continue if pegin is ongoing
@@ -135,8 +138,10 @@ func OnBlock(blockHeight uint32) {
 		return
 	}
 
+	// initial fee estimate
+	totalFee := 41 + 30*(len(ClaimParties)-1)
+
 	errorCounter := 0
-	totalFee := 36 * len(ClaimParties)
 
 create_pset:
 	if claimPSET == "" {
@@ -172,7 +177,6 @@ create_pset:
 	}
 
 	total := strconv.Itoa(len(ClaimParties))
-	signing := 0
 
 	for i, output := range analyzed.Outputs {
 		if output.Blind && output.Status == "unblinded" {
@@ -196,7 +200,6 @@ create_pset:
 					// the final blinder can blind and sign at once
 					action = "process2"
 					ClaimStatus += " & Signing 1/" + total
-					signing++
 				}
 
 				serializedPset, err := base64.StdEncoding.DecodeString(claimPSET)
@@ -224,12 +227,30 @@ create_pset:
 	// Iterate through inputs in reverse order to sign
 	for i := len(ClaimParties) - 1; i >= 0; i-- {
 		input := decoded.Inputs[i]
-		signing++
+
+		signing := 1
+		if strings.HasSuffix(ClaimStatus, "& Signing 1/"+total+" done") {
+			signing = 2
+		} else if strings.HasPrefix(ClaimStatus, "Signing") && strings.HasSuffix(ClaimStatus, total+" done") {
+			// Define a regex pattern to find the first number
+			re := regexp.MustCompile(`\d+`)
+			match := re.FindString(ClaimStatus)
+
+			// Convert the matched string to an integer
+			if match != "" {
+				num, err := strconv.Atoi(match)
+				if err == nil {
+					signing = num + 1
+				}
+			}
+		}
+
 		if len(input.FinalScriptWitness) == 0 {
 			ClaimStatus = "Signing " + strconv.Itoa(signing) + "/" + total
 
 			if i == 0 {
 				// my input, last to sign
+				log.Println(ClaimStatus)
 				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
 				if err != nil {
 					log.Println("Unable to sign input, cancelling ClaimJoin:", err)
@@ -290,9 +311,9 @@ create_pset:
 			return
 		}
 
-		exactFee := (decodedTx.DiscountVsize / 10) + 1
-		if decodedTx.DiscountVsize%10 == 0 {
-			exactFee = (decodedTx.DiscountVsize / 10)
+		exactFee := (decodedTx.DiscountVsize / 10)
+		if decodedTx.DiscountVsize%10 != 0 {
+			exactFee++
 		}
 
 		var feeValue int
@@ -300,7 +321,7 @@ create_pset:
 
 		// Iterate over the map
 		for _, value := range decodedTx.Fee {
-			feeValue = int(value * 100_000_000)
+			feeValue = int(toSats(value))
 			found = true
 			break
 		}
@@ -322,6 +343,7 @@ create_pset:
 			db.Save("ClaimJoin", "claimPSET", &claimPSET)
 			db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 
+			errorCounter = 0
 			goto create_pset
 
 		} else {
@@ -557,6 +579,19 @@ func SendCoordination(destinationPubKey string, message *Coordination, needsResp
 	}
 	defer clean()
 
+	partyN := 0
+	for i := 1; i < len(ClaimParties); i++ {
+		if ClaimParties[i].PubKey == destinationPubKey {
+			partyN = i
+			break
+		}
+	}
+
+	if needsResponse && time.Since(ClaimParties[partyN].SentTime) < 2*time.Second {
+		// resend too soon
+		return false
+	}
+
 	err = SendCustomMessage(cl, destinationNodeId, &Message{
 		Version:     MessageVersion,
 		Memo:        "process",
@@ -570,20 +605,17 @@ func SendCoordination(destinationPubKey string, message *Coordination, needsResp
 		return false
 	}
 
-	if needsResponse {
+	if needsResponse && partyN > 0 {
 		// allow maximum 5 resends without a response
-		for i := 1; i < len(ClaimParties); i++ {
-			if ClaimParties[i].PubKey == destinationPubKey {
-				ClaimParties[i].SentCount++
-				if ClaimParties[i].SentCount > 4 {
-					// peer is not responding, kick him
-					kickPeer(destinationPubKey, "being unresponsive")
-					return false
-				}
-			}
+		ClaimParties[partyN].SentCount++
+		if ClaimParties[partyN].SentCount > 4 {
+			// peer is not responding, kick him
+			kickPeer(destinationPubKey, "being unresponsive")
+			return false
 		}
+		// remember when last sent a message requiring response
+		ClaimParties[partyN].SentTime = time.Now()
 	}
-
 	return true
 }
 
@@ -634,8 +666,6 @@ func Process(message *Message, senderNodeId string) {
 				log.Printf("Received an incorrectly formed Coordination: %s", err)
 				return
 			}
-
-			newClaimPSET := base64.StdEncoding.EncodeToString(msg.PSET)
 
 			switch msg.Action {
 			case "add":
@@ -715,20 +745,30 @@ func Process(message *Message, senderNodeId string) {
 
 			case "process2": // process twice to blind and sign
 				if MyRole != "joiner" {
-					log.Println("received process2 while did not join")
+					log.Println("Received process2 while not a joiner")
 					return
 				}
 
 				// process my output
+				newClaimPSET := base64.StdEncoding.EncodeToString(msg.PSET)
 				newClaimPSET, _, err = liquid.ProcessPSET(newClaimPSET, config.Config.ElementsWallet)
 				if err != nil {
-					log.Println("Unable to process PSET:", err)
+					log.Println("Unable to encode PSET:", err)
 					return
 				}
+
+				// save back into message
+				msg.PSET, err = base64.StdEncoding.DecodeString(newClaimPSET)
+				if err != nil {
+					log.Println("Unable to decode PSET:", err)
+					return
+				}
+
 				fallthrough // continue to second pass
 
 			case "process": // blind or sign
-				if !verifyPSET(newClaimPSET) {
+				// if verified successfully, saves the new PSET as claimPSET
+				if !verifyPSET(base64.StdEncoding.EncodeToString(msg.PSET)) {
 					log.Println("PSET verification failure!")
 					if MyRole == "initiator" {
 						// kick the joiner who returned broken PSET
@@ -766,7 +806,7 @@ func Process(message *Message, senderNodeId string) {
 
 					db.Save("ClaimJoin", "ClaimStatus", ClaimStatus)
 
-					// Save received claimPSET
+					// Save the received claimPSET
 					db.Save("ClaimJoin", "claimPSET", &claimPSET)
 
 					// execute onBlock to continue signing
@@ -1436,7 +1476,7 @@ func subscribeBlocks(conn *grpc.ClientConn) error {
 		return err
 	}
 
-	log.Println("Subscribed to blocks")
+	log.Println("Subscribed to Bitcoin blocks")
 
 	for {
 		blockEpoch, err := stream.Recv()

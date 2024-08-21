@@ -1,6 +1,7 @@
 package ln
 
 import (
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -220,7 +221,7 @@ var (
 )
 
 func toSats(amount float64) int64 {
-	return int64(float64(100000000) * amount)
+	return int64(math.Round(float64(100000000) * amount))
 }
 
 // convert short channel id 2568777x70x1 to LND format
