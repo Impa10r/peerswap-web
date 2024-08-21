@@ -123,7 +123,7 @@
                     <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
                   </div>
                 </div>
-                <div class="field is-horizontal">
+                <div title="Amount in sats" class="field is-horizontal">
                   <div class="field-label is-normal">
                     <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
                   </div>
@@ -185,7 +185,9 @@
               <table style="table-layout:fixed; width: 100%;">
                 <tr><td style="overflow-wrap: break-word;">
                   <center>
-                    TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a>
+                    <p>TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a></p>
+                    <br>
+                    <button title="Return to main page" class="button is-large" onclick="window.location.href='/';">OK</button>
                   </center>
                 </td></tr>
               </table>

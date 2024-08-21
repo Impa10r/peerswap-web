@@ -142,13 +142,19 @@
                       function fromChanged() {
                         if (document.getElementById("from").value == "ln") {
                           document.getElementById("to").value = "lbtc";   
-                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          if ({{.RecommendLiquidSwapOut}} > 0) {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          }
                         } else {
                           document.getElementById("to").value = "ln";
                           if (document.getElementById("from").value == "btc") {
-                            document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};                     
+                            if ({{.RecommendBitcoinSwapIn}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};   
+                            }                  
                           } else {
-                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
+                            if ({{.RecommendLiquidSwapIn}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
+                            }
                           }
                         }
                         calculateTransactionFee();
@@ -157,13 +163,19 @@
                       function toChanged() {
                         if (document.getElementById("to").value == "ln") {
                           document.getElementById("from").value = "lbtc";
-                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};                     
+                          if ({{.RecommendLiquidSwapIn}} > 0) {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};              
+                          }       
                         } else {
                           document.getElementById("from").value = "ln";
                           if (document.getElementById("to").value == "btc") {
-                            document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};                     
+                            if ({{.RecommendBitcoinSwapOut}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};
+                            }                
                           } else {
-                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                            if ({{.RecommendLiquidSwapOut}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                            }
                           }
                         }
                         calculateTransactionFee();
@@ -176,6 +188,7 @@
                         let title = ""; 
                         let change = 25000;
                         let asset = document.getElementById("from").value;
+                        let discount = "";
 
                         if (asset == "ln") {
                           asset = document.getElementById("to").value;
@@ -306,10 +319,16 @@
                             });
 
                             // Calculate tx size assuming always two outputs
-                            vbyteSize = 2503 + (inputs-1) * 84;
+                            vbyteSize = 2420 + inputs * 84;
+                            
+                            {{if .HasDiscountedvSize}}
+                              vbyteSize = 284 + inputs * 69;
+                              discount =" discount";
+                            {{end}}
+
                             fee = Math.ceil(vbyteSize * feeRate);
 
-                            // peerswap spends dust change as extra fee
+                            // elements spends dust change as extra fee
                             change = {{.LiquidBalance}} - swapAmount - fee;
 
                             if (change < 1000) {
@@ -324,13 +343,19 @@
                             vbyteSize = 350; // onchain.EstimatedOpeningTxSize
                             title = "Assumed opening transaction size 350 vB";
                           } else {
-                            vbyteSize = 3000; // prepaid
-                            title = "Assumed opening transaction size 3000 vB";
+                            {{if .HasDiscountedvSize}}
+                              vbyteSize = 750; // prepaid
+                              title = "Assumed opening transaction size: 750 discounded vB";
+                              discount =" discount";
+                            {{else}}
+                              vbyteSize = 3000; // prepaid
+                              title = "Assumed opening transaction size: 3000 vB";
+                            {{end}}
                           }
                           fee = Math.ceil(vbyteSize * feeRate);
                         } 
-
-                        let text = "Transaction size: " + vbyteSize + " vBytes\n";
+                    
+                        let text = "Transaction size: " + vbyteSize + discount + " vBytes\n";      
                         text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
                         text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
                         

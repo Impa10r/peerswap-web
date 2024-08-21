@@ -432,11 +432,15 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		peerLiquidBalance = int64(ptr.Amount)
 		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-swapOutChainReserve)))
-		if maxLiquidSwapOut >= 100_000 {
-			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
-		} else {
-			maxLiquidSwapOut = 0
-		}
+
+	} else {
+		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
+	}
+
+	if maxLiquidSwapOut >= 100_000 {
+		selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+	} else {
+		maxLiquidSwapOut = 0
 	}
 
 	peerBitcoinBalance := int64(-1)
@@ -444,11 +448,14 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 		peerBitcoinBalance = int64(ptr.Amount)
 		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-swapOutChainReserve)))
-		if maxBitcoinSwapOut >= 100_000 {
-			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
-		} else {
-			maxBitcoinSwapOut = 0
-		}
+	} else {
+		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
+	}
+
+	if maxBitcoinSwapOut >= 100_000 {
+		selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+	} else {
+		maxBitcoinSwapOut = 0
 	}
 
 	// arbitrary haircuts to avoid 'no matching outgoing channel available'
@@ -558,6 +565,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		MaxLiquidSwapIn         int64
 		RecommendLiquidSwapIn   int64
 		SelectedChannel         uint64
+		HasDiscountedvSize      bool
 	}
 
 	data := Page{
@@ -606,6 +614,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		MaxLiquidSwapIn:         maxLiquidSwapIn,
 		RecommendLiquidSwapIn:   recommendLiquidSwapIn,
 		SelectedChannel:         selectedChannel,
+		HasDiscountedvSize:      hasDiscountedvSize,
 	}
 
 	// executing template named "peer"
