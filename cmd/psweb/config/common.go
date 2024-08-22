@@ -94,6 +94,7 @@ func Load(dataDir string) {
 		Config.NodeApi = "https://mempool.space/testnet/lightning/node"
 		Config.BitcoinApi = "https://mempool.space/testnet"
 		Config.LiquidApi = "https://liquid.network/testnet"
+		Config.ElementsPort = "7039"
 	}
 
 	// environment values take priority

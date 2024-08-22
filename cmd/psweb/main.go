@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,10 +40,6 @@ const (
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	swapOutChannelReserve = 5000
-	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/swap/actions.go#L388
-	swapOutChainReserve = 20300
-	// Swap In reserves
-	swapFeeReserveLBTC = 300
 	// Elements v23.2.2 introduced vsize discount
 	elementsdFeeDiscountedVersion = 230202
 )
@@ -362,7 +359,7 @@ func onTimer(firstRun bool) {
 	go func() {
 		r := internet.GetFeeRate()
 		if r > 0 {
-			mempoolFeeRate = r
+			mempoolFeeRate = math.Round(r)
 		}
 	}()
 
@@ -1027,11 +1024,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 			table += " ⚡&nbsp⇨&nbsp" + asset
 		}
 
-		cost := swapCost(swap)
+		cost, _ := swapCost(swap)
 		if cost != 0 {
 			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
-			table += " <span title=\"Swap cost, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
+			table += " <span title=\"Swap cost/-rebate, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
@@ -1297,8 +1294,7 @@ func cacheAliases() {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *SwapParams) error {
-	// extra 1000 to avoid no-change tx spending all on fees
-	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC
+	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC()
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1494,7 +1490,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-swapFeeReserveLBTC)
+	amount = min(amount, satAmount-swapFeeReserveLBTC())
 
 	// execute swap
 	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
@@ -1514,47 +1510,55 @@ func executeAutoSwap() {
 	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
 }
 
-func swapCost(swap *peerswaprpc.PrettyPrintSwap) int64 {
+// total and verbal breakdown
+func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string) {
 	if swap == nil {
-		return 0
-	}
-
-	if !stringIsInSlice(swap.State, []string{"State_ClaimedPreimage", "State_ClaimedCoop", "State_ClaimedCsv"}) {
-		return 0
+		return 0, ""
 	}
 
 	fee := int64(0)
+	breakdown := ""
 	switch swap.Type + swap.Role {
 	case "swap-outsender":
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
+			breakdown = fmt.Sprintf("rebate paid: %s", formatSigned(rebate))
 			fee = rebate
 		}
+		claim := onchainTxFee(swap.Asset, swap.ClaimTxId)
+		fee += claim
+		breakdown += fmt.Sprintf(", claim: %s", formatSigned(claim))
 	case "swap-insender":
 		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
-		if stringIsInSlice(swap.State, []string{"State_ClaimedCoop", "State_ClaimedCsv"}) {
-			// swap failed but we bear the claim cost
-			fee += onchainTxFee(swap.Asset, swap.ClaimTxId)
+		breakdown = fmt.Sprintf("opening: %s", formatSigned(fee))
+		claim := onchainTxFee(swap.Asset, swap.ClaimTxId)
+		if claim > 0 {
+			fee += claim
+			breakdown = fmt.Sprintf(", claim: %s", formatSigned(claim))
 		}
+
 	case "swap-outreceiver":
 		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		breakdown = fmt.Sprintf("opening: %s", formatSigned(fee))
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
 			fee -= rebate
-		}
-		if stringIsInSlice(swap.State, []string{"State_ClaimedCoop", "State_ClaimedCsv"}) {
-			// swap failed but we bear the claim cost
-			fee += onchainTxFee(swap.Asset, swap.ClaimTxId)
+			breakdown += fmt.Sprintf(", rebate received: -%s", formatSigned(rebate))
 		}
 	case "swap-inreceiver":
 		fee = onchainTxFee(swap.Asset, swap.ClaimTxId)
+		breakdown = fmt.Sprintf("claim: %s", formatSigned(fee))
 	}
 
-	return fee
+	return fee, breakdown
 }
 
 // get tx fee from cache or online
 func onchainTxFee(asset, txId string) int64 {
+	if txId == "" {
+		return 0
+	}
+
 	// try cache
 	fee, exists := txFee[txId]
 	if exists {
@@ -1773,9 +1777,13 @@ func advertiseBalances() {
 	}
 	defer clean()
 
-	// store for replies to poll requests
-	ln.LiquidBalance = res2.GetSatAmount()
 	ln.BitcoinBalance = uint64(ln.ConfirmedWalletBalance(cl))
+	ln.LiquidBalance = res2.GetSatAmount()
+
+	// Elements bug does not permit sending the whole balance, haircut it
+	if ln.LiquidBalance >= 2000 {
+		ln.LiquidBalance -= 2000
+	}
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
 
@@ -1893,4 +1901,11 @@ func pollBalances() {
 	if initalPollComplete {
 		log.Println("Polled peers for balances")
 	}
+}
+
+func swapFeeReserveLBTC() uint64 {
+	if hasDiscountedvSize {
+		return 75
+	}
+	return 300
 }

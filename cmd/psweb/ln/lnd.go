@@ -1774,7 +1774,7 @@ func EstimateFee() float64 {
 		return 0
 	}
 
-	return float64(res.SatPerKw / 250)
+	return math.Round(float64(res.SatPerKw / 250))
 }
 
 // get fees for all channels by filling the maps [channelId]

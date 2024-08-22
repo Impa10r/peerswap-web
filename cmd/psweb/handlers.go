@@ -268,6 +268,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swaps := res5.GetSwaps()
 
 	senderInFee := int64(0)
+	senderOutFee := int64(0)
 	receiverInFee := int64(0)
 	receiverOutFee := int64(0)
 
@@ -275,15 +276,23 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		switch swap.Type + swap.Role {
 		case "swap-insender":
 			if swap.PeerNodeId == id {
-				senderInFee += swapCost(swap)
+				cost, _ := swapCost(swap)
+				senderInFee += cost
+			}
+		case "swap-outsender":
+			if swap.PeerNodeId == id {
+				cost, _ := swapCost(swap)
+				senderOutFee += cost
 			}
 		case "swap-outreceiver":
 			if swap.InitiatorNodeId == id {
-				receiverOutFee += swapCost(swap)
+				cost, _ := swapCost(swap)
+				receiverOutFee += cost
 			}
 		case "swap-inreceiver":
 			if swap.InitiatorNodeId == id {
-				receiverInFee += swapCost(swap)
+				cost, _ := swapCost(swap)
+				receiverInFee += cost
 			}
 		}
 	}
@@ -315,7 +324,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		psPeer = false
 	} else {
 		if peer.AsSender.SatsOut > 0 {
-			senderOutFeePPM = int64(peer.PaidFee) * 1_000_000 / int64(peer.AsSender.SatsOut)
+			senderOutFeePPM = senderOutFee * 1_000_000 / int64(peer.AsSender.SatsOut)
 		}
 		if peer.AsSender.SatsIn > 0 {
 			senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
@@ -421,7 +430,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC), int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC()), int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -431,7 +440,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		peerLiquidBalance = int64(ptr.Amount)
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-swapOutChainReserve)))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-int64(swapFeeReserveLBTC()))))
 
 	} else {
 		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
@@ -447,7 +456,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	maxBitcoinSwapOut := uint64(0)
 	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 		peerBitcoinBalance = int64(ptr.Amount)
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-swapOutChainReserve)))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-int64(swapFeeReserveBTC))))
 	} else {
 		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
 	}
@@ -541,6 +550,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo             []*ln.ChanneInfo
 		PeerSwapPeer            bool
 		MyAlias                 string
+		SenderOutFee            int64
 		SenderOutFeePPM         int64
 		SenderInFee             int64
 		ReceiverInFee           int64
@@ -590,6 +600,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo:             channelInfo,
 		PeerSwapPeer:            psPeer,
 		MyAlias:                 ln.GetMyAlias(),
+		SenderOutFee:            senderOutFee,
 		SenderOutFeePPM:         senderOutFeePPM,
 		SenderInFee:             senderInFee,
 		ReceiverInFee:           receiverInFee,
@@ -600,7 +611,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		KeysendSats:             keysendSats,
 		OutputsBTC:              &utxosBTC,
 		OutputsLBTC:             &utxosLBTC,
-		ReserveLBTC:             swapFeeReserveLBTC,
+		ReserveLBTC:             swapFeeReserveLBTC(),
 		ReserveBTC:              swapFeeReserveBTC,
 		HasInboundFees:          ln.HasInboundFees(),
 		PeerBitcoinBalance:      peerBitcoinBalance,
@@ -1414,12 +1425,12 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
 
-	cost := swapCost(swap)
+	cost, breakdown := swapCost(swap)
 	if cost != 0 {
 		ppm := cost * 1_000_000 / int64(swap.Amount)
 
 		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += formatSigned(cost) + " sats"
+		swapData += formatSigned(cost) + " sats (" + breakdown + ")"
 
 		if swap.State == "State_ClaimedPreimage" {
 			swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
@@ -2341,22 +2352,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			case "in":
 				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
-				peerId := peerNodeId[channelId]
-				var ptr *ln.BalanceInfo
-
-				if asset == "btc" {
-					ptr = ln.BitcoinBalances[peerId]
-				} else if asset == "lbtc" {
-					ptr = ln.LiquidBalances[peerId]
-				}
-
-				if ptr != nil {
-					if ptr.Amount < swapOutChainReserve || swapAmount > ptr.Amount-swapOutChainReserve {
-						redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds peer's wallet balance less reserve "+formatWithThousandSeparators(swapOutChainReserve)+" sats"))
-						return
-					}
-				}
-
 				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
 			}
 

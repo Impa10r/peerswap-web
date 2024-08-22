@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"time"
@@ -231,7 +232,7 @@ func EstimateSatvB(targetConf uint) float64 {
 		return 0
 	}
 
-	return feeInfo.Feerate * 100_000
+	return math.Round(feeInfo.Feerate * 100_000)
 }
 
 func GetTxOutProof(txid string) (string, error) {

@@ -331,10 +331,15 @@
                             // elements spends dust change as extra fee
                             change = {{.LiquidBalance}} - swapAmount - fee;
 
-                            if (change < 1000) {
-                              // one output
-                              vbyteSize -= 1,191;
-                              // but the fee increases
+                            // liquid dust size
+                            if (change < 500) {
+                              // one output only
+                              {{if .HasDiscountedvSize}}
+                                vbyteSize -= 109;
+                              {{else}}
+                                vbyteSize -= 1,191;
+                              {{end}}
+                              // but the fee increases by change
                               fee += change;
                             }
                           } 
@@ -462,7 +467,7 @@ Sincerely,
                   <td title="Initiated {{fmt .Peer.AsSender.SwapsIn}} swap-ins for {{fmt .Peer.AsSender.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
                   <td title="Opening fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
                   <td title="Initiated {{fmt .Peer.AsSender.SwapsOut}} swap-outs for {{fmt .Peer.AsSender.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                  <td title="Rebated paid to peer, Sats (PPM)" style="text-align: center">{{fmt .Peer.PaidFee}}{{if .Peer.PaidFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
+                  <td title="Rebated paid to peer, Sats (PPM)" style="text-align: center">{{fs .SenderOutFee}}{{if .SenderOutFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
                 </tr>
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">Rcvd

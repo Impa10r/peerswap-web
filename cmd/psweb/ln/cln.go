@@ -1043,7 +1043,7 @@ func EstimateFee() float64 {
 		return 0
 	}
 
-	return float64(res.Details.Urgent) / 1000
+	return math.Round(float64(res.Details.Urgent) / 1000)
 }
 
 // get fees for all channels by filling the maps [channelId]
