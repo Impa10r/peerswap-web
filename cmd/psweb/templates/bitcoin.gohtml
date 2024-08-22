@@ -88,7 +88,7 @@
                 {{end}}
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Fee Estimate</label>
+                    <label class="label">Cost Estimate</label>
                   </div>
                   <div class="field-body">
                     <label id="result" class="label"></label>
@@ -366,7 +366,7 @@
                 const payall = document.getElementById("subtractfee").checked;
 
                 if (payall && fee >= amount / 4) {
-                  alert("Total fee exceeding 25% of the amount is not allowed");
+                  alert("Total cost exceeding 25% of the amount is not allowed");
                   return false;
                 }
 
@@ -653,7 +653,7 @@
                   netAmount -= fee;
                 }
 
-                text += "Total fee: " + formatWithThousandSeparators(fee) + " sats\n";
+                text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
                 text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
                 
                 if (isPegin) {

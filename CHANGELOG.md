@@ -7,7 +7,6 @@
 - Use exact fee rates for pegins and BTC withdrawals
 - Switch Custom Message serialization from JSON to GOB
 - Switch Custom Message type from 42067 to 42065
-- Better estimate for swap-in fees and maximum swap amounts
 - Fix accounting for initiated swap outs and failed swaps
 - {TODO] Account for circular rebalancing cost and PPM
 

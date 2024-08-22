@@ -89,7 +89,7 @@
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
-                          <label id="resultLabel" class="label">Fee Estimate</label>
+                          <label id="resultLabel" class="label">Cost Estimate</label>
                         </div>
                         <div class="field-body">
                           <label id="result" class="label">Please enter the Swap Amount</label>
@@ -189,6 +189,8 @@
                         let change = 25000;
                         let asset = document.getElementById("from").value;
                         let discount = "";
+                        let claimText = "";
+                        let rebateText = "";
 
                         if (asset == "ln") {
                           asset = document.getElementById("to").value;
@@ -344,25 +346,40 @@
                             }
                           } 
                         } else {
+                          let claimSize = 149; // BTC
                           if (asset == "btc") {
                             vbyteSize = 350; // onchain.EstimatedOpeningTxSize
                             title = "Assumed opening transaction size 350 vB";
                           } else {
                             {{if .HasDiscountedvSize}}
+                              claimSize = 330;
                               vbyteSize = 750; // prepaid
                               title = "Assumed opening transaction size: 750 discounded vB";
                               discount =" discount";
                             {{else}}
+                              claimSize = 1350;
                               vbyteSize = 3000; // prepaid
                               title = "Assumed opening transaction size: 3000 vB";
                             {{end}}
                           }
-                          fee = Math.ceil(vbyteSize * feeRate);
+
+                          const rebate = Math.ceil(vbyteSize * feeRate);
+                          const claim = Math.ceil(claimSize * feeRate);
+                          fee = rebate + claim;
+                          rebateText = "Rebate to opener: " + formatWithThousandSeparators(rebate) + " sats\n";
+                          claimText = "Claim tx fee: " + formatWithThousandSeparators(claim) + " sats\n";
                         } 
                     
-                        let text = "Transaction size: " + vbyteSize + discount + " vBytes\n";      
-                        text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
-                        text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
+                        let text = "Opening tx size: " + vbyteSize + discount + " vBytes\n";
+                        text += "Opening tx fee: " + formatWithThousandSeparators(fee) + " sats\n";
+
+                        if (rebateText != "") {
+                          text = rebateText;
+                        }
+
+                        text += claimText;      
+                        text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
+                        text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
                         
                         if (asset == "btc" && change < 25000) {
                           text += "\nWARNING: No reserve is left for anchor fee bumping!";
