@@ -520,9 +520,11 @@ func convertPeersToHTMLTable(
 		var totalForwardsIn uint64
 		var totalPayments uint64
 		var totalFees uint64
-		var totalCost uint64
+		var rebalanceCost uint64
+		var rebalanceAmount uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
+		sinceLastSwap := ""
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -562,6 +564,7 @@ func convertPeersToHTMLTable(
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 				tooltip = "Since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
+				sinceLastSwap = "since the last swap or "
 			}
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
@@ -570,7 +573,8 @@ func convertPeersToHTMLTable(
 			inflows := stats.RoutedIn + stats.InvoicedIn
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
-			totalCost += stats.PaidCost
+			rebalanceCost += stats.RebalanceCost
+			rebalanceAmount += stats.RebalanceIn
 			totalPayments += stats.PaidOut
 
 			netFlow := float64(int64(inflows) - int64(outflows))
@@ -684,17 +688,17 @@ func convertPeersToHTMLTable(
 		if totalForwardsOut > 0 {
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
 		}
-		if totalPayments > 0 {
-			ppmCost = totalCost * 1_000_000 / totalPayments
+		if rebalanceAmount > 0 {
+			ppmCost = rebalanceCost * 1_000_000 / rebalanceAmount
 		}
 
-		peerTable += "<span title=\"Routing revenue since the last swap or for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
-		if totalCost > 0 {
+		peerTable += "<span title=\"Routing revenue " + sinceLastSwap + "for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
+		if rebalanceCost > 0 {
 			color := "red"
 			if config.Config.ColorScheme == "dark" {
 				color = "pink"
 			}
-			peerTable += "<span title=\"Lightning costs since the last swap or in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Circular rebalancing cost " + sinceLastSwap + "in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(rebalanceCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; \">"
 
@@ -775,7 +779,8 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 		var totalForwardsIn uint64
 		var totalPayments uint64
 		var totalFees uint64
-		var totalCost uint64
+		var rebalanceCost uint64
+		var rebalanceAmount uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
 
@@ -819,7 +824,8 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
 			totalPayments += stats.PaidOut
-			totalCost += stats.PaidCost
+			rebalanceCost += stats.RebalanceCost
+			rebalanceAmount += stats.RebalanceIn
 
 			netFlow := float64(int64(inflows) - int64(outflows))
 
@@ -921,15 +927,15 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			ppmRevenue = totalFees * 1_000_000 / totalForwardsOut
 		}
 		peerTable += "<span title=\"Routing revenue for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span> "
-		if totalPayments > 0 {
-			ppmCost = totalCost * 1_000_000 / totalPayments
+		if rebalanceAmount > 0 {
+			ppmCost = rebalanceCost * 1_000_000 / rebalanceAmount
 		}
-		if totalCost > 0 {
+		if rebalanceCost > 0 {
 			color := "red"
 			if config.Config.ColorScheme == "dark" {
 				color = "pink"
 			}
-			peerTable += "<span title=\"Lightning costs in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(totalCost) + "</span>"
+			peerTable += "<span title=\"Circular rebalancing cost in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(rebalanceCost) + "</span>"
 		}
 
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; width:10ch;\">"

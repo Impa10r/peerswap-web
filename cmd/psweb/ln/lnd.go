@@ -407,7 +407,7 @@ finalize:
 	_, err = cl.PublishTransaction(ctx, req)
 	if err != nil {
 		log.Println("PublishTransaction:", err)
-		log.Println("RawHex:", hex.EncodeToString(rawTx))
+		// log.Println("RawHex:", hex.EncodeToString(rawTx))
 		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
 	}
@@ -655,7 +655,7 @@ func BumpPeginFee(feeRate float64, label string) (*SentResult, error) {
 	var errr error
 
 	// extra bump may be necessary if the tx does not pay enough fee
-	for extraBump := float64(0); extraBump <= 1; extraBump += 0.1 {
+	for extraBump := float64(0); extraBump <= 1; extraBump += 0.01 {
 		// sometimes remove transaction is not enough
 		releaseOutputs(cl, &utxos, &internalLockId)
 		releaseOutputs(cl, &utxos, &myLockId)
@@ -1582,7 +1582,7 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	for _, e := range rebalanceHtlcs[channelId] {
 		if uint64(e.AttemptTimeNs) > timestampNs {
-			rebalanceMsat += e.Route.TotalAmtMsat
+			rebalanceMsat += e.Route.TotalAmtMsat - e.Route.TotalFeesMsat
 			rebalanceCostMsat += e.Route.TotalFeesMsat
 		}
 	}

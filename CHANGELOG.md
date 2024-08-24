@@ -8,7 +8,7 @@
 - Switch Custom Message serialization from JSON to GOB
 - Switch Custom Message type from 42067 to 42065
 - Fix accounting for initiated swap outs and failed swaps
-- {TODO] Account for circular rebalancing cost and PPM
+- Show circular rebalancing cost and PPM instead of paid fees
 
 ## 1.6.8
 
