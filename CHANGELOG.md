@@ -2,13 +2,17 @@
 
 ## 1.7.0
 
-- Correct swap fee estimates for discounted vsize (Elements v23.2.2+)
 - LND: Implement confidential joint pegin claims (Elements v23.2.2+) 
-- Use exact fee rates for pegins and BTC withdrawals
+- Correct swap fee estimates for discounted vsize (Elements v23.2.2+)
+- Achieve exact fee rates for pegins and BTC withdrawals
 - Switch Custom Message serialization from JSON to GOB
 - Switch Custom Message type from 42067 to 42065
 - Fix accounting for initiated swap outs and failed swaps
-- Show circular rebalancing cost and PPM instead of paid fees
+- LND: Show circular rebalancing cost and PPM instead of paid fees
+- Update keysend invite message with mention of discount CT
+
+## 1.6.9
+- Hot Fix bitcoinswaps=true persisting in peerswap.conf on psweb restart
 
 ## 1.6.8
 

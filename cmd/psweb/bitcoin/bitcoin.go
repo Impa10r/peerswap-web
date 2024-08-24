@@ -235,6 +235,29 @@ func EstimateSatvB(targetConf uint) float64 {
 	return math.Round(feeInfo.Feerate * 100_000)
 }
 
+// returns block hash
+func GetBlockHash(block uint32) (string, error) {
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+	params := &[]interface{}{block}
+
+	r, err := service.client.call("getblockhash", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetBlockHash: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetBlockHash unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
 func GetTxOutProof(txid string) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}

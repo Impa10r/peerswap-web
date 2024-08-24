@@ -134,13 +134,12 @@ func loadClaimJoinDB() {
 
 // runs every block
 func OnBlock(blockHeight uint32) {
-	if !config.Config.PeginClaimJoin || MyRole != "initiator" || len(ClaimParties) < 2 || blockHeight < ClaimBlockHeight {
+	if !config.Config.PeginClaimJoin || MyRole != "initiator" || blockHeight < ClaimBlockHeight {
 		return
 	}
 
 	// initial fee estimate
 	totalFee := 41 + 30*(len(ClaimParties)-1)
-
 	errorCounter := 0
 
 create_pset:
@@ -148,6 +147,8 @@ create_pset:
 		var err error
 		claimPSET, err = createClaimPSET(totalFee)
 		if err != nil {
+			// claimjoin failed
+			EndClaimJoin("", err.Error())
 			return
 		}
 		db.Save("ClaimJoin", "claimPSET", &claimPSET)
@@ -1002,6 +1003,8 @@ func EndClaimJoin(txId string, status string) bool {
 		// signal to telegram bot
 		config.Config.PeginTxId = txId
 		config.Config.PeginClaimScript = "done"
+	} else {
+		log.Println("ClaimJoin pegin failed")
 	}
 	resetClaimJoin()
 	return true

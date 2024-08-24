@@ -864,10 +864,19 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			// test on a pre-existing tx that bitcon core can complete the peg
 			tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
 			if config.Config.Chain == "testnet" {
-				if hasDiscountedvSize {
-					tx = "0b387c3b7a8d9fad4d7a1ac2cba4958451c03d6c4fe63dfbe10cdb86d666cdd7"
-				} else {
+				// identify testnet blockchain
+				genesisHash, err := bitcoin.GetBlockHash(0)
+				if err != nil {
+					redirectWithError(w, r, "/bitcoin?", err)
+					return
+				}
+
+				if genesisHash == "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943" {
+					// testnet3
 					tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+				} else {
+					// testnet4
+					tx = "0b387c3b7a8d9fad4d7a1ac2cba4958451c03d6c4fe63dfbe10cdb86d666cdd7"
 				}
 			}
 
@@ -924,7 +933,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			if hasDiscountedvSize && ln.Implementation == "LND" {
 				config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
 				if config.Config.PeginClaimJoin {
-					ln.ClaimStatus = "Awaiting tx confirmation"
+					ln.ClaimStatus = "Awaiting funding tx to confirm"
 					db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
 				}
 			} else {

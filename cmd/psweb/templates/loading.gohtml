@@ -21,16 +21,14 @@
 
               const timer = setInterval(() => {
                 if (progressValue < 100) {
-                  progressValue += 1;
+                  progressValue += 0.01;
                   progressBar.style.width = `${progressValue}%`;
                 
                 }
                 if (progressValue === 100) {
                   clearInterval(timer);
-                  // Redirect to home page
-                  // window.location.href = '/'; 
                 }
-              }, 600); // 60 seconds wait
+              }, 6); // 60 seconds wait
             </script>
           </div>
           <div class="box has-text-left">

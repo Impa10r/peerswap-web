@@ -524,7 +524,7 @@ func convertPeersToHTMLTable(
 		var rebalanceAmount uint64
 
 		channelsTable := "<table style=\"table-layout: fixed; width: 100%; margin-bottom: 0.5em;\">"
-		sinceLastSwap := ""
+		sinceLastSwap := "for the previous 6 months"
 
 		// Construct channels data
 		for _, channel := range peer.Channels {
@@ -564,7 +564,7 @@ func convertPeersToHTMLTable(
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 				tooltip = "Since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
-				sinceLastSwap = "since the last swap or "
+				sinceLastSwap = "since the last swap"
 			}
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
@@ -692,13 +692,13 @@ func convertPeersToHTMLTable(
 			ppmCost = rebalanceCost * 1_000_000 / rebalanceAmount
 		}
 
-		peerTable += "<span title=\"Routing revenue " + sinceLastSwap + "for the previous 6 months. PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
+		peerTable += "<span title=\"Routing revenue " + sinceLastSwap + ". PPM: " + formatWithThousandSeparators(ppmRevenue) + "\">" + formatWithThousandSeparators(totalFees) + "</span>"
 		if rebalanceCost > 0 {
 			color := "red"
 			if config.Config.ColorScheme == "dark" {
 				color = "pink"
 			}
-			peerTable += "<span title=\"Circular rebalancing cost " + sinceLastSwap + "in the last 6 months. PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(rebalanceCost) + "</span>"
+			peerTable += "<span title=\"Circular rebalancing cost " + sinceLastSwap + ". PPM: " + formatWithThousandSeparators(ppmCost) + "\" style=\"color:" + color + "\"> -" + formatWithThousandSeparators(rebalanceCost) + "</span>"
 		}
 		peerTable += "</td><td style=\"padding: 0px; padding-right: 1px; float: right; text-align: right; \">"
 
@@ -1143,12 +1143,7 @@ func checkPegin() {
 
 		if ln.MyRole != "none" {
 			// 10 blocks to wait before switching back to individual claim
-			margin := uint32(10)
-			if ln.MyRole == "initiator" && len(ln.ClaimParties) < 2 {
-				// if no one has joined, switch on mturity
-				margin = 0
-			}
-			if currentBlockHeight >= ln.ClaimBlockHeight+margin {
+			if currentBlockHeight >= ln.ClaimBlockHeight+10 {
 				// claim pegin individually
 				t := "ClaimJoin expired, falling back to the individual claim"
 				log.Println(t)

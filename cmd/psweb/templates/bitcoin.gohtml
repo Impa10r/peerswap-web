@@ -365,9 +365,13 @@
                 const amount = Number(document.getElementById("peginAmount").value);
                 const payall = document.getElementById("subtractfee").checked;
 
-                if (payall && fee >= amount / 4) {
-                  alert("Total cost exceeding 25% of the amount is not allowed");
-                  return false;
+                if (fee > amount / 1000) {
+                  // Display confirmation dialog
+                  var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
+                  if (!confirmed) {
+                    // user cancels, prevent form submission
+                    return false;
+                  }
                 }
 
                 {{if not .IsCLN}}
@@ -639,7 +643,7 @@
                   fee += 45; 
                   {{if .CanClaimJoin}}
                     if (document.getElementById("claimJoin").checked) {
-                      liquidFee = "35-45"
+                      liquidFee = "30-45"
                     }
                   {{end}}
                   text += "Liquid chain fee: " + liquidFee + " sats\n";
