@@ -51,11 +51,11 @@
                 <div id="error-message" class="hidden"></div>
             </div>
             <script>
-                function displayQR(address) {
-                    var bitcoinAddress = "your-bitcoin-address-here";
+                function displayQR(id) {
+                    var text = document.getElementById(id).value;
                     var container = document.getElementById("qrcode-container");
                     var qrcode = new QRCode(document.getElementById("qrcode"), {
-                        text: address,
+                        text: text,
                         width: container.clientWidth,  // Set QR code width to the container's width
                         height: container.clientWidth   // Set QR code height to the container's width
                     });
@@ -64,7 +64,7 @@
                     window.addEventListener("resize", function() {
                         document.getElementById("qrcode").innerHTML = ""; // Clear the previous QR code
                         qrcode = new QRCode(document.getElementById("qrcode"), {
-                            text: address,
+                            text: text,
                             width: container.clientWidth,
                             height: container.clientWidth
                         });
