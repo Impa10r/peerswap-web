@@ -492,8 +492,21 @@
                   let outputsP2WPKH = change; // Number of P2WPKH outputs
                 {{end}}
 
-                // there is always one P2SH output for pegin address
-                let outputsP2SH = 1;
+                // there can be P2SH output for pegin address
+                let outputsP2SH = 0;
+
+                const peginAddress = "{{.PeginAddress}}";
+
+                if (peginAddress.startsWith('bc1q') || peginAddress.startsWith('tb1q')) {
+                  // Pegin to P2WPH
+                  outputsP2WPKH++;
+                } else if (peginAddress.startsWith('bc1p') || peginAddress.startsWith('tb1p')) {
+                  // Pegin to P2TR
+                  outputsP2TR++;
+                } else {
+                  // Pegin to P2SH
+                  outputsP2SH++;
+                }
                 
                 // Initialize total UTXO amount and UTXO counters
                 let totalUtxoAmount = 0;

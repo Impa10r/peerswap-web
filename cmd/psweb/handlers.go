@@ -974,12 +974,12 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			config.Config.PeginClaimJoin = false
 		}
 
-		label := "Liquid Pegin"
-		if !isPegin {
-			label = "BTC Withdrawal"
-		}
-
 		if !isExternal {
+			label := "Liquid Pegin"
+			if !isPegin {
+				label = "BTC Withdrawal"
+			}
+
 			res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
 			if err != nil {
 				redirectWithError(w, r, "/bitcoin?", err)
