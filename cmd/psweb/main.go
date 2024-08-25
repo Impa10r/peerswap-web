@@ -1130,6 +1130,10 @@ func checkPegin() {
 		return
 	}
 
+	if config.Config.PeginTxId == "external" {
+		return
+	}
+
 	if config.Config.PeginClaimJoin {
 		if config.Config.PeginClaimScript == "done" {
 			// finish by sending telegram message
@@ -1160,9 +1164,9 @@ func checkPegin() {
 		}
 	}
 
-	confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+	confs, _ := peginConfirmations(config.Config.PeginTxId)
 	if confs < 0 && config.Config.PeginReplacedTxId != "" {
-		confs, _ = ln.GetTxConfirmations(cl, config.Config.PeginReplacedTxId)
+		confs, _ = peginConfirmations(config.Config.PeginReplacedTxId)
 		if confs > 0 {
 			// RBF replacement conflict: the old transaction mined before the new one
 			config.Config.PeginTxId = config.Config.PeginReplacedTxId

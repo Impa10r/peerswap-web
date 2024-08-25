@@ -670,6 +670,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Outputs             *[]ln.UTXO
 		PeginTxId           string
 		IsPegin             bool // false for ordinary BTC withdrawal
+		IsExternal          bool
+		PeginAddress        string
 		PeginAmount         uint64
 		BitcoinApi          string
 		Confirmations       int32
@@ -704,9 +706,10 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	var utxos []ln.UTXO
 	ln.ListUnspent(cl, &utxos, int32(1))
 
-	if config.Config.PeginTxId != "" {
-		confs, canCPFP = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
-		if confs == 0 {
+	if config.Config.PeginTxId != "" && config.Config.PeginTxId != "external" {
+
+		confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
+		if confs == 0 && config.Config.PeginFeeRate > 0 {
 			canBump = true
 			if !ln.CanRBF() {
 				// can bump only if there is a change output
@@ -751,6 +754,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Outputs:             &utxos,
 		PeginTxId:           config.Config.PeginTxId,
 		IsPegin:             config.Config.PeginClaimScript != "",
+		IsExternal:          config.Config.PeginTxId == "external",
+		PeginAddress:        config.Config.PeginAddress,
 		PeginAmount:         uint64(config.Config.PeginAmount),
 		BitcoinApi:          config.Config.BitcoinApi,
 		Confirmations:       confs,
@@ -779,71 +784,117 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	executeTemplate(w, "bitcoin", data)
 }
 
+// returns number of confirmations and whether the tx can be fee bumped
+func peginConfirmations(txid string) (int32, bool) {
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		return -1, false
+	}
+
+	defer clean()
+
+	// -1 indicates error
+	confs, canCPFP := ln.GetTxConfirmations(cl, txid)
+
+	if confs >= 0 {
+		return confs, canCPFP
+	}
+
+	// can be external funding
+	var tx bitcoin.Transaction
+	_, err := bitcoin.GetRawTransaction(txid, &tx)
+	if err != nil {
+		return -1, false
+	}
+
+	return tx.Confirmations, false
+}
+
 // handles Liquid pegin and Bitcoin send form
 func peginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
-		if err := r.ParseForm(); err != nil {
+		err := r.ParseForm()
+		if err != nil {
 			http.Error(w, "Error parsing form data", http.StatusBadRequest)
 			return
 		}
 
-		amount, err := strconv.ParseInt(r.FormValue("peginAmount"), 10, 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
+		isPegin := r.FormValue("isPegin") == "true"
+		isExternal := r.FormValue("externalButton") != ""
 
-		fee, err := strconv.ParseFloat(r.FormValue("feeRate"), 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
+		var (
+			amount int64
+			fee    float64
+		)
 
 		selectedOutputs := r.Form["selected_outputs[]"]
 		subtractFeeFromAmount := r.FormValue("subtractfee") == "on"
-		isPegin := r.FormValue("isPegin") == "true"
 
-		totalAmount := int64(0)
-
-		if len(selectedOutputs) > 0 {
-			// check that outputs add up
-
-			cl, clean, er := ln.GetClient()
-			if er != nil {
-				redirectWithError(w, r, "/config?", er)
+		if !isExternal {
+			if r.FormValue("peginAmount") == "" {
+				redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot be blank"))
 				return
 			}
-			defer clean()
 
-			var utxos []ln.UTXO
-			ln.ListUnspent(cl, &utxos, int32(1))
+			amount, err = strconv.ParseInt(r.FormValue("peginAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
 
-			for _, utxo := range utxos {
-				for _, output := range selectedOutputs {
-					vin := utxo.TxidStr + ":" + strconv.FormatUint(uint64(utxo.OutputIndex), 10)
-					if vin == output {
-						totalAmount += utxo.AmountSat
+			if r.FormValue("feeRate") == "" {
+				redirectWithError(w, r, "/bitcoin?", errors.New("fee rate cannot be blank"))
+				return
+			}
+
+			fee, err = strconv.ParseFloat(r.FormValue("feeRate"), 64)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			totalAmount := int64(0)
+
+			if len(selectedOutputs) > 0 {
+				// check that outputs add up
+
+				cl, clean, er := ln.GetClient()
+				if er != nil {
+					redirectWithError(w, r, "/config?", er)
+					return
+				}
+				defer clean()
+
+				var utxos []ln.UTXO
+				ln.ListUnspent(cl, &utxos, int32(1))
+
+				for _, utxo := range utxos {
+					for _, output := range selectedOutputs {
+						vin := utxo.TxidStr + ":" + strconv.FormatUint(uint64(utxo.OutputIndex), 10)
+						if vin == output {
+							totalAmount += utxo.AmountSat
+						}
 					}
+				}
+
+				if amount > totalAmount {
+					redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot exceed the sum of the selected outputs"))
+					return
 				}
 			}
 
-			if amount > totalAmount {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot exceed the sum of the selected outputs"))
+			if subtractFeeFromAmount {
+				if amount != totalAmount {
+					redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
+					return
+				}
+			}
+
+			if !subtractFeeFromAmount && amount == totalAmount {
+				redirectWithError(w, r, "/bitcoin?", errors.New("'subtract fee' option should be used when amount adds up to the selected outputs"))
 				return
 			}
-		}
-
-		if subtractFeeFromAmount {
-			if amount != totalAmount {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
-				return
-			}
-		}
-
-		if !subtractFeeFromAmount && amount == totalAmount {
-			redirectWithError(w, r, "/bitcoin?", errors.New("'subtract fee' option should be used when amount adds up to the selected outputs"))
-			return
 		}
 
 		address := ""
@@ -913,43 +964,48 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			claimScript = ""
 		}
 
+		if hasDiscountedvSize && ln.Implementation == "LND" {
+			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
+			if config.Config.PeginClaimJoin {
+				ln.ClaimStatus = "Awaiting funding tx to confirm"
+				db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+			}
+		} else {
+			config.Config.PeginClaimJoin = false
+		}
+
 		label := "Liquid Pegin"
 		if !isPegin {
 			label = "BTC Withdrawal"
 		}
 
-		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
-
-		if isPegin {
-			log.Println("New Pegin TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
-			duration := time.Duration(10*ln.PeginBlocks) * time.Minute
-			formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-			telegramSendMessage("⏰ Started pegin " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
-
-			if hasDiscountedvSize && ln.Implementation == "LND" {
-				config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
-				if config.Config.PeginClaimJoin {
-					ln.ClaimStatus = "Awaiting funding tx to confirm"
-					db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
-				}
-			} else {
-				config.Config.PeginClaimJoin = false
+		if !isExternal {
+			res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
 			}
+
+			if isPegin {
+				log.Println("New Pegin TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
+				duration := time.Duration(10*ln.PeginBlocks) * time.Minute
+				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+				telegramSendMessage("⏰ Started pegin " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+			} else {
+				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
+				telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+			}
+			config.Config.PeginAmount = res.AmountSat
+			config.Config.PeginTxId = res.TxId
+			config.Config.PeginFeeRate = res.ExactSatVb
 		} else {
-			log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-			telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+			log.Println("Pegin address for external funding:", address, "Claim script:", claimScript)
+			config.Config.PeginTxId = "external"
 		}
 
 		config.Config.PeginClaimScript = claimScript
 		config.Config.PeginAddress = address
-		config.Config.PeginAmount = res.AmountSat
-		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
-		config.Config.PeginFeeRate = res.ExactSatVb
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
@@ -977,19 +1033,12 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if config.Config.PeginTxId == "" {
+		if config.Config.PeginTxId == "" || config.Config.PeginTxId == "external" {
 			redirectWithError(w, r, "/bitcoin?", errors.New("no pending pegin"))
 			return
 		}
 
-		cl, clean, er := ln.GetClient()
-		if er != nil {
-			redirectWithError(w, r, "/config?", er)
-			return
-		}
-		defer clean()
-
-		confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+		confs, _ := peginConfirmations(config.Config.PeginTxId)
 		if confs > 0 {
 			// transaction has been confirmed already
 			http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -1734,6 +1783,51 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "externalPeginTxId":
+			if config.Config.PeginTxId != "external" {
+				redirectWithError(w, r, "/bitcoin?", errors.New("not expected"))
+				return
+			}
+
+			if r.FormValue("externalPeginCancel") != "" {
+				config.Config.PeginTxId = ""
+				config.Config.PeginClaimJoin = false
+			} else {
+				txid := r.FormValue("peginTxId")
+				if txid == "" {
+					redirectWithError(w, r, "/bitcoin?", errors.New("TxId is blank"))
+					return
+				}
+
+				// verify
+				var tx bitcoin.Transaction
+				_, err := bitcoin.GetRawTransaction(txid, &tx)
+				if err != nil {
+					redirectWithError(w, r, "/bitcoin?", err)
+					return
+				}
+
+				if tx.Vout[0].ScriptPubKey.Address != config.Config.PeginAddress {
+					redirectWithError(w, r, "/bitcoin?", errors.New("the tx fails to pay the pegin address"))
+					return
+				}
+
+				config.Config.PeginAmount = int64(toSats(tx.Vout[0].Value))
+				config.Config.PeginTxId = txid
+				config.Config.PeginFeeRate = 0
+
+				log.Println("External Funding TxId:", txid)
+				duration := time.Duration(10*(ln.PeginBlocks-tx.Confirmations)) * time.Minute
+				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+				telegramSendMessage("⏰ Started pegin " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
+			}
+
+			config.Save()
+
+			// all done, display tx confirmations
+			http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+			return
+
 		case "advertiseLiquidBalance":
 			enabled := r.FormValue("enabled") == "on"
 			if enabled && !config.Config.AllowSwapRequests {
