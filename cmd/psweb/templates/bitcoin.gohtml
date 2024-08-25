@@ -396,7 +396,7 @@
                 const amount = Number(document.getElementById("peginAmount").value);
                 const payall = document.getElementById("subtractfee").checked;
 
-                if (fee > amount / 1000) {
+                if (fee > amount / 1000 && document.getElementById("externalButton").value == "") {
                   // Display confirmation dialog
                   var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
                   if (!confirmed) {
@@ -737,7 +737,7 @@
               </div>
               <br>
               <center>
-                <input class="button is-large" onclick="window.location.href='/';" value="OK">
+                <input class="button is-large" onclick="window.location.href='/bitcoin';" value="OK">
               </center>
               <script>
                 displayQR("bitcoinAddress");
