@@ -1799,7 +1799,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				// verify
+				// find the funding output
 				var tx bitcoin.Transaction
 				_, err := bitcoin.GetRawTransaction(txid, &tx)
 				if err != nil {
@@ -1807,12 +1807,20 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				if tx.Vout[0].ScriptPubKey.Address != config.Config.PeginAddress {
+				found := false
+				for _, out := range tx.Vout {
+					if out.ScriptPubKey.Address == config.Config.PeginAddress {
+						found = true
+						config.Config.PeginAmount = int64(toSats(out.Value))
+						break
+					}
+				}
+
+				if !found {
 					redirectWithError(w, r, "/bitcoin?", errors.New("the tx fails to pay the pegin address"))
 					return
 				}
 
-				config.Config.PeginAmount = int64(toSats(tx.Vout[0].Value))
 				config.Config.PeginTxId = txid
 				config.Config.PeginFeeRate = 0
 

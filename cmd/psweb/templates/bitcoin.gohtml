@@ -396,7 +396,7 @@
                 const amount = Number(document.getElementById("peginAmount").value);
                 const payall = document.getElementById("subtractfee").checked;
 
-                if (fee > amount / 1000 && document.getElementById("externalButton").value == "") {
+                if (fee > amount / 1000 && amount > 0) {
                   // Display confirmation dialog
                   var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
                   if (!confirmed) {
