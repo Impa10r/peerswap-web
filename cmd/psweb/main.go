@@ -1184,7 +1184,7 @@ func checkPegin() {
 			failed := false
 			proof := ""
 			txid := ""
-			rawTx, err := ln.GetRawTransaction(cl, config.Config.PeginTxId)
+			rawTx, err := bitcoin.GetRawTransaction(config.Config.PeginTxId, nil)
 			if err == nil {
 				proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
 				if err == nil {

@@ -129,7 +129,7 @@
                 </div>
               </div>
               {{if .IsExternal}}
-                <p>Please fund this mainchain Bitcoin address externally:</p>
+                <p>1. Please fund this mainchain Bitcoin address externally:</p>
                 <input class="input is-medium" type="text" onclick="copyToClipboard('peginAddress')" id="peginAddress" value="{{.PeginAddress}}" readonly>
                 <br>
                 <br>
@@ -140,7 +140,7 @@
                 <script>
                   displayQR("peginAddress");
                 </script>
-                <p>Then, provide TxId below to proceed:</p>
+                <p>2. Then, provide TxId below to proceed:</p>
                 <form autocomplete="off" action="/submit" method="post">
                   <input autocomplete="false" name="hidden" type="text" style="display:none;">
                   <input class="input is-medium" type="text" name="peginTxId" placeholder="External Funding TxId">

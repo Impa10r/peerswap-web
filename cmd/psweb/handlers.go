@@ -707,6 +707,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	ln.ListUnspent(cl, &utxos, int32(1))
 
 	if config.Config.PeginTxId != "" && config.Config.PeginTxId != "external" {
+		// update ClaimJoin status
+		checkPegin()
 
 		confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
 		if confs == 0 && config.Config.PeginFeeRate > 0 {
