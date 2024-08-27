@@ -89,7 +89,7 @@ func telegramStart() {
 			case "/pegin":
 				t := ""
 				if config.Config.PeginTxId == "" {
-					t = "No pending pegin or BTC withdrawal"
+					t = "No pending peg-in or BTC withdrawal"
 				} else {
 					cl, clean, er := ln.GetClient()
 					if er != nil {
@@ -114,7 +114,7 @@ func telegramStart() {
 									t += ". Claim ETA: " + formattedDuration
 								}
 							} else {
-								// sole pegin
+								// solo peg-in
 								duration := time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
 								formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 								t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
@@ -124,7 +124,7 @@ func telegramStart() {
 								t += ". TxId: `" + config.Config.PeginTxId + "`"
 							}
 						} else {
-							t = "Awaiting external funding to a pegin address"
+							t = "Awaiting external funding to a peg-in address"
 						}
 					}
 					clean()
@@ -178,7 +178,7 @@ func telegramConnect() {
 			},
 			tgbotapi.BotCommand{
 				Command:     "pegin",
-				Description: "Status of pegin or BTC withdrawal",
+				Description: "Status of peg-in or BTC withdrawal",
 			},
 			tgbotapi.BotCommand{
 				Command:     "autoswaps",

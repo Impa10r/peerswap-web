@@ -425,7 +425,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// to be conservative
-	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate, bitcoin.EstimateSatvB(6))
+	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
 	// shouil match peerswap estimation
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
@@ -812,7 +812,7 @@ func peginConfirmations(txid string) (int32, bool) {
 	return tx.Confirmations, false
 }
 
-// handles Liquid pegin and Bitcoin send form
+// handles Liquid peg-in and Bitcoin send form
 func peginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
@@ -910,7 +910,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if info.InitialBlockDownload {
-				redirectWithError(w, r, "/bitcoin?", errors.New("Elements Core initial block download is not done"))
+				redirectWithError(w, r, "/bitcoin?", errors.New("elements initial block download is not complete"))
 				return
 			}
 
@@ -989,10 +989,10 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if isPegin {
-				log.Println("New Pegin TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
+				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 				duration := time.Duration(10*ln.PeginBlocks) * time.Minute
 				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				telegramSendMessage("⏰ Started pegin " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
 				telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
@@ -1001,7 +1001,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			config.Config.PeginTxId = res.TxId
 			config.Config.PeginFeeRate = res.ExactSatVb
 		} else {
-			log.Println("Pegin address for external funding:", address, "Claim script:", claimScript)
+			log.Println("Peg-in address for external funding:", address, "Claim script:", claimScript)
 			config.Config.PeginTxId = "external"
 		}
 
@@ -1014,7 +1014,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Redirect to bitcoin page to follow the pegin progress
+		// Redirect to bitcoin page to follow the peg-in progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1036,7 +1036,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if config.Config.PeginTxId == "" || config.Config.PeginTxId == "external" {
-			redirectWithError(w, r, "/bitcoin?", errors.New("no pending pegin"))
+			redirectWithError(w, r, "/bitcoin?", errors.New("no pending peg-in"))
 			return
 		}
 
@@ -1047,7 +1047,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		label := "Liquid Pegin"
+		label := "Liquid Peg-in"
 		if config.Config.PeginClaimScript == "" {
 			label = "BTC Withdrawal"
 		}
@@ -1076,7 +1076,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Redirect to bitcoin page to follow the pegin progress
+		// Redirect to bitcoin page to follow the peg-in progress
 		http.Redirect(w, r, "/bitcoin?msg=New transaction broadcasted", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1829,7 +1829,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println("External Funding TxId:", txid)
 				duration := time.Duration(10*(ln.PeginBlocks-tx.Confirmations)) * time.Minute
 				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				telegramSendMessage("⏰ Started pegin " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
 			}
 
 			config.Save()

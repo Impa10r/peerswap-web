@@ -376,7 +376,7 @@ func onTimer(firstRun bool) {
 	if !firstRun {
 		// skip first run so that forwards have time to download
 		go ln.ApplyAutoFees()
-		// Check if pegin can be claimed, initiated or joined
+		// Check if peg-in can be claimed, initiated or joined
 		checkPegin()
 	}
 
@@ -569,8 +569,8 @@ func convertPeersToHTMLTable(
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
-			outflows := stats.RoutedOut + stats.PaidOut
-			inflows := stats.RoutedIn + stats.InvoicedIn
+			outflows := stats.RoutedOut + stats.PaidOut + stats.RebalanceOut
+			inflows := stats.RoutedIn + stats.InvoicedIn + stats.RebalanceIn
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
 			rebalanceCost += stats.RebalanceCost
@@ -588,34 +588,40 @@ func convertPeersToHTMLTable(
 			tooltip = fmt.Sprintf("%d", bluePct) + "% local balance\n" + tooltip + ":"
 			flowText := ""
 			if stats.RoutedIn > 0 {
-				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
+				flowText += "\nRouted In: +" + formatWithThousandSeparators(stats.RoutedIn)
 			}
 			if stats.RoutedOut > 0 {
-				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+				flowText += "\nRouted Out: -" + formatWithThousandSeparators(stats.RoutedOut)
 			}
 			if stats.InvoicedIn > 0 {
-				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+				flowText += "\nInvoiced In: +" + formatWithThousandSeparators(stats.InvoicedIn)
 			}
 			if stats.PaidOut > 0 {
-				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
+				flowText += "\nPaid Out: -" + formatWithThousandSeparators(stats.PaidOut)
+			}
+			if stats.RebalanceIn > 0 {
+				flowText += "\nCirc Rebal In: +" + formatWithThousandSeparators(stats.RebalanceIn)
+			}
+			if stats.RebalanceOut > 0 {
+				flowText += "\nCirc Rebal Out: -" + formatWithThousandSeparators(stats.RebalanceOut)
 			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-				flowText += "\nNet flow: +" + formatWithThousandSeparators(uint64(netFlow))
+				flowText += "\nNet Flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
-				flowText += "\nNet flow: -" + formatWithThousandSeparators(uint64(-netFlow))
+				flowText += "\nNet Flow: -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
 
 			if flowText == "" {
-				flowText = "\nNo flows"
+				flowText = "\nNo Flows"
 			}
 
 			if stats.FeeSat > 0 {
@@ -632,10 +638,10 @@ func convertPeersToHTMLTable(
 				}
 			}
 
-			if stats.PaidCost > 0 {
-				flowText += "\nLightning Costs: -" + formatWithThousandSeparators(stats.PaidCost)
-				if stats.PaidOut > 0 {
-					flowText += "\nLightning Costs PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+			if stats.RebalanceCost > 0 {
+				flowText += "\nCirc Rebal Costs: -" + formatWithThousandSeparators(stats.RebalanceCost)
+				if stats.RebalanceIn > 0 {
+					flowText += "\nCirc Rebal PPM: " + formatWithThousandSeparators(stats.RebalanceCost*1_000_000/stats.RebalanceIn)
 				}
 			}
 
@@ -819,8 +825,8 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			totalFees += stats.FeeSat
-			outflows := stats.RoutedOut + stats.PaidOut
-			inflows := stats.RoutedIn + stats.InvoicedIn
+			outflows := stats.RoutedOut + stats.PaidOut + stats.RebalanceOut
+			inflows := stats.RoutedIn + stats.InvoicedIn + stats.RebalanceIn
 			totalForwardsOut += stats.RoutedOut
 			totalForwardsIn += stats.RoutedIn
 			totalPayments += stats.PaidOut
@@ -839,34 +845,40 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			flowText := ""
 
 			if stats.RoutedIn > 0 {
-				flowText += "\nRouted in: +" + formatWithThousandSeparators(stats.RoutedIn)
+				flowText += "\nRouted In: +" + formatWithThousandSeparators(stats.RoutedIn)
 			}
 			if stats.RoutedOut > 0 {
-				flowText += "\nRouted out: -" + formatWithThousandSeparators(stats.RoutedOut)
+				flowText += "\nRouted Out: -" + formatWithThousandSeparators(stats.RoutedOut)
 			}
 			if stats.InvoicedIn > 0 {
-				flowText += "\nInvoiced in: +" + formatWithThousandSeparators(stats.InvoicedIn)
+				flowText += "\nInvoiced In: +" + formatWithThousandSeparators(stats.InvoicedIn)
 			}
 			if stats.PaidOut > 0 {
-				flowText += "\nPaid out: -" + formatWithThousandSeparators(stats.PaidOut)
+				flowText += "\nPaid Out: -" + formatWithThousandSeparators(stats.PaidOut)
+			}
+			if stats.RebalanceIn > 0 {
+				flowText += "\nCirc Rebal In: +" + formatWithThousandSeparators(stats.RebalanceIn)
+			}
+			if stats.RebalanceOut > 0 {
+				flowText += "\nCirc Rebal Out: -" + formatWithThousandSeparators(stats.RebalanceOut)
 			}
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
 				bluePct = int((local - netFlow) * 100 / capacity)
 				previousBlue = greenPct
-				flowText += "\nNet flow: +" + formatWithThousandSeparators(uint64(netFlow))
+				flowText += "\nNet Flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
 
 			if netFlow < 0 {
 				bluePct = int(local * 100 / capacity)
 				redPct = int((local - netFlow) * 100 / capacity)
 				previousRed = bluePct
-				flowText += "\nNet flow: -" + formatWithThousandSeparators(uint64(-netFlow))
+				flowText += "\nNet Flow: -" + formatWithThousandSeparators(uint64(-netFlow))
 			}
 
 			if flowText == "" {
-				flowText = "\nNo flows"
+				flowText = "\nNo Flows"
 			}
 
 			if stats.FeeSat > 0 {
@@ -883,10 +895,10 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 				}
 			}
 
-			if stats.PaidCost > 0 {
-				flowText += "\nLightning Costs: -" + formatWithThousandSeparators(stats.PaidCost)
-				if stats.PaidOut > 0 {
-					flowText += "\nLightning Costs PPM: " + formatWithThousandSeparators(stats.PaidCost*1_000_000/stats.PaidOut)
+			if stats.RebalanceCost > 0 {
+				flowText += "\nCirc Rebal Costs: -" + formatWithThousandSeparators(stats.RebalanceCost)
+				if stats.RebalanceIn > 0 {
+					flowText += "\nCirc Rebal PPM: " + formatWithThousandSeparators(stats.RebalanceCost*1_000_000/stats.RebalanceIn)
 				}
 			}
 
@@ -1091,7 +1103,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 	return table
 }
 
-// Check Pegin status
+// Check Peg-in status
 func checkPegin() {
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -1103,7 +1115,7 @@ func checkPegin() {
 
 	if currentBlockHeight > ln.JoinBlockHeight && ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
 		// invitation expired
-		ln.ClaimStatus = "No ClaimJoin pegin is pending"
+		ln.ClaimStatus = "No ClaimJoin peg-in is pending"
 		log.Println("Invitation expired from", ln.ClaimJoinHandler)
 		telegramSendMessage("🧬 ClaimJoin Invitation expired")
 
@@ -1115,9 +1127,9 @@ func checkPegin() {
 	if config.Config.PeginTxId == "" {
 		// send telegram if received new ClaimJoin invitation
 		if peginInvite != ln.ClaimJoinHandler {
-			t := "🧬 There is a ClaimJoin pegin pending"
+			t := "🧬 There is a ClaimJoin peg-in pending"
 			if ln.ClaimJoinHandler == "" {
-				t = "🧬 ClaimJoin pegin has ended"
+				t = "🧬 ClaimJoin peg-in has ended"
 			} else {
 				duration := time.Duration(10*(ln.JoinBlockHeight-currentBlockHeight)) * time.Minute
 				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
@@ -1137,7 +1149,7 @@ func checkPegin() {
 	if config.Config.PeginClaimJoin {
 		if config.Config.PeginClaimScript == "done" {
 			// finish by sending telegram message
-			telegramSendMessage("🧬 ClaimJoin pegin successfull! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			telegramSendMessage("💸 Peg-in successfull! Liquid TxId: `" + config.Config.PeginTxId + "`")
 			config.Config.PeginClaimScript = ""
 			config.Config.PeginTxId = ""
 			config.Config.PeginClaimJoin = false
@@ -1180,7 +1192,7 @@ func checkPegin() {
 			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
 			telegramSendMessage("💸 BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
 		} else if confs >= ln.PeginBlocks && ln.MyRole == "none" {
-			// claim individual pegin
+			// claim individual peg-in
 			failed := false
 			proof := ""
 			txid := ""
@@ -1201,15 +1213,15 @@ func checkPegin() {
 			}
 
 			if failed {
-				log.Println("Pegin claim FAILED!")
+				log.Println("Peg-in claim FAILED!")
 				log.Println("Mainchain TxId:", config.Config.PeginTxId)
 				log.Println("Raw tx:", rawTx)
 				log.Println("Proof:", proof)
 				log.Println("Claim Script:", config.Config.PeginClaimScript)
-				telegramSendMessage("❗ Pegin claim FAILED! See log for details.")
+				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 			} else {
-				log.Println("Pegin successful! Liquid TxId:", txid)
-				telegramSendMessage("💸 Pegin successfull! Liquid TxId: `" + txid + "`")
+				log.Println("Peg-in successful! Liquid TxId:", txid)
+				telegramSendMessage("💸 Peg-in successfull! Liquid TxId: `" + txid + "`")
 			}
 		} else {
 			if config.Config.PeginClaimJoin {

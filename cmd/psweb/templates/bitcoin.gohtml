@@ -37,7 +37,7 @@
             <div class="box has-text-left">
               <div class="tabs is-large is-boxed">
                 <ul>
-                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Pegin</a></li>
+                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-in</a></li>
                   <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send BTC</a></li>
                 </ul>
               </div>
@@ -110,8 +110,8 @@
                 <!-- Hidden true/false element -->
                 <input type="hidden" id="isPegin" name="isPegin" value="true">
                 <div style="text-align: center;">
-                  <input id="sendButton" class="button is-large" type="submit" value="Start Pegin">
-                  <input title="Generate pegin address to be funded by an external wallet" id="externalButton" class="button is-large" name="externalButton" type="submit" value="External Funding">
+                  <input id="sendButton" class="button is-large" type="submit" value="Start Peg-in">
+                  <input title="Generate peg-in address to be funded by an external wallet" id="externalButton" class="button is-large" name="externalButton" type="submit" value="External Funding">
                 </div>
             </div>
           {{else}}
@@ -119,7 +119,7 @@
               <div style="display: grid; grid-template-columns: auto auto; margin-bottom: 1em;">
                 <div style="text-align: left;">
                   {{if .IsPegin}}
-                    <h4 class="title is-4">Pegin Progress</h4>
+                    <h4 class="title is-4">Peg-in Progress</h4>
                   {{else}}
                      <h4 class="title is-4">Bitcoin Withdrawal {{if gt .Confirmations 0}}(Complete){{else}}(Pending){{end}}</h4> 
                   {{end}}
@@ -324,7 +324,7 @@
                 document.getElementById('sendTab').classList.remove("is-active");
                 document.getElementById("sendAddressField").style.display = "none";
                 document.getElementById('sendAddress').removeAttribute('required');
-                document.getElementById("sendButton").value = "Start Pegin";
+                document.getElementById("sendButton").value = "Start Peg-in";
                 document.getElementById("isPegin").value = "true";
                 document.getElementById("externalButton").style.display = "";
                 {{if .CanClaimJoin}}

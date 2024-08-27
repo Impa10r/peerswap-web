@@ -57,6 +57,7 @@ type ChannelStats struct {
 	InvoicedIn     uint64
 	PaidCost       uint64
 	RebalanceIn    uint64
+	RebalanceOut   uint64
 	RebalanceCost  uint64
 }
 

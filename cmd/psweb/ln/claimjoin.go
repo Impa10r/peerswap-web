@@ -44,18 +44,18 @@ var (
 	myPrivateKey *btcec.PrivateKey
 	// maps learned public keys to node Id
 	keyToNodeId = make(map[string]string)
-	// public key of the sender of pegin_started broadcast
+	// public key of the sender of peg-in_started broadcast
 	ClaimJoinHandler string
-	// timestamp of the pegin_started broadcast of the current ClaimJoinHandler
+	// timestamp of the peg-in_started broadcast of the current ClaimJoinHandler
 	ClaimJoinHandlerTS uint64
-	// Pegin txid of the ClaimJoinHandler for rebroadcasts
+	// Peg-in txid of the ClaimJoinHandler for rebroadcasts
 	ClaimJoinHandlerTxId string
-	// when currently pending pegin can be claimed
+	// when currently pending peg-in can be claimed
 	ClaimBlockHeight uint32
 	// time limit to join another claim
 	JoinBlockHeight uint32
 	// human readable status of the claimjoin
-	ClaimStatus = "No ClaimJoin pegin is pending"
+	ClaimStatus = "No ClaimJoin peg-in is pending"
 	// none, initiator or joiner
 	MyRole = "none"
 	// array of initiator + joiners, for initiator only
@@ -71,7 +71,7 @@ type Coordination struct {
 	Action string
 	// new joiner details
 	Joiner ClaimParty
-	// ETA of currently pending pegin claim
+	// ETA of currently pending peg-in claim
 	ClaimBlockHeight uint32
 	// human readable status of the claimjoin
 	Status string
@@ -80,11 +80,11 @@ type Coordination struct {
 }
 
 type ClaimParty struct {
-	// pegin txid
+	// peg-in txid
 	TxId string
-	// pegin vout
+	// peg-in vout
 	Vout uint
-	// pegin claim script
+	// peg-in claim script
 	ClaimScript string
 	// Liquid address to receive funds
 	Address string
@@ -100,7 +100,7 @@ type ClaimParty struct {
 	SentTime   time.Time
 }
 
-// runs after restart, to continue if pegin is ongoing
+// runs after restart, to continue if peg-in is ongoing
 func loadClaimJoinDB() {
 	db.Load("ClaimJoin", "ClaimJoinHandler", &ClaimJoinHandler)
 	db.Load("ClaimJoin", "ClaimJoinHandlerTS", &ClaimJoinHandlerTS)
@@ -449,7 +449,7 @@ func Broadcast(fromNodeId string, message *Message) bool {
 			// two simultaneous initiators conflict, the earlier wins
 			if len(ClaimParties) > 1 || ClaimJoinHandlerTS < message.TimeStamp {
 				log.Println("Initiator collision, staying as initiator")
-				// repeat pegin start info
+				// repeat peg-in start info
 				SendCustomMessage(cl, fromNodeId, &Message{
 					Version:   MessageVersion,
 					Memo:      "broadcast",
@@ -473,7 +473,7 @@ func Broadcast(fromNodeId string, message *Message) bool {
 		}
 
 		if ClaimJoinHandler == "" {
-			// verify that pegin has indeed started
+			// verify that peg-in has indeed started
 			_, err := bitcoin.GetTxOutProof(string(message.Payload))
 			if err != nil {
 				log.Println("Failed to get Initiator's TxOutProof, ignoring invite")
@@ -999,13 +999,12 @@ func EndClaimJoin(txId string, status string) bool {
 	})
 
 	if txId != "" {
-		log.Println("ClaimJoin pegin success! Liquid TxId:", txId)
+		log.Println("ClaimJoin peg-in success! Liquid TxId:", txId)
 		// signal to telegram bot
 		config.Config.PeginTxId = txId
 		config.Config.PeginClaimScript = "done"
-	} else {
-		log.Println("ClaimJoin pegin failed")
 	}
+
 	resetClaimJoin()
 	return true
 }
@@ -1017,7 +1016,7 @@ func resetClaimJoin() {
 	ClaimParties = nil
 	MyRole = "none"
 	ClaimJoinHandler = ""
-	ClaimStatus = "No ClaimJoin pegin is pending"
+	ClaimStatus = "No ClaimJoin peg-in is pending"
 	keyToNodeId = make(map[string]string)
 
 	// persist to db

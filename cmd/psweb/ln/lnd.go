@@ -58,11 +58,12 @@ var (
 	LndVerson = float64(0) // must be 0.18+ for RBF ability
 
 	// arrays mapped per channel
-	forwardsIn     = make(map[uint64][]*lnrpc.ForwardingEvent)
-	forwardsOut    = make(map[uint64][]*lnrpc.ForwardingEvent)
-	paymentHtlcs   = make(map[uint64][]*lnrpc.HTLCAttempt)
-	rebalanceHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
-	invoiceHtlcs   = make(map[uint64][]*lnrpc.InvoiceHTLC)
+	forwardsIn        = make(map[uint64][]*lnrpc.ForwardingEvent)
+	forwardsOut       = make(map[uint64][]*lnrpc.ForwardingEvent)
+	paymentHtlcs      = make(map[uint64][]*lnrpc.HTLCAttempt)
+	rebalanceInHtlcs  = make(map[uint64][]*lnrpc.HTLCAttempt)
+	rebalanceOutHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
+	invoiceHtlcs      = make(map[uint64][]*lnrpc.InvoiceHTLC)
 
 	// inflight HTLCs mapped per Incoming channel
 	inflightHTLCs = make(map[uint64][]*InflightHTLC)
@@ -679,7 +680,7 @@ func BumpPeginFee(feeRate float64, label string) (*SentResult, error) {
 
 func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeRate uint64) error {
 	if len(outputs) == 1 {
-		return errors.New("pegin transaction has no change output, not possible to CPFP")
+		return errors.New("peg-in transaction has no change output, not possible to CPFP")
 	}
 
 	// find change output
@@ -971,10 +972,15 @@ func appendPayment(payment *lnrpc.Payment) {
 			if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
 				// get channel from the first hop
 				chanId := htlc.Route.Hops[0].ChanId
-				paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
 				// get destination from the last hop
-				chanId = htlc.Route.Hops[len(htlc.Route.Hops)-1].ChanId
-				rebalanceHtlcs[chanId] = append(rebalanceHtlcs[chanId], htlc)
+				lastHop := htlc.Route.Hops[len(htlc.Route.Hops)-1]
+				if lastHop.PubKey == myNodeId {
+					// this is a circular rebalancing
+					rebalanceOutHtlcs[chanId] = append(rebalanceOutHtlcs[chanId], htlc)
+					rebalanceInHtlcs[lastHop.ChanId] = append(rebalanceInHtlcs[lastHop.ChanId], htlc)
+				} else {
+					paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+				}
 			}
 		}
 		// store the last timestamp
@@ -1145,6 +1151,14 @@ func SubscribeAll() {
 
 	client := lnrpc.NewLightningClient(conn)
 	ctx := context.Background()
+
+	if myNodeId == "" {
+		// populates myNodeId
+		if getLndVersion() == 0 {
+			// error
+			return
+		}
+	}
 
 	// initial download
 	if downloadInvoices(client) != nil {
@@ -1547,7 +1561,8 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		paidOutMsat       int64
 		invoicedMsat      uint64
 		costMsat          int64
-		rebalanceMsat     int64
+		rebalanceInMsat   int64
+		rebalanceOutMsat  int64
 		rebalanceCostMsat int64
 	)
 
@@ -1567,9 +1582,22 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		}
 	}
 
-	for _, e := range invoiceHtlcs[channelId] {
+	for i, e := range invoiceHtlcs[channelId] {
 		if uint64(e.AcceptTime) > timeStamp {
-			invoicedMsat += e.AmtMsat
+			// check if it is related to a circular rebalancing
+			found := false
+			for _, r := range rebalanceInHtlcs[channelId] {
+				if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) && e.ResolveTime == r.ResolveTimeNs/1_000_000_000 {
+					found = true
+					break
+				}
+			}
+			if found {
+				// remove invoice to avoid double counting
+				invoiceHtlcs[channelId] = append(invoiceHtlcs[channelId][:i], invoiceHtlcs[channelId][i+1:]...)
+			} else {
+				invoicedMsat += e.AmtMsat
+			}
 		}
 	}
 
@@ -1580,10 +1608,16 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		}
 	}
 
-	for _, e := range rebalanceHtlcs[channelId] {
+	for _, e := range rebalanceInHtlcs[channelId] {
 		if uint64(e.AttemptTimeNs) > timestampNs {
-			rebalanceMsat += e.Route.TotalAmtMsat - e.Route.TotalFeesMsat
+			rebalanceInMsat += e.Route.TotalAmtMsat - e.Route.TotalFeesMsat
 			rebalanceCostMsat += e.Route.TotalFeesMsat
+		}
+	}
+
+	for _, e := range rebalanceOutHtlcs[channelId] {
+		if uint64(e.AttemptTimeNs) > timestampNs {
+			rebalanceOutMsat += e.Route.TotalAmtMsat
 		}
 	}
 
@@ -1594,7 +1628,8 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	result.InvoicedIn = invoicedMsat / 1000
 	result.PaidOut = uint64(paidOutMsat / 1000)
 	result.PaidCost = uint64(costMsat / 1000)
-	result.RebalanceIn = uint64(rebalanceMsat / 1000)
+	result.RebalanceIn = uint64(rebalanceInMsat / 1000)
+	result.RebalanceOut = uint64(rebalanceOutMsat / 1000)
 	result.RebalanceCost = uint64(rebalanceCostMsat / 1000)
 
 	return &result

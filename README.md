@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid pegins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 ### Disclaimer
 
@@ -137,7 +137,7 @@ sudo systemctl restart psweb
 
 ## Automatic Liquid Swap-Ins
 
-Liquid BTC is more custodial than Bitcoin and Lightning. We do not advise accumulating large balances for long-term holding. Once you gained Liquid in a peer swap-in or a pegin process, it is better to initiate own swap in to rebalance a channel of your choice. 
+Liquid BTC is more custodial than Bitcoin and Lightning. We do not advise accumulating large balances for long-term holding. Once you gained Liquid in a peer swap-in or a peg-in process, it is better to initiate own swap in to rebalance a channel of your choice. 
 
 Currently, it is not possible to prevent swap outs by other peers while allowing receipt of swap ins. You don't want your Liquid balance taken, because such a rebalancing may not be optimal for you (but optimal for your peer).
 
@@ -190,7 +190,7 @@ sudo systemctl stop psweb
 sudo systemctl disable psweb
 ```
 
-# Liquid Pegin
+# Liquid Peg-in
 
 Update: Since v1.2.0 this is handled via UI on the Bitcoin page.
 
@@ -215,15 +215,15 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 
 (lookup Elements and Bitcoin rpc passwords in pswebconfig.com)
 
-## Confidential Liquid Pegin
+## Confidential Liquid Peg-in
 
-Elements Core v23.2.2 introduced vsize discount for confidential transactions. Now sending a Liquid payment with a blinded amount costs the same or cheaper than a publicly visible (explicit) one. For example, claiming a pegin with ```elements-cli claimpegin``` costs about 45 sats, but it is possible to manually construct the same transaction (```elements-cli createrawtransaction```) with confidential destination address, blind and sign it, then post and pay a lower fee. However, from privacy perspective, blinding a single pegin claim makes little sense. The linked Bitcoin UTXO will still show the explicit amount, so it is easily traceable to your new Liquid address. To achieve a truly confidential pegin, it is necessary to mix two or more independent claims into one single transaction, a-la CoinJoin.
+Elements Core v23.2.2 introduced vsize discount for confidential transactions. Now sending a Liquid payment with a blinded amount costs the same or cheaper than a publicly visible (explicit) one. For example, claiming a peg-in with ```elements-cli claimpegin``` costs about 45 sats, but it is possible to manually construct the same transaction (```elements-cli createrawtransaction```) with confidential destination address, blind and sign it, then post and pay a lower fee. However, from privacy perspective, blinding a single peg-in claim makes little sense. The linked Bitcoin UTXO will still show the explicit amount, so it is easily traceable to your new Liquid address. To achieve a truly confidential peg-in, it is necessary to mix two or more independent claims into one single transaction, a-la CoinJoin.
 
-In v1.7.0 PSWeb implemented such "ClaimJoin". If you opt in when starting your pegin, your node will send invitations to all other PSWeb nodes to join in while you wait for your 102 confirmations. To join your claim, a peer should opt in while starting his own pegin. A node responds to an invitation by anonymously sending details of its pegin funding transaction, once it confirms, to the initiator. Peers don't know which specific node initiated the ClaimJoin and who else will be joining. The initiator also doesn't know public Ids of the nodes that responded. All communication happens blindly via single use public/private key pairs (secp256k1). Nodes who do not directly participate act as p2p relays for the encrypted messages, not being able to read them and not knowing the sources and the final destinations. This way our ClaimJoin coordination is fully confidential and not limited to direct peers. 
+In v1.7.0 PSWeb implemented such "ClaimJoin". If you opt in when starting your peg-in, your node will send invitations to all other PSWeb nodes to join in while you wait for your 102 confirmations. To join your claim, a peer should opt in while starting his own peg-in. A node responds to an invitation by anonymously sending details of its peg-in funding transaction, once it confirms, to the initiator. Peers don't know which specific node initiated the ClaimJoin and who else will be joining. The initiator also doesn't know public Ids of the nodes that responded. All communication happens blindly via single use public/private key pairs (secp256k1). Nodes who do not directly participate act as p2p relays for the encrypted messages, not being able to read them and not knowing the sources and the final destinations. This way our ClaimJoin coordination is fully confidential and not limited to direct peers. 
 
-When all N pegins mature, the initiator node prepares one large PSET with N pegin inputs and N CT outputs, shuffled randomly, and sends it secuentially to all participants: first to blind Liquid outputs and then to sign pegin inputs. Before blinding/signing and returning the PSET, each joiner verifies that his output address is there for the correct amount (allowing for a small fee haircut). Upto 10 claims can be joined this way, to fit into one custom message (64kb). The price for such privacy is time. For the initiator, the wait can take upto 34 hours if the final peer joins at block 101. For that last joiner the wait will be the same 17 hours as for a standard pegin. If the total fee cannot be divided equally, the last joiner pays slightnly more as an incentive to join earlier next time. In practice, the blinding and signing round may need to be done twice: first to find out the exact discounted vsize of the final transaction, then to set the exact total fee at 0.1 sat/vb. 
+When all N peg-ins mature, the initiator node prepares one large PSET with N peg-in inputs and N CT outputs, shuffled randomly, and sends it secuentially to all participants: first to blind Liquid outputs and then to sign peg-in inputs. Before blinding/signing and returning the PSET, each joiner verifies that his output address is there for the correct amount (allowing for a small fee haircut). Upto 10 claims can be joined this way, to fit into one custom message (64kb). The price for such privacy is time. For the initiator, the wait can take upto 34 hours if the final peer joins at block 101. For that last joiner the wait will be the same 17 hours as for a standard peg-in. If the total fee cannot be divided equally, the last joiner pays slightnly more as an incentive to join earlier next time. In practice, the blinding and signing round may need to be done twice: first to find out the exact discounted vsize of the final transaction, then to set the exact total fee at 0.1 sat/vb. 
 
-The process bears no risk to the participants. If any joiner becomes unresponsive during the blinding/signing round, he is automatically kicked out. If the initiator fails to complete the process, each joiner reverts to a standard single pegin claim 10 blocks after the final maturity. As the last resort, if your PSWeb dies completely, you can always [claim your pegin manually](#liquid-pegin) with ```elements-cli```. All the necessary details will be in your PSWeb log. Your claim script and pegin txid can only be used with your own Liquid wallet's private key. Blinding and signing your part happens locally on your node, no sensitive info is transmitted outside at any point.
+The process bears no risk to the participants. If any joiner becomes unresponsive during the blinding/signing round, he is automatically kicked out. If the initiator fails to complete the process, each joiner reverts to a standard single peg-in claim 10 blocks after the final maturity. As the last resort, if your PSWeb dies completely, you can always [claim your peg-in manually](#liquid-pegin) with ```elements-cli```. All the necessary details will be in your PSWeb log. Your claim script and peg-in txid can only be used with your own Liquid wallet's private key. Blinding and signing your part happens locally on your node, no sensitive info is transmitted outside at any point.
 
 # Support
 
