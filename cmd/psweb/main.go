@@ -608,7 +608,7 @@ func convertPeersToHTMLTable(
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
-				bluePct = int((local - netFlow) * 100 / capacity)
+				bluePct = int(max(0, local-netFlow) * 100 / capacity)
 				previousBlue = greenPct
 				flowText += "\nNet Flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
@@ -865,7 +865,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 
 			if netFlow > 0 {
 				greenPct = int(local * 100 / capacity)
-				bluePct = int((local - netFlow) * 100 / capacity)
+				bluePct = int(max(0, local-netFlow) * 100 / capacity)
 				previousBlue = greenPct
 				flowText += "\nNet Flow: +" + formatWithThousandSeparators(uint64(netFlow))
 			}
