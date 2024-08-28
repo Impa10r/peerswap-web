@@ -525,7 +525,7 @@ func Broadcast(fromNodeId string, message *Message) bool {
 					}
 				}
 				if ok {
-					ClaimStatus = "ClaimJoin pegin successful! Liquid TxId: " + txId
+					ClaimStatus = "ClaimJoin pegin complete! Liquid TxId: " + txId
 					// signal to telegram bot
 					config.Config.PeginTxId = txId
 					config.Config.PeginClaimScript = "done"
@@ -999,7 +999,7 @@ func EndClaimJoin(txId string, status string) bool {
 	})
 
 	if txId != "" {
-		log.Println("ClaimJoin peg-in success! Liquid TxId:", txId)
+		log.Println("ClaimJoin peg-in complete! Liquid TxId:", txId)
 		// signal to telegram bot
 		config.Config.PeginTxId = txId
 		config.Config.PeginClaimScript = "done"
@@ -1123,7 +1123,7 @@ func shareInvite(client lnrpc.LightningClient, nodeId string) {
 	}
 	if sender != "" && GetBlockHeight(client) < JoinBlockHeight {
 		// repeat pegin start info
-		if SendCustomMessage(client, nodeId, &Message{
+		SendCustomMessage(client, nodeId, &Message{
 			Version:   MessageVersion,
 			Memo:      "broadcast",
 			Asset:     "pegin_started",
@@ -1131,9 +1131,7 @@ func shareInvite(client lnrpc.LightningClient, nodeId string) {
 			Sender:    sender,
 			TimeStamp: ClaimJoinHandlerTS,
 			Payload:   []byte(ClaimJoinHandlerTxId),
-		}) == nil {
-			log.Printf("Shared intite %s from %s with %s", sender, GetAlias(keyToNodeId[sender]), GetAlias(nodeId))
-		}
+		})
 	}
 }
 

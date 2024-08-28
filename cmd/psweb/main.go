@@ -473,7 +473,7 @@ func setLogging() (func(), error) {
 	}
 
 	// add new line after start up
-	log.Println("")
+	log.Println("------------------START-----------------")
 
 	return cleanup, nil
 }
@@ -1149,7 +1149,7 @@ func checkPegin() {
 	if config.Config.PeginClaimJoin {
 		if config.Config.PeginClaimScript == "done" {
 			// finish by sending telegram message
-			telegramSendMessage("💸 Peg-in successfull! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + config.Config.PeginTxId + "`")
 			config.Config.PeginClaimScript = ""
 			config.Config.PeginTxId = ""
 			config.Config.PeginClaimJoin = false
@@ -1220,8 +1220,8 @@ func checkPegin() {
 				log.Println("Claim Script:", config.Config.PeginClaimScript)
 				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
 			} else {
-				log.Println("Peg-in successful! Liquid TxId:", txid)
-				telegramSendMessage("💸 Peg-in successfull! Liquid TxId: `" + txid + "`")
+				log.Println("Peg-in complete! Liquid TxId:", txid)
+				telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + txid + "`")
 			}
 		} else {
 			if config.Config.PeginClaimJoin {

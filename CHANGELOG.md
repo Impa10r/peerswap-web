@@ -5,12 +5,12 @@
 - LND: Implement confidential joint peg-in claims (Elements v23.2.2+) 
 - Correct swap fee estimates for discounted vsize (Elements v23.2.2+)
 - Add option to fund peg-ins from an external wallet 
-- Achieve exact fee rates for peg-ins and BTC withdrawals
-- Switch Custom Message serialization from JSON to GOB
-- Switch Custom Message type from 42067 to 42065
+- Allow exact (to 0.001) fee rates for peg-ins and BTC withdrawals
+- Change Custom Message serialization from JSON to GOB
+- Change Custom Message type from 42067 to 42065
 - Fix accounting for initiated swap outs and failed swaps
 - Show circular rebalancing volumes and costs on main screen
-- Update keysend invite message with mention of discount CT
+- Update keysend invite message
 
 ## 1.6.9
 - Hot Fix bitcoinswaps=true persisting in peerswap.conf on psweb restart

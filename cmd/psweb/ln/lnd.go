@@ -1424,7 +1424,7 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 	}
 
 success:
-	log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
+	// log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
 
 	return nil
 }
