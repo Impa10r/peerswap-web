@@ -1587,7 +1587,7 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 			// check if it is related to a circular rebalancing
 			found := false
 			for _, r := range rebalanceInHtlcs[channelId] {
-				if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) && e.ResolveTime == r.ResolveTimeNs/1_000_000_000 {
+				if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
 					found = true
 					break
 				}
