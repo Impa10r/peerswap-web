@@ -278,44 +278,42 @@
           {{end}}
         </div> 
         <div class="column"> 
-          {{if eq .BitcoinAddress ""}}
-            <div class="box has-text-left">
-              <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
-                <div style="text-align: left;">
-                    <h4 class="title is-4">Unspent Outputs</h4>
-                </div>
-                <div style="display: flex; justify-content: flex-end;">
-                  <div style="text-align: right;">
-                    <a href="javascript:void(0);" style="visibility: hidden;" title="Unselect all" id="unselectAll" onclick="unselectOutputs()"></a>
-                  </div>
+          <div class="box has-text-left" {{if ne .BitcoinAddress ""}}style="display: none;"{{end}}>
+            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+              <div style="text-align: left;">
+                  <h4 class="title is-4">Unspent Outputs</h4>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <div style="text-align: right;">
+                  <a href="javascript:void(0);" style="visibility: hidden;" title="Unselect all" id="unselectAll" onclick="unselectOutputs()"></a>
                 </div>
               </div>
-              <table class="table" id="utxoTable" style="width:100%; table-layout:fixed;">
-                <thead>
-                  <tr>
-                    <th>Address</th>
-                    <th style="width: 9ch; text-align: right;">Confs</th>
-                    <th style="width: 10ch; text-align: right;">Amount</th>
-                    {{if eq .PeginTxId ""}}
-                      <th style="width: 4ch; transform: scale(1.5)"><a title="Select all" href="javascript:void(0);" onclick="setMax()">☑</a></th>
-                    {{end}}
-                  </tr>
-                </thead>
-                <tbody>
-                {{range .Outputs}}
-                  <tr id="{{.TxidStr}}:{{.OutputIndex}}">
-                    <td id="utxoAddress" class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
-                    <td style="text-align: right;">{{fmt (u .Confirmations)}}</td>
-                    <td id="utxoAmount" style="text-align: right;">{{fmt (u .AmountSat)}}</td>
-                    {{if eq $.PeginTxId ""}}
-                      <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}}, '{{.TxidStr}}:{{.OutputIndex}}')" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
-                    {{end}}
-                  </tr>
-                {{end}}
-                </tbody>
-              </table>
             </div>
-          {{end}}
+            <table class="table" id="utxoTable" style="width:100%; table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th style="width: 9ch; text-align: right;">Confs</th>
+                  <th style="width: 10ch; text-align: right;">Amount</th>
+                  {{if eq .PeginTxId ""}}
+                    <th style="width: 4ch; transform: scale(1.5)"><a title="Select all" href="javascript:void(0);" onclick="setMax()">☑</a></th>
+                  {{end}}
+                </tr>
+              </thead>
+              <tbody>
+              {{range .Outputs}}
+                <tr id="{{.TxidStr}}:{{.OutputIndex}}">
+                  <td id="utxoAddress" class="truncate"><a href="{{$.BitcoinApi}}/address/{{.Address}}" target="_blank">{{.Address}}</a></td>
+                  <td style="text-align: right;">{{fmt (u .Confirmations)}}</td>
+                  <td id="utxoAmount" style="text-align: right;">{{fmt (u .AmountSat)}}</td>
+                  {{if eq $.PeginTxId ""}}
+                    <td><input type="checkbox" id="select" onchange="onSelect(this.checked, {{.AmountSat}}, '{{.TxidStr}}:{{.OutputIndex}}')" name="selected_outputs[]" value="{{.TxidStr}}:{{.OutputIndex}}"></td>
+                  {{end}}
+                </tr>
+              {{end}}
+              </tbody>
+            </table>
+          </div>
           {{if eq .PeginTxId ""}}
             </form>
             <script>
@@ -492,8 +490,8 @@
                   let outputsP2WPKH = change; // Number of P2WPKH outputs
                 {{end}}
 
-                // there can be P2SH output for pegin address [TODO revisit in the future]
-                let outputsP2SH = 0;
+                // there can be P2SH output for pegin address
+                let outputsP2WSH = 0;
 
                 // Initialize total UTXO amount and UTXO counters
                 let totalUtxoAmount = 0;
@@ -587,8 +585,8 @@
                 const sendAddress = document.getElementById("sendAddress").value;
                 
                 if (isPegin) {
-                  // Assume pegin to P2WPH
-                  outputsP2WPKH++;
+                  // Assume pegin to P2WSH
+                  outputsP2WSH++;
                 } else {
                   // identify destination address type
                   if (sendAddress.startsWith('bc1p') || sendAddress.startsWith('tb1p')) {
@@ -640,16 +638,16 @@
                 totalSize += 1;
 
                 // Output amount
-                baseSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2SH);
-                totalSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2SH);
+                baseSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2WSH);
+                totalSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2WSH);
 
                 // ScriptPubKey length
-                baseSize += (outputsP2TR + outputsP2WPKH + outputsP2SH);
-                totalSize += (outputsP2TR + outputsP2WPKH + outputsP2SH);
+                baseSize += (outputsP2TR + outputsP2WPKH + outputsP2WSH);
+                totalSize += (outputsP2TR + outputsP2WPKH + outputsP2WSH);
 
                 // ScriptPubKey
-                baseSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 23 * outputsP2SH);
-                totalSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 23 * outputsP2SH);
+                baseSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 34 * outputsP2WSH);
+                totalSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 34 * outputsP2WSH);
 
                 // Witness stack item count
                 totalSize += 1;

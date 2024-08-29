@@ -1582,7 +1582,8 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 		}
 	}
 
-	for i, e := range invoiceHtlcs[channelId] {
+	for i := 0; i < len(invoiceHtlcs[channelId]); i++ {
+		e := invoiceHtlcs[channelId][i]
 		if uint64(e.AcceptTime) > timeStamp {
 			// check if it is related to a circular rebalancing
 			found := false
@@ -1595,6 +1596,7 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 			if found {
 				// remove invoice to avoid double counting
 				invoiceHtlcs[channelId] = append(invoiceHtlcs[channelId][:i], invoiceHtlcs[channelId][i+1:]...)
+				i--
 			} else {
 				invoicedMsat += e.AmtMsat
 			}
