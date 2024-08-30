@@ -34,10 +34,7 @@ import (
 )
 
 // maximum number of participants in ClaimJoin
-const (
-	maxParties  = 10
-	PeginBlocks = 10 //102
-)
+const maxParties = 10
 
 var (
 	// encryption private key
@@ -122,7 +119,7 @@ func loadClaimJoinDB() {
 		var serializedKey []byte
 		db.Load("ClaimJoin", "serializedPrivateKey", &serializedKey)
 		myPrivateKey, _ = btcec.PrivKeyFromBytes(serializedKey)
-		log.Println("Continue as ClaimJoin", MyRole, MyPublicKey())
+		log.Println("Continue as", MyRole, MyPublicKey())
 
 		if MyRole == "initiator" {
 			db.Load("ClaimJoin", "claimPSET", &claimPSET)
@@ -139,7 +136,7 @@ func OnBlock(blockHeight uint32) {
 	}
 
 	// initial fee estimate
-	totalFee := 41 + 30*(len(ClaimParties)-1)
+	totalFee := 40 + 30*(len(ClaimParties)-1)
 	errorCounter := 0
 
 create_pset:
@@ -164,8 +161,13 @@ create_pset:
 		return
 	}
 
-	// sometimes the result omits inputs or outputs!
-	if len(analyzed.Outputs) != len(ClaimParties)+2 || len(decoded.Inputs) != len(ClaimParties) {
+	// verify number of inputs and outputs
+	numOutputs := len(ClaimParties) + 1
+	if numOutputs > 2 {
+		numOutputs++ // add op_return
+	}
+
+	if len(analyzed.Outputs) != numOutputs || len(decoded.Inputs) != len(ClaimParties) {
 		log.Printf("Malformed PSET with %d inputs and %d outputs, trying again", len(decoded.Inputs), len(analyzed.Outputs))
 		claimPSET = ""
 		db.Save("ClaimJoin", "claimPSET", &claimPSET)
@@ -209,17 +211,16 @@ create_pset:
 					return
 				}
 
-				if !SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
+				if SendCoordination(ClaimParties[blinder].PubKey, &Coordination{
 					Action:           action,
 					PSET:             serializedPset,
 					Status:           ClaimStatus,
 					ClaimBlockHeight: ClaimBlockHeight,
 				}, true) {
-					ClaimStatus = "Failed to send coordination"
+					log.Println(ClaimStatus)
+					db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				}
 
-				log.Println(ClaimStatus)
-				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 				return
 			}
 		}
@@ -268,17 +269,16 @@ create_pset:
 					return
 				}
 
-				if !SendCoordination(ClaimParties[i].PubKey, &Coordination{
+				if SendCoordination(ClaimParties[i].PubKey, &Coordination{
 					Action:           "process",
 					PSET:             serializedPset,
 					Status:           ClaimStatus,
 					ClaimBlockHeight: ClaimBlockHeight,
 				}, true) {
-					ClaimStatus = "Failed to send coordination"
-				}
+					log.Println(ClaimStatus)
+					db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
 
-				log.Println(ClaimStatus)
-				db.Save("ClaimJoin", "ClaimStatus", &ClaimStatus)
+				}
 				return
 			}
 		}
@@ -436,8 +436,8 @@ func Broadcast(fromNodeId string, message *Message) bool {
 		return sent
 	}
 
-	// store for relaying further encrypted messages
 	if keyToNodeId[message.Sender] == "" {
+		// store path for relaying further encrypted messages
 		keyToNodeId[message.Sender] = fromNodeId
 		db.Save("ClaimJoin", "keyToNodeId", keyToNodeId)
 	}
@@ -589,7 +589,7 @@ func SendCoordination(destinationPubKey string, message *Coordination, needsResp
 	}
 
 	if needsResponse && time.Since(ClaimParties[partyN].SentTime) < 2*time.Second {
-		// resend too soon
+		// resend too soon, better wait for reply
 		return false
 	}
 
@@ -1395,15 +1395,15 @@ func createClaimPSET(totalFee int) (string, error) {
 		"fee": liquid.ToBitcoin(uint64(totalFee)),
 	})
 
-	// add op_return
-	outputs = append(outputs, map[string]interface{}{
-		"data": "6a0f506565725377617020576562205549",
-	})
+	if len(ClaimParties) > 1 {
+		// add op_return
+		outputs = append(outputs, map[string]interface{}{
+			"data": "6a0f506565725377617020576562205549",
+		})
+	}
 
 	// Combine inputs and outputs into the parameters array
-	params := []interface{}{inputs, outputs}
-
-	return liquid.CreatePSET(params)
+	return liquid.CreatePSET([]interface{}{inputs, outputs})
 }
 
 // Serialize btcec.PrivateKey and save to db

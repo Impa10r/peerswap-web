@@ -1392,7 +1392,7 @@ func SendCustomMessage(client *glightning.Lightning, peerId string, message *Mes
 	return nil
 }
 
-// ClaimJoin with CLN in not implemented, placeholder functions and variables:
+// ClaimJoin with CLN in not implemented, placeholder functions and variables to compile:
 func loadClaimJoinDB()                {}
 func OnBlock(a uint32)                {}
 func InitiateClaimJoin(a uint32) bool { return false }
@@ -1408,5 +1408,3 @@ var (
 	JoinBlockHeight  uint32
 	ClaimParties     []int
 )
-
-const PeginBlocks = 102

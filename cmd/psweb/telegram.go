@@ -101,7 +101,7 @@ func telegramStart() {
 								bh := ln.GetBlockHeight(cl)
 								duration := time.Duration(10*(ln.ClaimBlockHeight-bh)) * time.Minute
 								if ln.ClaimBlockHeight == 0 {
-									duration = time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
+									duration = time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 								}
 								formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 								if duration < 0 {
@@ -115,7 +115,7 @@ func telegramStart() {
 								}
 							} else {
 								// solo peg-in
-								duration := time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
+								duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 								formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 								t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
 								if config.Config.PeginClaimScript != "" {

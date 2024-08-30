@@ -727,8 +727,8 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	duration := time.Duration(10*(ln.PeginBlocks-confs)) * time.Minute
-	maxConfs := int32(ln.PeginBlocks)
+	duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
+	maxConfs := int32(peginBlocks)
 	cjETA := 34
 
 	bh := int32(ln.GetBlockHeight(cl))
@@ -737,7 +737,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		maxConfs = target - bh + confs
 		duration = time.Duration(10*(target-bh)) * time.Minute
 	} else if ln.ClaimJoinHandler != "" {
-		cjETA = int((int32(ln.JoinBlockHeight) - bh + ln.PeginBlocks) / 6)
+		cjETA = int((int32(ln.JoinBlockHeight) - bh + int32(peginBlocks)) / 6)
 	}
 
 	progress := confs * 100 / int32(maxConfs)
@@ -990,7 +990,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 			if isPegin {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
-				duration := time.Duration(10*ln.PeginBlocks) * time.Minute
+				duration := time.Duration(10*peginBlocks) * time.Minute
 				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
 			} else {
@@ -1827,7 +1827,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.PeginFeeRate = 0
 
 				log.Println("External Funding TxId:", txid)
-				duration := time.Duration(10*(ln.PeginBlocks-tx.Confirmations)) * time.Minute
+				duration := time.Duration(10*(int32(peginBlocks)-tx.Confirmations)) * time.Minute
 				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
 				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
 			}

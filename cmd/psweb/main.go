@@ -76,6 +76,8 @@ var (
 	initalPollComplete = false
 	// identifies if this version of Elements Core supports discounted vSize
 	hasDiscountedvSize = false
+	// required maturity for peg-in funding tx
+	peginBlocks = uint32(102)
 )
 
 func main() {
@@ -118,6 +120,11 @@ func main() {
 			log.Panicln("Cannot generate cookie store")
 		}
 		store = sessions.NewCookieStore([]byte(cookie))
+	}
+
+	if config.Config.Chain == "testnet" {
+		// allow faster pegin on testnet4
+		peginBlocks = 10
 	}
 
 	// set logging params
@@ -1191,7 +1198,7 @@ func checkPegin() {
 		if config.Config.PeginClaimScript == "" {
 			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
 			telegramSendMessage("💸 BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
-		} else if confs >= ln.PeginBlocks && ln.MyRole == "none" {
+		} else if confs >= int32(peginBlocks) && ln.MyRole == "none" {
 			// claim individual peg-in
 			failed := false
 			proof := ""
@@ -1226,7 +1233,7 @@ func checkPegin() {
 		} else {
 			if config.Config.PeginClaimJoin {
 				if ln.MyRole == "none" {
-					claimHeight := currentBlockHeight + ln.PeginBlocks - uint32(confs)
+					claimHeight := currentBlockHeight + peginBlocks - uint32(confs)
 					if ln.ClaimJoinHandler == "" {
 						// I will coordinate this join
 						if ln.InitiateClaimJoin(claimHeight) {
@@ -1239,7 +1246,7 @@ func checkPegin() {
 					} else if currentBlockHeight <= ln.JoinBlockHeight {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
-							t := "Applied to ClaimJoin group"
+							t := "Applied to claim"
 							log.Println(t + " " + ln.ClaimJoinHandler + " as " + ln.MyPublicKey())
 							telegramSendMessage("🧬 " + t)
 						} else {
