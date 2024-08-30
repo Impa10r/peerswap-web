@@ -14,11 +14,11 @@ import (
 	"github.com/elementsproject/peerswap/peerswaprpc"
 )
 
-const fileRPC = "lightning-rpc"
+const JSON_RPC = "lightning-rpc"
 
 func GetClient(dirRPC string) (*glightning.Lightning, func(), error) {
 	lightning := glightning.NewLightning()
-	err := lightning.StartUp(fileRPC, dirRPC)
+	err := lightning.StartUp(JSON_RPC, dirRPC)
 	if err != nil {
 		log.Println("PS CLN Connection:", err)
 		return nil, nil, err

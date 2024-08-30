@@ -15,6 +15,7 @@ func loadDefaults(home, dataDir string) {
 	if dataDir == "" {
 		Config.LightningDir = filepath.Join(home, ".lightning")
 	} else {
+		// Drop the last folder
 		Config.LightningDir = dataDir
 	}
 

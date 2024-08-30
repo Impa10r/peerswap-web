@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	Implementation = "CLN"
-	fileRPC        = "lightning-rpc"
+	IMPLEMENTATION = "CLN"
+	JSON_RPC       = "lightning-rpc"
 )
 
 type Forwarding struct {
@@ -51,18 +51,20 @@ var (
 	downloadComplete  bool
 	// track timestamp of the last failed forward
 	failedForwardTS = make(map[uint64]int64)
+	lightning       *glightning.Lightning
 )
 
 func GetClient() (*glightning.Lightning, func(), error) {
-	lightning := glightning.NewLightning()
-	err := lightning.StartUp(fileRPC, config.Config.RpcHost)
-	if err != nil {
-		return nil, nil, err
+	if lightning == nil {
+		lightning = glightning.NewLightning()
+		err := lightning.StartUp(JSON_RPC, config.Config.RpcHost)
+		if err != nil {
+			log.Println("Cannot start glightning client")
+			return nil, nil, err
+		}
 	}
 
-	cleanup := func() {
-		//lightning.Shutdown()
-	}
+	cleanup := func() {} // do nothing, keep connected
 
 	return lightning, cleanup, nil
 }
@@ -142,7 +144,12 @@ func ListUnspent(client *glightning.Lightning, list *[]UTXO, minConfs int32) err
 
 	return nil
 }
-func GetBlockHeight(client *glightning.Lightning) uint32 {
+func GetBlockHeight() uint32 {
+	client, _, err := GetClient()
+	if err != nil {
+		return 0
+	}
+
 	res, err := client.GetInfo()
 	if err != nil {
 		log.Println("GetInfo:", err)
@@ -380,13 +387,6 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate floa
 		amountSent = toSats(decoded.Vout[0].Value)
 	}
 
-	/* this fails with Unsupported version number
-	feePaid, err := bitcoin.GetFeeFromPsbt(res.PSBT)
-	if err != nil {
-		return nil, err
-	}
-	*/
-
 	// default value if exact calculation fails
 	feePaid := feeRate * float64(decoded.VSize)
 
@@ -462,7 +462,7 @@ func CacheForwards() {
 			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
 			for _, f := range newForwards.Forwards {
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
-				if f.Status == "settled" && f.OutMsat > ignoreForwardsMsat {
+				if f.Status == "settled" && f.OutMsat > IGNORE_FORWARDS_MSAT {
 					chIn := ConvertClnToLndChannelId(f.InChannel)
 					forwardsIn[chIn] = append(forwardsIn[chIn], f)
 					forwardsOut[chOut] = append(forwardsOut[chOut], f)
@@ -511,7 +511,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timestamp6m && e.OutMsat > IGNORE_FORWARDS_MSAT {
 			amountOut6m += e.OutMsat
 			feeMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -525,7 +525,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timestamp6m && e.OutMsat > IGNORE_FORWARDS_MSAT {
 			amountIn6m += e.OutMsat
 			assistedMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -660,13 +660,13 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	timeStampF := float64(timeStamp)
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timeStampF && e.OutMsat > IGNORE_FORWARDS_MSAT {
 			amountOut += e.OutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timeStampF && e.OutMsat > IGNORE_FORWARDS_MSAT {
 			amountIn += e.OutMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -867,7 +867,7 @@ type GetInfoResponse struct {
 }
 
 func GetMyAlias() string {
-	if myNodeAlias == "" {
+	if MyNodeAlias == "" {
 		client, clean, err := GetClient()
 		if err != nil {
 			log.Println("GetClient:", err)
@@ -877,15 +877,13 @@ func GetMyAlias() string {
 
 		var res GetInfoResponse
 
-		// Send the keysend payment
 		err = client.Request(&GetInfoRequest{}, &res)
 		if err != nil {
 			return ""
 		}
 
-		myNodeAlias = res.Alias
 	}
-	return myNodeAlias
+	return MyNodeAlias
 }
 
 // scans all channels to get peerswap lightning fees cached
@@ -900,6 +898,17 @@ func SubscribeAll() {
 		return
 	}
 	defer clean()
+
+	if MyNodeId == "" {
+		// get my node Id
+		resp, err := client.GetInfo()
+		if err != nil {
+			// cln not ready
+			return
+		}
+		MyNodeId = resp.Id
+		MyNodeAlias = resp.Alias
+	}
 
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
@@ -939,16 +948,6 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 		rebalanceCostMsat uint64
 		res               ListHtlcsResponse
 	)
-
-	if myNodeId == "" {
-		// get my node Id
-		resp, err := client.GetInfo()
-		if err != nil {
-			log.Println("GetInfo:", err)
-			return
-		}
-		myNodeId = resp.Id
-	}
 
 	err := client.Request(&ListHtlcsRequest{
 		ChannelId: channelId,
@@ -1047,7 +1046,7 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 						}
 					}
 					// can be a rebalance out
-					if pmt.Payments[0].Destination == myNodeId {
+					if pmt.Payments[0].Destination == MyNodeId {
 						rebalancedOutMsat += pmt.Payments[0].AmountSentMsat
 					} else {
 						// some other payment like keysend
@@ -1306,7 +1305,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.OutMsat > ignoreForwardsMsat {
+		if e.OutMsat > IGNORE_FORWARDS_MSAT {
 			plot = append(plot, DataPoint{
 				TS:     uint64(e.ResolvedTime),
 				Amount: e.OutMsat / 1000,
@@ -1329,7 +1328,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 		}
 		for _, e := range forwardsOut[chId] {
 			// ignore small forwards
-			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+			if e.OutMsat > IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
 					Amount:    e.OutMsat / 1000,
@@ -1345,7 +1344,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	if channelId > 0 {
 		for _, e := range forwardsIn[channelId] {
 			// ignore small forwards
-			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+			if e.OutMsat > IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
 					Amount:    e.OutMsat / 1000,
@@ -1366,7 +1365,12 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	return &log
 }
 
-func SendCustomMessage(client *glightning.Lightning, peerId string, message *Message) error {
+func SendCustomMessage(peerId string, message *Message) error {
+	client, _, err := GetClient()
+	if err != nil {
+		return err
+	}
+
 	// Serialize the message using gob
 	var buffer bytes.Buffer
 	encoder := gob.NewEncoder(&buffer)
@@ -1378,7 +1382,7 @@ func SendCustomMessage(client *glightning.Lightning, peerId string, message *Mes
 	data := make([]byte, 2+len(buffer.Bytes()))
 
 	// Write the message type prefix
-	binary.BigEndian.PutUint16(data[:2], uint16(messageType))
+	binary.BigEndian.PutUint16(data[:2], uint16(MESSAGE_TYPE))
 
 	// Copy the JSON data to the buffer
 	copy(data[2:], buffer.Bytes())
@@ -1391,20 +1395,3 @@ func SendCustomMessage(client *glightning.Lightning, peerId string, message *Mes
 
 	return nil
 }
-
-// ClaimJoin with CLN in not implemented, placeholder functions and variables to compile:
-func loadClaimJoinDB()                {}
-func OnBlock(a uint32)                {}
-func InitiateClaimJoin(a uint32) bool { return false }
-func JoinClaimJoin(a uint32) bool     { return false }
-func MyPublicKey() string             { return "" }
-func EndClaimJoin(a, b string)        {}
-
-var (
-	ClaimJoinHandler = ""
-	MyRole           = "none"
-	ClaimStatus      = ""
-	ClaimBlockHeight uint32
-	JoinBlockHeight  uint32
-	ClaimParties     []int
-)

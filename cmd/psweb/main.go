@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"embed"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -12,12 +11,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"text/template"
 	"time"
 
@@ -80,38 +77,7 @@ var (
 	peginBlocks = uint32(102)
 )
 
-func main() {
-
-	var (
-		dataDir     = flag.String("datadir", "", "Path to config folder (default: ~/.peerswap)")
-		password    = flag.String("password", "", "Enable HTTPS with password authentication (default: per pswebconfig.json)")
-		showHelp    = flag.Bool("help", false, "Show help")
-		showVersion = flag.Bool("version", false, "Show version")
-	)
-
-	flag.Parse()
-
-	if *showHelp {
-		fmt.Println("A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid pegins. PeerSwap with Liquid is a great cost efficient way to rebalance lightning channels.")
-		fmt.Println("Usage:")
-		flag.PrintDefaults()
-		os.Exit(0)
-	}
-
-	if *showVersion {
-		fmt.Println("Version:", version, "for", ln.Implementation)
-		os.Exit(0)
-	}
-
-	// loading from config file or creating default one
-	config.Load(*dataDir)
-
-	if *password != "" {
-		// enable HTTPS
-		config.Config.SecureConnection = true
-		config.Config.Password = *password
-		config.Save()
-	}
+func start() {
 
 	if config.Config.SecureConnection && config.Config.Password != "" {
 		// generate unique cookie
@@ -127,13 +93,6 @@ func main() {
 		peginBlocks = 10
 	}
 
-	// set logging params
-	cleanup, err := setLogging()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer cleanup()
-
 	// identify if Elements Core supports CT discounts
 	hasDiscountedvSize = liquid.GetVersion() >= elementsdFeeDiscountedVersion
 
@@ -141,9 +100,6 @@ func main() {
 	ln.LoadDB()
 	db.Load("Peers", "NodeId", &peerNodeId)
 	db.Load("Swaps", "txFee", &txFee)
-
-	// fetch all chain costs
-	cacheSwapCosts()
 
 	// Get all HTML template files from the embedded filesystem
 	templateFiles, err := tplFolder.ReadDir("templates")
@@ -236,22 +192,6 @@ func main() {
 
 	// CLN: refresh forwarding stats
 	go ln.CacheForwards()
-
-	// Handle termination signals
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Wait for termination signal
-	sig := <-signalChan
-	log.Printf("Received termination signal: %s\n", sig)
-
-	// persist to db
-	if db.Save("Swaps", "SwapRebates", ln.SwapRebates) != nil {
-		log.Printf("Failed to persist SwapRebates to db")
-	}
-
-	// Exit the program gracefully
-	os.Exit(0)
 }
 
 func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
@@ -462,9 +402,12 @@ func setLogging() (func(), error) {
 		return nil, err
 	}
 
-	// Set log output to both file and standard output
-	multi := io.MultiWriter(os.Stdout, logFile)
-	log.SetOutput(multi)
+	if ln.IMPLEMENTATION == "LND" {
+		// Set log output to both file and standard output
+		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	} else { // only to PSWeb log file
+		log.SetOutput(logFile)
+	}
 
 	log.SetFlags(log.Ldate | log.Ltime)
 	if os.Getenv("DEBUG") == "1" {
@@ -1112,13 +1055,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 // Check Peg-in status
 func checkPegin() {
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		return
-	}
-	defer clean()
-
-	currentBlockHeight := ln.GetBlockHeight(cl)
+	currentBlockHeight := ln.GetBlockHeight()
 
 	if currentBlockHeight > ln.JoinBlockHeight && ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
 		// invitation expired
@@ -1626,7 +1563,7 @@ func cacheSwapCosts() {
 	}
 }
 
-func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string) {
+func showRestartScreen(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string, exit bool) {
 	w.Header().Set("Content-Type", "text/html")
 	host := strings.Split(r.Host, ":")[0]
 	url := fmt.Sprintf("http://%s:%s", host, config.Config.ListenPort)
@@ -1675,17 +1612,16 @@ func restart(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password 
 	}
 
 	// Delay to ensure the message is displayed
-	go func() {
-		time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Second)
 
-		config.Config.Password = password
-		config.Config.SecureConnection = enableHTTPS
-		config.Save()
-
+	config.Config.Password = password
+	config.Config.SecureConnection = enableHTTPS
+	config.Save()
+	if exit {
 		log.Println("Restart requested, stopping PSWeb.")
 		// assume systemd will restart it
 		os.Exit(0)
-	}()
+	}
 }
 
 // NoOpWriter is an io.Writer that does nothing.
@@ -1812,30 +1748,28 @@ func advertiseBalances() {
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
 
 	for _, peer := range res3.GetPeers() {
-		if ln.Implementation == "LND" {
-			// refresh balances received over 24 hours ago + 2 minutes ago
-			pollPeer := false
-			if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
-				if ptr.TimeStamp < cutOff {
-					pollPeer = true
-					// delete stale information
-					ln.LiquidBalances[peer.NodeId] = nil
-				}
+		// refresh balances received over 24 hours + 2 minutes ago
+		pollPeer := false
+		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
+			if ptr.TimeStamp < cutOff {
+				pollPeer = true
+				// delete stale information
+				ln.LiquidBalances[peer.NodeId] = nil
 			}
-			if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
-				if ptr.TimeStamp < cutOff {
-					pollPeer = true
-					// delete stale information
-					ln.BitcoinBalances[peer.NodeId] = nil
-				}
+		}
+		if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
+			if ptr.TimeStamp < cutOff {
+				pollPeer = true
+				// delete stale information
+				ln.BitcoinBalances[peer.NodeId] = nil
 			}
+		}
 
-			if pollPeer {
-				ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
-					Version: ln.MessageVersion,
-					Memo:    "poll",
-				})
-			}
+		if pollPeer {
+			ln.SendCustomMessage(peer.NodeId, &ln.Message{
+				Version: ln.MESSAGE_VERSION,
+				Memo:    "poll",
+			})
 		}
 
 		if ln.AdvertiseLiquidBalance {
@@ -1847,8 +1781,8 @@ func advertiseBalances() {
 				}
 			}
 
-			if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
-				Version: ln.MessageVersion,
+			if ln.SendCustomMessage(peer.NodeId, &ln.Message{
+				Version: ln.MESSAGE_VERSION,
 				Memo:    "balance",
 				Asset:   "lbtc",
 				Amount:  ln.LiquidBalance,
@@ -1871,8 +1805,8 @@ func advertiseBalances() {
 				}
 			}
 
-			if ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
-				Version: ln.MessageVersion,
+			if ln.SendCustomMessage(peer.NodeId, &ln.Message{
+				Version: ln.MESSAGE_VERSION,
 				Memo:    "balance",
 				Asset:   "btc",
 				Amount:  ln.BitcoinBalance,
@@ -1890,7 +1824,7 @@ func advertiseBalances() {
 
 func pollBalances() {
 
-	if initalPollComplete || ln.Implementation != "LND" {
+	if initalPollComplete {
 		return
 	}
 
@@ -1905,15 +1839,9 @@ func pollBalances() {
 		return
 	}
 
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		return
-	}
-	defer clean()
-
 	for _, peer := range res.GetPeers() {
-		if err := ln.SendCustomMessage(cl, peer.NodeId, &ln.Message{
-			Version: ln.MessageVersion,
+		if err := ln.SendCustomMessage(peer.NodeId, &ln.Message{
+			Version: ln.MESSAGE_VERSION,
 			Memo:    "poll",
 		}); err != nil {
 			log.Println("Failed to poll balances from", getNodeAlias(peer.NodeId), err)

@@ -91,43 +91,37 @@ func telegramStart() {
 				if config.Config.PeginTxId == "" {
 					t = "No pending peg-in or BTC withdrawal"
 				} else {
-					cl, clean, er := ln.GetClient()
-					if er != nil {
-						t = "❗ Error: " + er.Error()
-					} else {
-						if config.Config.PeginTxId != "external" {
-							confs, _ := peginConfirmations(config.Config.PeginTxId)
-							if config.Config.PeginClaimJoin {
-								bh := ln.GetBlockHeight(cl)
-								duration := time.Duration(10*(ln.ClaimBlockHeight-bh)) * time.Minute
-								if ln.ClaimBlockHeight == 0 {
-									duration = time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
-								}
-								formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-								if duration < 0 {
-									formattedDuration = "Past due"
-								}
-								t = "🧬 " + ln.ClaimStatus
-								if ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
-									t += ". Time left to apply: " + formattedDuration
-								} else if confs > 0 {
-									t += ". Claim ETA: " + formattedDuration
-								}
-							} else {
-								// solo peg-in
-								duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
-								formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-								t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
-								if config.Config.PeginClaimScript != "" {
-									t += "/102, Time left: " + formattedDuration
-								}
-								t += ". TxId: `" + config.Config.PeginTxId + "`"
+					if config.Config.PeginTxId != "external" {
+						confs, _ := peginConfirmations(config.Config.PeginTxId)
+						if config.Config.PeginClaimJoin {
+							bh := ln.GetBlockHeight()
+							duration := time.Duration(10*(ln.ClaimBlockHeight-bh)) * time.Minute
+							if ln.ClaimBlockHeight == 0 {
+								duration = time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
+							}
+							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+							if duration < 0 {
+								formattedDuration = "Past due"
+							}
+							t = "🧬 " + ln.ClaimStatus
+							if ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
+								t += ". Time left to apply: " + formattedDuration
+							} else if confs > 0 {
+								t += ". Claim ETA: " + formattedDuration
 							}
 						} else {
-							t = "Awaiting external funding to a peg-in address"
+							// solo peg-in
+							duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
+							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+							t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+							if config.Config.PeginClaimScript != "" {
+								t += "/102, Time left: " + formattedDuration
+							}
+							t += ". TxId: `" + config.Config.PeginTxId + "`"
 						}
+					} else {
+						t = "Awaiting external funding to a peg-in address"
 					}
-					clean()
 				}
 				telegramSendMessage(t)
 			case "/autoswaps":

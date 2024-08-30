@@ -56,7 +56,7 @@ type Configuration struct {
 
 var Config Configuration
 
-func Load(dataDir string) {
+func Load(dataDir string, network string) {
 
 	// Get the current user's information
 	currentUser, err := user.Current()
@@ -89,7 +89,7 @@ func Load(dataDir string) {
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 
-	if os.Getenv("NETWORK") == "testnet" {
+	if network == "testnet" {
 		Config.Chain = "testnet"
 		Config.NodeApi = "https://mempool.space/testnet/lightning/node"
 		Config.BitcoinApi = "https://mempool.space/testnet"

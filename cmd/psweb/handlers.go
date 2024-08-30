@@ -51,6 +51,9 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res.GetSwaps()
 
+	// refresh swap costs if changed
+	cacheSwapCosts()
+
 	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
@@ -599,7 +602,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		Stats:                   stats,
 		ChannelInfo:             channelInfo,
 		PeerSwapPeer:            psPeer,
-		MyAlias:                 ln.GetMyAlias(),
+		MyAlias:                 ln.MyNodeAlias,
 		SenderOutFee:            senderOutFee,
 		SenderOutFeePPM:         senderOutFeePPM,
 		SenderInFee:             senderInFee,
@@ -731,7 +734,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	maxConfs := int32(peginBlocks)
 	cjETA := 34
 
-	bh := int32(ln.GetBlockHeight(cl))
+	bh := int32(ln.GetBlockHeight())
 	if ln.MyRole != "none" {
 		target := int32(ln.ClaimBlockHeight)
 		maxConfs = target - bh + confs
@@ -771,11 +774,11 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		MinBumpFeeRate:      math.Ceil((config.Config.PeginFeeRate+1)*100) / 100,
 		CanBump:             canBump,
 		CanRBF:              ln.CanRBF(),
-		IsCLN:               ln.Implementation == "CLN",
+		IsCLN:               ln.IMPLEMENTATION == "CLN",
 		BitcoinAddress:      addr,
 		AdvertiseEnabled:    ln.AdvertiseBitcoinBalance,
 		BitcoinSwaps:        config.Config.BitcoinSwaps,
-		CanClaimJoin:        hasDiscountedvSize && ln.Implementation == "LND",
+		CanClaimJoin:        hasDiscountedvSize,
 		IsClaimJoin:         config.Config.PeginClaimJoin,
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
@@ -966,7 +969,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			claimScript = ""
 		}
 
-		if hasDiscountedvSize && ln.Implementation == "LND" {
+		if hasDiscountedvSize {
 			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
 			if config.Config.PeginClaimJoin {
 				ln.ClaimStatus = "Awaiting funding tx to confirm"
@@ -1552,7 +1555,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config:          config.Config,
 		Version:         version,
 		Latest:          latestVersion,
-		Implementation:  ln.Implementation,
+		Implementation:  ln.IMPLEMENTATION,
 		HTTPS:           "https://" + hostname + ".local:" + config.Config.SecurePort,
 		IsPossibleHTTPS: os.Getenv("NO_HTTPS") == "",
 	}
@@ -2188,7 +2191,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			inbound := r.FormValue("direction") == "inbound"
 
 			if inbound {
-				if ln.Implementation == "CLN" || !ln.CanRBF() {
+				if ln.IMPLEMENTATION == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
 					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
@@ -2253,7 +2256,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					password = r.FormValue("password")
 				}
 				// restart with HTTPS listener
-				restart(w, r, true, password)
+				showRestartScreen(w, r, true, password, true)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
 			}
@@ -2538,7 +2541,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.ServerIPs = r.FormValue("serverIPs")
 				if secureConnection {
 					if err := config.GenerateServerCertificate(); err == nil {
-						restart(w, r, true, config.Config.Password)
+						showRestartScreen(w, r, true, config.Config.Password, true)
 					} else {
 						log.Println("GenereateServerCertificate:", err)
 						redirectWithError(w, r, "/config?", err)
@@ -2549,7 +2552,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 			if !secureConnection && config.Config.SecureConnection {
 				// restart to listen on HTTP only
-				restart(w, r, false, "")
+				showRestartScreen(w, r, false, "", true)
 			}
 		}
 
@@ -2640,9 +2643,14 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if mustRestart {
 			// update peerswap config
 			config.SavePS()
-			// show progress bar and log
-			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			if ln.IMPLEMENTATION == "LND" {
+				// show progress bar and log
+				go http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			} else {
+				showRestartScreen(w, r, config.Config.SecureConnection, config.Config.Password, false)
+			}
 			ps.Stop()
+
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
 		} else { // configs are good
@@ -2676,7 +2684,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 
 	logFile := "log" // peerswapd log
 	searchText := "peerswapd grpc listening on"
-	if ln.Implementation == "CLN" {
+	if ln.IMPLEMENTATION == "CLN" {
 		logFile = "cln.log"
 		searchText = "plugin-peerswap: peerswap initialized"
 	}
@@ -2750,7 +2758,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    1, // from first line
 		LogFile:        logFile,
-		Implementation: ln.Implementation,
+		Implementation: ln.IMPLEMENTATION,
 	}
 
 	// executing template named "logpage"

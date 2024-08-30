@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	Implementation = "LND"
+	IMPLEMENTATION = "LND"
 )
 
 type InflightHTLC struct {
@@ -747,38 +747,24 @@ func getLndVersion() float64 {
 		}
 
 		LndVerson += b / 100
-
-		// save myNodeId
-		myNodeId = res.GetIdentityPubkey()
 	}
 
 	return LndVerson
 }
 
-func GetBlockHeight(client lnrpc.LightningClient) uint32 {
+func GetBlockHeight() uint32 {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return 0
+	}
+	defer cleanup()
+
 	res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
 	if err != nil {
 		return 0
 	}
 
 	return res.GetBlockHeight()
-}
-
-func GetMyAlias() string {
-	if myNodeAlias == "" {
-		client, cleanup, err := GetClient()
-		if err != nil {
-			return ""
-		}
-		defer cleanup()
-
-		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
-		if err != nil {
-			return ""
-		}
-		myNodeAlias = res.GetAlias()
-	}
-	return myNodeAlias
 }
 
 func downloadInvoices(client lnrpc.LightningClient) error {
@@ -861,7 +847,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
-			if event.AmtOutMsat > ignoreForwardsMsat {
+			if event.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
 				LastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
@@ -974,7 +960,7 @@ func appendPayment(payment *lnrpc.Payment) {
 				chanId := htlc.Route.Hops[0].ChanId
 				// get destination from the last hop
 				lastHop := htlc.Route.Hops[len(htlc.Route.Hops)-1]
-				if lastHop.PubKey == myNodeId {
+				if lastHop.PubKey == MyNodeId {
 					// this is a circular rebalancing
 					rebalanceOutHtlcs[chanId] = append(rebalanceOutHtlcs[chanId], htlc)
 					rebalanceInHtlcs[lastHop.ChanId] = append(rebalanceInHtlcs[lastHop.ChanId], htlc)
@@ -1083,7 +1069,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
 					// ignore dust
-					if htlc.forwardingEvent.AmtOutMsat > ignoreForwardsMsat {
+					if htlc.forwardingEvent.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 						// add our stored forwards
 						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
 						// settled htlcEvent has no Outgoing info, take from queue
@@ -1152,12 +1138,14 @@ func SubscribeAll() {
 	client := lnrpc.NewLightningClient(conn)
 	ctx := context.Background()
 
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			// error
+	if MyNodeId == "" {
+		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		if err != nil {
+			// lnd not ready
 			return
 		}
+		MyNodeAlias = res.GetAlias()
+		MyNodeId = res.GetIdentityPubkey()
 	}
 
 	// initial download
@@ -1289,107 +1277,29 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 			return err
 		}
 
-		if data.Type == messageType {
-			var msg Message
-			var buffer bytes.Buffer
-
-			// Write the byte slice into the buffer
-			buffer.Write(data.Data)
-
-			// Deserialize binary data
-			decoder := gob.NewDecoder(&buffer)
-			if err := decoder.Decode(&msg); err != nil {
-				log.Println("Cannot deserialize the received message ")
-				continue
-			}
-
-			if msg.Version != MessageVersion {
-				log.Println("Received a message with wrong version number")
-				continue
-			}
-
+		if data.Type == MESSAGE_TYPE {
 			nodeId := hex.EncodeToString(data.Peer)
 
+			OnMyCustomMessage(nodeId, data.Data)
+
 			if peerAddresses[nodeId] == nil {
-				// cache peer addresses
+				// cache peer addresses for reconnects
 				info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
 				if err == nil {
 					peerAddresses[nodeId] = info.Node.Addresses
-				}
-			}
-
-			switch msg.Memo {
-			case "broadcast":
-				// received broadcast of pegin status
-				// msg.Asset: "pegin_started" or "pegin_ended"
-				Broadcast(nodeId, &msg)
-
-			case "unable":
-				forgetPubKey(msg.Destination)
-
-			case "process":
-				// messages related to pegin claimjoin
-				Process(&msg, nodeId)
-
-			case "poll":
-				// received request for information
-				shareInvite(client, nodeId)
-
-				if AdvertiseLiquidBalance {
-					if SendCustomMessage(client, nodeId, &Message{
-						Version: MessageVersion,
-						Memo:    "balance",
-						Asset:   "lbtc",
-						Amount:  LiquidBalance,
-					}) == nil {
-						// save announcement
-						if SentLiquidBalances[nodeId] == nil {
-							SentLiquidBalances[nodeId] = new(BalanceInfo)
-						}
-						SentLiquidBalances[nodeId].Amount = LiquidBalance
-						SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
-					}
-
-					if AdvertiseBitcoinBalance {
-						if SendCustomMessage(client, nodeId, &Message{
-							Version: MessageVersion,
-							Memo:    "balance",
-							Asset:   "btc",
-							Amount:  BitcoinBalance,
-						}) == nil {
-							// save announcement
-							if SentBitcoinBalances[nodeId] == nil {
-								SentBitcoinBalances[nodeId] = new(BalanceInfo)
-							}
-							SentBitcoinBalances[nodeId].Amount = BitcoinBalance
-							SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
-						}
-					}
-				}
-
-			case "balance":
-				// received information
-				ts := time.Now().Unix()
-				if msg.Asset == "lbtc" {
-					if LiquidBalances[nodeId] == nil {
-						LiquidBalances[nodeId] = new(BalanceInfo)
-					}
-					LiquidBalances[nodeId].Amount = msg.Amount
-					LiquidBalances[nodeId].TimeStamp = ts
-				}
-				if msg.Asset == "btc" {
-					if BitcoinBalances[nodeId] == nil {
-						BitcoinBalances[nodeId] = new(BalanceInfo)
-					}
-					BitcoinBalances[nodeId].Amount = msg.Amount
-					BitcoinBalances[nodeId].TimeStamp = ts
 				}
 			}
 		}
 	}
 }
 
-func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Message) error {
+func SendCustomMessage(peerId string, message *Message) error {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	peerByte, err := hex.DecodeString(peerId)
 	if err != nil {
 		return err
@@ -1404,7 +1314,7 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 
 	req := &lnrpc.SendCustomMessageRequest{
 		Peer: peerByte,
-		Type: messageType,
+		Type: MESSAGE_TYPE,
 		Data: buffer.Bytes(),
 	}
 
@@ -1424,7 +1334,7 @@ func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Mes
 	}
 
 success:
-	// log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
+	log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
 
 	return nil
 }
@@ -1448,7 +1358,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 			result.AmountOut6m += e.AmtOut
 			feeMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1463,7 +1373,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 			result.AmountIn6m += e.AmtIn
 			assistedMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1569,14 +1479,14 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 			routedOutMsat += e.AmtOutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -2017,12 +1927,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	}
 
 	ctx := context.Background()
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return
-		}
-	}
 	r, err := client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
 	})
@@ -2032,7 +1936,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	policy := r.Node1Policy
 	peerId := r.Node2Pub
-	if r.Node1Pub != myNodeId {
+	if r.Node1Pub != MyNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
 		peerId = r.Node1Pub
@@ -2126,12 +2030,6 @@ func ApplyAutoFees() {
 	defer cleanup()
 
 	ctx := context.Background()
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return
-		}
-	}
 
 	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
 		ActiveOnly: true,
@@ -2160,7 +2058,7 @@ func ApplyAutoFees() {
 
 		policy := r.Node1Policy
 		peerId := r.Node2Pub
-		if r.Node1Pub != myNodeId {
+		if r.Node1Pub != MyNodeId {
 			// the first policy is not ours, use the second
 			policy = r.Node2Policy
 			peerId = r.Node1Pub
@@ -2225,7 +2123,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.AmtOutMsat > ignoreForwardsMsat {
+		if e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
 			plot = append(plot, DataPoint{
 				TS:     e.TimestampNs / 1_000_000_000,
 				Amount: e.AmtOut,
@@ -2249,7 +2147,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 		}
 		for _, e := range forwardsOut[chId] {
 			// ignore small forwards
-			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+			if e.AmtOutMsat > IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
@@ -2265,7 +2163,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	if channelId > 0 {
 		for _, e := range forwardsIn[channelId] {
 			// ignore small forwards
-			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+			if e.AmtOutMsat > IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,

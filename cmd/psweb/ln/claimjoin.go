@@ -1,5 +1,3 @@
-//go:build !cln
-
 package ln
 
 import (
@@ -29,12 +27,11 @@ import (
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ps"
 
-	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/chainrpc"
 )
 
 // maximum number of participants in ClaimJoin
-const maxParties = 10
+const MAX_PARTIES = 10
 
 var (
 	// encryption private key
@@ -393,22 +390,9 @@ func kickPeer(pubKey, reason string) {
 // (it means the message came back to you from a downstream peer)
 func Broadcast(fromNodeId string, message *Message) bool {
 
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return false
-		}
-	}
-
-	cl, clean, err := GetClient()
-	if err != nil {
-		return false
-	}
-	defer clean()
-
 	sent := false
 
-	if fromNodeId == myNodeId || (fromNodeId != myNodeId && (message.Asset == "pegin_started" && keyToNodeId[message.Sender] == "" || message.Asset == "pegin_ended" && keyToNodeId[message.Sender] != "")) {
+	if fromNodeId == MyNodeId || (fromNodeId != MyNodeId && (message.Asset == "pegin_started" && keyToNodeId[message.Sender] == "" || message.Asset == "pegin_ended" && keyToNodeId[message.Sender] != "")) {
 		// forward to everyone else
 		client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 		if err != nil {
@@ -424,14 +408,14 @@ func Broadcast(fromNodeId string, message *Message) bool {
 		for _, peer := range res.GetPeers() {
 			// don't send it back to where it came from
 			if peer.NodeId != fromNodeId {
-				if SendCustomMessage(cl, peer.NodeId, message) == nil {
+				if SendCustomMessage(peer.NodeId, message) == nil {
 					sent = true
 				}
 			}
 		}
 	}
 
-	if fromNodeId == myNodeId || message.Sender == MyPublicKey() {
+	if fromNodeId == MyNodeId || message.Sender == MyPublicKey() {
 		// do nothing more if this is my own broadcast
 		return sent
 	}
@@ -450,8 +434,8 @@ func Broadcast(fromNodeId string, message *Message) bool {
 			if len(ClaimParties) > 1 || ClaimJoinHandlerTS < message.TimeStamp {
 				log.Println("Initiator collision, staying as initiator")
 				// repeat peg-in start info
-				SendCustomMessage(cl, fromNodeId, &Message{
-					Version:   MessageVersion,
+				SendCustomMessage(fromNodeId, &Message{
+					Version:   MESSAGE_VERSION,
 					Memo:      "broadcast",
 					Asset:     "pegin_started",
 					Amount:    uint64(JoinBlockHeight),
@@ -573,13 +557,6 @@ func SendCoordination(destinationPubKey string, message *Coordination, needsResp
 		return false
 	}
 
-	cl, clean, er := GetClient()
-	if er != nil {
-		log.Println("Cannot get lightning client:", err)
-		return false
-	}
-	defer clean()
-
 	partyN := 0
 	for i := 1; i < len(ClaimParties); i++ {
 		if ClaimParties[i].PubKey == destinationPubKey {
@@ -593,8 +570,8 @@ func SendCoordination(destinationPubKey string, message *Coordination, needsResp
 		return false
 	}
 
-	err = SendCustomMessage(cl, destinationNodeId, &Message{
-		Version:     MessageVersion,
+	err = SendCustomMessage(destinationNodeId, &Message{
+		Version:     MESSAGE_VERSION,
 		Memo:        "process",
 		Sender:      MyPublicKey(),
 		Destination: destinationPubKey,
@@ -622,14 +599,7 @@ func SendCoordination(destinationPubKey string, message *Coordination, needsResp
 
 // Either forward to final destination or decrypt and process
 func Process(message *Message, senderNodeId string) {
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return
-		}
-	}
-
-	if keyToNodeId[message.Sender] == "" && senderNodeId != myNodeId {
+	if keyToNodeId[message.Sender] == "" && senderNodeId != MyNodeId {
 		// save source key map
 		keyToNodeId[message.Sender] = senderNodeId
 		// persist to db
@@ -854,21 +824,14 @@ func Process(message *Message, senderNodeId string) {
 		return
 	}
 
-	// message not to me, relay further
-	cl, clean, err := GetClient()
-	if err != nil {
-		return
-	}
-	defer clean()
-
 	destinationNodeId := keyToNodeId[message.Destination]
 	if destinationNodeId == "" {
 		log.Println("Cannot relay: destination PubKey " + message.Destination + " has no matching NodeId")
 		// forget the pubKey
 		forgetPubKey(message.Destination)
 		// inform the sender that was unable to relay
-		SendCustomMessage(cl, senderNodeId, &Message{
-			Version:     MessageVersion,
+		SendCustomMessage(senderNodeId, &Message{
+			Version:     MESSAGE_VERSION,
 			Memo:        "unable",
 			Destination: message.Destination,
 			Sender:      MyPublicKey(),
@@ -878,7 +841,7 @@ func Process(message *Message, senderNodeId string) {
 
 	log.Println("Relaying", message.Memo, "from", GetAlias(senderNodeId), "to", GetAlias(destinationNodeId))
 
-	err = SendCustomMessage(cl, destinationNodeId, message)
+	err := SendCustomMessage(destinationNodeId, message)
 	if err != nil {
 		log.Println("Cannot relay:", err)
 	}
@@ -919,13 +882,6 @@ func forgetPubKey(destination string) {
 
 // called for claim join initiator after his pegin funding tx confirms
 func InitiateClaimJoin(claimBlockHeight uint32) bool {
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return false
-		}
-	}
-
 	if myPrivateKey == nil {
 		myPrivateKey = generatePrivateKey()
 		if myPrivateKey != nil {
@@ -956,8 +912,8 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 		}
 	}
 
-	if Broadcast(myNodeId, &Message{
-		Version:   MessageVersion,
+	if Broadcast(MyNodeId, &Message{
+		Version:   MESSAGE_VERSION,
 		Memo:      "broadcast",
 		Asset:     "pegin_started",
 		Amount:    uint64(JoinBlockHeight),
@@ -981,15 +937,8 @@ func InitiateClaimJoin(claimBlockHeight uint32) bool {
 
 // called by claim join initiator after posting claim tx or on error
 func EndClaimJoin(txId string, status string) bool {
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return false
-		}
-	}
-
-	Broadcast(myNodeId, &Message{
-		Version:     MessageVersion,
+	Broadcast(MyNodeId, &Message{
+		Version:     MESSAGE_VERSION,
 		Memo:        "broadcast",
 		Asset:       "pegin_ended",
 		Amount:      uint64(ClaimBlockHeight),
@@ -1056,27 +1005,14 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 			return false
 		}
 
-		cl, clean, er := GetClient()
-		if er != nil {
-			return false
-		}
-		defer clean()
-
 		for _, peer := range res.GetPeers() {
-			SendCustomMessage(cl, peer.NodeId, &Message{
-				Version: MessageVersion,
+			SendCustomMessage(peer.NodeId, &Message{
+				Version: MESSAGE_VERSION,
 				Memo:    "poll",
 			})
 		}
 
 		return false
-	}
-
-	if myNodeId == "" {
-		// populates myNodeId
-		if getLndVersion() == 0 {
-			return false
-		}
 	}
 
 	// preserve the same key for several join attempts
@@ -1116,15 +1052,15 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 	return false
 }
 
-func shareInvite(client lnrpc.LightningClient, nodeId string) {
+func shareInvite(nodeId string) {
 	sender := ClaimJoinHandler
 	if MyRole == "initiator" {
 		sender = MyPublicKey()
 	}
-	if sender != "" && GetBlockHeight(client) < JoinBlockHeight {
+	if sender != "" && GetBlockHeight() < JoinBlockHeight {
 		// repeat pegin start info
-		SendCustomMessage(client, nodeId, &Message{
-			Version:   MessageVersion,
+		SendCustomMessage(nodeId, &Message{
+			Version:   MESSAGE_VERSION,
 			Memo:      "broadcast",
 			Asset:     "pegin_started",
 			Amount:    uint64(JoinBlockHeight),
@@ -1189,8 +1125,8 @@ func addClaimParty(newParty *ClaimParty) (bool, string) {
 		}
 	}
 
-	if len(ClaimParties) == maxParties {
-		return false, "Refuse to add, over limit of " + strconv.Itoa(maxParties)
+	if len(ClaimParties) == MAX_PARTIES {
+		return false, "Refuse to add, over limit of " + strconv.Itoa(MAX_PARTIES)
 	}
 
 	// verify TxOutProof

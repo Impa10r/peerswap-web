@@ -1,6 +1,9 @@
 package ln
 
 import (
+	"bytes"
+	"encoding/gob"
+	"log"
 	"math"
 	"reflect"
 	"strconv"
@@ -8,6 +11,59 @@ import (
 	"time"
 
 	"peerswap-web/cmd/psweb/db"
+)
+
+const (
+	// ignore small forwards
+	IGNORE_FORWARDS_MSAT = 1_000_000
+	// one custom type for peeswap web
+	MESSAGE_TYPE    = 42065
+	MESSAGE_VERSION = 1
+)
+
+var (
+	// lightning payments from swap out initiator to receiver
+	SwapRebates = make(map[string]int64)
+	MyNodeAlias string
+	MyNodeId    string
+
+	AutoFeeEnabledAll bool
+	// maps to LND channel Id
+	AutoFee         = make(map[uint64]*AutoFeeParams)
+	AutoFeeLog      = make(map[uint64][]*AutoFeeEvent)
+	AutoFeeEnabled  = make(map[uint64]bool)
+	AutoFeeDefaults = AutoFeeParams{
+		FailedBumpPPM:     10,
+		LowLiqPct:         10,
+		LowLiqRate:        1000,
+		NormalRate:        300,
+		ExcessPct:         75,
+		ExcessRate:        50,
+		InactivityDays:    7,
+		InactivityDropPPM: 5,
+		InactivityDropPct: 5,
+		CoolOffHours:      24,
+		LowLiqDiscount:    0,
+	}
+
+	// track timestamp of the last outbound forward per channel
+	LastForwardTS = make(map[uint64]int64)
+
+	// received via custom messages, per peer nodeId
+	LiquidBalances  = make(map[string]*BalanceInfo)
+	BitcoinBalances = make(map[string]*BalanceInfo)
+
+	// sent via custom messages
+	SentLiquidBalances  = make(map[string]*BalanceInfo)
+	SentBitcoinBalances = make(map[string]*BalanceInfo)
+
+	// current Balance
+	LiquidBalance  uint64
+	BitcoinBalance uint64
+
+	// global settings
+	AdvertiseLiquidBalance  = false
+	AdvertiseBitcoinBalance = false
 )
 
 type UTXO struct {
@@ -168,59 +224,6 @@ type BalanceInfo struct {
 	TimeStamp int64
 }
 
-// ignore small forwards
-const (
-	ignoreForwardsMsat = 1_000_000
-	// one custom type for peeswap web
-	messageType    = uint32(42065)
-	MessageVersion = 1
-)
-
-var (
-	// lightning payments from swap out initiator to receiver
-	SwapRebates = make(map[string]int64)
-	myNodeAlias string
-	myNodeId    string
-
-	AutoFeeEnabledAll bool
-	// maps to LND channel Id
-	AutoFee         = make(map[uint64]*AutoFeeParams)
-	AutoFeeLog      = make(map[uint64][]*AutoFeeEvent)
-	AutoFeeEnabled  = make(map[uint64]bool)
-	AutoFeeDefaults = AutoFeeParams{
-		FailedBumpPPM:     10,
-		LowLiqPct:         10,
-		LowLiqRate:        1000,
-		NormalRate:        300,
-		ExcessPct:         75,
-		ExcessRate:        50,
-		InactivityDays:    7,
-		InactivityDropPPM: 5,
-		InactivityDropPct: 5,
-		CoolOffHours:      24,
-		LowLiqDiscount:    0,
-	}
-
-	// track timestamp of the last outbound forward per channel
-	LastForwardTS = make(map[uint64]int64)
-
-	// received via custom messages, per peer nodeId
-	LiquidBalances  = make(map[string]*BalanceInfo)
-	BitcoinBalances = make(map[string]*BalanceInfo)
-
-	// sent via custom messages
-	SentLiquidBalances  = make(map[string]*BalanceInfo)
-	SentBitcoinBalances = make(map[string]*BalanceInfo)
-
-	// current Balance
-	LiquidBalance  uint64
-	BitcoinBalance uint64
-
-	// global settings
-	AdvertiseLiquidBalance  = false
-	AdvertiseBitcoinBalance = false
-)
-
 func toSats(amount float64) int64 {
 	return int64(math.Round(float64(100000000) * amount))
 }
@@ -248,6 +251,93 @@ func ConvertClnToLndChannelId(s string) uint64 {
 		}
 	}
 	return scid
+}
+
+func OnMyCustomMessage(nodeId string, payload []byte) {
+	var msg Message
+	var buffer bytes.Buffer
+
+	// Write the byte slice into the buffer
+	buffer.Write(payload)
+
+	// Deserialize binary data
+	decoder := gob.NewDecoder(&buffer)
+	if err := decoder.Decode(&msg); err != nil {
+		log.Println("Cannot deserialize the received message ")
+		return
+	}
+
+	if msg.Version != MESSAGE_VERSION {
+		return
+	}
+
+	switch msg.Memo {
+	case "broadcast":
+		// received broadcast of pegin status
+		// msg.Asset: "pegin_started" or "pegin_ended"
+		Broadcast(nodeId, &msg)
+
+	case "unable":
+		forgetPubKey(msg.Destination)
+
+	case "process":
+		// messages related to pegin claimjoin
+		Process(&msg, nodeId)
+
+	case "poll":
+		// received request for information
+		shareInvite(nodeId)
+
+		if AdvertiseLiquidBalance {
+			if SendCustomMessage(nodeId, &Message{
+				Version: MESSAGE_VERSION,
+				Memo:    "balance",
+				Asset:   "lbtc",
+				Amount:  LiquidBalance,
+			}) == nil {
+				// save announcement
+				if SentLiquidBalances[nodeId] == nil {
+					SentLiquidBalances[nodeId] = new(BalanceInfo)
+				}
+				SentLiquidBalances[nodeId].Amount = LiquidBalance
+				SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
+			}
+
+			if AdvertiseBitcoinBalance {
+				if SendCustomMessage(nodeId, &Message{
+					Version: MESSAGE_VERSION,
+					Memo:    "balance",
+					Asset:   "btc",
+					Amount:  BitcoinBalance,
+				}) == nil {
+					// save announcement
+					if SentBitcoinBalances[nodeId] == nil {
+						SentBitcoinBalances[nodeId] = new(BalanceInfo)
+					}
+					SentBitcoinBalances[nodeId].Amount = BitcoinBalance
+					SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
+				}
+			}
+		}
+
+	case "balance":
+		// received information
+		ts := time.Now().Unix()
+		if msg.Asset == "lbtc" {
+			if LiquidBalances[nodeId] == nil {
+				LiquidBalances[nodeId] = new(BalanceInfo)
+			}
+			LiquidBalances[nodeId].Amount = msg.Amount
+			LiquidBalances[nodeId].TimeStamp = ts
+		}
+		if msg.Asset == "btc" {
+			if BitcoinBalances[nodeId] == nil {
+				BitcoinBalances[nodeId] = new(BalanceInfo)
+			}
+			BitcoinBalances[nodeId].Amount = msg.Amount
+			BitcoinBalances[nodeId].TimeStamp = ts
+		}
+	}
 }
 
 // convert LND channel id to CLN 2568777x70x1

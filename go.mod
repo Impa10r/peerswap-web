@@ -23,6 +23,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.2.2
 	github.com/lightningnetwork/lnd v0.18.2-beta
+	github.com/virtuald/go-paniclog v0.0.0-20190812204905-43a7fa316459
 	go.etcd.io/bbolt v1.3.10
 	golang.org/x/crypto v0.22.0
 	golang.org/x/net v0.24.0

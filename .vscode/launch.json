@@ -4,7 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        {
+ /*       {
             "name": "Launch Package",
             "type": "go",
             "request": "launch",
@@ -13,8 +13,17 @@
             "program": "${workspaceFolder}/cmd/psweb/",
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",
-            "args": ["-datadir", "/home/vlad/.peerswap_t4"]
+            //"args": ["-datadir", "/home/vlad/.peerswap_t4"]
             //"args": ["-datadir", "/home/vlad/.peerswap3"]
+        }, */
+        // sudo bash -c 'echo 0 > /proc/sys/kernel/yama/ptrace_scope'
+        {
+            "name": "Attach to Package",
+            "type": "go",
+            "request": "attach",
+            "mode": "local",
+            "processId": "${command:pickProcess}",
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
