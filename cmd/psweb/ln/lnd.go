@@ -1134,7 +1134,7 @@ func SubscribeAll() bool {
 	if err != nil {
 		return false
 	}
-	defer conn.Close()
+	//defer conn.Close()
 
 	client := lnrpc.NewLightningClient(conn)
 	ctx := context.Background()
