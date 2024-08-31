@@ -51,9 +51,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res.GetSwaps()
 
-	// refresh swap costs if changed
-	cacheSwapCosts()
-
 	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
@@ -274,30 +271,40 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	senderOutFee := int64(0)
 	receiverInFee := int64(0)
 	receiverOutFee := int64(0)
+	cost := int64(0)
+	new := false
+	persist := false // have new tx fees to persist
 
 	for _, swap := range swaps {
 		switch swap.Type + swap.Role {
 		case "swap-insender":
 			if swap.PeerNodeId == id {
-				cost, _ := swapCost(swap)
+				cost, _, new = swapCost(swap)
 				senderInFee += cost
 			}
 		case "swap-outsender":
 			if swap.PeerNodeId == id {
-				cost, _ := swapCost(swap)
+				cost, _, new = swapCost(swap)
 				senderOutFee += cost
 			}
 		case "swap-outreceiver":
 			if swap.InitiatorNodeId == id {
-				cost, _ := swapCost(swap)
+				cost, _, new = swapCost(swap)
 				receiverOutFee += cost
 			}
 		case "swap-inreceiver":
 			if swap.InitiatorNodeId == id {
-				cost, _ := swapCost(swap)
+				cost, _, new = swapCost(swap)
 				receiverInFee += cost
 			}
 		}
+
+		persist = persist || new
+	}
+
+	// save to db
+	if persist {
+		db.Save("Swaps", "txFee", txFee)
 	}
 
 	senderInFeePPM := int64(0)
@@ -1488,7 +1495,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
 
-	cost, breakdown := swapCost(swap)
+	cost, breakdown, persist := swapCost(swap)
 	if cost != 0 {
 		ppm := cost * 1_000_000 / int64(swap.Amount)
 
@@ -1498,6 +1505,11 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		if swap.State == "State_ClaimedPreimage" {
 			swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
 			swapData += formatSigned(ppm)
+		}
+
+		// save to db
+		if persist {
+			db.Save("Swaps", "txFee", txFee)
 		}
 	}
 

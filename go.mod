@@ -2,6 +2,9 @@ module peerswap-web
 
 go 1.21.5
 
+// temporary local
+replace github.com/elementsproject/glightning => ../glightning
+
 // peerswap uses go-elements v0.4.0 which is not compatible with lnd v0.18
 // until they upgrade, I link to a compatible version in my repository
 replace github.com/vulpemventures/go-elements => github.com/impa10r/go-elements v0.5.4-0.20240428143053-2c0646844473

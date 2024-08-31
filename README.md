@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A modern and lightweight Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
 
 ### Disclaimer
 
@@ -48,7 +48,16 @@ Install and configure PeerSwap. Please consult [these instructions for LND](http
 
 Clone the repository and build PeerSwap Web UI:
 
-### LND:
+### CLN Install:
+
+```bash
+git clone https://github.com/Impa10r/peerswap-web && \
+cd peerswap-web && \
+make -j$(nproc) install-cln
+```
+PeerSwap Web UI is a now in your GOPATH (~/go/bin). To launch it as a CLN plugin, add ```plugin=/home/USER/go/bin/psweb``` to your ```~/.lightning/config``` file and restart ```lightningd``` (replace USER with your username).
+
+### LND Install:
 
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
@@ -56,15 +65,7 @@ cd peerswap-web && \
 make -j$(nproc) install-lnd
 ```
 
-### CLN:
-
-```bash
-git clone https://github.com/Impa10r/peerswap-web && \
-cd peerswap-web && \
-make -j$(nproc) install-cln
-```
-
-This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. If not, add the path in ~/.profile and reload with `source .profile`.
+This will install `psweb` to your GOPATH (~/go/bin). 
 
 To start psweb as a daemon, create a systemd service file as follows (replace USER with your username):
 

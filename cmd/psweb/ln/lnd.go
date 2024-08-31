@@ -1123,15 +1123,16 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 }
 
 // cache all and subscribe to lnd
-func SubscribeAll() {
+// return false if lightning did not start yet
+func SubscribeAll() bool {
 	if downloadComplete {
 		// only run once if successful
-		return
+		return true
 	}
 
 	conn, err := lndConnection()
 	if err != nil {
-		return
+		return false
 	}
 	defer conn.Close()
 
@@ -1142,7 +1143,7 @@ func SubscribeAll() {
 		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
 		if err != nil {
 			// lnd not ready
-			return
+			return false
 		}
 		MyNodeAlias = res.GetAlias()
 		MyNodeId = res.GetIdentityPubkey()
@@ -1150,7 +1151,7 @@ func SubscribeAll() {
 
 	// initial download
 	if downloadInvoices(client) != nil {
-		return
+		return false
 	}
 
 	downloadComplete = true
@@ -1203,13 +1204,17 @@ func SubscribeAll() {
 	}()
 
 	// subscribe to Invoices
-	for {
-		if subscribeInvoices(ctx, client) != nil {
-			time.Sleep(60 * time.Second)
-			// incremental download after error
-			downloadInvoices(client)
+	go func() {
+		for {
+			if subscribeInvoices(ctx, client) != nil {
+				time.Sleep(60 * time.Second)
+				// incremental download after error
+				downloadInvoices(client)
+			}
 		}
-	}
+	}()
+
+	return true
 }
 
 func appendInvoice(invoice *lnrpc.Invoice) {
@@ -1334,7 +1339,7 @@ func SendCustomMessage(peerId string, message *Message) error {
 	}
 
 success:
-	log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
+	// log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
 
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 )
 
 // Save saves any object to the Bolt database
-func Save(bucketName string, key string, value interface{}) error {
+func Save(bucketName string, key string, value interface{}) {
 	// Open the Bolt database
 	db, err := bbolt.Open(path.Join(config.Config.DataDir, "psweb.db"), 0600, nil)
 	if err != nil {
@@ -19,7 +19,7 @@ func Save(bucketName string, key string, value interface{}) error {
 	}
 	defer db.Close()
 
-	return db.Update(func(tx *bbolt.Tx) error {
+	err = db.Update(func(tx *bbolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(bucketName))
 		if err != nil {
 			return err
@@ -30,10 +30,14 @@ func Save(bucketName string, key string, value interface{}) error {
 		}
 		return b.Put([]byte(key), data)
 	})
+
+	if err != nil {
+		log.Printf("Failed to persist %s to db: %s", key, err)
+	}
 }
 
 // Load loads any object from the Bolt database
-func Load(bucketName string, key string, result interface{}) error {
+func Load(bucketName string, key string, result interface{}) {
 	// Open the Bolt database
 	db, err := bbolt.Open(path.Join(config.Config.DataDir, "psweb.db"), 0600, nil)
 	if err != nil {
@@ -41,7 +45,7 @@ func Load(bucketName string, key string, result interface{}) error {
 	}
 	defer db.Close()
 
-	return db.View(func(tx *bbolt.Tx) error {
+	db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(bucketName))
 		if b == nil {
 			return fmt.Errorf("bucket %s not found", bucketName)

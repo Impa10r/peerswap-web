@@ -17,6 +17,7 @@
             //"args": ["-datadir", "/home/vlad/.peerswap3"]
         }, */
         // sudo bash -c 'echo 0 > /proc/sys/kernel/yama/ptrace_scope'
+        // go install -tags cln -gcflags 'all=-N -l' ./cmd/psweb
         {
             "name": "Attach to Package",
             "type": "go",

@@ -219,3 +219,10 @@ input[type=checkbox] {
     width: 100% !important;
     height: auto !important;
 }
+
+/* half height <br> */
+.half-height {
+    display: block;
+    height: 0.5em; /* Half the typical line-height */
+    content: "";
+}

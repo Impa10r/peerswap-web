@@ -350,7 +350,12 @@
                     {{if gt .DaysNoFlow 14}}
                       color:pink
                     {{end}}">{{.DaysNoFlow}}</td>
-                  <td class="truncate" style="text-align: center;">{{if .Enabled}}{{if .Custom}}*{{end}}{{.Rule}}{{end}}</td>
+                  <td class="truncate" style="text-align: center;">
+                    {{if .Enabled}}
+                      {{if .Custom}}*{{end}}{{.Rule}}
+                    {{else}}
+                      -
+                    {{end}}</td>
                   <td>
                     <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">
                       <input type="hidden" name="action" value="toggleAutoFee">

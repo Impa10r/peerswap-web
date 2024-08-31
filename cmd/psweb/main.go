@@ -261,6 +261,8 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
 		t = "Peerswapd has not started listening yet or PeerSwap Host parameter is wrong. <a href='/log'>Check log</a>."
+	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
+		t = "Peerswap is still in the process of starting up. <a href='/log?log=cln.log'>Check log</a>."
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Lightningd failed to start or has wrong configuration. <a href='/log?log=cln.log'>Check log</a>."
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
@@ -310,28 +312,29 @@ func onTimer(firstRun bool) {
 		}
 	}()
 
-	// execute Automatic Swap In
-	if config.Config.AutoSwapEnabled {
-		executeAutoSwap()
-	}
-
 	// LND: download and subscribe to invoices, forwards and payments
 	// CLN: fetch swap fees paid and received via LN
-	go ln.SubscribeAll()
+	hasStarted := ln.SubscribeAll()
 
 	// execute auto fee
-	if !firstRun {
+	if hasStarted && !firstRun {
 		// skip first run so that forwards have time to download
 		go ln.ApplyAutoFees()
+
 		// Check if peg-in can be claimed, initiated or joined
 		checkPegin()
+
+		// advertise balances
+		go advertiseBalances()
+
+		// try every minute after startup until completed
+		go pollBalances()
+
+		// execute Automatic Swap In
+		if config.Config.AutoSwapEnabled {
+			executeAutoSwap()
+		}
 	}
-
-	// advertise Liquid balance
-	go advertiseBalances()
-
-	// try every minute after startup until completed
-	go pollBalances()
 }
 
 func liquidBackup(force bool) {
@@ -939,6 +942,7 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		unsortedTable []Table
 		totalAmount   uint64
 		totalCost     int64
+		persist       = false // new tx costs to persist
 	)
 
 	for _, swap := range swaps {
@@ -992,7 +996,9 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 			table += " ⚡&nbsp⇨&nbsp" + asset
 		}
 
-		cost, _ := swapCost(swap)
+		cost, _, new := swapCost(swap)
+		persist = persist || new
+
 		if cost != 0 {
 			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
@@ -1049,6 +1055,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 	}
 
 	table += "<p style=\"text-align: center; white-space: nowrap\">Total: " + toMil(totalAmount) + ", Cost: " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
+
+	// save to db
+	if persist {
+		db.Save("Swaps", "txFee", txFee)
+	}
 
 	return table
 }
@@ -1471,14 +1482,17 @@ func executeAutoSwap() {
 	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
 }
 
-// total and verbal breakdown
-func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string) {
+// total cost, verbal breakdown, new changes to persist
+func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 	if swap == nil {
-		return 0, ""
+		return 0, "", false
 	}
 
 	fee := int64(0)
 	breakdown := ""
+	newChanges := false
+	new := false
+
 	switch swap.Type + swap.Role {
 	case "swap-outsender":
 		rebate, exists := ln.SwapRebates[swap.Id]
@@ -1486,20 +1500,24 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string) {
 			breakdown = fmt.Sprintf("rebate paid: %s", formatSigned(rebate))
 			fee = rebate
 		}
-		claim := onchainTxFee(swap.Asset, swap.ClaimTxId)
+		claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
+		newChanges = newChanges || new
 		fee += claim
 		breakdown += fmt.Sprintf(", claim: %s", formatSigned(claim))
 	case "swap-insender":
-		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		newChanges = newChanges || new
 		breakdown = fmt.Sprintf("opening: %s", formatSigned(fee))
-		claim := onchainTxFee(swap.Asset, swap.ClaimTxId)
+		claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
+		newChanges = newChanges || new
 		if claim > 0 {
 			fee += claim
-			breakdown = fmt.Sprintf(", claim: %s", formatSigned(claim))
+			breakdown += fmt.Sprintf(", claim: %s", formatSigned(claim))
 		}
 
 	case "swap-outreceiver":
-		fee = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		newChanges = newChanges || new
 		breakdown = fmt.Sprintf("opening: %s", formatSigned(fee))
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
@@ -1507,23 +1525,24 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string) {
 			breakdown += fmt.Sprintf(", rebate received: -%s", formatSigned(rebate))
 		}
 	case "swap-inreceiver":
-		fee = onchainTxFee(swap.Asset, swap.ClaimTxId)
+		fee, new = onchainTxFee(swap.Asset, swap.ClaimTxId)
+		newChanges = newChanges || new
 		breakdown = fmt.Sprintf("claim: %s", formatSigned(fee))
 	}
 
-	return fee, breakdown
+	return fee, breakdown, newChanges
 }
 
 // get tx fee from cache or online
-func onchainTxFee(asset, txId string) int64 {
+func onchainTxFee(asset, txId string) (int64, bool) {
 	if txId == "" {
-		return 0
+		return 0, false
 	}
 
 	// try cache
 	fee, exists := txFee[txId]
 	if exists {
-		return fee
+		return fee, false
 	}
 	switch asset {
 	case "lbtc":
@@ -1532,35 +1551,14 @@ func onchainTxFee(asset, txId string) int64 {
 		fee = internet.GetBitcoinTxFee(txId)
 
 	}
+
+	save := false
 	// save to cache
 	if fee > 0 {
 		txFee[txId] = fee
+		save = true
 	}
-	return fee
-}
-
-func cacheSwapCosts() {
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		return
-	}
-	defer cleanup()
-
-	res, err := ps.ListSwaps(client)
-	if err != nil {
-		return
-	}
-
-	swaps := res.GetSwaps()
-
-	for _, swap := range swaps {
-		swapCost(swap)
-	}
-
-	// save to db
-	if db.Save("Swaps", "txFee", txFee) != nil {
-		log.Printf("Failed to persist txFee to db")
-	}
+	return fee, save
 }
 
 func showRestartScreen(w http.ResponseWriter, r *http.Request, enableHTTPS bool, password string, exit bool) {
@@ -1662,7 +1660,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 		nextPage += "showall&"
 	}
 
-	t := `<td title="` + strings.Title(direction) + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
+	t := `<td title="` + direction + ` fee PPM" id="scramble" style="width: 6ch; padding: 0px; ` + align + `">`
 	// for autofees show link
 	if ln.AutoFeeEnabledAll && ln.AutoFeeEnabled[channelId] {
 		rates, custom := ln.AutoFeeRatesSummary(channelId)
@@ -1690,7 +1688,7 @@ func feeInputField(peerNodeId string, channelId uint64, direction string, feePer
 			}
 		}
 
-		t += "<a title=\"" + strings.Title(direction) + " fee PPM\nAuto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>" + change
+		t += "<a title=\"" + direction + " fee PPM\nAuto Fees enabled\nRule: " + rates + "\" href=\"/af?id=" + channelIdStr + "\">" + formatSigned(feePerMil) + "</a>" + change
 	} else {
 		t += `<form id="` + fieldId + `" autocomplete="off" action="/submit" method="post">`
 		t += `<input autocomplete="false" name="hidden" type="text" style="display:none;">`

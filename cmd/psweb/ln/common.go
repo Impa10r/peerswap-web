@@ -511,8 +511,17 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 }
 
 func saveSwapRabate(swapId string, rebate int64) {
+	old, exists := SwapRebates[swapId]
+	if exists {
+		return
+	}
+	if old == rebate {
+		return
+	}
 	// save rebate payment
 	SwapRebates[swapId] = rebate
+	// persist to db
+	db.Save("Swaps", "SwapRebates", SwapRebates)
 }
 
 // check if the last logged fee rate is the same as newFee

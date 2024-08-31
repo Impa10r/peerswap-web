@@ -125,7 +125,7 @@ func telegramStart() {
 				}
 				telegramSendMessage(t)
 			case "/autoswaps":
-				t := "🤖 Auto swap-ins are "
+				t := "🤖 Liquid auto swaps are "
 				if config.Config.AutoSwapEnabled {
 					t += "Enabled"
 					t += "\nThreshold Amount: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdAmount)
@@ -176,7 +176,7 @@ func telegramConnect() {
 			},
 			tgbotapi.BotCommand{
 				Command:     "autoswaps",
-				Description: "Status of auto swap-ins",
+				Description: "Status of Liquid auto swaps",
 			},
 			tgbotapi.BotCommand{
 				Command:     "version",

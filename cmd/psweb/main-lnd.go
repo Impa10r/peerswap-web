@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/db"
-	"peerswap-web/cmd/psweb/ln"
 	"syscall"
 )
 
@@ -25,7 +23,7 @@ func main() {
 	flag.Parse()
 
 	if *showHelp {
-		fmt.Println("A modern and lightweight Web UI for PeerSwap")
+		fmt.Println("A lightweight Web UI for PeerSwap LND")
 		fmt.Println("Usage:")
 		flag.PrintDefaults()
 		os.Exit(0)
@@ -63,11 +61,6 @@ func main() {
 	// Wait for termination signal
 	sig := <-signalChan
 	log.Printf("Received termination signal: %s\n", sig)
-
-	// persist to db
-	if db.Save("Swaps", "SwapRebates", ln.SwapRebates) != nil {
-		log.Printf("Failed to persist SwapRebates to db")
-	}
 
 	// Exit the program gracefully
 	os.Exit(0)

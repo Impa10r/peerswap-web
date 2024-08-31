@@ -5,6 +5,8 @@ package main
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -41,6 +43,24 @@ func onInit(plugin *glightning.Plugin, options map[string]glightning.Option, con
 }
 
 func main() {
+	var (
+		showHelp    = flag.Bool("help", false, "Show help")
+		showVersion = flag.Bool("version", false, "Show version")
+	)
+
+	flag.Parse()
+
+	if *showHelp {
+		fmt.Println("A lightweight Web UI plugin for PeerSwap CLN")
+		fmt.Println("Usage: add 'plugin=/path/to/psweb' to your ~/lightning/config")
+		os.Exit(0)
+	}
+
+	if *showVersion {
+		fmt.Println("Version:", version, "for CLN")
+		os.Exit(0)
+	}
+
 	plugin = glightning.NewPlugin(onInit)
 	registerHooks(plugin)
 
@@ -82,7 +102,5 @@ func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.
 		}
 	}
 
-	return &glightning.CustomMsgReceivedResponse{
-		Result: "continue",
-	}, nil
+	return event.Continue(), nil
 }

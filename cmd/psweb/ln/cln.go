@@ -764,6 +764,15 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 		if err != nil {
 			return nil, err
 		}
+
+		// since CLN 24.05 ListPeers omits channels, add them with ListPeerChannels
+		for i, peer := range clnPeers {
+			channels, err := client.ListPeerChannels(peer.Id)
+			if err != nil {
+				return nil, err
+			}
+			clnPeers[i].Channels = channels
+		}
 	} else {
 		peer, err := client.GetPeer(peerId)
 		if err != nil {
@@ -887,15 +896,16 @@ func GetMyAlias() string {
 }
 
 // scans all channels to get peerswap lightning fees cached
-func SubscribeAll() {
+// return false if lightning did not start yet
+func SubscribeAll() bool {
 	if downloadComplete {
 		// only run once
-		return
+		return true
 	}
 
 	client, clean, err := GetClient()
 	if err != nil {
-		return
+		return false
 	}
 	defer clean()
 
@@ -904,7 +914,7 @@ func SubscribeAll() {
 		resp, err := client.GetInfo()
 		if err != nil {
 			// cln not ready
-			return
+			return false
 		}
 		MyNodeId = resp.Id
 		MyNodeAlias = resp.Alias
@@ -912,7 +922,7 @@ func SubscribeAll() {
 
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
-		return
+		return false
 	}
 
 	// last 6 months
@@ -930,6 +940,7 @@ func SubscribeAll() {
 	}
 
 	downloadComplete = true
+	return true
 }
 
 // get invoicedMsat, paidOutMsat, costMsat
@@ -1391,7 +1402,7 @@ func SendCustomMessage(peerId string, message *Message) error {
 		return err
 	}
 
-	log.Printf("Sent %d bytes %s to %s", len(buffer.Bytes()), message.Memo, GetAlias(peerId))
+	// log.Printf("Sent %d bytes %s to %s", len(buffer.Bytes()), message.Memo, GetAlias(peerId))
 
 	return nil
 }
