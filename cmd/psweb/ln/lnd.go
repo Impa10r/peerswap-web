@@ -37,7 +37,6 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
-	"github.com/lightningnetwork/lnd/zpay32"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gopkg.in/macaroon.v2"
@@ -931,28 +930,9 @@ func appendPayment(payment *lnrpc.Payment) {
 	}
 
 	if payment.Status == lnrpc.Payment_SUCCEEDED {
-		if payment.PaymentRequest != "" {
-			// Decode the payment request
-			var harnessNetParams = &chaincfg.TestNet3Params
-			if config.Config.Chain == "mainnet" {
-				harnessNetParams = &chaincfg.MainNetParams
-			}
-			invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
-			if err == nil {
-				if invoice.Description != nil {
-					if parts := strings.Split(*invoice.Description, " "); len(parts) > 4 {
-						if parts[0] == "peerswap" {
-							// find swap id
-							if parts[2] == "fee" && len(parts[4]) > 0 {
-								// save rebate payment
-								saveSwapRabate(parts[4], payment.ValueMsat/1000)
-							}
-							// skip peerswap-related payments
-							return
-						}
-					}
-				}
-			}
+		if DecodeAndProcessInvoice(payment.PaymentRequest, payment.ValueMsat) {
+			// related to peerswap
+			return
 		}
 		for _, htlc := range payment.Htlcs {
 			if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
@@ -1228,16 +1208,9 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
-		if parts := strings.Split(invoice.Memo, " "); len(parts) > 4 {
-			if parts[0] == "peerswap" {
-				// find swap id
-				if parts[2] == "fee" && len(parts[4]) > 0 {
-					// save rebate payment
-					saveSwapRabate(parts[4], invoice.AmtPaidMsat/1000)
-				}
-				// skip peerswap-related
-				return
-			}
+		if processInvoice(invoice.Memo, invoice.AmtPaidMsat) {
+			// skip peerswap-related
+			return
 		}
 		for _, htlc := range invoice.Htlcs {
 			if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
@@ -1637,15 +1610,7 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 // Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding certain nodes
 func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	ctx := context.Background()
-
-	res, err := client.ListPeers(ctx, &lnrpc.ListPeersRequest{
-		LatestError: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	res2, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
 		ActiveOnly: false,
 		PublicOnly: false,
 	})
@@ -1655,55 +1620,56 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 
 	var peers []*peerswaprpc.PeerSwapPeer
 
-	for _, lndPeer := range res.Peers {
+	for _, channel := range res.Channels {
 		// skip excluded
-		if excludeIds != nil && stringIsInSlice(lndPeer.PubKey, *excludeIds) {
+		if excludeIds != nil && stringIsInSlice(channel.RemotePubkey, *excludeIds) {
 			continue
 		}
 
 		// skip if not the single one requested
-		if peerId != "" && lndPeer.PubKey != peerId {
+		if peerId != "" && channel.RemotePubkey != peerId {
 			continue
 		}
 
-		peer := peerswaprpc.PeerSwapPeer{}
-		peer.NodeId = lndPeer.PubKey
+		var peer *peerswaprpc.PeerSwapPeer
+		found := false
 
-		for _, channel := range res2.Channels {
-			if channel.RemotePubkey == lndPeer.PubKey {
-				peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-					ChannelId:     channel.ChanId,
-					LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
-					RemoteBalance: uint64(channel.RemoteBalance),
-					Active:        channel.Active,
-				})
+		// find if peer has been added already
+		for i, p := range peers {
+			if p.NodeId == channel.RemotePubkey {
+				// point to existing
+				peer = peers[i]
+				found = true
+				break
 			}
 		}
 
-		peer.AsSender = &peerswaprpc.SwapStats{}
-		peer.AsReceiver = &peerswaprpc.SwapStats{}
-
-		// skip peers with no channels with us
-		if len(peer.Channels) > 0 {
-			peers = append(peers, &peer)
+		if !found {
+			// make new
+			peer = new(peerswaprpc.PeerSwapPeer)
+			peer.NodeId = channel.RemotePubkey
+			peer.AsSender = &peerswaprpc.SwapStats{}
+			peer.AsReceiver = &peerswaprpc.SwapStats{}
+			// append to list
+			peers = append(peers, peer)
 		}
-
-		if peer.NodeId == peerId {
-			// skip the rest
-			break
-		}
+		// append channel
+		peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+			ChannelId:     channel.ChanId,
+			LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
+			RemoteBalance: uint64(channel.RemoteBalance),
+			Active:        channel.Active,
+		})
 	}
 
-	if peerId != "" && len(peers) == 0 {
+	if peerId != "" && len(peers) != 1 {
 		// none found
 		return nil, errors.New("Peer " + peerId + " not found")
 	}
 
-	list := peerswaprpc.ListPeersResponse{
+	return &peerswaprpc.ListPeersResponse{
 		Peers: peers,
-	}
-
-	return &list, nil
+	}, nil
 }
 
 func CacheForwards() {

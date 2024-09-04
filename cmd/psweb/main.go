@@ -75,6 +75,8 @@ var (
 	hasDiscountedvSize = false
 	// required maturity for peg-in funding tx
 	peginBlocks = uint32(102)
+	// wait for lighting to sync
+	lightningHasStarted = false
 )
 
 func start() {
@@ -260,12 +262,12 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Peerswapd has not started listening yet or PeerSwap Host parameter is wrong. <a href='/log'>Check log</a>."
+		t = "Peerswapd has not started listening yet. <a href='/log'>Check log</a>."
 	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
 		t = "Peerswap is still in the process of starting up. <a href='/log?log=cln.log'>Check log</a>."
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Lightningd failed to start or has wrong configuration. <a href='/log?log=cln.log'>Check log</a>."
-	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-reloadpolicy'"):
+		t = "Lightningd has not started listening yet. <a href='/log?log=cln.log'>Check log</a>."
+	case strings.HasPrefix(t, "-32601:Unknown command"):
 		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
 	case strings.HasPrefix(t, "rpc error: code = "):
 		i := strings.Index(t, "desc =")
@@ -280,21 +282,18 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 
 func startTimer() {
 	// first run immediately
-	onTimer(true)
+	onTimer()
 
 	// then every minute
 	for range time.Tick(60 * time.Second) {
-		onTimer(false)
+		onTimer()
 	}
 }
 
 // tasks that run every minute
-func onTimer(firstRun bool) {
+func onTimer() {
 	// Start Telegram bot if not already running
 	go telegramStart()
-
-	// Back up to Telegram if Liquid balance changed
-	liquidBackup(false)
 
 	// check for updates
 	go func() {
@@ -314,27 +313,35 @@ func onTimer(firstRun bool) {
 
 	// LND: download and subscribe to invoices, forwards and payments
 	// CLN: fetch swap fees paid and received via LN
-	hasStarted := ln.SubscribeAll()
+	if !ln.SubscribeAll() {
+		// lightning did not start yet
+		return
+	}
 
-	// execute auto fee
-	if hasStarted && !firstRun {
-		// skip first run so that forwards have time to download
-		go ln.ApplyAutoFees()
+	// skip the first minute after lightning startup so that ps initiates
+	if lightningHasStarted {
+		// execute auto fees
+		ln.ApplyAutoFees()
+
+		// Back up to Telegram if Liquid balance changed
+		liquidBackup(false)
 
 		// Check if peg-in can be claimed, initiated or joined
 		checkPegin()
 
-		// advertise balances
-		go advertiseBalances()
+		// advertise own balances if enabled
+		advertiseBalances()
 
-		// try every minute after startup until completed
-		go pollBalances()
+		// poll peers for their balances and ClaimJoin invites
+		pollBalances()
 
-		// execute Automatic Swap In
+		// see if possible to execute Automatic Liquid Swap In
 		if config.Config.AutoSwapEnabled {
 			executeAutoSwap()
 		}
 	}
+
+	lightningHasStarted = true
 }
 
 func liquidBackup(force bool) {
@@ -482,10 +489,10 @@ func convertPeersToHTMLTable(
 		// Construct channels data
 		for _, channel := range peer.Channels {
 			// red background for inactive channels
-			bc := "#590202"
+			bc := "#362929"
 			fc := "grey"
 			if config.Config.ColorScheme == "light" {
-				bc = "#fcb6b6"
+				bc = "#e0dddc"
 				fc = "grey"
 			}
 
@@ -592,7 +599,7 @@ func convertPeersToHTMLTable(
 			}
 
 			if stats.RebalanceCost > 0 {
-				flowText += "\nCirc Rebal Costs: -" + formatWithThousandSeparators(stats.RebalanceCost)
+				flowText += "\nCirc Rebal Costs: " + formatWithThousandSeparators(stats.RebalanceCost)
 				if stats.RebalanceIn > 0 {
 					flowText += "\nCirc Rebal PPM: " + formatWithThousandSeparators(stats.RebalanceCost*1_000_000/stats.RebalanceIn)
 				}
@@ -746,10 +753,10 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 		// Construct channels data
 		for _, channel := range peer.Channels {
 			// red background for inactive channels
-			bc := "#590202"
+			bc := "#362929"
 			fc := "grey"
 			if config.Config.ColorScheme == "light" {
-				bc = "#fcb6b6"
+				bc = "#e0dddc"
 				fc = "grey"
 			}
 
@@ -849,7 +856,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			}
 
 			if stats.RebalanceCost > 0 {
-				flowText += "\nCirc Rebal Costs: -" + formatWithThousandSeparators(stats.RebalanceCost)
+				flowText += "\nCirc Rebal Costs: " + formatWithThousandSeparators(stats.RebalanceCost)
 				if stats.RebalanceIn > 0 {
 					flowText += "\nCirc Rebal PPM: " + formatWithThousandSeparators(stats.RebalanceCost*1_000_000/stats.RebalanceIn)
 				}
@@ -1002,7 +1009,14 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		if cost != 0 {
 			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
-			table += " <span title=\"Swap cost/-rebate, sats. PPM: " + formatSigned(ppm) + "\">" + formatSigned(cost) + "</span>"
+			table += " <span title=\"Swap +profit/-cost, sats. PPM: "
+
+			if cost < 0 {
+				table += formatSigned(-ppm) + "\">+"
+			} else {
+				table += formatSigned(ppm) + "\">"
+			}
+			table += formatSigned(-cost) + "</span>"
 		}
 
 		table += "</td><td id=\"scramble\" style=\"overflow-wrap: break-word;\">"
@@ -1054,7 +1068,15 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		ppm = totalCost * 1_000_000 / int64(totalAmount)
 	}
 
-	table += "<p style=\"text-align: center; white-space: nowrap\">Total: " + toMil(totalAmount) + ", Cost: " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
+	table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
+	if totalCost >= 0 {
+		table += "Cost"
+	} else {
+		table += "Profit"
+		totalCost = -totalCost
+		ppm = -ppm
+	}
+	table += ": " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
 
 	// save to db
 	if persist {
@@ -1522,7 +1544,7 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
 			fee -= rebate
-			breakdown += fmt.Sprintf(", rebate received: -%s", formatSigned(rebate))
+			breakdown += fmt.Sprintf(", rebate received: %s", formatSigned(rebate))
 		}
 	case "swap-inreceiver":
 		fee, new = onchainTxFee(swap.Asset, swap.ClaimTxId)
@@ -1841,9 +1863,7 @@ func pollBalances() {
 		if err := ln.SendCustomMessage(peer.NodeId, &ln.Message{
 			Version: ln.MESSAGE_VERSION,
 			Memo:    "poll",
-		}); err != nil {
-			log.Println("Failed to poll balances from", getNodeAlias(peer.NodeId), err)
-		} else {
+		}); err == nil {
 			initalPollComplete = true
 		}
 	}

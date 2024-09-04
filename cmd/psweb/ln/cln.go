@@ -19,11 +19,8 @@ import (
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/peerswaprpc"
-
-	"github.com/lightningnetwork/lnd/zpay32"
 )
 
 const (
@@ -596,15 +593,6 @@ type HTLC struct {
 	State          string `json:"state"`
 }
 
-type Invoice struct {
-	Label              string `json:"label"`
-	Status             string `json:"status"`
-	AmountReceivedMsat uint64 `json:"amount_received_msat,omitempty"`
-	PaidAt             uint64 `json:"paid_at,omitempty"`
-	PaymentPreimage    string `json:"payment_preimage,omitempty"`
-	CreatedIndex       uint64 `json:"created_index"`
-}
-
 type ListInvoicesRequest struct {
 	PaymentHash string `json:"payment_hash"`
 }
@@ -613,9 +601,6 @@ func (r ListInvoicesRequest) Name() string {
 	return "listinvoices"
 }
 
-type ListInvoicesResponse struct {
-	Invoices []Invoice `json:"invoices"`
-}
 type ListSendPaysRequest struct {
 	PaymentHash string `json:"payment_hash"`
 }
@@ -754,7 +739,7 @@ func NewAddress() (string, error) {
 	return res.Taproot, nil
 }
 
-// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes
+// Returns Lightning channels as peerswaprpc.ListPeersResponse and certain nodes
 func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	var clnPeers []*glightning.Peer
 	var err error
@@ -764,26 +749,18 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 		if err != nil {
 			return nil, err
 		}
-
-		// since CLN 24.05 ListPeers omits channels, add them with ListPeerChannels
-		for i, peer := range clnPeers {
-			channels, err := client.ListPeerChannels(peer.Id)
-			if err != nil {
-				return nil, err
-			}
-			clnPeers[i].Channels = channels
-		}
 	} else {
 		peer, err := client.GetPeer(peerId)
 		if err != nil {
 			return nil, err
 		}
 		clnPeers = append(clnPeers, peer)
+
 	}
 
 	var peers []*peerswaprpc.PeerSwapPeer
 
-	for _, clnPeer := range clnPeers {
+	for i, clnPeer := range clnPeers {
 		// skip excluded
 		if excludeIds != nil {
 			if stringIsInSlice(clnPeer.Id, *excludeIds) {
@@ -791,10 +768,12 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 			}
 		}
 
-		// skip peers with no channels
-		if len(clnPeer.Channels) == 0 {
-			continue
+		channels, err := client.ListPeerChannels(clnPeer.Id)
+		if err != nil {
+			return nil, err
 		}
+		// add channels
+		clnPeers[i].Channels = channels
 
 		peer := peerswaprpc.PeerSwapPeer{}
 		peer.NodeId = clnPeer.Id
@@ -813,11 +792,14 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 		peers = append(peers, &peer)
 	}
 
-	list := peerswaprpc.ListPeersResponse{
-		Peers: peers,
+	if peerId != "" && len(peers) != 1 {
+		// none found
+		return nil, errors.New("Peer " + peerId + " not found")
 	}
 
-	return &list, nil
+	return &peerswaprpc.ListPeersResponse{
+		Peers: peers,
+	}, nil
 }
 
 type KeySendRequest struct {
@@ -865,36 +847,6 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 	return nil
 }
 
-type GetInfoRequest struct{}
-
-func (r GetInfoRequest) Name() string {
-	return "getinfo"
-}
-
-type GetInfoResponse struct {
-	Alias string `json:"alias"`
-}
-
-func GetMyAlias() string {
-	if MyNodeAlias == "" {
-		client, clean, err := GetClient()
-		if err != nil {
-			log.Println("GetClient:", err)
-			return ""
-		}
-		defer clean()
-
-		var res GetInfoResponse
-
-		err = client.Request(&GetInfoRequest{}, &res)
-		if err != nil {
-			return ""
-		}
-
-	}
-	return MyNodeAlias
-}
-
 // scans all channels to get peerswap lightning fees cached
 // return false if lightning did not start yet
 func SubscribeAll() bool {
@@ -903,22 +855,23 @@ func SubscribeAll() bool {
 		return true
 	}
 
+	// benchmark time
+	start := time.Now()
+
 	client, clean, err := GetClient()
 	if err != nil {
 		return false
 	}
 	defer clean()
 
-	if MyNodeId == "" {
-		// get my node Id
-		resp, err := client.GetInfo()
-		if err != nil {
-			// cln not ready
-			return false
-		}
-		MyNodeId = resp.Id
-		MyNodeAlias = resp.Alias
+	// get my node Id
+	resp, err := client.GetInfo()
+	if err != nil {
+		// cln not ready
+		return false
 	}
+	MyNodeId = resp.Id
+	MyNodeAlias = resp.Alias
 
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
@@ -939,17 +892,15 @@ func SubscribeAll() bool {
 		}
 	}
 
+	duration := time.Since(start)
+	log.Printf("SubscribeAll took %v to execute", duration)
+
 	downloadComplete = true
 	return true
 }
 
-// get invoicedMsat, paidOutMsat, costMsat
+// get statistics for a channel since the timestamp
 func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelId string, result *ChannelStats) {
-	var harnessNetParams = &chaincfg.TestNet3Params
-	if config.Config.Chain == "mainnet" {
-		harnessNetParams = &chaincfg.MainNetParams
-	}
-
 	var (
 		paidOutMsat       uint64
 		paidCostMsat      uint64
@@ -972,34 +923,28 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 		switch htlc.State {
 		case "SENT_REMOVE_ACK_REVOCATION":
 			// direction in, look for invoices
-			var inv ListInvoicesResponse
+			var inv struct {
+				Invoices []*glightning.Invoice `json:"invoices"`
+			}
 			err := client.Request(&ListInvoicesRequest{
 				PaymentHash: htlc.PaymentHash,
 			}, &inv)
 			if err != nil {
 				continue
 			}
-			if len(inv.Invoices) == 1 {
-				if inv.Invoices[0].Status == "paid" {
-					// we are looking for received, not paid
-					continue
-				}
-				if inv.Invoices[0].PaidAt > timeStamp {
-					if parts := strings.Split(inv.Invoices[0].Label, " "); len(parts) > 4 {
-						if parts[0] == "peerswap" {
-							// find swap id
-							if parts[2] == "fee" && len(parts[4]) > 0 {
-								// save rebate payment
-								saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
-							}
-							continue
+
+			if len(inv.Invoices) > 0 {
+				for _, i := range inv.Invoices {
+					if i.Status == "paid" && i.PaidAt > timeStamp {
+						amtMsat := i.MilliSatoshiReceived.MSat()
+						if !processInvoice(i.Label, int64(amtMsat)) {
+							// only account for non-peerswap related invoices
+							invoicedInMsat += amtMsat
 						}
 					}
 				}
-
-				// only account for non-peerswap related invoices
-				invoicedInMsat += htlc.AmountMsat
 			} else {
+				// no invoices
 				// can be a rebalance in, check timestamp and record the stats
 				var pmt struct {
 					Payments []Payment `json:"payments"`
@@ -1010,10 +955,10 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 				if err != nil {
 					continue
 				}
-				if len(pmt.Payments) == 1 {
-					if pmt.Payments[0].CompletedAt > timeStamp {
-						rebalancedInMsat += pmt.Payments[0].AmountMsat
-						rebalanceCostMsat += pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
+				for _, p := range pmt.Payments {
+					if p.Status == "complete" && p.CompletedAt > timeStamp {
+						rebalancedInMsat += p.AmountMsat
+						rebalanceCostMsat += p.AmountSentMsat - p.AmountMsat
 					}
 				}
 			}
@@ -1023,7 +968,6 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 			var pmt struct {
 				Payments []Payment `json:"payments"`
 			}
-
 			err := client.Request(&ListSendPaysRequest{
 				PaymentHash: htlc.PaymentHash,
 			}, &pmt)
@@ -1031,40 +975,18 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 				continue
 			}
 
-			if pmt.Payments[0].Status != "complete" {
-				continue
-			}
-
-			if len(pmt.Payments) == 1 {
-				if pmt.Payments[0].CompletedAt > timeStamp {
-					if pmt.Payments[0].Bolt11 != "" {
-						// Decode the payment request
-						invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
-						if err == nil {
-							if invoice.Description != nil {
-								if parts := strings.Split(*invoice.Description, " "); len(parts) > 4 {
-									if parts[0] == "peerswap" {
-										// find swap id
-										if parts[2] == "fee" && len(parts[4]) > 0 {
-											// save rebate payment
-											saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
-										}
-										// skip peerswap-related payments
-										continue
-									}
-								}
-							}
+			for _, p := range pmt.Payments {
+				if p.Status == "complete" && p.CompletedAt > timeStamp {
+					if !DecodeAndProcessInvoice(p.Bolt11, int64(htlc.AmountMsat)) {
+						// can be a rebalance out
+						if p.Destination == MyNodeId {
+							rebalancedOutMsat += p.AmountSentMsat
+						} else {
+							// some other payment like keysend
+							paidOutMsat += p.AmountSentMsat
+							paidCostMsat += p.AmountSentMsat - p.AmountMsat
 						}
 					}
-					// can be a rebalance out
-					if pmt.Payments[0].Destination == MyNodeId {
-						rebalancedOutMsat += pmt.Payments[0].AmountSentMsat
-					} else {
-						// some other payment like keysend
-						paidOutMsat += htlc.AmountMsat
-						paidCostMsat += pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
-					}
-
 				}
 			}
 		}

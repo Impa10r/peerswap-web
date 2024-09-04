@@ -366,7 +366,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// to find a channel for swap-in
 	maxRemoteBalance := uint64(0)
 	maxRemoteBalanceIndex := 0
-	channelCapacity := uint64(0)
 
 	// get routing stats
 	for i, ch := range peer.Channels {
@@ -384,7 +383,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		if info.RemoteBalance > maxRemoteBalance {
 			maxRemoteBalance = info.RemoteBalance
 			maxRemoteBalanceIndex = i
-			channelCapacity = info.RemoteBalance + info.LocalBalance
 		}
 
 		info.Active = ch.GetActive()
@@ -436,7 +434,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// to be conservative
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
-	// shouil match peerswap estimation
+	// should match peerswap estimation
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
@@ -448,16 +446,18 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	peerLiquidBalance := int64(-1)
 	maxLiquidSwapOut := uint64(0)
 	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
+	channelCapacity := peer.Channels[maxRemoteBalanceIndex].RemoteBalance + peer.Channels[maxRemoteBalanceIndex].LocalBalance
+
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		peerLiquidBalance = int64(ptr.Amount)
 		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-int64(swapFeeReserveLBTC()))))
-
 	} else {
 		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
 	}
 
 	if maxLiquidSwapOut >= 100_000 {
 		selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		channelCapacity = peer.Channels[maxLocalBalanceIndex].RemoteBalance + peer.Channels[maxLocalBalanceIndex].LocalBalance
 	} else {
 		maxLiquidSwapOut = 0
 	}
@@ -473,6 +473,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	if maxBitcoinSwapOut >= 100_000 {
 		selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		channelCapacity = peer.Channels[maxLocalBalanceIndex].RemoteBalance + peer.Channels[maxLocalBalanceIndex].LocalBalance
 	} else {
 		maxBitcoinSwapOut = 0
 	}
@@ -911,6 +912,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		address := ""
 		claimScript := ""
+		config.Config.PeginClaimJoin = false
 
 		if isPegin {
 			// check that elements is fully synced
@@ -971,19 +973,17 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 			address = addr.MainChainAddress
 			claimScript = addr.ClaimScript
+
+			if hasDiscountedvSize {
+				config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
+				if config.Config.PeginClaimJoin {
+					ln.ClaimStatus = "Awaiting funding tx to confirm"
+					db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+				}
+			}
 		} else {
 			address = r.FormValue("sendAddress")
 			claimScript = ""
-		}
-
-		if hasDiscountedvSize {
-			config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
-			if config.Config.PeginClaimJoin {
-				ln.ClaimStatus = "Awaiting funding tx to confirm"
-				db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
-			}
-		} else {
-			config.Config.PeginClaimJoin = false
 		}
 
 		if !isExternal {
@@ -1499,11 +1499,20 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	if cost != 0 {
 		ppm := cost * 1_000_000 / int64(swap.Amount)
 
-		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
+		swapData += `<tr><td style="text-align: right">Swap `
+		if cost > 0 {
+			swapData += `Cost`
+		} else {
+			swapData += `Profit`
+			cost = -cost
+			ppm = -ppm
+		}
+
+		swapData += `:</td><td>`
 		swapData += formatSigned(cost) + " sats (" + breakdown + ")"
 
 		if swap.State == "State_ClaimedPreimage" {
-			swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
+			swapData += `<tr><td style="text-align: right">PPM:</td><td>`
 			swapData += formatSigned(ppm)
 		}
 
@@ -1878,7 +1887,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		case "advertiseBitcoinBalance":
 			enabled := r.FormValue("enabled") == "on"
 			if enabled && (!config.Config.AllowSwapRequests || !config.Config.BitcoinSwaps) {
-				redirectWithError(w, r, "/bitcoin?", errors.New("bitcoin swap requests are disabled"))
+				redirectWithError(w, r, "/bitcoin?", errors.New("bitcoin swap requests are disabled on configuration page"))
 				return
 			}
 

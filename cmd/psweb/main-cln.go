@@ -57,12 +57,18 @@ func main() {
 	}
 
 	if *showVersion {
-		fmt.Println("Version:", version, "for CLN")
+		fmt.Printf("PeerSwap Web UI %s for CLN", version)
 		os.Exit(0)
 	}
 
 	plugin = glightning.NewPlugin(onInit)
-	registerHooks(plugin)
+
+	plugin.RegisterHooks(&glightning.Hooks{
+		CustomMsgReceived: onCustomMsgReceived,
+		HtlcAccepted:      onHtlcAccepted,
+	})
+
+	plugin.SubscribeSendPaySuccess(onSendPaySuccess)
 
 	err := plugin.Start(os.Stdin, os.Stdout)
 	if err != nil {
@@ -83,12 +89,6 @@ func redirectStderr(filename string) error {
 	return nil
 }
 
-func registerHooks(p *glightning.Plugin) {
-	p.RegisterHooks(&glightning.Hooks{
-		CustomMsgReceived: onCustomMsgReceived,
-	})
-}
-
 func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.CustomMsgReceivedResponse, error) {
 	typeBytes, err := hex.DecodeString(event.Payload[:4])
 	if err == nil {
@@ -97,10 +97,41 @@ func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.
 			if err == nil {
 				ln.OnMyCustomMessage(event.PeerId, payload)
 			} else {
-				log.Println()
+				log.Println("Cannot decode my custom message:", err)
 			}
 		}
 	}
 
+	return event.Continue(), nil
+}
+
+func onSendPaySuccess(ss *glightning.SendPaySuccess) {
+	/*	client, clean, err := ln.GetClient()
+		if err != nil {
+			return false
+		}
+		defer clean()
+
+		pmt, err := client.ListSendPaysByHash(ss.PaymentHash)
+		if err == nil {
+			if len(pmt) == 1 {
+				if pmt[0].CompletedAt > timeStamp {
+					// returns true if peerswap related
+					if !ln.DecodeAndProcessInvoice(pmt[0].Bolt11, int64(pmt.MilliSatoshiSent.msat)) {
+					}
+				}
+			}
+		}
+
+		if ss.Destination == ln.MyNodeId {
+			// circular rebalancing
+			ln.
+		}
+	*/
+	log.Println("onSendPaySuccess:", *ss)
+}
+
+func onHtlcAccepted(event *glightning.HtlcAcceptedEvent) (*glightning.HtlcAcceptedResponse, error) {
+	log.Println("onHtlcAccepted:", *event)
 	return event.Continue(), nil
 }

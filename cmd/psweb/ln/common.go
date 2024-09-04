@@ -10,7 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
+
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/lightningnetwork/lnd/zpay32"
 )
 
 const (
@@ -49,6 +53,14 @@ var (
 	// track timestamp of the last outbound forward per channel
 	LastForwardTS = make(map[uint64]int64)
 
+	// cache circular rebalances per channel
+	CircRebalIn  = make(map[uint64]*PaymentInfo)
+	CircRebalOut = make(map[uint64]*PaymentInfo)
+
+	// cache sent and received payments per channel
+	ReceivedIn = make(map[uint64]*PaymentInfo)
+	PaidOut    = make(map[uint64]*PaymentInfo)
+
 	// received via custom messages, per peer nodeId
 	LiquidBalances  = make(map[string]*BalanceInfo)
 	BitcoinBalances = make(map[string]*BalanceInfo)
@@ -65,6 +77,12 @@ var (
 	AdvertiseLiquidBalance  = false
 	AdvertiseBitcoinBalance = false
 )
+
+type PaymentInfo struct {
+	TimeStampNs    uint64
+	AmountPaidMsat uint64
+	FeePaidMsat    uint64
+}
 
 type UTXO struct {
 	Address       string
@@ -510,12 +528,46 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 
 }
 
-func saveSwapRabate(swapId string, rebate int64) {
-	old, exists := SwapRebates[swapId]
-	if exists {
-		return
+// saves swap fee rebate if found,
+// returns true if the payment is related to PeerSwap
+func DecodeAndProcessInvoice(bolt11 string, valueMsat int64) bool {
+	if bolt11 == "" {
+		return false
 	}
-	if old == rebate {
+
+	// Decode the payment request
+	var harnessNetParams = &chaincfg.MainNetParams
+	if config.Config.Chain == "testnet" {
+		harnessNetParams = &chaincfg.TestNet3Params
+	}
+	invoice, err := zpay32.Decode(bolt11, harnessNetParams)
+	if err == nil {
+		if invoice.Description != nil {
+			return processInvoice(*invoice.Description, valueMsat)
+		}
+	}
+	return false
+}
+
+func processInvoice(memo string, valueMsat int64) bool {
+	if parts := strings.Split(memo, " "); len(parts) > 4 {
+		if parts[0] == "peerswap" {
+			// find swap id
+			if parts[2] == "fee" && len(parts[4]) > 0 {
+				// save rebate payment
+				saveSwapRabate(parts[4], valueMsat/1000)
+			}
+			// skip peerswap-related payments
+			return true
+		}
+	}
+	return false
+}
+
+func saveSwapRabate(swapId string, rebate int64) {
+	_, exists := SwapRebates[swapId]
+	if exists {
+		// already existed
 		return
 	}
 	// save rebate payment
