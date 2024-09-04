@@ -53,14 +53,6 @@ var (
 	// track timestamp of the last outbound forward per channel
 	LastForwardTS = make(map[uint64]int64)
 
-	// cache circular rebalances per channel
-	CircRebalIn  = make(map[uint64]*PaymentInfo)
-	CircRebalOut = make(map[uint64]*PaymentInfo)
-
-	// cache sent and received payments per channel
-	ReceivedIn = make(map[uint64]*PaymentInfo)
-	PaidOut    = make(map[uint64]*PaymentInfo)
-
 	// received via custom messages, per peer nodeId
 	LiquidBalances  = make(map[string]*BalanceInfo)
 	BitcoinBalances = make(map[string]*BalanceInfo)
@@ -541,6 +533,7 @@ func DecodeAndProcessInvoice(bolt11 string, valueMsat int64) bool {
 		harnessNetParams = &chaincfg.TestNet3Params
 	}
 	invoice, err := zpay32.Decode(bolt11, harnessNetParams)
+
 	if err == nil {
 		if invoice.Description != nil {
 			return processInvoice(*invoice.Description, valueMsat)

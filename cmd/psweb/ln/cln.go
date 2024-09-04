@@ -49,6 +49,10 @@ var (
 	// track timestamp of the last failed forward
 	failedForwardTS = make(map[uint64]int64)
 	lightning       *glightning.Lightning
+	// cln database calls take too long, cache them
+	htlcsCache    = make(map[string][]HTLC)               // by shortChannelId
+	invoicesCache = make(map[string]ListInvoicesResponse) // by PaymentHash
+	sendpaysCache = make(map[string]ListSendPaysResponse) // by PaymentHash
 )
 
 func GetClient() (*glightning.Lightning, func(), error) {
@@ -597,6 +601,10 @@ type ListInvoicesRequest struct {
 	PaymentHash string `json:"payment_hash"`
 }
 
+type ListInvoicesResponse struct {
+	Invoices []*glightning.Invoice `json:"invoices"`
+}
+
 func (r ListInvoicesRequest) Name() string {
 	return "listinvoices"
 }
@@ -607,6 +615,10 @@ type ListSendPaysRequest struct {
 
 func (r ListSendPaysRequest) Name() string {
 	return "listsendpays"
+}
+
+type ListSendPaysResponse struct {
+	Payments []Payment `json:"payments"`
 }
 
 type ListHtlcsRequest struct {
@@ -850,19 +862,42 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 // scans all channels to get peerswap lightning fees cached
 // return false if lightning did not start yet
 func SubscribeAll() bool {
-	if downloadComplete {
-		// only run once
-		return true
-	}
-
-	// benchmark time
-	start := time.Now()
-
 	client, clean, err := GetClient()
 	if err != nil {
 		return false
 	}
 	defer clean()
+
+	var res ListHtlcsResponse
+	// cache all HTLCs
+	err = client.Request(&ListHtlcsRequest{}, &res)
+	if err != nil {
+		// CLN not ready
+		return false
+	}
+
+	// sort by channel
+	for _, htlc := range res.HTLCs {
+		if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
+			continue
+		}
+		// check if already cached
+		found := false
+		for _, h := range htlcsCache[htlc.ShortChannelID] {
+			if h.PaymentHash == htlc.PaymentHash {
+				found = true
+			}
+		}
+		// add if not found
+		if !found {
+			htlcsCache[htlc.ShortChannelID] = append(htlcsCache[htlc.ShortChannelID], htlc)
+		}
+	}
+
+	if downloadComplete {
+		// only run once full forwards download
+		return true
+	}
 
 	// get my node Id
 	resp, err := client.GetInfo()
@@ -879,8 +914,8 @@ func SubscribeAll() bool {
 	}
 
 	// last 6 months
-	timestamp := uint64(time.Now().AddDate(0, -6, 0).Unix())
 	var stats ChannelStats
+	timestamp := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	for _, peer := range peers.Peers {
 		for _, channel := range peer.Channels {
@@ -891,9 +926,6 @@ func SubscribeAll() bool {
 			}
 		}
 	}
-
-	duration := time.Since(start)
-	log.Printf("SubscribeAll took %v to execute", duration)
 
 	downloadComplete = true
 	return true
@@ -908,29 +940,25 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 		rebalancedInMsat  uint64
 		rebalancedOutMsat uint64
 		rebalanceCostMsat uint64
-		res               ListHtlcsResponse
 	)
 
-	err := client.Request(&ListHtlcsRequest{
-		ChannelId: channelId,
-	}, &res)
-	if err != nil {
-		log.Println("ListHtlcsRequest:", err)
-		return
-	}
+	// benchmark time
+	//start := time.Now()
 
-	for _, htlc := range res.HTLCs {
+	for _, htlc := range htlcsCache[channelId] {
 		switch htlc.State {
 		case "SENT_REMOVE_ACK_REVOCATION":
 			// direction in, look for invoices
-			var inv struct {
-				Invoices []*glightning.Invoice `json:"invoices"`
-			}
-			err := client.Request(&ListInvoicesRequest{
-				PaymentHash: htlc.PaymentHash,
-			}, &inv)
-			if err != nil {
-				continue
+			inv, ok := invoicesCache[htlc.PaymentHash]
+			if !ok { // fetch from cln
+				err := client.Request(&ListInvoicesRequest{
+					PaymentHash: htlc.PaymentHash,
+				}, &inv)
+				if err != nil {
+					continue
+				}
+				// cache it
+				invoicesCache[htlc.PaymentHash] = inv
 			}
 
 			if len(inv.Invoices) > 0 {
@@ -946,15 +974,18 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 			} else {
 				// no invoices
 				// can be a rebalance in, check timestamp and record the stats
-				var pmt struct {
-					Payments []Payment `json:"payments"`
+				pmt, ok := sendpaysCache[htlc.PaymentHash]
+				if !ok { // fetch from cln
+					err := client.Request(&ListSendPaysRequest{
+						PaymentHash: htlc.PaymentHash,
+					}, &pmt)
+					if err != nil {
+						continue
+					}
+					// cache it
+					sendpaysCache[htlc.PaymentHash] = pmt
 				}
-				err := client.Request(&ListSendPaysRequest{
-					PaymentHash: htlc.PaymentHash,
-				}, &pmt)
-				if err != nil {
-					continue
-				}
+
 				for _, p := range pmt.Payments {
 					if p.Status == "complete" && p.CompletedAt > timeStamp {
 						rebalancedInMsat += p.AmountMsat
@@ -965,14 +996,16 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 
 		case "RCVD_REMOVE_ACK_REVOCATION":
 			// direction out, look for payments
-			var pmt struct {
-				Payments []Payment `json:"payments"`
-			}
-			err := client.Request(&ListSendPaysRequest{
-				PaymentHash: htlc.PaymentHash,
-			}, &pmt)
-			if err != nil {
-				continue
+			pmt, ok := sendpaysCache[htlc.PaymentHash]
+			if !ok { // fetch from cln
+				err := client.Request(&ListSendPaysRequest{
+					PaymentHash: htlc.PaymentHash,
+				}, &pmt)
+				if err != nil {
+					continue
+				}
+				// cache it
+				sendpaysCache[htlc.PaymentHash] = pmt
 			}
 
 			for _, p := range pmt.Payments {
@@ -991,6 +1024,9 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 			}
 		}
 	}
+
+	//duration := time.Since(start)
+	//log.Printf("fetchPaymentsStats took %v to execute", duration)
 
 	result.PaidOut = paidOutMsat / 1000
 	result.PaidCost = paidCostMsat / 1000

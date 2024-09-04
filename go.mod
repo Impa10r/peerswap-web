@@ -2,6 +2,9 @@ module peerswap-web
 
 go 1.21.5
 
+// local
+// replace github.com/elementsproject/glightning => ../glightning
+
 // temporary forked
 replace github.com/elementsproject/glightning => github.com/impa10r/glightning v0.0.0-20240827150117-43d26f266f4d
 

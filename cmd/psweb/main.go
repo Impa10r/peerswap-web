@@ -64,9 +64,8 @@ var (
 	txFee = make(map[string]int64)
 	// Key used for cookie encryption
 	store *sessions.CookieStore
-	// catch a pending Auto Swap Id to check the state later
-	autoSwapPending bool
-	autoSwapId      string
+	// pending Auto Swap Id to check the state later
+	autoSwapId string
 	// store peer pub mapped to channel Id
 	peerNodeId = make(map[uint64]string)
 	// only poll all peers once after peerswap initializes
@@ -312,7 +311,7 @@ func onTimer() {
 	}()
 
 	// LND: download and subscribe to invoices, forwards and payments
-	// CLN: fetch swap fees paid and received via LN
+	// CLN: cache paid and received HTLCs
 	if !ln.SubscribeAll() {
 		// lightning did not start yet
 		return
@@ -1377,8 +1376,6 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					lastTimestamp = swapTimestamps[channel.ChannelId]
 				}
 
-				stats := ln.GetChannelStats(channel.ChannelId, uint64(lastTimestamp))
-
 				ppm := uint64(0)
 				if stats.RoutedOut > 1_000 { // ignore small results
 					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
@@ -1418,32 +1415,27 @@ func executeAutoSwap() {
 	activeSwaps := res2.GetSwaps()
 
 	if len(activeSwaps) > 0 {
-		if autoSwapPending {
-			// save the Id
-			autoSwapId = activeSwaps[0].Id
-		}
 		// cannot have active swaps pending to initiate auto swap
 		return
 	}
 
-	if autoSwapPending {
+	if autoSwapId != "" { // means autoswap is pending
 		disable := false
-		// no active swaps means completed
-		if autoSwapId != "" {
-			// check the state
-			res, err := ps.GetSwap(client, autoSwapId)
-			if err != nil {
-				log.Println("GetSwap:", err)
-				disable = true
-			}
-			if res.GetSwap().State != "State_ClaimedPreimage" {
-				log.Println("The last auto swap failed")
-				disable = true
-			}
-		} else {
-			// did not catch an Id is an exception
+		// no active swaps means completed or failed
+		// check the state
+		res, err := ps.GetSwap(client, autoSwapId)
+		if err != nil {
+			log.Println("GetSwap:", err)
+			// someting is wrong
 			disable = true
-			log.Println("Unable to check the status of the last auto swap")
+		} else {
+			if res.GetSwap().State == "State_ClaimedPreimage" {
+				log.Println("AutoSwap complete")
+			} else {
+				log.Println("AutoSwap failed")
+				// to avoid paying more fees
+				disable = true
+			}
 		}
 
 		if disable {
@@ -1454,7 +1446,6 @@ func executeAutoSwap() {
 		}
 
 		// stop following
-		autoSwapPending = false
 		autoSwapId = ""
 		return
 	}
@@ -1487,18 +1478,14 @@ func executeAutoSwap() {
 	amount = min(amount, satAmount-swapFeeReserveLBTC())
 
 	// execute swap
-	id, err := ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
+	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
 	if err != nil {
 		log.Println("AutoSwap error:", err)
 		return
 	}
 
-	// ready to catch Id and get status
-	autoSwapPending = true
-	autoSwapId = ""
-
 	// Log swap id
-	log.Println("Initiated Auto Swap-In, id: "+id+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
+	log.Println("Initiated Auto Swap-In, id: "+autoSwapId+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
 
 	// Send telegram
 	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
