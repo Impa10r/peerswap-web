@@ -932,6 +932,7 @@ func SubscribeAll() bool {
 }
 
 // get statistics for a channel since the timestamp
+// also caches swap rebates
 func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelId string, result *ChannelStats) {
 	var (
 		paidOutMsat       uint64
@@ -965,7 +966,7 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 				for _, i := range inv.Invoices {
 					if i.Status == "paid" && i.PaidAt > timeStamp {
 						amtMsat := i.MilliSatoshiReceived.MSat()
-						if !processInvoice(i.Label, int64(amtMsat)) {
+						if !processInvoice(i.Description, int64(amtMsat)) {
 							// only account for non-peerswap related invoices
 							invoicedInMsat += amtMsat
 						}

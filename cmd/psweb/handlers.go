@@ -1352,6 +1352,10 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
+	// refresh swap rebate
+	ln.SubscribeAll()
+	ln.GetChannelStats(swap.LndChanId, uint64(time.Now().Add(-time.Hour).Unix()))
+
 	isPending := true
 
 	switch swap.State {
@@ -1500,7 +1504,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		ppm := cost * 1_000_000 / int64(swap.Amount)
 
 		swapData += `<tr><td style="text-align: right">Swap `
-		if cost > 0 {
+		if cost >= 0 {
 			swapData += `Cost`
 		} else {
 			swapData += `Profit`

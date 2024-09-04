@@ -1506,37 +1506,43 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 	case "swap-outsender":
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
-			breakdown = fmt.Sprintf("rebate paid: %s", formatSigned(rebate))
+			breakdown = fmt.Sprintf("rebate paid: %s", formatSigned(-rebate))
 			fee = rebate
 		}
 		claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		newChanges = newChanges || new
 		fee += claim
-		breakdown += fmt.Sprintf(", claim: %s", formatSigned(claim))
+		breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
 	case "swap-insender":
 		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
 		breakdown = fmt.Sprintf("opening: %s", formatSigned(fee))
-		claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
-		newChanges = newChanges || new
-		if claim > 0 {
+		if swap.State == "State_ClaimedCoop" {
+			claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
+			newChanges = newChanges || new
 			fee += claim
-			breakdown += fmt.Sprintf(", claim: %s", formatSigned(claim))
+			breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
 		}
 
 	case "swap-outreceiver":
 		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("opening: %s", formatSigned(fee))
+		breakdown = fmt.Sprintf("opening: %s", formatSigned(-fee))
+		if swap.State == "State_ClaimedCoop" {
+			claim, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
+			newChanges = newChanges || new
+			fee += claim
+			breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
+		}
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
 			fee -= rebate
-			breakdown += fmt.Sprintf(", rebate received: %s", formatSigned(rebate))
+			breakdown += fmt.Sprintf(", rebate received: +%s", formatSigned(rebate))
 		}
 	case "swap-inreceiver":
 		fee, new = onchainTxFee(swap.Asset, swap.ClaimTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("claim: %s", formatSigned(fee))
+		breakdown = fmt.Sprintf("claim: %s", formatSigned(-fee))
 	}
 
 	return fee, breakdown, newChanges
