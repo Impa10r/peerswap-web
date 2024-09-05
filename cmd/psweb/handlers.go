@@ -122,9 +122,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	peers = res4.GetPeers()
 
-	// refresh forwarding stats
-	ln.CacheForwards()
-
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
@@ -1353,7 +1350,6 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 	swap := res.GetSwap()
 
 	// refresh swap rebate
-	ln.SubscribeAll()
 	ln.GetChannelStats(swap.LndChanId, uint64(time.Now().Add(-time.Hour).Unix()))
 
 	isPending := true

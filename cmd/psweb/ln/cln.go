@@ -493,19 +493,13 @@ func CacheHTLCs(where string) {
 }
 
 // cache routing history per channel from cln
-func CacheForwards() {
+func cacheForwards(client *glightning.Lightning) int {
 	// refresh history
-	client, clean, err := GetClient()
-	if err != nil {
-		return
-	}
-	defer clean()
-
 	var newForwards struct {
 		Forwards []Forwarding `json:"forwards"`
 	}
 
-	totalForwards := uint64(0)
+	totalForwards := 0
 
 	for {
 		// get incremental history
@@ -533,15 +527,13 @@ func CacheForwards() {
 					}
 				}
 			}
-			totalForwards += uint64(n)
+			totalForwards += n
 		} else {
 			break
 		}
 	}
 
-	if totalForwards > 0 {
-		log.Printf("Cached %d forwards", totalForwards)
-	}
+	return totalForwards
 }
 
 // get routing statistics for a channel
@@ -711,6 +703,7 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	defer clean()
 
 	fetchPaymentsStats(client, timeStamp, channelId, &result)
+	cacheForwards(client)
 
 	timeStampF := float64(timeStamp)
 
@@ -917,9 +910,9 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 	return nil
 }
 
-// scans all channels to get peerswap lightning fees cached
+// download all htlcs and forwards
 // return false if lightning did not start yet
-func SubscribeAll() bool {
+func DownloadAll() bool {
 
 	if downloadComplete {
 		// only run once
@@ -964,7 +957,7 @@ func SubscribeAll() bool {
 	}
 
 	duration := time.Since(start)
-	log.Printf("ListHtlcsRequest cached %d HTLCs in %v", len(res.HTLCs), duration)
+	log.Printf("Cached %d HTLCs in %v", len(res.HTLCs), duration)
 
 	// get my node Id
 	resp, err := client.GetInfo()
@@ -993,6 +986,11 @@ func SubscribeAll() bool {
 			}
 		}
 	}
+
+	start = time.Now()
+	forwards := cacheForwards(client)
+	duration = time.Since(start)
+	log.Printf("Cached %d forwards in %v", forwards, duration)
 
 	return true
 }
@@ -1276,16 +1274,16 @@ func ApplyAutoFees() {
 		return
 	}
 
-	CacheForwards()
-
 	client, cleanup, err := GetClient()
 	if err != nil {
 		return
 	}
 	defer cleanup()
 
-	var response map[string]interface{}
+	// incrementally refresh
+	cacheForwards(client)
 
+	var response map[string]interface{}
 	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
 		return
 	}

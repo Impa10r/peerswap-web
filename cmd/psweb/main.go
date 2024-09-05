@@ -187,12 +187,6 @@ func start() {
 
 	// Start timer to run every minute
 	go startTimer()
-
-	// to speed up first load of home page
-	go cacheAliases()
-
-	// CLN: refresh forwarding stats
-	go ln.CacheForwards()
 }
 
 func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
@@ -312,7 +306,7 @@ func onTimer() {
 
 	// LND: download and subscribe to invoices, forwards and payments
 	// CLN: cache paid and received HTLCs
-	if !ln.SubscribeAll() {
+	if !ln.DownloadAll() {
 		// lightning did not start yet
 		return
 	}
@@ -338,6 +332,9 @@ func onTimer() {
 		if config.Config.AutoSwapEnabled {
 			executeAutoSwap()
 		}
+	} else {
+		// run only once when lighting becomes available
+		go cacheAliases()
 	}
 
 	lightningHasStarted = true

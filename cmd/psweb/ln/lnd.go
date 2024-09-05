@@ -1102,9 +1102,9 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 	}
 }
 
-// cache all and subscribe to lnd
+// cache all and subscribe
 // return false if lightning did not start yet
-func SubscribeAll() bool {
+func DownloadAll() bool {
 	if downloadComplete {
 		// only run once if successful
 		return true
@@ -1670,10 +1670,6 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 	return &peerswaprpc.ListPeersResponse{
 		Peers: peers,
 	}, nil
-}
-
-func CacheForwards() {
-	// not implemented
 }
 
 // Estimate sat/vB fee
