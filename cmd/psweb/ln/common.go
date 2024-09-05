@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	// ignore small forwards
-	IGNORE_FORWARDS_MSAT = 1_000_000
+	// ignore forwards < 10 sats
+	IGNORE_FORWARDS_MSAT = 10_000
 	// one custom type for peeswap web
 	MESSAGE_TYPE    = 42065
 	MESSAGE_VERSION = 1

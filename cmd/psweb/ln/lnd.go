@@ -34,6 +34,7 @@ import (
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/chainrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
@@ -768,18 +769,21 @@ func GetBlockHeight() uint32 {
 
 func downloadInvoices(client lnrpc.LightningClient) error {
 	// only go back 6 months for itinial download
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 	offset := uint64(0)
 	totalInvoices := uint64(0)
 
 	// incremental download
 	if lastInvoiceCreationTs > 0 {
-		start = uint64(lastInvoiceCreationTs) + 1
+		startTs = uint64(lastInvoiceCreationTs) + 1
 	}
+
+	// benchmark time
+	start := time.Now()
 
 	for {
 		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
-			CreationDateStart: start,
+			CreationDateStart: startTs,
 			Reversed:          false,
 			IndexOffset:       offset,
 			NumMaxInvoices:    100, // bolt11 fields can be long
@@ -813,7 +817,8 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 	}
 
 	if totalInvoices > 0 {
-		log.Printf("Cached %d invoices", totalInvoices)
+		duration := time.Since(start)
+		log.Printf("Cached %d invoices in %v", totalInvoices, duration)
 	}
 
 	return nil
@@ -821,20 +826,23 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 
 func downloadForwards(client lnrpc.LightningClient) {
 	// only go back 6 months
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	// incremental download if substription was interrupted
 	if lastForwardCreationTs > 0 {
 		// continue from the last timestamp in seconds
-		start = lastForwardCreationTs + 1
+		startTs = lastForwardCreationTs + 1
 	}
+
+	// benchmark time
+	start := time.Now()
 
 	// download forwards
 	offset := uint32(0)
 	totalForwards := uint64(0)
 	for {
 		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
-			StartTime:       start,
+			StartTime:       startTs,
 			IndexOffset:     offset,
 			PeerAliasLookup: false,
 			NumMaxEvents:    50000,
@@ -846,7 +854,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
-			if event.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+			if event.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
 				LastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
@@ -869,25 +877,29 @@ func downloadForwards(client lnrpc.LightningClient) {
 	}
 
 	if totalForwards > 0 {
-		log.Printf("Cached %d forwards", totalForwards)
+		duration := time.Since(start)
+		log.Printf("Cached %d forwards in %v", totalForwards, duration)
 	}
 }
 
 func downloadPayments(client lnrpc.LightningClient) {
 	// only go back 6 months
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	// incremental download if substription was interrupted
 	if lastPaymentCreationTs > 0 {
 		// continue from the last timestamp in seconds
-		start = uint64(lastPaymentCreationTs + 1)
+		startTs = uint64(lastPaymentCreationTs + 1)
 	}
+
+	// benchmark time
+	start := time.Now()
 
 	offset := uint64(0)
 	totalPayments := uint64(0)
 	for {
 		res, err := client.ListPayments(context.Background(), &lnrpc.ListPaymentsRequest{
-			CreationDateStart: start,
+			CreationDateStart: startTs,
 			IncludeIncomplete: false,
 			Reversed:          false,
 			IndexOffset:       offset,
@@ -920,7 +932,8 @@ func downloadPayments(client lnrpc.LightningClient) {
 	}
 
 	if totalPayments > 0 {
-		log.Printf("Cached %d payments", totalPayments)
+		duration := time.Since(start)
+		log.Printf("Cached %d payments in %v", totalPayments, duration)
 	}
 }
 
@@ -1049,7 +1062,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
 					// ignore dust
-					if htlc.forwardingEvent.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+					if htlc.forwardingEvent.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 						// add our stored forwards
 						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
 						// settled htlcEvent has no Outgoing info, take from queue
@@ -1197,6 +1210,27 @@ func DownloadAll() bool {
 	return true
 }
 
+func subscribeBlocks(conn *grpc.ClientConn) error {
+
+	client := chainrpc.NewChainNotifierClient(conn)
+	ctx := context.Background()
+	stream, err := client.RegisterBlockEpochNtfn(ctx, &chainrpc.BlockEpoch{})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to Bitcoin blocks")
+
+	for {
+		blockEpoch, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		OnBlock(blockEpoch.Height)
+	}
+}
+
 func appendInvoice(invoice *lnrpc.Invoice) {
 	if invoice == nil {
 		// precaution
@@ -1336,7 +1370,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			result.AmountOut6m += e.AmtOut
 			feeMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1351,7 +1385,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			result.AmountIn6m += e.AmtIn
 			assistedMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1457,14 +1491,14 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			routedOutMsat += e.AmtOutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -2090,7 +2124,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.AmtOutMsat > IGNORE_FORWARDS_MSAT {
+		if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			plot = append(plot, DataPoint{
 				TS:     e.TimestampNs / 1_000_000_000,
 				Amount: e.AmtOut,
@@ -2114,7 +2148,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 		}
 		for _, e := range forwardsOut[chId] {
 			// ignore small forwards
-			if e.AmtOutMsat > IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
+			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
@@ -2130,7 +2164,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	if channelId > 0 {
 		for _, e := range forwardsIn[channelId] {
 			// ignore small forwards
-			if e.AmtOutMsat > IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
+			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,

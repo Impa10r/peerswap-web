@@ -55,7 +55,7 @@ type Forwarding struct {
 	FailCode     uint64  `json:"failcode,omitempty"`
 }
 
-type SQLResult struct {
+type SQLResponse struct {
 	Rows [][]interface{} `json:"rows"`
 }
 
@@ -437,10 +437,9 @@ func CanRBF() bool {
 }
 
 type ListForwardsRequest struct {
-	Status string `json:"status"`
-	Index  string `json:"index"`
-	Start  uint64 `json:"start"`
-	Limit  uint64 `json:"limit"`
+	Index string `json:"index"`
+	Start uint64 `json:"start"`
+	Limit uint64 `json:"limit"`
 }
 
 func (r *ListForwardsRequest) Name() string {
@@ -460,7 +459,7 @@ func CacheHTLCs(where string) {
 	}
 	query += ";"
 
-	var response SQLResult
+	var response SQLResponse
 
 	// get the HTLCs
 	err = client.Request(&SQLRequest{
@@ -474,8 +473,8 @@ func CacheHTLCs(where string) {
 	// Process the results
 	for _, row := range response.Rows {
 		if len(row) != 7 {
-			fmt.Println("Unexpected row format:", row)
-			continue
+			log.Println("Unexpected row format:", row)
+			return
 		}
 
 		htlc := HTLC{
@@ -503,23 +502,29 @@ func cacheForwards(client *glightning.Lightning) int {
 
 	for {
 		// get incremental history
-		client.Request(&ListForwardsRequest{
+		err := client.Request(&ListForwardsRequest{
 			Index: "created",
 			Start: forwardsLastIndex,
 			Limit: 1000,
 		}, &newForwards)
+		if err != nil {
+			log.Println("cacheForwards:", err)
+			return 0
+		}
 
 		n := len(newForwards.Forwards)
 		if n > 0 {
 			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
 			for _, f := range newForwards.Forwards {
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
-				if f.Status == "settled" && f.OutMsat > IGNORE_FORWARDS_MSAT {
+				if f.Status == "settled" && f.OutMsat >= IGNORE_FORWARDS_MSAT {
 					chIn := ConvertClnToLndChannelId(f.InChannel)
 					forwardsIn[chIn] = append(forwardsIn[chIn], f)
 					forwardsOut[chOut] = append(forwardsOut[chOut], f)
 					// save for autofees
 					LastForwardTS[chOut] = int64(f.ResolvedTime)
+					// forget last failed attempt
+					failedForwardTS[chOut] = 0
 				} else {
 					// catch not enough balance error
 					if f.FailCode == 4103 {
@@ -561,7 +566,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat > IGNORE_FORWARDS_MSAT {
+		if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountOut6m += e.OutMsat
 			feeMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -575,7 +580,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat > IGNORE_FORWARDS_MSAT {
+		if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountIn6m += e.OutMsat
 			assistedMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -708,13 +713,13 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	timeStampF := float64(timeStamp)
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat > IGNORE_FORWARDS_MSAT {
+		if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountOut += e.OutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat > IGNORE_FORWARDS_MSAT {
+		if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountIn += e.OutMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -918,23 +923,25 @@ func DownloadAll() bool {
 		// only run once
 		return true
 	}
-
+	/* does not work
 	// benchmark time
 	start := time.Now()
 
-	/* does not work
 	// only go back 6 months
 	block6m := GetBlockHeight()
 	if block6m == 0 {
 		return false
 	}
 	block6m -= 26_352
-	where := fmt.Sprintf("WHERE expiry > %d AND (state = 'SENT_REMOVE_ACK_REVOCATION' OR state = 'RCVD_REMOVE_ACK_REVOCATION')", block6m) // fails
+	where := "WHERE expiry > 1"
 	CacheHTLCs(where)
 
 	duration := time.Since(start)
 	log.Printf("SQL took %v to execute", duration)
 	*/
+	// benchmark time
+	start = time.Now()
+
 	client, clean, err := GetClient()
 	if err != nil {
 		return false
@@ -956,8 +963,10 @@ func DownloadAll() bool {
 		appendHTLC(htlc)
 	}
 
-	duration := time.Since(start)
-	log.Printf("Cached %d HTLCs in %v", len(res.HTLCs), duration)
+	duration = time.Since(start)
+	if len(res.HTLCs) > 0 {
+		log.Printf("Cached %d HTLCs in %v", len(res.HTLCs), duration)
+	}
 
 	// get my node Id
 	resp, err := client.GetInfo()
@@ -989,8 +998,10 @@ func DownloadAll() bool {
 
 	start = time.Now()
 	forwards := cacheForwards(client)
-	duration = time.Since(start)
-	log.Printf("Cached %d forwards in %v", forwards, duration)
+	if forwards > 0 {
+		duration = time.Since(start)
+		log.Printf("Cached %d forwards in %v", forwards, duration)
+	}
 
 	return true
 }
@@ -1358,7 +1369,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.OutMsat > IGNORE_FORWARDS_MSAT {
+		if e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			plot = append(plot, DataPoint{
 				TS:     uint64(e.ResolvedTime),
 				Amount: e.OutMsat / 1000,
@@ -1381,7 +1392,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 		}
 		for _, e := range forwardsOut[chId] {
 			// ignore small forwards
-			if e.OutMsat > IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
+			if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
 					Amount:    e.OutMsat / 1000,
@@ -1397,7 +1408,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	if channelId > 0 {
 		for _, e := range forwardsIn[channelId] {
 			// ignore small forwards
-			if e.OutMsat > IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
+			if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
 					Amount:    e.OutMsat / 1000,

@@ -2,7 +2,6 @@ package ln
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -19,15 +18,12 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
-	"google.golang.org/grpc"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ps"
-
-	"github.com/lightningnetwork/lnd/lnrpc/chainrpc"
 )
 
 // maximum number of participants in ClaimJoin
@@ -1401,25 +1397,4 @@ func verifyPSET(newClaimPSET string) bool {
 
 	log.Println("PSET verification failed: output address not found or insufficient amount")
 	return false
-}
-
-func subscribeBlocks(conn *grpc.ClientConn) error {
-
-	client := chainrpc.NewChainNotifierClient(conn)
-	ctx := context.Background()
-	stream, err := client.RegisterBlockEpochNtfn(ctx, &chainrpc.BlockEpoch{})
-	if err != nil {
-		return err
-	}
-
-	log.Println("Subscribed to Bitcoin blocks")
-
-	for {
-		blockEpoch, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-
-		OnBlock(blockEpoch.Height)
-	}
 }

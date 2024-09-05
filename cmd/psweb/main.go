@@ -595,7 +595,7 @@ func convertPeersToHTMLTable(
 			}
 
 			if stats.RebalanceCost > 0 {
-				flowText += "\nCirc Rebal Costs: " + formatWithThousandSeparators(stats.RebalanceCost)
+				flowText += "\n\nCirc Rebal Costs: " + formatWithThousandSeparators(stats.RebalanceCost)
 				if stats.RebalanceIn > 0 {
 					flowText += "\nCirc Rebal PPM: " + formatWithThousandSeparators(stats.RebalanceCost*1_000_000/stats.RebalanceIn)
 				}
@@ -852,7 +852,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 			}
 
 			if stats.RebalanceCost > 0 {
-				flowText += "\nCirc Rebal Costs: " + formatWithThousandSeparators(stats.RebalanceCost)
+				flowText += "\n\nCirc Rebal Costs: " + formatWithThousandSeparators(stats.RebalanceCost)
 				if stats.RebalanceIn > 0 {
 					flowText += "\nCirc Rebal PPM: " + formatWithThousandSeparators(stats.RebalanceCost*1_000_000/stats.RebalanceIn)
 				}
