@@ -18,6 +18,8 @@
         },*/
         // sudo bash -c 'echo 0 > /proc/sys/kernel/yama/ptrace_scope'
         // go install -tags cln -gcflags 'all=-N -l' ./cmd/psweb
+        // lcli -k plugin subcommand=stop plugin=/home/vlad/go/bin/psweb
+        // lcli -k plugin subcommand=start plugin=/home/vlad/go/bin/psweb
         {
             "name": "Attach to Package",
             "type": "go",

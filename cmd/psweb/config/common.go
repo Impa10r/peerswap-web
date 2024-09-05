@@ -159,10 +159,10 @@ func Save() error {
 
 // fallback for Bitcoin Core API if local is unreachable
 func GetBlockIoHost() string {
-	if os.Getenv("NETWORK") == "testnet" {
-		return "https://go.getblock.io/af084a9cb73840be95696eb29b5165e0"
+	if Config.Chain == "testnet" {
+		return "https://go.getblock.io/77cfc97c83e0454fb35557331188e7d6"
 	} else {
-		return "https://go.getblock.io/6885fe0778944e28979adc739c7105b6"
+		return "https://go.getblock.io/62af44fe83f540539ed0a1b52a80d41e"
 	}
 }
 

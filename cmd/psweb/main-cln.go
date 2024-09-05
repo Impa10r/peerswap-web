@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"flag"
@@ -65,10 +66,10 @@ func main() {
 
 	plugin.RegisterHooks(&glightning.Hooks{
 		CustomMsgReceived: onCustomMsgReceived,
-		HtlcAccepted:      onHtlcAccepted,
 	})
 
 	plugin.SubscribeSendPaySuccess(onSendPaySuccess)
+	plugin.SubscribeInvoicePaid(onInvoicePaid)
 
 	err := plugin.Start(os.Stdin, os.Stdout)
 	if err != nil {
@@ -106,32 +107,23 @@ func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.
 }
 
 func onSendPaySuccess(ss *glightning.SendPaySuccess) {
-	/*	client, clean, err := ln.GetClient()
-		if err != nil {
-			return false
-		}
-		defer clean()
-
-		pmt, err := client.ListSendPaysByHash(ss.PaymentHash)
-		if err == nil {
-			if len(pmt) == 1 {
-				if pmt[0].CompletedAt > timeStamp {
-					// returns true if peerswap related
-					if !ln.DecodeAndProcessInvoice(pmt[0].Bolt11, int64(pmt.MilliSatoshiSent.msat)) {
-					}
-				}
-			}
-		}
-
-		if ss.Destination == ln.MyNodeId {
-			// circular rebalancing
-			ln.
-		}
-	*/
-	log.Println("onSendPaySuccess:", *ss)
+	ln.CacheHTLCs("WHERE payment_hash=x'" + ss.PaymentHash + "'")
 }
 
-func onHtlcAccepted(event *glightning.HtlcAcceptedEvent) (*glightning.HtlcAcceptedResponse, error) {
-	log.Println("onHtlcAccepted:", *event)
-	return event.Continue(), nil
+func onInvoicePaid(p *glightning.Payment) {
+	// Convert the hex string to bytes
+	preimage, err := hex.DecodeString(p.PreImage)
+	if err != nil {
+		log.Println("Error decoding preimage:", err)
+		return
+	}
+
+	// Compute the SHA-256 hash of the preimage
+	hash := sha256.Sum256(preimage)
+
+	// Convert the hash to a hex string
+	hashHex := hex.EncodeToString(hash[:])
+
+	// fetch and cache HTLCs by PaymentHash
+	ln.CacheHTLCs("WHERE payment_hash=x'" + hashHex + "'")
 }

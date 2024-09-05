@@ -25,20 +25,8 @@ import (
 
 const (
 	IMPLEMENTATION = "CLN"
-	JSON_RPC       = "lightning-rpc"
+	RPC_FILE       = "lightning-rpc"
 )
-
-type Forwarding struct {
-	CreatedIndex uint64  `json:"created_index"`
-	InChannel    string  `json:"in_channel"`
-	OutChannel   string  `json:"out_channel"`
-	OutMsat      uint64  `json:"out_msat"`
-	FeeMsat      uint64  `json:"fee_msat"`
-	ReceivedTime float64 `json:"received_time"`
-	ResolvedTime float64 `json:"resolved_time"`
-	Status       string  `json:"status"`
-	FailCode     uint64  `json:"failcode,omitempty"`
-}
 
 var (
 	// arrays mapped per channel
@@ -55,10 +43,34 @@ var (
 	sendpaysCache = make(map[string]ListSendPaysResponse) // by PaymentHash
 )
 
+type Forwarding struct {
+	CreatedIndex uint64  `json:"created_index"`
+	InChannel    string  `json:"in_channel"`
+	OutChannel   string  `json:"out_channel"`
+	OutMsat      uint64  `json:"out_msat"`
+	FeeMsat      uint64  `json:"fee_msat"`
+	ReceivedTime float64 `json:"received_time"`
+	ResolvedTime float64 `json:"resolved_time"`
+	Status       string  `json:"status"`
+	FailCode     uint64  `json:"failcode,omitempty"`
+}
+
+type SQLResult struct {
+	Rows [][]interface{} `json:"rows"`
+}
+
+type SQLRequest struct {
+	Query string `json:"query"`
+}
+
+func (r SQLRequest) Name() string {
+	return "sql"
+}
+
 func GetClient() (*glightning.Lightning, func(), error) {
 	if lightning == nil {
 		lightning = glightning.NewLightning()
-		err := lightning.StartUp(JSON_RPC, config.Config.RpcHost)
+		err := lightning.StartUp(RPC_FILE, config.Config.RpcHost)
 		if err != nil {
 			log.Println("Cannot start glightning client")
 			return nil, nil, err
@@ -435,6 +447,51 @@ func (r *ListForwardsRequest) Name() string {
 	return "listforwards"
 }
 
+func CacheHTLCs(where string) {
+	client, clean, err := GetClient()
+	if err != nil {
+		return
+	}
+	defer clean()
+
+	query := "SELECT short_channel_id, id, expiry, direction, amount_msat, payment_hash, state FROM htlcs"
+	if where != "" {
+		query += " " + where
+	}
+	query += ";"
+
+	var response SQLResult
+
+	// get the HTLCs
+	err = client.Request(&SQLRequest{
+		Query: query,
+	}, &response)
+	if err != nil {
+		log.Println("SQLRequest:", err)
+		return
+	}
+
+	// Process the results
+	for _, row := range response.Rows {
+		if len(row) != 7 {
+			fmt.Println("Unexpected row format:", row)
+			continue
+		}
+
+		htlc := HTLC{
+			ShortChannelID: row[0].(string),
+			Id:             uint64(row[1].(float64)),
+			Expiry:         uint64(row[2].(float64)),
+			Direction:      row[3].(string),
+			AmountMsat:     uint64(row[4].(float64)),
+			PaymentHash:    row[5].(string),
+			State:          row[6].(string),
+		}
+
+		appendHTLC(htlc)
+	}
+}
+
 // cache routing history per channel from cln
 func CacheForwards() {
 	// refresh history
@@ -589,8 +646,8 @@ type Payment struct {
 // HTLC represents the structure of a single HTLC entry
 type HTLC struct {
 	ShortChannelID string `json:"short_channel_id"`
-	ID             int    `json:"id"`
-	Expiry         int    `json:"expiry"`
+	Id             uint64 `json:"id"`
+	Expiry         uint64 `json:"expiry"`
 	Direction      string `json:"direction"`
 	AmountMsat     uint64 `json:"amount_msat"`
 	PaymentHash    string `json:"payment_hash"`
@@ -598,7 +655,8 @@ type HTLC struct {
 }
 
 type ListInvoicesRequest struct {
-	PaymentHash string `json:"payment_hash"`
+	Label       string `json:"label,omitempty"`
+	PaymentHash string `json:"payment_hash,omitempty"`
 }
 
 type ListInvoicesResponse struct {
@@ -862,6 +920,28 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 // scans all channels to get peerswap lightning fees cached
 // return false if lightning did not start yet
 func SubscribeAll() bool {
+
+	if downloadComplete {
+		// only run once
+		return true
+	}
+
+	// benchmark time
+	start := time.Now()
+
+	/* does not work
+	// only go back 6 months
+	block6m := GetBlockHeight()
+	if block6m == 0 {
+		return false
+	}
+	block6m -= 26_352
+	where := fmt.Sprintf("WHERE expiry > %d AND (state = 'SENT_REMOVE_ACK_REVOCATION' OR state = 'RCVD_REMOVE_ACK_REVOCATION')", block6m) // fails
+	CacheHTLCs(where)
+
+	duration := time.Since(start)
+	log.Printf("SQL took %v to execute", duration)
+	*/
 	client, clean, err := GetClient()
 	if err != nil {
 		return false
@@ -876,28 +956,15 @@ func SubscribeAll() bool {
 		return false
 	}
 
+	downloadComplete = true
+
 	// sort by channel
 	for _, htlc := range res.HTLCs {
-		if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
-			continue
-		}
-		// check if already cached
-		found := false
-		for _, h := range htlcsCache[htlc.ShortChannelID] {
-			if h.PaymentHash == htlc.PaymentHash {
-				found = true
-			}
-		}
-		// add if not found
-		if !found {
-			htlcsCache[htlc.ShortChannelID] = append(htlcsCache[htlc.ShortChannelID], htlc)
-		}
+		appendHTLC(htlc)
 	}
 
-	if downloadComplete {
-		// only run once full forwards download
-		return true
-	}
+	duration := time.Since(start)
+	log.Printf("ListHtlcsRequest cached %d HTLCs in %v", len(res.HTLCs), duration)
 
 	// get my node Id
 	resp, err := client.GetInfo()
@@ -927,8 +994,37 @@ func SubscribeAll() bool {
 		}
 	}
 
-	downloadComplete = true
 	return true
+}
+
+func appendHTLC(htlc HTLC) {
+	if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
+		return
+	}
+	// check if already cached
+	found := false
+	for _, h := range htlcsCache[htlc.ShortChannelID] {
+		if h.PaymentHash == htlc.PaymentHash {
+			found = true
+		}
+	}
+	// add if not found
+	if !found {
+		htlcsCache[htlc.ShortChannelID] = append(htlcsCache[htlc.ShortChannelID], htlc)
+	}
+}
+
+func GetInvoice(client *glightning.Lightning, request *ListInvoicesRequest) (ListInvoicesResponse, error) {
+	inv, ok := invoicesCache[request.PaymentHash]
+	if !ok { // fetch from cln
+		err := client.Request(request, &inv)
+		if err != nil {
+			return inv, err
+		}
+		// cache it
+		invoicesCache[request.PaymentHash] = inv
+	}
+	return inv, nil
 }
 
 // get statistics for a channel since the timestamp
@@ -943,23 +1039,15 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 		rebalanceCostMsat uint64
 	)
 
-	// benchmark time
-	//start := time.Now()
-
 	for _, htlc := range htlcsCache[channelId] {
 		switch htlc.State {
 		case "SENT_REMOVE_ACK_REVOCATION":
 			// direction in, look for invoices
-			inv, ok := invoicesCache[htlc.PaymentHash]
-			if !ok { // fetch from cln
-				err := client.Request(&ListInvoicesRequest{
-					PaymentHash: htlc.PaymentHash,
-				}, &inv)
-				if err != nil {
-					continue
-				}
-				// cache it
-				invoicesCache[htlc.PaymentHash] = inv
+			inv, err := GetInvoice(client, &ListInvoicesRequest{
+				PaymentHash: htlc.PaymentHash,
+			})
+			if err != nil {
+				continue
 			}
 
 			if len(inv.Invoices) > 0 {
@@ -1025,9 +1113,6 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 			}
 		}
 	}
-
-	//duration := time.Since(start)
-	//log.Printf("fetchPaymentsStats took %v to execute", duration)
 
 	result.PaidOut = paidOutMsat / 1000
 	result.PaidCost = paidCostMsat / 1000
