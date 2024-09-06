@@ -567,9 +567,9 @@ func CacheHTLCs(where string) int {
 				htlc.ShortChannelId = scid
 				htlc.State = htlcStates[hstate]
 				htlc.PaymentHash = hex.EncodeToString(hash)
-				direction := "out"
+				direction := "in"
 				if hstate > 9 {
-					direction = "in"
+					direction = "out"
 				}
 				htlc.Direction = direction
 				appendHTLC(htlc)
