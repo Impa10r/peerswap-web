@@ -1010,23 +1010,33 @@ func DownloadAll() bool {
 		return true
 	}
 
-	// benchmark time
-	start := time.Now()
-
-	block6m := GetBlockHeight()
-	if block6m == 0 {
-		return false // lightning not ready yet
-	}
-	block6m -= 26_352 // go back 6 months only
-	where := fmt.Sprintf("cltv_expiry > %d", block6m)
-
-	numHtlcs := CacheHTLCs(where)
-
 	client, clean, err := GetClient()
 	if err != nil {
 		return false
 	}
 	defer clean()
+
+	// cache my node Id and alias
+	resp, err := client.GetInfo()
+	if err != nil {
+		return false // lightning not ready yet
+	}
+	MyNodeId = resp.Id
+	MyNodeAlias = resp.Alias
+
+	// benchmark time
+	start := time.Now()
+
+	block6m := GetBlockHeight()
+	if block6m == 0 {
+		return false
+	}
+	block6m -= 26_352 // go back 6 months only
+	where := fmt.Sprintf("cltv_expiry > %d", block6m)
+
+	numHtlcs := CacheHTLCs(where)
+	downloadComplete = true
+
 	/*
 		duration := time.Since(start)
 		log.Printf("SQL took %v to execute", duration)
@@ -1047,14 +1057,6 @@ func DownloadAll() bool {
 			appendHTLC(htlc)
 		}
 	*/
-	// get my node Id
-	resp, err := client.GetInfo()
-	if err != nil {
-		// cln not ready
-		return false
-	}
-	MyNodeId = resp.Id
-	MyNodeAlias = resp.Alias
 
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
