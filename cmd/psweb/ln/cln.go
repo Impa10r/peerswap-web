@@ -567,11 +567,10 @@ func CacheHTLCs(where string) int {
 				htlc.ShortChannelId = scid
 				htlc.State = htlcStates[hstate]
 				htlc.PaymentHash = hex.EncodeToString(hash)
-				direction := "in"
+				htlc.Direction = "in"
 				if hstate > 9 {
-					direction = "out"
+					htlc.Direction = "out"
 				}
-				htlc.Direction = direction
 				appendHTLC(htlc)
 				numHtlcs++
 			} else {
@@ -1114,14 +1113,6 @@ func appendHTLC(htlc HTLC) {
 	if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
 		return
 	}
-	/*
-		// check if already cached
-		for _, h := range htlcsCache[htlc.ShortChannelId] {
-			if h == htlc {
-				return
-			}
-		}
-	*/
 	htlcsCache[htlc.ShortChannelId] = append(htlcsCache[htlc.ShortChannelId], htlc)
 }
 

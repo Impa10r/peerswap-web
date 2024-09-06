@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/ln"
@@ -106,7 +107,10 @@ func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.
 }
 
 func onSendPaySuccess(ss *glightning.SendPaySuccess) {
-	ln.CacheHTLCs("payment_hash=x'" + ss.PaymentHash + "'")
+	go func(ss *glightning.SendPaySuccess) {
+		time.Sleep(10 * time.Second) // allow all htlcs to settle
+		ln.CacheHTLCs("payment_hash=x'" + ss.PaymentHash + "'")
+	}(ss)
 }
 
 func onInvoicePaid(p *glightning.Payment) {
