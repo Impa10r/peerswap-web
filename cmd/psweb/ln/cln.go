@@ -454,6 +454,8 @@ func (r *ListForwardsRequest) Name() string {
 	return "listforwards"
 }
 
+// queries lightningd.sqlite3 channel_htlcs table to pull
+// htlcs into htlcsCache map sorted by short channel id
 func CacheHTLCs(where string) int {
 	// refresh full channel id into short mapping
 	client, clean, err := GetClient()
@@ -1041,14 +1043,15 @@ func DownloadAll() bool {
 	// benchmark time
 	start := time.Now()
 
-	block6m := GetBlockHeight()
-	if block6m == 0 {
+	blockHeight := GetBlockHeight()
+	if blockHeight == 0 {
 		return false
 	}
-	block6m -= 26_352 // go back 6 months only
-	where := fmt.Sprintf("cltv_expiry > %d", block6m)
 
+	// look back 6 months only
+	where := fmt.Sprintf("cltv_expiry > %d", blockHeight-26_352)
 	numHtlcs := CacheHTLCs(where)
+
 	downloadComplete = true
 
 	/*
@@ -1107,21 +1110,19 @@ func DownloadAll() bool {
 }
 
 func appendHTLC(htlc HTLC) {
+	// ignore unsettled
 	if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
 		return
 	}
-
-	// check if already cached
-	found := false
-	for _, h := range htlcsCache[htlc.ShortChannelId] {
-		if h.PaymentHash == htlc.PaymentHash {
-			found = true
+	/*
+		// check if already cached
+		for _, h := range htlcsCache[htlc.ShortChannelId] {
+			if h == htlc {
+				return
+			}
 		}
-	}
-	// add if not found
-	if !found {
-		htlcsCache[htlc.ShortChannelId] = append(htlcsCache[htlc.ShortChannelId], htlc)
-	}
+	*/
+	htlcsCache[htlc.ShortChannelId] = append(htlcsCache[htlc.ShortChannelId], htlc)
 }
 
 func GetInvoice(client *glightning.Lightning, request *ListInvoicesRequest) (ListInvoicesResponse, error) {
