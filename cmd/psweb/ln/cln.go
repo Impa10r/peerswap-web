@@ -529,49 +529,63 @@ func CacheHTLCs(where string) int {
 		log.Println("Error iterating rows:", err)
 	}
 
-	// Get the HTLCs
-	rows, err = db.Query("SELECT channel_id, id, cltv_expiry, msatoshi, payment_hash, hstate FROM channel_htlcs WHERE " + where)
-	if err != nil {
-		log.Println("Error executing query:", err)
-		return 0
-	}
-
 	numHtlcs := 0
-	// Iterate through the results
-	for rows.Next() {
-		var (
-			htlc   HTLC
-			cid    int
-			hstate int
-			hash   []byte
-		)
+	limit := 1000
+	offset := 0
 
-		err := rows.Scan(&cid, &htlc.Id, &htlc.Expiry, &htlc.AmountMsat, &hash, &hstate)
+	// Get the HTLCs
+	for {
+		query := fmt.Sprintf("SELECT channel_id, id, cltv_expiry, msatoshi, payment_hash, hstate FROM channel_htlcs WHERE %s LIMIT %d OFFSET %d", where, limit, offset)
+		rows, err = db.Query(query)
 		if err != nil {
-			log.Println("Error scanning row:", err)
+			log.Println("Error executing query:", err)
 			return 0
 		}
 
-		scid, ok := sqlShortChannelId[cid]
-		if ok {
-			htlc.ShortChannelId = scid
-			htlc.State = htlcStates[hstate]
-			htlc.PaymentHash = hex.EncodeToString(hash)
-			direction := "out"
-			if hstate > 9 {
-				direction = "in"
-			}
-			htlc.Direction = direction
-			appendHTLC(htlc)
-			numHtlcs++
-		} else {
-			log.Println("Short channel id is missing for SQL channel id", cid)
-		}
-	}
+		numRows := 0
+		// Iterate through the results
+		for rows.Next() {
+			numRows++
 
-	// Check for errors from iterating over rows
-	if err = rows.Err(); err != nil {
-		log.Println("Error iterating rows:", err)
+			var (
+				htlc   HTLC
+				cid    int
+				hstate int
+				hash   []byte
+			)
+
+			err := rows.Scan(&cid, &htlc.Id, &htlc.Expiry, &htlc.AmountMsat, &hash, &hstate)
+			if err != nil {
+				log.Println("Error scanning row:", err)
+				return 0
+			}
+
+			scid, ok := sqlShortChannelId[cid]
+			if ok {
+				htlc.ShortChannelId = scid
+				htlc.State = htlcStates[hstate]
+				htlc.PaymentHash = hex.EncodeToString(hash)
+				direction := "out"
+				if hstate > 9 {
+					direction = "in"
+				}
+				htlc.Direction = direction
+				appendHTLC(htlc)
+				numHtlcs++
+			} else {
+				log.Println("Short channel id is missing for SQL channel id", cid)
+			}
+		}
+
+		// Check for errors from iterating over rows
+		if err = rows.Err(); err != nil {
+			log.Println("Error iterating rows:", err)
+		}
+
+		if numRows < limit {
+			break // end of data
+		}
+		offset += limit
 	}
 
 	return numHtlcs

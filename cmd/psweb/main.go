@@ -398,9 +398,7 @@ func liquidBackup(force bool) {
 	config.Save()
 }
 
-func setLogging() (func(), error) {
-	// Set log file name
-	logFileName := filepath.Join(config.Config.DataDir, "psweb.log")
+func setLogging(logFileName string) (func(), error) {
 	var err error
 	// Open log file in append mode, create if it doesn't exist
 	logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

@@ -24,6 +24,12 @@ var plugin *glightning.Plugin
 // This is called after the plugin starts up successfully
 func onInit(plugin *glightning.Plugin, options map[string]glightning.Option, conf *glightning.Config) {
 
+	// set logging params
+	_, err := setLogging(filepath.Join(conf.LightningDir, "peerswap", "psweb.log"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// loading from config file or creating default one
 	config.Load(filepath.Dir(conf.LightningDir), conf.Network)
 
@@ -31,13 +37,6 @@ func onInit(plugin *glightning.Plugin, options map[string]glightning.Option, con
 	if err := redirectStderr(filepath.Join(config.Config.DataDir, "psweb.log")); err != nil {
 		log.Fatalln(err)
 	}
-
-	// set logging params
-	_, err := setLogging()
-	if err != nil {
-		log.Fatal(err)
-	}
-	//defer cleanup()
 
 	// start the web server
 	start()

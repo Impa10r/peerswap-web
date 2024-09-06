@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"peerswap-web/cmd/psweb/config"
 	"syscall"
 )
@@ -45,7 +46,7 @@ func main() {
 	}
 
 	// set logging params
-	cleanup, err := setLogging()
+	cleanup, err := setLogging(filepath.Join(config.Config.DataDir, "psweb.log"))
 	if err != nil {
 		log.Fatal(err)
 	}
