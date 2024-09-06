@@ -1151,9 +1151,13 @@ func DownloadAll() bool {
 
 	routerClient := routerrpc.NewRouterClient(conn)
 
+	// initial download forwards
+	downloadForwards(client)
+
+	// initial download payments
+	downloadPayments(client)
+
 	go func() {
-		// initial download forwards
-		downloadForwards(client)
 		// subscribe to Forwards
 		for {
 			if subscribeForwards(ctx, routerClient) != nil {
@@ -1165,9 +1169,6 @@ func DownloadAll() bool {
 	}()
 
 	go func() {
-		// initial download payments
-		downloadPayments(client)
-
 		// subscribe to Payments
 		for {
 			if subscribePayments(ctx, routerClient) != nil {

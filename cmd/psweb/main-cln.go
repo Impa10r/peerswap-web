@@ -107,10 +107,10 @@ func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.
 }
 
 func onSendPaySuccess(ss *glightning.SendPaySuccess) {
-	go func(ss *glightning.SendPaySuccess) {
-		time.Sleep(10 * time.Second) // allow all htlcs to settle
-		ln.CacheHTLCs("payment_hash=x'" + ss.PaymentHash + "'")
-	}(ss)
+	go func(paymentHash string) {
+		time.Sleep(10 * time.Second) // wait to allow htlcs to settle
+		ln.CacheHTLCs("payment_hash=x'" + paymentHash + "'")
+	}(ss.PaymentHash)
 }
 
 func onInvoicePaid(p *glightning.Payment) {
@@ -125,7 +125,7 @@ func onInvoicePaid(p *glightning.Payment) {
 	hash := sha256.Sum256(preimage)
 
 	// Convert the hash to a hex string
-	hashHex := hex.EncodeToString(hash[:])
+	hashHex := hex.EncodeToString(hash)
 
 	// fetch and cache HTLCs by PaymentHash
 	ln.CacheHTLCs("payment_hash=x'" + hashHex + "'")
