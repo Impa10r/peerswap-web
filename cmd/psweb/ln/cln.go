@@ -1095,14 +1095,14 @@ func DownloadAll() bool {
 
 	duration := time.Since(start)
 	if numHtlcs > 0 {
-		log.Printf("Cached %d HTLCs in %v", numHtlcs, duration)
+		log.Printf("Cached %d HTLCs in %.2f seconds", numHtlcs, duration.Seconds())
 	}
 
 	start = time.Now()
 	forwards := cacheForwards(client)
 	if forwards > 0 {
 		duration = time.Since(start)
-		log.Printf("Cached %d forwards in %v", forwards, duration)
+		log.Printf("Cached %d forwards in %.2f seconds", forwards, duration.Seconds())
 	}
 
 	return true

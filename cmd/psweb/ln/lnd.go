@@ -818,7 +818,7 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 
 	if totalInvoices > 0 {
 		duration := time.Since(start)
-		log.Printf("Cached %d invoices in %v", totalInvoices, duration)
+		log.Printf("Cached %d invoices in %.2f seconds", totalInvoices, duration.Seconds())
 	}
 
 	return nil
@@ -878,7 +878,7 @@ func downloadForwards(client lnrpc.LightningClient) {
 
 	if totalForwards > 0 {
 		duration := time.Since(start)
-		log.Printf("Cached %d forwards in %v", totalForwards, duration)
+		log.Printf("Cached %d forwards in %.2f seconds", totalForwards, duration.Seconds())
 	}
 }
 
@@ -933,7 +933,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 
 	if totalPayments > 0 {
 		duration := time.Since(start)
-		log.Printf("Cached %d payments in %v", totalPayments, duration)
+		log.Printf("Cached %d payments in %.2f seconds", totalPayments, duration.Seconds())
 	}
 }
 
@@ -1149,32 +1149,13 @@ func DownloadAll() bool {
 
 	downloadComplete = true
 
-	routerClient := routerrpc.NewRouterClient(conn)
-
-	// initial download forwards
-	downloadForwards(client)
-
-	// initial download payments
-	downloadPayments(client)
-
+	// subscribe to Invoices
 	go func() {
-		// subscribe to Forwards
 		for {
-			if subscribeForwards(ctx, routerClient) != nil {
+			if subscribeInvoices(ctx, client) != nil {
 				time.Sleep(60 * time.Second)
 				// incremental download after error
-				downloadForwards(client)
-			}
-		}
-	}()
-
-	go func() {
-		// subscribe to Payments
-		for {
-			if subscribePayments(ctx, routerClient) != nil {
-				time.Sleep(60 * time.Second)
-				// incremental download after error
-				downloadPayments(client)
+				downloadInvoices(client)
 			}
 		}
 	}()
@@ -1197,13 +1178,32 @@ func DownloadAll() bool {
 		}
 	}()
 
-	// subscribe to Invoices
+	routerClient := routerrpc.NewRouterClient(conn)
+
+	// initial download forwards
+	downloadForwards(client)
+
 	go func() {
+		// subscribe to Forwards
 		for {
-			if subscribeInvoices(ctx, client) != nil {
+			if subscribeForwards(ctx, routerClient) != nil {
 				time.Sleep(60 * time.Second)
 				// incremental download after error
-				downloadInvoices(client)
+				downloadForwards(client)
+			}
+		}
+	}()
+
+	// initial download payments
+	downloadPayments(client)
+
+	go func() {
+		// subscribe to Payments
+		for {
+			if subscribePayments(ctx, routerClient) != nil {
+				time.Sleep(60 * time.Second)
+				// incremental download after error
+				downloadPayments(client)
 			}
 		}
 	}()
