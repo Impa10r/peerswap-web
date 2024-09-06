@@ -107,7 +107,7 @@ func onCustomMsgReceived(event *glightning.CustomMsgReceivedEvent) (*glightning.
 }
 
 func onSendPaySuccess(ss *glightning.SendPaySuccess) {
-	ln.CacheHTLCs("WHERE payment_hash=x'" + ss.PaymentHash + "'")
+	ln.CacheHTLCs("payment_hash=x'" + ss.PaymentHash + "'")
 }
 
 func onInvoicePaid(p *glightning.Payment) {
@@ -125,5 +125,5 @@ func onInvoicePaid(p *glightning.Payment) {
 	hashHex := hex.EncodeToString(hash[:])
 
 	// fetch and cache HTLCs by PaymentHash
-	ln.CacheHTLCs("WHERE payment_hash=x'" + hashHex + "'")
+	ln.CacheHTLCs("payment_hash=x'" + hashHex + "'")
 }

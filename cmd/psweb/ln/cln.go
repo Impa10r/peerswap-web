@@ -4,6 +4,7 @@ package ln
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/binary"
 	"encoding/gob"
 	"encoding/hex"
@@ -21,6 +22,8 @@ import (
 
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/peerswaprpc"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
@@ -41,6 +44,11 @@ var (
 	htlcsCache    = make(map[string][]HTLC)               // by shortChannelId
 	invoicesCache = make(map[string]ListInvoicesResponse) // by PaymentHash
 	sendpaysCache = make(map[string]ListSendPaysResponse) // by PaymentHash
+	// sqlite3 channel Id mapped to short_channel_id
+	sqlShortChannelId = make(map[int]string)
+	htlcStates        = []string{"SENT_ADD_HTLC", "SENT_ADD_COMMIT", "RCVD_ADD_REVOCATION", "RCVD_ADD_ACK_COMMIT", "SENT_ADD_ACK_REVOCATION", "RCVD_REMOVE_HTLC", "RCVD_REMOVE_COMMIT", "SENT_REMOVE_REVOCATION", "SENT_REMOVE_ACK_COMMIT", "RCVD_REMOVE_ACK_REVOCATION", "RCVD_ADD_HTLC", "RCVD_ADD_COMMIT", "SENT_ADD_REVOCATION", "SENT_ADD_ACK_COMMIT", "RCVD_ADD_ACK_REVOCATION", "SENT_REMOVE_HTLC", "SENT_REMOVE_COMMIT", "RCVD_REMOVE_REVOCATION", "RCVD_REMOVE_ACK_COMMIT", "SENT_REMOVE_ACK_REVOCATION"}
+	// map full channel id to short channel id
+	fullToShortChannelId = make(map[string]string)
 )
 
 type Forwarding struct {
@@ -446,49 +454,127 @@ func (r *ListForwardsRequest) Name() string {
 	return "listforwards"
 }
 
-func CacheHTLCs(where string) {
+func CacheHTLCs(where string) int {
+	// refresh full channel id into short mapping
 	client, clean, err := GetClient()
 	if err != nil {
-		return
+		return 0
 	}
 	defer clean()
 
-	query := "SELECT short_channel_id, id, expiry, direction, amount_msat, payment_hash, state FROM htlcs"
-	if where != "" {
-		query += " " + where
-	}
-	query += ";"
-
-	var response SQLResponse
-
-	// get the HTLCs
-	err = client.Request(&SQLRequest{
-		Query: query,
-	}, &response)
+	var response map[string]interface{}
+	err = client.Request(&ListPeerChannelsRequest{}, &response)
 	if err != nil {
-		log.Println("SQLRequest:", err)
-		return
+		log.Println("ListPeerChannelsRequest:", err)
+		return 0
 	}
 
-	// Process the results
-	for _, row := range response.Rows {
-		if len(row) != 7 {
-			log.Println("Unexpected row format:", row)
-			return
+	// Iterate over channels to map channel ids
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+		if channelMap["channel_id"] != nil {
+			if channelMap["short_channel_id"] != nil {
+				fullToShortChannelId[channelMap["channel_id"].(string)] = channelMap["short_channel_id"].(string)
+			} else {
+				// private zero-conf channel
+				alias := channelMap["alias"].(map[string]interface{})
+				fullToShortChannelId[channelMap["channel_id"].(string)] = alias["local"].(string)
+			}
 		}
-
-		htlc := HTLC{
-			ShortChannelID: row[0].(string),
-			Id:             uint64(row[1].(float64)),
-			Expiry:         uint64(row[2].(float64)),
-			Direction:      row[3].(string),
-			AmountMsat:     uint64(row[4].(float64)),
-			PaymentHash:    row[5].(string),
-			State:          row[6].(string),
-		}
-
-		appendHTLC(htlc)
 	}
+
+	folder := "bitcoin"
+	if config.Config.Chain == "testnet" {
+		folder = "testnet"
+	}
+
+	// Open a database connection
+	db, err := sql.Open("sqlite3", config.Config.LightningDir+"/"+folder+"/lightningd.sqlite3")
+	if err != nil {
+		log.Println("Error opening database:", err)
+		return 0
+	}
+	defer db.Close()
+
+	// refresh full channel Ids
+	rows, err := db.Query("SELECT id, full_channel_id FROM channels")
+	if err != nil {
+		log.Println("Error executing query:", err)
+		return 0
+	}
+	defer rows.Close()
+
+	// Iterate through the results
+	for rows.Next() {
+		var id int
+		var data []byte
+		err := rows.Scan(&id, &data)
+		if err != nil {
+			log.Println("Error scanning row:", err)
+			continue
+		}
+
+		// map sql channel id to short channel id
+		shortChannelId, found := fullToShortChannelId[hex.EncodeToString(data)]
+		if !found {
+			// full channel ID not found, ignore channel
+			continue
+		}
+		sqlShortChannelId[id] = shortChannelId
+	}
+
+	// Check for errors from iterating over rows
+	if err = rows.Err(); err != nil {
+		log.Println("Error iterating rows:", err)
+	}
+
+	// Get the HTLCs
+	rows, err = db.Query("SELECT channel_id, id, cltv_expiry, msatoshi, payment_hash, hstate FROM channel_htlcs WHERE " + where)
+	if err != nil {
+		log.Println("Error executing query:", err)
+		return 0
+	}
+
+	numHtlcs := 0
+	// Iterate through the results
+	for rows.Next() {
+		var (
+			htlc   HTLC
+			cid    int
+			hstate int
+			hash   []byte
+		)
+
+		err := rows.Scan(&cid, &htlc.Id, &htlc.Expiry, &htlc.AmountMsat, &hash, &hstate)
+		if err != nil {
+			log.Println("Error scanning row:", err)
+			return 0
+		}
+
+		scid, ok := sqlShortChannelId[cid]
+		if ok {
+			htlc.ShortChannelId = scid
+			htlc.State = htlcStates[hstate]
+			htlc.PaymentHash = hex.EncodeToString(hash)
+			direction := "out"
+			if hstate > 9 {
+				direction = "in"
+			}
+			htlc.Direction = direction
+			appendHTLC(htlc)
+			numHtlcs++
+		} else {
+			log.Println("Short channel id is missing for SQL channel id", cid)
+		}
+	}
+
+	// Check for errors from iterating over rows
+	if err = rows.Err(); err != nil {
+		log.Println("Error iterating rows:", err)
+	}
+
+	return numHtlcs
 }
 
 // cache routing history per channel from cln
@@ -642,7 +728,7 @@ type Payment struct {
 
 // HTLC represents the structure of a single HTLC entry
 type HTLC struct {
-	ShortChannelID string `json:"short_channel_id"`
+	ShortChannelId string `json:"short_channel_id"`
 	Id             uint64 `json:"id"`
 	Expiry         uint64 `json:"expiry"`
 	Direction      string `json:"direction"`
@@ -923,51 +1009,44 @@ func DownloadAll() bool {
 		// only run once
 		return true
 	}
-	/* does not work
+
 	// benchmark time
 	start := time.Now()
 
-	// only go back 6 months
 	block6m := GetBlockHeight()
 	if block6m == 0 {
-		return false
+		return false // lightning not ready yet
 	}
-	block6m -= 26_352
-	where := "WHERE expiry > 1"
-	CacheHTLCs(where)
+	block6m -= 26_352 // go back 6 months only
+	where := fmt.Sprintf("cltv_expiry > %d", block6m)
 
-	duration := time.Since(start)
-	log.Printf("SQL took %v to execute", duration)
-	*/
-	// benchmark time
-	start := time.Now()
+	numHtlcs := CacheHTLCs(where)
 
 	client, clean, err := GetClient()
 	if err != nil {
 		return false
 	}
 	defer clean()
+	/*
+		duration := time.Since(start)
+		log.Printf("SQL took %v to execute", duration)
 
-	var res ListHtlcsResponse
-	// cache all HTLCs
-	err = client.Request(&ListHtlcsRequest{}, &res)
-	if err != nil {
-		// CLN not ready
-		return false
-	}
+		// benchmark time
+		start = time.Now()
 
-	downloadComplete = true
+		var res ListHtlcsResponse
+		// cache all HTLCs
+		err = client.Request(&ListHtlcsRequest{}, &res)
+		if err != nil {
+			// CLN not ready
+			return false
+		}
 
-	// sort by channel
-	for _, htlc := range res.HTLCs {
-		appendHTLC(htlc)
-	}
-
-	duration := time.Since(start)
-	if len(res.HTLCs) > 0 {
-		log.Printf("Cached %d HTLCs in %v", len(res.HTLCs), duration)
-	}
-
+		// sort by channel
+		for _, htlc := range res.HTLCs {
+			appendHTLC(htlc)
+		}
+	*/
 	// get my node Id
 	resp, err := client.GetInfo()
 	if err != nil {
@@ -996,6 +1075,11 @@ func DownloadAll() bool {
 		}
 	}
 
+	duration := time.Since(start)
+	if numHtlcs > 0 {
+		log.Printf("Cached %d HTLCs in %v", numHtlcs, duration)
+	}
+
 	start = time.Now()
 	forwards := cacheForwards(client)
 	if forwards > 0 {
@@ -1010,16 +1094,17 @@ func appendHTLC(htlc HTLC) {
 	if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
 		return
 	}
+
 	// check if already cached
 	found := false
-	for _, h := range htlcsCache[htlc.ShortChannelID] {
+	for _, h := range htlcsCache[htlc.ShortChannelId] {
 		if h.PaymentHash == htlc.PaymentHash {
 			found = true
 		}
 	}
 	// add if not found
 	if !found {
-		htlcsCache[htlc.ShortChannelID] = append(htlcsCache[htlc.ShortChannelID], htlc)
+		htlcsCache[htlc.ShortChannelId] = append(htlcsCache[htlc.ShortChannelId], htlc)
 	}
 }
 

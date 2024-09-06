@@ -1031,7 +1031,6 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 		if nodeId != "" {
 			// already filtered, let node links point to peer page
-			// clicking on node alias will filter its swaps only
 			table += "<a title=\"Open peer details\" href=\"/peer?id=" + swap.PeerNodeId + "\">"
 
 		} else {
