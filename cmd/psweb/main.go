@@ -1029,8 +1029,15 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		table += "<a title=\"Filter by role: " + swap.Role + "\" href=\"/?&id=" + nodeId + "&state=" + swapState + "&role=" + swap.Role + "\">"
 		table += " " + role + "&nbsp<a>"
 
-		// clicking on node alias will filter its swaps only
-		table += "<a title=\"Filter swaps by this peer\" href=\"/?id=" + swap.PeerNodeId + "&state=" + swapState + "&role=" + swapRole + "\">"
+		if nodeId != "" {
+			// already filtered, let node links point to peer page
+			// clicking on node alias will filter its swaps only
+			table += "<a title=\"Open peer details\" href=\"/peer?id=" + swap.PeerNodeId + "\">"
+
+		} else {
+			// clicking on node alias will filter its swaps only
+			table += "<a title=\"Filter swaps by this peer\" href=\"/?id=" + swap.PeerNodeId + "&state=" + swapState + "&role=" + swapRole + "\">"
+		}
 		table += getNodeAlias(swap.PeerNodeId)
 		table += "</a>"
 		table += "</td></tr>"

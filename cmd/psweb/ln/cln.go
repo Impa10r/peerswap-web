@@ -940,7 +940,7 @@ func DownloadAll() bool {
 	log.Printf("SQL took %v to execute", duration)
 	*/
 	// benchmark time
-	start = time.Now()
+	start := time.Now()
 
 	client, clean, err := GetClient()
 	if err != nil {
@@ -963,7 +963,7 @@ func DownloadAll() bool {
 		appendHTLC(htlc)
 	}
 
-	duration = time.Since(start)
+	duration := time.Since(start)
 	if len(res.HTLCs) > 0 {
 		log.Printf("Cached %d HTLCs in %v", len(res.HTLCs), duration)
 	}
