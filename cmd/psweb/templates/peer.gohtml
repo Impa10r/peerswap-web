@@ -207,6 +207,8 @@
                         // amount cannot be blank
                         if (swapAmount < 100000) {
                           document.getElementById('result').innerText = "Minimum Swap Amount is 100,000 sats";
+                          document.getElementById('result').title = '';
+                          document.getElementById('resultLabel').title = '';
                           return;
                         }
                         
@@ -217,6 +219,8 @@
                             const maxAmount = {{.BitcoinBalance}} - {{.ReserveBTC}};
                             if (swapAmount > maxAmount) {
                               document.getElementById('result').innerText = "Insufficient BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
+                              document.getElementById('result').title = '';
+                              document.getElementById('resultLabel').title = '';
                               return;
                             }
 
@@ -266,7 +270,7 @@
                             let baseSize = 41 * (inputsP2TR + inputsP2WPKH);
                             let totalSize = 41 * (inputsP2TR + inputsP2WPKH);
                             totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH;
-                            vbyteSize = 96 + Math.ceil((3 * baseSize + totalSize) / 4);
+                            vbyteSize = 97 + Math.ceil((3 * baseSize + totalSize) / 4);
                             fee = vbyteSize * feeRate;
 
                             // peerswap spends dust change as extra fee
@@ -274,6 +278,8 @@
                             if (change < 1000) {
                               if (change < 0) {
                                 document.getElementById('result').innerText = "Insufficient BTC balance to cover expected fee of " + formatWithThousandSeparators(fee) + " sats";
+                                document.getElementById('result').title = '';
+                                document.getElementById('resultLabel').title = '';
                                 return;
                               }
                               fee += change;
@@ -283,6 +289,8 @@
                             const maxAmount = {{.LiquidBalance}} - {{.ReserveLBTC}};
                             if (swapAmount > maxAmount) {
                               document.getElementById('result').innerText = "Insufficient L-BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
+                              document.getElementById('result').title = '';
+                              document.getElementById('resultLabel').title = '';
                               return;
                             }
 

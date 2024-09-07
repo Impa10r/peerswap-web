@@ -123,7 +123,7 @@ func SavePS() {
 	rpchost := GetPeerswapCLNSetting("Bitcoin", "rpchost")
 	if rpchost != "" {
 		t += setPeerswapVariable("Bitcoin", "rpchost", "", "", "", true)
-		t += setPeerswapVariable("Bitcoin", "rpcport", "", "", "", true)
+		t += setPeerswapVariable("Bitcoin", "rpcport", "", "", "", false)
 	}
 	cookiefilepath := GetPeerswapCLNSetting("Bitcoin", "cookiefilepath")
 	if cookiefilepath != "" {
