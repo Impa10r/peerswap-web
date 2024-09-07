@@ -285,9 +285,6 @@ func startTimer() {
 
 // tasks that run every minute
 func onTimer() {
-	// Start Telegram bot if not already running
-	go telegramStart()
-
 	// check for updates
 	go func() {
 		t := internet.GetLatestTag()
@@ -311,8 +308,12 @@ func onTimer() {
 		return
 	}
 
+	// Start Telegram bot if not already running
+	go telegramStart()
+
 	// skip the first minute after lightning startup so that ps initiates
 	if lightningHasStarted {
+
 		// execute auto fees
 		ln.ApplyAutoFees()
 
@@ -1353,12 +1354,12 @@ func findSwapInCandidate(candidate *SwapParams) error {
 				continue
 			}
 
-			// only consider sink channels (net routing > 1k)
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
 			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
 				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
 			}
 
+			// only consider sink channels (net routing > 1k)
 			stats := ln.GetChannelStats(channel.ChannelId, uint64(lastSwapTimestamp))
 			if stats.RoutedOut-stats.RoutedIn <= 1000 {
 				continue
@@ -1366,17 +1367,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 
 			swapAmount := targetBalance - channel.LocalBalance
 
-			// limit to own and peer's max HTLC setting and remote balance less reserve for LN fee
-			swapAmount = min(swapAmount, chanInfo.OurMaxHtlc, chanInfo.PeerMaxHtlc, channel.RemoteBalance-1000, config.Config.AutoSwapMaxAmount)
+			// limit to peer's max HTLC setting and remote balance less reserve for LN fee
+			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc, channel.RemoteBalance-1000, config.Config.AutoSwapMaxAmount)
 
 			// only consider active channels with enough remote balance
 			if channel.Active && swapAmount >= minAmount {
-				// use timestamp of the last swap or 6 months horizon
-				lastTimestamp := time.Now().AddDate(0, -6, 0).Unix()
-				if swapTimestamps[channel.ChannelId] > lastTimestamp {
-					lastTimestamp = swapTimestamps[channel.ChannelId]
-				}
-
 				ppm := uint64(0)
 				if stats.RoutedOut > 1_000 { // ignore small results
 					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut

@@ -767,6 +767,7 @@ func GetBlockHeight() uint32 {
 	return res.GetBlockHeight()
 }
 
+// return false on error
 func downloadInvoices(client lnrpc.LightningClient) bool {
 	// only go back 6 months for itinial download
 	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
@@ -824,6 +825,7 @@ func downloadInvoices(client lnrpc.LightningClient) bool {
 	return true
 }
 
+// return false on error
 func downloadForwards(client lnrpc.LightningClient) bool {
 	// only go back 6 months
 	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
@@ -887,6 +889,7 @@ func downloadForwards(client lnrpc.LightningClient) bool {
 	return true
 }
 
+// return false on error
 func downloadPayments(client lnrpc.LightningClient) bool {
 	// only go back 6 months
 	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
