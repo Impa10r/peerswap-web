@@ -767,7 +767,7 @@ func GetBlockHeight() uint32 {
 	return res.GetBlockHeight()
 }
 
-func downloadInvoices(client lnrpc.LightningClient) error {
+func downloadInvoices(client lnrpc.LightningClient) bool {
 	// only go back 6 months for itinial download
 	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 	offset := uint64(0)
@@ -793,7 +793,7 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
 				log.Println("ListInvoices:", err)
 			}
-			return err
+			return false
 		}
 
 		for _, invoice := range res.Invoices {
@@ -821,10 +821,10 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 		log.Printf("Cached %d invoices in %.2f seconds", totalInvoices, duration.Seconds())
 	}
 
-	return nil
+	return true
 }
 
-func downloadForwards(client lnrpc.LightningClient) {
+func downloadForwards(client lnrpc.LightningClient) bool {
 	// only go back 6 months
 	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
@@ -848,8 +848,11 @@ func downloadForwards(client lnrpc.LightningClient) {
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
-			log.Println("ForwardingHistory:", err)
-			return
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") &&
+				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
+				log.Println("ForwardingHistory:", err)
+			}
+			return false // lnd not ready
 		}
 
 		// sort by in and out channels
@@ -880,9 +883,11 @@ func downloadForwards(client lnrpc.LightningClient) {
 		duration := time.Since(start)
 		log.Printf("Cached %d forwards in %.2f seconds", totalForwards, duration.Seconds())
 	}
+
+	return true
 }
 
-func downloadPayments(client lnrpc.LightningClient) {
+func downloadPayments(client lnrpc.LightningClient) bool {
 	// only go back 6 months
 	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
@@ -906,8 +911,11 @@ func downloadPayments(client lnrpc.LightningClient) {
 			MaxPayments:       100, // labels can be long
 		})
 		if err != nil {
-			log.Println("ListPayments:", err)
-			return
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") &&
+				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
+				log.Println("ListPayments:", err)
+			}
+			return false
 		}
 
 		// will only append settled ones
@@ -935,6 +943,7 @@ func downloadPayments(client lnrpc.LightningClient) {
 		duration := time.Since(start)
 		log.Printf("Cached %d payments in %.2f seconds", totalPayments, duration.Seconds())
 	}
+	return true
 }
 
 func appendPayment(payment *lnrpc.Payment) {
@@ -1143,7 +1152,7 @@ func DownloadAll() bool {
 	}
 
 	// initial download
-	if downloadInvoices(client) != nil {
+	if !downloadInvoices(client) {
 		return false
 	}
 
@@ -1153,9 +1162,13 @@ func DownloadAll() bool {
 	go func() {
 		for {
 			if subscribeInvoices(ctx, client) != nil {
-				time.Sleep(60 * time.Second)
-				// incremental download after error
-				downloadInvoices(client)
+				for {
+					time.Sleep(60 * time.Second)
+					// incremental download after error
+					if downloadInvoices(client) {
+						break // lnd is alive again
+					}
+				}
 			}
 		}
 	}()
@@ -1187,9 +1200,13 @@ func DownloadAll() bool {
 		// subscribe to Forwards
 		for {
 			if subscribeForwards(ctx, routerClient) != nil {
-				time.Sleep(60 * time.Second)
 				// incremental download after error
-				downloadForwards(client)
+				for {
+					time.Sleep(60 * time.Second)
+					if downloadForwards(client) {
+						break // lnd is alive again
+					}
+				}
 			}
 		}
 	}()
@@ -1201,9 +1218,13 @@ func DownloadAll() bool {
 		// subscribe to Payments
 		for {
 			if subscribePayments(ctx, routerClient) != nil {
-				time.Sleep(60 * time.Second)
-				// incremental download after error
-				downloadPayments(client)
+				for {
+					time.Sleep(60 * time.Second)
+					// incremental download after error
+					if downloadPayments(client) {
+						break
+					}
+				}
 			}
 		}
 	}()
@@ -1220,7 +1241,7 @@ func subscribeBlocks(conn *grpc.ClientConn) error {
 		return err
 	}
 
-	log.Println("Subscribed to Bitcoin blocks")
+	log.Println("Subscribed to blocks")
 
 	for {
 		blockEpoch, err := stream.Recv()
