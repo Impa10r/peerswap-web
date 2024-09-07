@@ -24,7 +24,7 @@ var plugin *glightning.Plugin
 
 // This is called after the plugin starts up successfully
 func onInit(plugin *glightning.Plugin, options map[string]glightning.Option, conf *glightning.Config) {
-
+	//time.Sleep(20 * time.Second)
 	// set logging params
 	_, err := setLogging(filepath.Join(conf.LightningDir, "peerswap", "psweb.log"))
 	if err != nil {

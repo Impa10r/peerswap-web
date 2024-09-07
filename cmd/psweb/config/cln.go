@@ -19,13 +19,11 @@ func loadDefaults(home, dataDir string) {
 		Config.LightningDir = dataDir
 	}
 
+	Config.RpcHost = filepath.Join(Config.LightningDir, "bitcoin")
 	if Config.Chain == "testnet" {
 		Config.RpcHost = filepath.Join(Config.LightningDir, "testnet")
-		Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
-	} else {
-		Config.RpcHost = filepath.Join(Config.LightningDir, "bitcoin")
-		Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
 	}
+	Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
 }
 
 // CLN-specific load from Peerswap config
@@ -45,7 +43,7 @@ func LoadPS() {
 		port := GetPeerswapCLNSetting("Bitcoin", "rpcport")
 		if port == "" {
 			port = "8332"
-			if os.Getenv("NETWORK") == "testnet" {
+			if Config.Chain == "testnet" {
 				port = "18332"
 			}
 		}
@@ -125,6 +123,7 @@ func SavePS() {
 	rpchost := GetPeerswapCLNSetting("Bitcoin", "rpchost")
 	if rpchost != "" {
 		t += setPeerswapVariable("Bitcoin", "rpchost", "", "", "", true)
+		t += setPeerswapVariable("Bitcoin", "rpcport", "", "", "", true)
 	}
 	cookiefilepath := GetPeerswapCLNSetting("Bitcoin", "cookiefilepath")
 	if cookiefilepath != "" {

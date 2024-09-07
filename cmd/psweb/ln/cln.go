@@ -1226,18 +1226,8 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 
 // Estimate sat/vB fee
 func EstimateFee() float64 {
-	client, clean, err := GetClient()
-	if err != nil {
-		return 0
-	}
-	defer clean()
-
-	res, err := client.FeeRates(glightning.PerKb)
-	if err != nil {
-		return 0
-	}
-
-	return math.Round(float64(res.Details.Urgent) / 1000)
+	// glightning FeeRates is broken
+	return bitcoin.EstimateSatvB(2)
 }
 
 // get fees for all channels by filling the maps [channelId]
