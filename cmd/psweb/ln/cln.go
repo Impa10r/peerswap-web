@@ -937,12 +937,12 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 			}
 		}
 
-		channels, err := client.ListPeerChannels(clnPeer.Id)
+		res, err := client.ListPeerChannels(clnPeer.Id)
 		if err != nil {
 			return nil, err
 		}
 		// add channels
-		clnPeers[i].Channels = channels
+		clnPeers[i].Channels = res.Channels
 
 		peer := peerswaprpc.PeerSwapPeer{}
 		peer.NodeId = clnPeer.Id

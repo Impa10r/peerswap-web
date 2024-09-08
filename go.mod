@@ -6,7 +6,7 @@ go 1.21.5
 // replace github.com/elementsproject/glightning => ../glightning
 
 // temporary forked
-replace github.com/elementsproject/glightning => github.com/impa10r/glightning v0.0.0-20240827150117-43d26f266f4d
+replace github.com/elementsproject/glightning => github.com/impa10r/glightning v0.0.0-20240908125131-efaaf78adc9f
 
 // peerswap uses go-elements v0.4.0 which is not compatible with lnd v0.18
 // until they upgrade, I link to a compatible version in my repository

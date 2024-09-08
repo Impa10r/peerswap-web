@@ -10,10 +10,10 @@
 - Change Custom Message type from 42067 to 42065
 - Fix accounting for initiated swap outs and failed swaps
 - Show circular rebalancing volumes and costs on main screen
-- Advertised balances are now capped at remote channel balance
-- Balance advertising is now enabled by default to deter brute force discovery
+- Advertised balances: are now capped at remote channel balance
+- Advertised balances: are now enabled by default to deter brute force discovery
 - CLN: Refactor psweb as a plugin to use hooks and notifications
-- Update keysend invite message
+- Update keysend invite message to prospective peers
 
 ## 1.6.9
 
