@@ -8,11 +8,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/gob"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -33,21 +34,17 @@ import (
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/chainrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
-	"github.com/lightningnetwork/lnd/zpay32"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gopkg.in/macaroon.v2"
 )
 
 const (
-	Implementation = "LND"
-	// https://github.com/ElementsProject/peerswap/blob/master/peerswaprpc/server.go#L234
-	// 2000 to avoid high fee
-	SwapFeeReserveLBTC = uint64(2000)
-	SwapFeeReserveBTC  = uint64(2000)
+	IMPLEMENTATION = "LND"
 )
 
 type InflightHTLC struct {
@@ -61,13 +58,18 @@ var (
 	LndVerson = float64(0) // must be 0.18+ for RBF ability
 
 	// arrays mapped per channel
-	forwardsIn   = make(map[uint64][]*lnrpc.ForwardingEvent)
-	forwardsOut  = make(map[uint64][]*lnrpc.ForwardingEvent)
-	paymentHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
-	invoiceHtlcs = make(map[uint64][]*lnrpc.InvoiceHTLC)
+	forwardsIn        = make(map[uint64][]*lnrpc.ForwardingEvent)
+	forwardsOut       = make(map[uint64][]*lnrpc.ForwardingEvent)
+	paymentHtlcs      = make(map[uint64][]*lnrpc.HTLCAttempt)
+	rebalanceInHtlcs  = make(map[uint64][]*lnrpc.HTLCAttempt)
+	rebalanceOutHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
+	invoiceHtlcs      = make(map[uint64][]*lnrpc.InvoiceHTLC)
 
 	// inflight HTLCs mapped per Incoming channel
 	inflightHTLCs = make(map[uint64][]*InflightHTLC)
+
+	// cache peer addresses for reconnects
+	peerAddresses = make(map[string][]*lnrpc.NodeAddress)
 
 	// las index for invoice subscriptions
 	lastInvoiceSettleIndex uint64
@@ -246,7 +248,7 @@ func GetRawTransaction(client lnrpc.LightningClient, txid string) (string, error
 }
 
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate float64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	ctx := context.Background()
 	conn, err := lndConnection()
 	if err != nil {
@@ -272,15 +274,15 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	var psbtBytes []byte
 
 	if subtractFeeFromAmount && CanRBF() {
-		// new template since for LND 0.18+
+		// new template since LND 0.18+
 		// change lockID to custom and construct manual psbt
 		lockId = myLockId
-		psbtBytes, err = fundPsbtSpendAll(cl, utxos, addr, feeRate)
+		psbtBytes, err = fundPsbtSpendAll(cl, utxos, addr, uint64(feeRate))
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+		psbtBytes, err = fundPsbt(cl, utxos, outputs, uint64(feeRate))
 		if err != nil {
 			log.Println("FundPsbt:", err)
 			return nil, err
@@ -289,7 +291,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		if subtractFeeFromAmount {
 			// trick for LND before 0.18
 			// replace output with correct address and amount
-			fee, err := bitcoin.GetFeeFromPsbt(&psbtBytes)
+			fee, err := bitcoin.GetFeeFromPsbt(base64.StdEncoding.EncodeToString(psbtBytes))
 			if err != nil {
 				return nil, err
 			}
@@ -306,7 +308,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 				}
 
 				outputs[addr] = uint64(finalAmount)
-				psbtBytes, err = fundPsbt(cl, utxos, outputs, feeRate)
+				psbtBytes, err = fundPsbt(cl, utxos, outputs, uint64(feeRate))
 
 				if err == nil {
 					// PFBT was funded successfully
@@ -321,6 +323,9 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 		}
 	}
 
+	pass := 0
+
+finalize:
 	// sign psbt
 	res2, err := cl.FinalizePsbt(ctx, &walletrpc.FinalizePsbtRequest{
 		FundedPsbt: psbtBytes,
@@ -332,6 +337,60 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	}
 
 	rawTx := res2.GetRawFinalTx()
+
+	decoded, err := bitcoin.DecodeRawTransaction(hex.EncodeToString(rawTx))
+	if err != nil {
+		return nil, err
+	}
+
+	feePaid, err := bitcoin.GetFeeFromPsbt(base64.StdEncoding.EncodeToString(psbtBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	requiredFee := int64(feeRate * float64(decoded.VSize))
+
+	if requiredFee != toSats(feePaid) {
+		if pass < 5 {
+			log.Println("Trying to fix fee paid", toSats(feePaid), "vs required", requiredFee)
+
+			releaseOutputs(cl, utxos, &lockId)
+
+			// Parse the PSBT
+			p, err := psbt.NewFromRawBytes(bytes.NewReader(psbtBytes), false)
+			if err != nil {
+				log.Println("NewFromRawBytes:", err)
+				return nil, err
+			}
+
+			// Output index to amend (destination or change)
+			outputIndex := len(p.UnsignedTx.TxOut) - 1
+
+			// Replace the value of the output
+			p.UnsignedTx.TxOut[outputIndex].Value -= requiredFee - toSats(feePaid)
+
+			// Serialize the PSBT back to raw bytes
+			var buf bytes.Buffer
+			err = p.Serialize(&buf)
+			if err != nil {
+				log.Println("Serialize:", err)
+				return nil, err
+			}
+
+			psbtBytes = buf.Bytes()
+
+			// Print the updated PSBT in hex
+			// log.Println(base64.StdEncoding.EncodeToString(psbtBytes))
+
+			// avoid permanent loop
+			pass++
+
+			goto finalize
+		}
+
+		// did not fix in 5 passes, give up
+		log.Println("Unable to fix fee paid", toSats(feePaid), "vs required", requiredFee)
+	}
 
 	// Deserialize the transaction to get the transaction hash.
 	msgTx := &wire.MsgTx{}
@@ -349,6 +408,7 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	_, err = cl.PublishTransaction(ctx, req)
 	if err != nil {
 		log.Println("PublishTransaction:", err)
+		// log.Println("RawHex:", hex.EncodeToString(rawTx))
 		releaseOutputs(cl, utxos, &lockId)
 		return nil, err
 	}
@@ -359,9 +419,10 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	}
 
 	result := SentResult{
-		RawHex:    hex.EncodeToString(rawTx),
-		TxId:      msgTx.TxHash().String(),
-		AmountSat: finalAmount,
+		RawHex:     hex.EncodeToString(rawTx),
+		TxId:       msgTx.TxHash().String(),
+		AmountSat:  finalAmount,
+		ExactSatVb: math.Ceil(float64(toSats(feePaid)*1000)/float64(decoded.VSize)) / 1000,
 	}
 
 	return &result, nil
@@ -538,7 +599,7 @@ func fundPsbtSpendAll(cl walletrpc.WalletKitClient, utxoStrings *[]string, addre
 	return fundResp.FundedPsbt, nil
 }
 
-func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
+func BumpPeginFee(feeRate float64, label string) (*SentResult, error) {
 
 	client, cleanup, err := GetClient()
 	if err != nil {
@@ -559,14 +620,15 @@ func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
 	cl := walletrpc.NewWalletKitClient(conn)
 
 	if !CanRBF() {
-		err = doCPFP(cl, tx.GetOutputDetails(), feeRate)
+		err = doCPFP(cl, tx.GetOutputDetails(), uint64(feeRate))
 		if err != nil {
 			return nil, err
 		} else {
 			return &SentResult{
-				TxId:      config.Config.PeginTxId,
-				RawHex:    "",
-				AmountSat: config.Config.PeginAmount,
+				TxId:       config.Config.PeginTxId,
+				RawHex:     "",
+				AmountSat:  config.Config.PeginAmount,
+				ExactSatVb: float64(feeRate),
 			}, nil
 		}
 	}
@@ -590,18 +652,30 @@ func BumpPeginFee(feeRate uint64, label string) (*SentResult, error) {
 		utxos = append(utxos, input.Outpoint)
 	}
 
-	// sometimes remove transaction is not enough
-	releaseOutputs(cl, &utxos, &internalLockId)
-	releaseOutputs(cl, &utxos, &myLockId)
+	var ress *SentResult
+	var errr error
 
-	return SendCoinsWithUtxos(
-		&utxos,
-		config.Config.PeginAddress,
-		config.Config.PeginAmount,
-		feeRate,
-		len(tx.OutputDetails) == 1,
-		label)
+	// extra bump may be necessary if the tx does not pay enough fee
+	for extraBump := float64(0); extraBump <= 1; extraBump += 0.01 {
+		// sometimes remove transaction is not enough
+		releaseOutputs(cl, &utxos, &internalLockId)
+		releaseOutputs(cl, &utxos, &myLockId)
 
+		ress, errr = SendCoinsWithUtxos(
+			&utxos,
+			config.Config.PeginAddress,
+			config.Config.PeginAmount,
+			feeRate+extraBump,
+			len(tx.OutputDetails) == 1,
+			label)
+		if errr != nil && errr.Error() == "rpc error: code = Unknown desc = insufficient fee" {
+			continue
+		} else {
+			break
+		}
+	}
+
+	return ress, errr
 }
 
 func doCPFP(cl walletrpc.WalletKitClient, outputs []*lnrpc.OutputDetail, newFeeRate uint64) error {
@@ -678,37 +752,39 @@ func getLndVersion() float64 {
 	return LndVerson
 }
 
-func GetMyAlias() string {
-	if myNodeAlias == "" {
-		client, cleanup, err := GetClient()
-		if err != nil {
-			return ""
-		}
-		defer cleanup()
-
-		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
-		if err != nil {
-			return ""
-		}
-		myNodeAlias = res.GetAlias()
+func GetBlockHeight() uint32 {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return 0
 	}
-	return myNodeAlias
+	defer cleanup()
+
+	res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+	if err != nil {
+		return 0
+	}
+
+	return res.GetBlockHeight()
 }
 
-func downloadInvoices(client lnrpc.LightningClient) error {
+// return false on error
+func downloadInvoices(client lnrpc.LightningClient) bool {
 	// only go back 6 months for itinial download
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 	offset := uint64(0)
 	totalInvoices := uint64(0)
 
 	// incremental download
 	if lastInvoiceCreationTs > 0 {
-		start = uint64(lastInvoiceCreationTs) + 1
+		startTs = uint64(lastInvoiceCreationTs) + 1
 	}
+
+	// benchmark time
+	start := time.Now()
 
 	for {
 		res, err := client.ListInvoices(context.Background(), &lnrpc.ListInvoiceRequest{
-			CreationDateStart: start,
+			CreationDateStart: startTs,
 			Reversed:          false,
 			IndexOffset:       offset,
 			NumMaxInvoices:    100, // bolt11 fields can be long
@@ -718,7 +794,7 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
 				log.Println("ListInvoices:", err)
 			}
-			return err
+			return false
 		}
 
 		for _, invoice := range res.Invoices {
@@ -742,40 +818,48 @@ func downloadInvoices(client lnrpc.LightningClient) error {
 	}
 
 	if totalInvoices > 0 {
-		log.Printf("Cached %d invoices", totalInvoices)
+		duration := time.Since(start)
+		log.Printf("Cached %d invoices in %.2f seconds", totalInvoices, duration.Seconds())
 	}
 
-	return nil
+	return true
 }
 
-func downloadForwards(client lnrpc.LightningClient) {
+// return false on error
+func downloadForwards(client lnrpc.LightningClient) bool {
 	// only go back 6 months
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	// incremental download if substription was interrupted
 	if lastForwardCreationTs > 0 {
 		// continue from the last timestamp in seconds
-		start = lastForwardCreationTs + 1
+		startTs = lastForwardCreationTs + 1
 	}
+
+	// benchmark time
+	start := time.Now()
 
 	// download forwards
 	offset := uint32(0)
 	totalForwards := uint64(0)
 	for {
 		res, err := client.ForwardingHistory(context.Background(), &lnrpc.ForwardingHistoryRequest{
-			StartTime:       start,
+			StartTime:       startTs,
 			IndexOffset:     offset,
 			PeerAliasLookup: false,
 			NumMaxEvents:    50000,
 		})
 		if err != nil {
-			log.Println("ForwardingHistory:", err)
-			return
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") &&
+				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
+				log.Println("ForwardingHistory:", err)
+			}
+			return false // lnd not ready
 		}
 
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
-			if event.AmtOutMsat > ignoreForwardsMsat {
+			if event.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
 				LastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
@@ -798,33 +882,43 @@ func downloadForwards(client lnrpc.LightningClient) {
 	}
 
 	if totalForwards > 0 {
-		log.Printf("Cached %d forwards", totalForwards)
+		duration := time.Since(start)
+		log.Printf("Cached %d forwards in %.2f seconds", totalForwards, duration.Seconds())
 	}
+
+	return true
 }
 
-func downloadPayments(client lnrpc.LightningClient) {
+// return false on error
+func downloadPayments(client lnrpc.LightningClient) bool {
 	// only go back 6 months
-	start := uint64(time.Now().AddDate(0, -6, 0).Unix())
+	startTs := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	// incremental download if substription was interrupted
 	if lastPaymentCreationTs > 0 {
 		// continue from the last timestamp in seconds
-		start = uint64(lastPaymentCreationTs + 1)
+		startTs = uint64(lastPaymentCreationTs + 1)
 	}
+
+	// benchmark time
+	start := time.Now()
 
 	offset := uint64(0)
 	totalPayments := uint64(0)
 	for {
 		res, err := client.ListPayments(context.Background(), &lnrpc.ListPaymentsRequest{
-			CreationDateStart: start,
+			CreationDateStart: startTs,
 			IncludeIncomplete: false,
 			Reversed:          false,
 			IndexOffset:       offset,
 			MaxPayments:       100, // labels can be long
 		})
 		if err != nil {
-			log.Println("ListPayments:", err)
-			return
+			if !strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = waiting to start") &&
+				!strings.HasPrefix(fmt.Sprint(err), "rpc error: code = Unknown desc = the RPC server is in the process of starting up") {
+				log.Println("ListPayments:", err)
+			}
+			return false
 		}
 
 		// will only append settled ones
@@ -849,8 +943,10 @@ func downloadPayments(client lnrpc.LightningClient) {
 	}
 
 	if totalPayments > 0 {
-		log.Printf("Cached %d payments", totalPayments)
+		duration := time.Since(start)
+		log.Printf("Cached %d payments in %.2f seconds", totalPayments, duration.Seconds())
 	}
+	return true
 }
 
 func appendPayment(payment *lnrpc.Payment) {
@@ -859,34 +955,23 @@ func appendPayment(payment *lnrpc.Payment) {
 	}
 
 	if payment.Status == lnrpc.Payment_SUCCEEDED {
-		if payment.PaymentRequest != "" {
-			// Decode the payment request
-			var harnessNetParams = &chaincfg.TestNet3Params
-			if config.Config.Chain == "mainnet" {
-				harnessNetParams = &chaincfg.MainNetParams
-			}
-			invoice, err := zpay32.Decode(payment.PaymentRequest, harnessNetParams)
-			if err == nil {
-				if invoice.Description != nil {
-					if parts := strings.Split(*invoice.Description, " "); len(parts) > 4 {
-						if parts[0] == "peerswap" {
-							// find swap id
-							if parts[2] == "fee" && len(parts[4]) > 0 {
-								// save rebate payment
-								saveSwapRabate(parts[4], payment.ValueMsat/1000)
-							}
-							// skip peerswap-related payments
-							return
-						}
-					}
-				}
-			}
+		if DecodeAndProcessInvoice(payment.PaymentRequest, payment.ValueMsat) {
+			// related to peerswap
+			return
 		}
 		for _, htlc := range payment.Htlcs {
 			if htlc.Status == lnrpc.HTLCAttempt_SUCCEEDED {
 				// get channel from the first hop
 				chanId := htlc.Route.Hops[0].ChanId
-				paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+				// get destination from the last hop
+				lastHop := htlc.Route.Hops[len(htlc.Route.Hops)-1]
+				if lastHop.PubKey == MyNodeId {
+					// this is a circular rebalancing
+					rebalanceOutHtlcs[chanId] = append(rebalanceOutHtlcs[chanId], htlc)
+					rebalanceInHtlcs[lastHop.ChanId] = append(rebalanceInHtlcs[lastHop.ChanId], htlc)
+				} else {
+					paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+				}
 			}
 		}
 		// store the last timestamp
@@ -989,7 +1074,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
 					// ignore dust
-					if htlc.forwardingEvent.AmtOutMsat > ignoreForwardsMsat {
+					if htlc.forwardingEvent.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 						// add our stored forwards
 						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
 						// settled htlcEvent has no Outgoing info, take from queue
@@ -1042,54 +1127,51 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 	}
 }
 
-// cache all and subscribe to lnd
-func SubscribeAll() {
+// cache all and subscribe
+// return false if lightning did not start yet
+func DownloadAll() bool {
 	if downloadComplete {
 		// only run once if successful
-		return
+		return true
 	}
 
 	conn, err := lndConnection()
 	if err != nil {
-		return
+		return false
 	}
-	defer conn.Close()
+	//defer conn.Close()
 
 	client := lnrpc.NewLightningClient(conn)
 	ctx := context.Background()
 
+	if MyNodeId == "" {
+		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		if err != nil {
+			// lnd not ready
+			return false
+		}
+		MyNodeAlias = res.GetAlias()
+		MyNodeId = res.GetIdentityPubkey()
+	}
+
 	// initial download
-	if downloadInvoices(client) != nil {
-		return
+	if !downloadInvoices(client) {
+		return false
 	}
 
 	downloadComplete = true
 
-	routerClient := routerrpc.NewRouterClient(conn)
-
+	// subscribe to Invoices
 	go func() {
-		// initial download forwards
-		downloadForwards(client)
-		// subscribe to Forwards
 		for {
-			if subscribeForwards(ctx, routerClient) != nil {
-				time.Sleep(60 * time.Second)
-				// incremental download after error
-				downloadForwards(client)
-			}
-		}
-	}()
-
-	go func() {
-		// initial download payments
-		downloadPayments(client)
-
-		// subscribe to Payments
-		for {
-			if subscribePayments(ctx, routerClient) != nil {
-				time.Sleep(60 * time.Second)
-				// incremental download after error
-				downloadPayments(client)
+			if subscribeInvoices(ctx, client) != nil {
+				for {
+					time.Sleep(60 * time.Second)
+					// incremental download after error
+					if downloadInvoices(client) {
+						break // lnd is alive again
+					}
+				}
 			}
 		}
 	}()
@@ -1103,13 +1185,74 @@ func SubscribeAll() {
 		}
 	}()
 
-	// subscribe to Invoices
-	for {
-		if subscribeInvoices(ctx, client) != nil {
-			time.Sleep(60 * time.Second)
-			// incremental download after error
-			downloadInvoices(client)
+	// subscribe to chain blocks
+	go func() {
+		for {
+			if subscribeBlocks(conn) != nil {
+				time.Sleep(60 * time.Second)
+			}
 		}
+	}()
+
+	routerClient := routerrpc.NewRouterClient(conn)
+
+	// initial download forwards
+	downloadForwards(client)
+
+	go func() {
+		// subscribe to Forwards
+		for {
+			if subscribeForwards(ctx, routerClient) != nil {
+				// incremental download after error
+				for {
+					time.Sleep(60 * time.Second)
+					if downloadForwards(client) {
+						break // lnd is alive again
+					}
+				}
+			}
+		}
+	}()
+
+	// initial download payments
+	downloadPayments(client)
+
+	go func() {
+		// subscribe to Payments
+		for {
+			if subscribePayments(ctx, routerClient) != nil {
+				for {
+					time.Sleep(60 * time.Second)
+					// incremental download after error
+					if downloadPayments(client) {
+						break
+					}
+				}
+			}
+		}
+	}()
+
+	return true
+}
+
+func subscribeBlocks(conn *grpc.ClientConn) error {
+
+	client := chainrpc.NewChainNotifierClient(conn)
+	ctx := context.Background()
+	stream, err := client.RegisterBlockEpochNtfn(ctx, &chainrpc.BlockEpoch{})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Subscribed to blocks")
+
+	for {
+		blockEpoch, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		OnBlock(blockEpoch.Height)
 	}
 }
 
@@ -1124,16 +1267,9 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 
 	// only append settled htlcs
 	if invoice.State == lnrpc.Invoice_SETTLED {
-		if parts := strings.Split(invoice.Memo, " "); len(parts) > 4 {
-			if parts[0] == "peerswap" {
-				// find swap id
-				if parts[2] == "fee" && len(parts[4]) > 0 {
-					// save rebate payment
-					saveSwapRabate(parts[4], invoice.AmtPaidMsat/1000)
-				}
-				// skip peerswap-related
-				return
-			}
+		if processInvoice(invoice.Memo, invoice.AmtPaidMsat) {
+			// skip peerswap-related
+			return
 		}
 		for _, htlc := range invoice.Htlcs {
 			if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
@@ -1170,103 +1306,72 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 		return err
 	}
 
-	log.Println("Subscribed to messages")
+	log.Println("Subscribed to custom messages")
 
 	for {
 		data, err := stream.Recv()
 		if err != nil {
 			return err
 		}
-		if data.Type == messageType {
-			var msg Message
-			err := json.Unmarshal(data.Data, &msg)
-			if err != nil {
-				continue
-			}
-			if msg.Version != MessageVersion {
-				continue
-			}
 
+		if data.Type == MESSAGE_TYPE {
 			nodeId := hex.EncodeToString(data.Peer)
 
-			// received request for information
-			if msg.Memo == "poll" {
-				if AdvertiseLiquidBalance {
-					if SendCustomMessage(client, nodeId, &Message{
-						Version: MessageVersion,
-						Memo:    "balance",
-						Asset:   "lbtc",
-						Amount:  LiquidBalance,
-					}) == nil {
-						// save announcement
-						if SentLiquidBalances[nodeId] == nil {
-							SentLiquidBalances[nodeId] = new(BalanceInfo)
-						}
-						SentLiquidBalances[nodeId].Amount = LiquidBalance
-						SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
-					}
+			OnMyCustomMessage(nodeId, data.Data)
 
-					if AdvertiseBitcoinBalance {
-						if SendCustomMessage(client, nodeId, &Message{
-							Version: MessageVersion,
-							Memo:    "balance",
-							Asset:   "btc",
-							Amount:  BitcoinBalance,
-						}) == nil {
-							// save announcement
-							if SentBitcoinBalances[nodeId] == nil {
-								SentBitcoinBalances[nodeId] = new(BalanceInfo)
-							}
-							SentBitcoinBalances[nodeId].Amount = BitcoinBalance
-							SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
-						}
-					}
-				}
-			}
-
-			// received information
-			if msg.Memo == "balance" {
-				ts := time.Now().Unix()
-				if msg.Asset == "lbtc" {
-					if LiquidBalances[nodeId] == nil {
-						LiquidBalances[nodeId] = new(BalanceInfo)
-					}
-					LiquidBalances[nodeId].Amount = msg.Amount
-					LiquidBalances[nodeId].TimeStamp = ts
-				}
-				if msg.Asset == "btc" {
-					if BitcoinBalances[nodeId] == nil {
-						BitcoinBalances[nodeId] = new(BalanceInfo)
-					}
-					BitcoinBalances[nodeId].Amount = msg.Amount
-					BitcoinBalances[nodeId].TimeStamp = ts
+			if peerAddresses[nodeId] == nil {
+				// cache peer addresses for reconnects
+				info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
+				if err == nil {
+					peerAddresses[nodeId] = info.Node.Addresses
 				}
 			}
 		}
 	}
 }
 
-func SendCustomMessage(client lnrpc.LightningClient, peerId string, message *Message) error {
+func SendCustomMessage(peerId string, message *Message) error {
+	client, cleanup, err := GetClient()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	peerByte, err := hex.DecodeString(peerId)
 	if err != nil {
 		return err
 	}
 
-	data, err := json.Marshal(message)
-	if err != nil {
+	// Serialize the message using gob
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if err := encoder.Encode(message); err != nil {
 		return err
 	}
 
 	req := &lnrpc.SendCustomMessageRequest{
 		Peer: peerByte,
-		Type: messageType,
-		Data: data,
+		Type: MESSAGE_TYPE,
+		Data: buffer.Bytes(),
 	}
 
 	_, err = client.SendCustomMessage(context.Background(), req)
 	if err != nil {
+		if err.Error() == "rpc error: code = NotFound desc = peer is not connected" {
+			// reconnect
+			if reconnectPeer(client, peerId) {
+				// try again
+				_, err = client.SendCustomMessage(context.Background(), req)
+				if err == nil {
+					goto success
+				}
+			}
+		}
 		return err
 	}
+
+success:
+	// log.Printf("Sent %d bytes %s to %s", len(req.Data), message.Memo, GetAlias(peerId))
 
 	return nil
 }
@@ -1290,7 +1395,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			result.AmountOut6m += e.AmtOut
 			feeMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1305,7 +1410,7 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	}
 
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			result.AmountIn6m += e.AmtIn
 			assistedMsat6m += e.FeeMsat
 			if e.TimestampNs > timestamp30d {
@@ -1395,39 +1500,73 @@ func GetChannelInfo(client lnrpc.LightningClient, channelId uint64, peerNodeId s
 func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	var (
-		result        ChannelStats
-		routedInMsat  uint64
-		routedOutMsat uint64
-		feeMsat       uint64
-		assistedMsat  uint64
-		paidOutMsat   int64
-		invoicedMsat  uint64
-		costMsat      int64
+		result            ChannelStats
+		routedInMsat      uint64
+		routedOutMsat     uint64
+		feeMsat           uint64
+		assistedMsat      uint64
+		paidOutMsat       int64
+		invoicedMsat      uint64
+		costMsat          int64
+		rebalanceInMsat   int64
+		rebalanceOutMsat  int64
+		rebalanceCostMsat int64
 	)
 
 	timestampNs := timeStamp * 1_000_000_000
 
 	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			routedOutMsat += e.AmtOutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
+
 	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat > ignoreForwardsMsat {
+		if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			routedInMsat += e.AmtInMsat
 			assistedMsat += e.FeeMsat
 		}
 	}
-	for _, e := range invoiceHtlcs[channelId] {
+
+	for i := 0; i < len(invoiceHtlcs[channelId]); i++ {
+		e := invoiceHtlcs[channelId][i]
 		if uint64(e.AcceptTime) > timeStamp {
-			invoicedMsat += e.AmtMsat
+			// check if it is related to a circular rebalancing
+			found := false
+			for _, r := range rebalanceInHtlcs[channelId] {
+				if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
+					found = true
+					break
+				}
+			}
+			if found {
+				// remove invoice to avoid double counting
+				invoiceHtlcs[channelId] = append(invoiceHtlcs[channelId][:i], invoiceHtlcs[channelId][i+1:]...)
+				i--
+			} else {
+				invoicedMsat += e.AmtMsat
+			}
 		}
 	}
+
 	for _, e := range paymentHtlcs[channelId] {
 		if uint64(e.AttemptTimeNs) > timestampNs {
 			paidOutMsat += e.Route.TotalAmtMsat
 			costMsat += e.Route.TotalFeesMsat
+		}
+	}
+
+	for _, e := range rebalanceInHtlcs[channelId] {
+		if uint64(e.AttemptTimeNs) > timestampNs {
+			rebalanceInMsat += e.Route.TotalAmtMsat - e.Route.TotalFeesMsat
+			rebalanceCostMsat += e.Route.TotalFeesMsat
+		}
+	}
+
+	for _, e := range rebalanceOutHtlcs[channelId] {
+		if uint64(e.AttemptTimeNs) > timestampNs {
+			rebalanceOutMsat += e.Route.TotalAmtMsat
 		}
 	}
 
@@ -1438,6 +1577,9 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 	result.InvoicedIn = invoicedMsat / 1000
 	result.PaidOut = uint64(paidOutMsat / 1000)
 	result.PaidCost = uint64(costMsat / 1000)
+	result.RebalanceIn = uint64(rebalanceInMsat / 1000)
+	result.RebalanceOut = uint64(rebalanceOutMsat / 1000)
+	result.RebalanceCost = uint64(rebalanceCostMsat / 1000)
 
 	return &result
 }
@@ -1452,7 +1594,7 @@ func NewAddress() (string, error) {
 	defer cleanup()
 
 	res, err := client.NewAddress(ctx, &lnrpc.NewAddressRequest{
-		Type: lnrpc.AddressType_WITNESS_PUBKEY_HASH,
+		Type: lnrpc.AddressType_TAPROOT_PUBKEY,
 	})
 	if err != nil {
 		log.Println("NewAddress:", err)
@@ -1527,14 +1669,9 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 // Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding certain nodes
 func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	ctx := context.Background()
-
-	res, err := client.ListPeers(ctx, &lnrpc.ListPeersRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	res2, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
-		// PublicOnly: true,
+	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
+		ActiveOnly: false,
+		PublicOnly: false,
 	})
 	if err != nil {
 		return nil, err
@@ -1542,58 +1679,56 @@ func ListPeers(client lnrpc.LightningClient, peerId string, excludeIds *[]string
 
 	var peers []*peerswaprpc.PeerSwapPeer
 
-	for _, lndPeer := range res.Peers {
+	for _, channel := range res.Channels {
 		// skip excluded
-		if excludeIds != nil && stringIsInSlice(lndPeer.PubKey, *excludeIds) {
+		if excludeIds != nil && stringIsInSlice(channel.RemotePubkey, *excludeIds) {
 			continue
 		}
 
 		// skip if not the single one requested
-		if peerId != "" && lndPeer.PubKey != peerId {
+		if peerId != "" && channel.RemotePubkey != peerId {
 			continue
 		}
 
-		peer := peerswaprpc.PeerSwapPeer{}
-		peer.NodeId = lndPeer.PubKey
+		var peer *peerswaprpc.PeerSwapPeer
+		found := false
 
-		for _, channel := range res2.Channels {
-			if channel.RemotePubkey == lndPeer.PubKey {
-				peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-					ChannelId:     channel.ChanId,
-					LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
-					RemoteBalance: uint64(channel.RemoteBalance),
-					Active:        channel.Active,
-				})
+		// find if peer has been added already
+		for i, p := range peers {
+			if p.NodeId == channel.RemotePubkey {
+				// point to existing
+				peer = peers[i]
+				found = true
+				break
 			}
 		}
 
-		peer.AsSender = &peerswaprpc.SwapStats{}
-		peer.AsReceiver = &peerswaprpc.SwapStats{}
-
-		if len(peer.Channels) > 0 {
-			peers = append(peers, &peer)
+		if !found {
+			// make new
+			peer = new(peerswaprpc.PeerSwapPeer)
+			peer.NodeId = channel.RemotePubkey
+			peer.AsSender = &peerswaprpc.SwapStats{}
+			peer.AsReceiver = &peerswaprpc.SwapStats{}
+			// append to list
+			peers = append(peers, peer)
 		}
-
-		if peer.NodeId == peerId {
-			// skip the rest
-			break
-		}
+		// append channel
+		peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
+			ChannelId:     channel.ChanId,
+			LocalBalance:  uint64(channel.LocalBalance + channel.UnsettledBalance),
+			RemoteBalance: uint64(channel.RemoteBalance),
+			Active:        channel.Active,
+		})
 	}
 
-	if peerId != "" && len(peers) == 0 {
+	if peerId != "" && len(peers) != 1 {
 		// none found
 		return nil, errors.New("Peer " + peerId + " not found")
 	}
 
-	list := peerswaprpc.ListPeersResponse{
+	return &peerswaprpc.ListPeersResponse{
 		Peers: peers,
-	}
-
-	return &list, nil
-}
-
-func CacheForwards() {
-	// not implemented
+	}, nil
 }
 
 // Estimate sat/vB fee
@@ -1612,7 +1747,7 @@ func EstimateFee() float64 {
 		return 0
 	}
 
-	return float64(res.SatPerKw / 250)
+	return math.Round(float64(res.SatPerKw / 250))
 }
 
 // get fees for all channels by filling the maps [channelId]
@@ -1818,14 +1953,6 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 	}
 
 	ctx := context.Background()
-	if myNodeId == "" {
-		// get my node id
-		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-		if err != nil {
-			return
-		}
-		myNodeId = res.GetIdentityPubkey()
-	}
 	r, err := client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
 		ChanId: channelId,
 	})
@@ -1835,7 +1962,7 @@ func applyAutoFee(client lnrpc.LightningClient, channelId uint64, htlcFail bool)
 
 	policy := r.Node1Policy
 	peerId := r.Node2Pub
-	if r.Node1Pub != myNodeId {
+	if r.Node1Pub != MyNodeId {
 		// the first policy is not ours, use the second
 		policy = r.Node2Policy
 		peerId = r.Node1Pub
@@ -1929,14 +2056,6 @@ func ApplyAutoFees() {
 	defer cleanup()
 
 	ctx := context.Background()
-	if myNodeId == "" {
-		// get my node id
-		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-		if err != nil {
-			return
-		}
-		myNodeId = res.GetIdentityPubkey()
-	}
 
 	res, err := client.ListChannels(ctx, &lnrpc.ListChannelsRequest{
 		ActiveOnly: true,
@@ -1965,7 +2084,7 @@ func ApplyAutoFees() {
 
 		policy := r.Node1Policy
 		peerId := r.Node2Pub
-		if r.Node1Pub != myNodeId {
+		if r.Node1Pub != MyNodeId {
 			// the first policy is not ours, use the second
 			policy = r.Node2Policy
 			peerId = r.Node1Pub
@@ -2030,7 +2149,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.AmtOutMsat > ignoreForwardsMsat {
+		if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 			plot = append(plot, DataPoint{
 				TS:     e.TimestampNs / 1_000_000_000,
 				Amount: e.AmtOut,
@@ -2054,7 +2173,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 		}
 		for _, e := range forwardsOut[chId] {
 			// ignore small forwards
-			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
@@ -2070,7 +2189,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	if channelId > 0 {
 		for _, e := range forwardsIn[channelId] {
 			// ignore small forwards
-			if e.AmtOutMsat > ignoreForwardsMsat && e.TimestampNs >= fromTS_Ns {
+			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
 					TS:        e.TimestampNs / 1_000_000_000,
 					Amount:    e.AmtOut,
@@ -2089,4 +2208,48 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	})
 
 	return &log
+}
+
+func reconnectPeer(client lnrpc.LightningClient, nodeId string) bool {
+	ctx := context.Background()
+	addresses := peerAddresses[nodeId]
+
+	if addresses == nil {
+		info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
+		if err == nil {
+			addresses = info.Node.Addresses
+		} else {
+			log.Printf("Cannot reconnect to %s: %s", GetAlias(nodeId), err)
+			return false
+		}
+	}
+
+	skipTor := true
+
+try_to_connect:
+	for _, addr := range addresses {
+		if skipTor && strings.Contains(addr.Addr, ".onion") {
+			continue
+		}
+		_, err := client.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
+			Addr: &lnrpc.LightningAddress{
+				Pubkey: nodeId,
+				Host:   addr.Addr,
+			},
+			Perm:    false,
+			Timeout: 10,
+		})
+		if err == nil {
+			return true
+		}
+	}
+
+	if skipTor {
+		skipTor = false
+		goto try_to_connect
+	} else {
+		log.Println("Failed to reconnect to", GetAlias(nodeId))
+	}
+
+	return false
 }

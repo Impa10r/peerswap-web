@@ -1,5 +1,24 @@
 # Versions
 
+## 1.7.0
+
+- Correct swap fee estimates for CT discounted vsize (Elements v23.2.3+)
+- Implement confidential joint peg-in claims (Elements v23.2.3+) 
+- Add option to fund peg-ins from an external wallet 
+- LND: Facilitate exact (to 0.001) fee rates for peg-ins and BTC withdrawals
+- Change Custom Message serialization from JSON to GOB
+- Change Custom Message type from 42067 to 42065
+- Fix accounting for initiated swap outs and failed swaps
+- Show circular rebalancing volumes and costs on main screen
+- Advertised balances are now capped at remote channel balance
+- Balance advertising is now enabled by default to deter brute force discovery
+- CLN: Refactor psweb as a plugin to use hooks and notifications
+- Update keysend invite message
+
+## 1.6.9
+
+- Hot Fix bitcoinswaps=true persisting in peerswap.conf on psweb restart
+
 ## 1.6.8
 
 - AutoFees: do not change inbound fee during pending HTLCs
@@ -12,7 +31,7 @@
 - Fix AutoFees stop working bug
 - Fix AutoFees applied on startup before forwards history has been downloaded
 - LND 0.18: Fix AutoFees reacting to temporary balance increase due to pendinng HTLCs
-- Highlight outputs to be used for peg-in or BTC withdrawal
+- Highlight outputs to be used for pegging in or BTC withdrawal
 - Warn when BTC swap-in amount is unlikely to cover chain fee 
 - Limit L-BTC swap-in amount to avoid excessive fee rate
 
@@ -235,7 +254,7 @@
 
 ## 1.2.3
 
-- Add fee rate estimate for peg-in
+- Add fee rate estimate for peg-ins
 - Allow fee bumping peg-in tx (first CPFP, then RBF)
 
 ## 1.2.2
@@ -252,7 +271,7 @@
 ## 1.2.0
 
 - Add Bitcoin balance and utxo list display
-- Implement Liquid Peg-In functionality
+- Implement Liquid Peg-in functionality
 - Fallback to getblock.io if local Bitcoin Core unreachable
 
 ## 1.1.8

@@ -122,9 +122,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	peers = res4.GetPeers()
 
-	// refresh forwarding stats
-	ln.CacheForwards()
-
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
@@ -180,6 +177,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate    float64
 		AutoSwapEnabled   bool
 		PeginPending      bool
+		ClaimJoinInvite   bool
 		AdvertiseLiquid   bool
 		AdvertiseBitcoin  bool
 	}
@@ -200,6 +198,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            nodeId != "" || state != "" || role != "",
 		AutoSwapEnabled:   config.Config.AutoSwapEnabled,
 		PeginPending:      config.Config.PeginTxId != "" && config.Config.PeginClaimScript != "",
+		ClaimJoinInvite:   ln.ClaimJoinHandler != "",
 		AdvertiseLiquid:   ln.AdvertiseLiquidBalance,
 		AdvertiseBitcoin:  ln.AdvertiseBitcoinBalance,
 	}
@@ -266,24 +265,43 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swaps := res5.GetSwaps()
 
 	senderInFee := int64(0)
+	senderOutFee := int64(0)
 	receiverInFee := int64(0)
 	receiverOutFee := int64(0)
+	cost := int64(0)
+	new := false
+	persist := false // have new tx fees to persist
 
 	for _, swap := range swaps {
 		switch swap.Type + swap.Role {
 		case "swap-insender":
 			if swap.PeerNodeId == id {
-				senderInFee += swapCost(swap)
+				cost, _, new = swapCost(swap)
+				senderInFee += cost
+			}
+		case "swap-outsender":
+			if swap.PeerNodeId == id {
+				cost, _, new = swapCost(swap)
+				senderOutFee += cost
 			}
 		case "swap-outreceiver":
 			if swap.InitiatorNodeId == id {
-				receiverOutFee += swapCost(swap)
+				cost, _, new = swapCost(swap)
+				receiverOutFee += cost
 			}
 		case "swap-inreceiver":
 			if swap.InitiatorNodeId == id {
-				receiverInFee += swapCost(swap)
+				cost, _, new = swapCost(swap)
+				receiverInFee += cost
 			}
 		}
+
+		persist = persist || new
+	}
+
+	// save to db
+	if persist {
+		db.Save("Swaps", "txFee", txFee)
 	}
 
 	senderInFeePPM := int64(0)
@@ -313,7 +331,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		psPeer = false
 	} else {
 		if peer.AsSender.SatsOut > 0 {
-			senderOutFeePPM = int64(peer.PaidFee) * 1_000_000 / int64(peer.AsSender.SatsOut)
+			senderOutFeePPM = senderOutFee * 1_000_000 / int64(peer.AsSender.SatsOut)
 		}
 		if peer.AsSender.SatsIn > 0 {
 			senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
@@ -345,7 +363,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// to find a channel for swap-in
 	maxRemoteBalance := uint64(0)
 	maxRemoteBalanceIndex := 0
-	channelCapacity := uint64(0)
 
 	// get routing stats
 	for i, ch := range peer.Channels {
@@ -363,7 +380,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		if info.RemoteBalance > maxRemoteBalance {
 			maxRemoteBalance = info.RemoteBalance
 			maxRemoteBalanceIndex = i
-			channelCapacity = info.RemoteBalance + info.LocalBalance
 		}
 
 		info.Active = ch.GetActive()
@@ -415,9 +431,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// to be conservative
 	bitcoinFeeRate := max(ln.EstimateFee(), mempoolFeeRate)
+	// should match peerswap estimation
+	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-int64(ln.SwapFeeReserveLBTC), int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC()), int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -425,36 +443,46 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	peerLiquidBalance := int64(-1)
 	maxLiquidSwapOut := uint64(0)
 	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
+	channelCapacity := peer.Channels[maxRemoteBalanceIndex].RemoteBalance + peer.Channels[maxRemoteBalanceIndex].LocalBalance
+
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		peerLiquidBalance = int64(ptr.Amount)
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-swapOutChainReserve)))
-		if maxLiquidSwapOut >= 100_000 {
-			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
-		} else {
-			maxLiquidSwapOut = 0
-		}
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerLiquidBalance-int64(swapFeeReserveLBTC()))))
+	} else {
+		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
+	}
+
+	if maxLiquidSwapOut >= 100_000 {
+		selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		channelCapacity = peer.Channels[maxLocalBalanceIndex].RemoteBalance + peer.Channels[maxLocalBalanceIndex].LocalBalance
+	} else {
+		maxLiquidSwapOut = 0
 	}
 
 	peerBitcoinBalance := int64(-1)
 	maxBitcoinSwapOut := uint64(0)
 	if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 		peerBitcoinBalance = int64(ptr.Amount)
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-swapOutChainReserve)))
-		if maxBitcoinSwapOut >= 100_000 {
-			selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
-		} else {
-			maxBitcoinSwapOut = 0
-		}
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, peerBitcoinBalance-int64(swapFeeReserveBTC))))
+	} else {
+		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
+	}
+
+	if maxBitcoinSwapOut >= 100_000 {
+		selectedChannel = peer.Channels[maxLocalBalanceIndex].ChannelId
+		channelCapacity = peer.Channels[maxLocalBalanceIndex].RemoteBalance + peer.Channels[maxLocalBalanceIndex].LocalBalance
+	} else {
+		maxBitcoinSwapOut = 0
 	}
 
 	// arbitrary haircuts to avoid 'no matching outgoing channel available'
-	maxBitcoinSwapIn := min(btcBalance-int64(ln.SwapFeeReserveBTC), int64(maxRemoteBalance)-10000)
+	maxBitcoinSwapIn := min(btcBalance-int64(swapFeeReserveBTC), int64(maxRemoteBalance)-10000)
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
 	}
 
 	// assumed direction of the swap
-	directionIn := false
+	directionIn := true
 
 	// assume return to 50/50 channel
 	recommendLiquidSwapOut := uint64(0)
@@ -484,9 +512,12 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	recommendLiquidSwapIn := int64(0)
 	recommendBitcoinSwapIn := int64(0)
 	if maxRemoteBalance > channelCapacity/2 {
-		directionIn = true
 		recommendLiquidSwapIn = min(maxLiquidSwapIn, int64(maxRemoteBalance-channelCapacity/2))
 		recommendBitcoinSwapIn = min(maxBitcoinSwapIn, int64(maxRemoteBalance-channelCapacity/2))
+	} else {
+		if recommendLiquidSwapOut > 0 {
+			directionIn = false
+		}
 	}
 
 	if recommendLiquidSwapIn < 100_000 {
@@ -527,6 +558,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo             []*ln.ChanneInfo
 		PeerSwapPeer            bool
 		MyAlias                 string
+		SenderOutFee            int64
 		SenderOutFeePPM         int64
 		SenderInFee             int64
 		ReceiverInFee           int64
@@ -551,6 +583,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		MaxLiquidSwapIn         int64
 		RecommendLiquidSwapIn   int64
 		SelectedChannel         uint64
+		HasDiscountedvSize      bool
 	}
 
 	data := Page{
@@ -574,7 +607,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		Stats:                   stats,
 		ChannelInfo:             channelInfo,
 		PeerSwapPeer:            psPeer,
-		MyAlias:                 ln.GetMyAlias(),
+		MyAlias:                 ln.MyNodeAlias,
+		SenderOutFee:            senderOutFee,
 		SenderOutFeePPM:         senderOutFeePPM,
 		SenderInFee:             senderInFee,
 		ReceiverInFee:           receiverInFee,
@@ -585,8 +619,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		KeysendSats:             keysendSats,
 		OutputsBTC:              &utxosBTC,
 		OutputsLBTC:             &utxosLBTC,
-		ReserveLBTC:             ln.SwapFeeReserveLBTC,
-		ReserveBTC:              ln.SwapFeeReserveBTC,
+		ReserveLBTC:             swapFeeReserveLBTC(),
+		ReserveBTC:              swapFeeReserveBTC,
 		HasInboundFees:          ln.HasInboundFees(),
 		PeerBitcoinBalance:      peerBitcoinBalance,
 		MaxBitcoinSwapOut:       maxBitcoinSwapOut,
@@ -599,6 +633,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		MaxLiquidSwapIn:         maxLiquidSwapIn,
 		RecommendLiquidSwapIn:   recommendLiquidSwapIn,
 		SelectedChannel:         selectedChannel,
+		HasDiscountedvSize:      hasDiscountedvSize,
 	}
 
 	// executing template named "peer"
@@ -627,7 +662,6 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	var utxos []ln.UTXO
 	cl, clean, er := ln.GetClient()
 	if er != nil {
 		redirectWithError(w, r, "/config?", er)
@@ -636,42 +670,56 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	type Page struct {
-		Authenticated    bool
-		ErrorMessage     string
-		PopUpMessage     string
-		ColorScheme      string
-		BitcoinBalance   uint64
-		Outputs          *[]ln.UTXO
-		PeginTxId        string
-		IsPegin          bool // false for ordinary BTC withdrawal
-		PeginAmount      uint64
-		BitcoinApi       string
-		Confirmations    int32
-		Progress         int32
-		Duration         string
-		FeeRate          uint32
-		LiquidFeeRate    float64
-		MempoolFeeRate   float64
-		SuggestedFeeRate uint32
-		MinBumpFeeRate   uint32
-		CanBump          bool
-		CanRBF           bool
-		IsCLN            bool
-		BitcoinAddress   string
-		AdvertiseEnabled bool
-		BitcoinSwaps     bool
+		Authenticated       bool
+		ErrorMessage        string
+		PopUpMessage        string
+		ColorScheme         string
+		BitcoinBalance      uint64
+		Outputs             *[]ln.UTXO
+		PeginTxId           string
+		IsPegin             bool // false for ordinary BTC withdrawal
+		IsExternal          bool
+		PeginAddress        string
+		PeginAmount         uint64
+		BitcoinApi          string
+		Confirmations       int32
+		TargetConfirmations int32
+		Progress            int32
+		Duration            string
+		FeeRate             float64
+		LiquidFeeRate       float64
+		MempoolFeeRate      float64
+		SuggestedFeeRate    float64
+		MinBumpFeeRate      float64
+		CanBump             bool
+		CanRBF              bool
+		IsCLN               bool
+		BitcoinAddress      string
+		AdvertiseEnabled    bool
+		BitcoinSwaps        bool
+		HasDiscountedvSize  bool
+		CanClaimJoin        bool
+		IsClaimJoin         bool
+		ClaimJoinStatus     string
+		HasClaimJoinPending bool
+		ClaimJoinETA        int
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
-	fee := uint32(mempoolFeeRate)
+	fee := float64(mempoolFeeRate)
 	confs := int32(0)
-	minConfs := int32(1)
 	canBump := false
 	canCPFP := false
 
-	if config.Config.PeginTxId != "" {
-		confs, canCPFP = ln.GetTxConfirmations(cl, config.Config.PeginTxId)
-		if confs == 0 {
+	var utxos []ln.UTXO
+	ln.ListUnspent(cl, &utxos, int32(1))
+
+	if config.Config.PeginTxId != "" && config.Config.PeginTxId != "external" {
+		// update ClaimJoin status
+		checkPegin()
+
+		confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
+		if confs == 0 && config.Config.PeginFeeRate > 0 {
 			canBump = true
 			if !ln.CanRBF() {
 				// can bump only if there is a change output
@@ -681,122 +729,217 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 					fee = fee + fee/2
 				}
 			}
-			if fee < config.Config.PeginFeeRate+2 {
-				fee = config.Config.PeginFeeRate + 2 // min increment
+			if fee < config.Config.PeginFeeRate+1 {
+				fee = config.Config.PeginFeeRate + 1 // min increment
 			}
 		}
 	}
 
-	duration := time.Duration(10*(102-confs)) * time.Minute
+	duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
+	maxConfs := int32(peginBlocks)
+	cjETA := 34
+
+	bh := int32(ln.GetBlockHeight())
+	if ln.MyRole != "none" {
+		target := int32(ln.ClaimBlockHeight)
+		maxConfs = target - bh + confs
+		duration = time.Duration(10*(target-bh)) * time.Minute
+	} else if ln.ClaimJoinHandler != "" {
+		cjETA = int((int32(ln.JoinBlockHeight) - bh + int32(peginBlocks)) / 6)
+	}
+
+	progress := confs * 100 / int32(maxConfs)
+
 	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-	ln.ListUnspent(cl, &utxos, minConfs)
+	if duration < 0 {
+		formattedDuration = "Past due"
+	}
 
 	data := Page{
-		Authenticated:    config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:     errorMessage,
-		PopUpMessage:     popupMessage,
-		ColorScheme:      config.Config.ColorScheme,
-		BitcoinBalance:   uint64(btcBalance),
-		Outputs:          &utxos,
-		PeginTxId:        config.Config.PeginTxId,
-		IsPegin:          config.Config.PeginClaimScript != "",
-		PeginAmount:      uint64(config.Config.PeginAmount),
-		BitcoinApi:       config.Config.BitcoinApi,
-		Confirmations:    confs,
-		Progress:         int32(confs * 100 / 102),
-		Duration:         formattedDuration,
-		FeeRate:          config.Config.PeginFeeRate,
-		MempoolFeeRate:   mempoolFeeRate,
-		LiquidFeeRate:    liquid.EstimateFee(),
-		SuggestedFeeRate: fee,
-		MinBumpFeeRate:   config.Config.PeginFeeRate + 2,
-		CanBump:          canBump,
-		CanRBF:           ln.CanRBF(),
-		IsCLN:            ln.Implementation == "CLN",
-		BitcoinAddress:   addr,
-		AdvertiseEnabled: ln.AdvertiseBitcoinBalance,
-		BitcoinSwaps:     config.Config.BitcoinSwaps,
+		Authenticated:       config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:        errorMessage,
+		PopUpMessage:        popupMessage,
+		ColorScheme:         config.Config.ColorScheme,
+		BitcoinBalance:      uint64(btcBalance),
+		Outputs:             &utxos,
+		PeginTxId:           config.Config.PeginTxId,
+		IsPegin:             config.Config.PeginClaimScript != "",
+		IsExternal:          config.Config.PeginTxId == "external",
+		PeginAddress:        config.Config.PeginAddress,
+		PeginAmount:         uint64(config.Config.PeginAmount),
+		BitcoinApi:          config.Config.BitcoinApi,
+		Confirmations:       confs,
+		TargetConfirmations: maxConfs,
+		Progress:            progress,
+		Duration:            formattedDuration,
+		FeeRate:             config.Config.PeginFeeRate,
+		MempoolFeeRate:      mempoolFeeRate,
+		LiquidFeeRate:       liquid.EstimateFee(),
+		SuggestedFeeRate:    math.Ceil(fee*100) / 100,
+		MinBumpFeeRate:      math.Ceil((config.Config.PeginFeeRate+1)*100) / 100,
+		CanBump:             canBump,
+		CanRBF:              ln.CanRBF(),
+		IsCLN:               ln.IMPLEMENTATION == "CLN",
+		BitcoinAddress:      addr,
+		AdvertiseEnabled:    ln.AdvertiseBitcoinBalance,
+		BitcoinSwaps:        config.Config.BitcoinSwaps,
+		CanClaimJoin:        hasDiscountedvSize,
+		IsClaimJoin:         config.Config.PeginClaimJoin,
+		ClaimJoinStatus:     ln.ClaimStatus,
+		HasClaimJoinPending: ln.ClaimJoinHandler != "",
+		ClaimJoinETA:        cjETA,
 	}
 
 	// executing template named "bitcoin"
 	executeTemplate(w, "bitcoin", data)
 }
 
-// handles Liquid pegin and Bitcoin send form
+// returns number of confirmations and whether the tx can be fee bumped
+func peginConfirmations(txid string) (int32, bool) {
+	cl, clean, er := ln.GetClient()
+	if er != nil {
+		return -1, false
+	}
+
+	defer clean()
+
+	// -1 indicates error
+	confs, canCPFP := ln.GetTxConfirmations(cl, txid)
+
+	if confs >= 0 {
+		return confs, canCPFP
+	}
+
+	// can be external funding
+	var tx bitcoin.Transaction
+	_, err := bitcoin.GetRawTransaction(txid, &tx)
+	if err != nil {
+		return -1, false
+	}
+
+	return tx.Confirmations, false
+}
+
+// handles Liquid peg-in and Bitcoin send form
 func peginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Parse the form data
-		if err := r.ParseForm(); err != nil {
+		err := r.ParseForm()
+		if err != nil {
 			http.Error(w, "Error parsing form data", http.StatusBadRequest)
 			return
 		}
 
-		amount, err := strconv.ParseInt(r.FormValue("peginAmount"), 10, 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
+		isPegin := r.FormValue("isPegin") == "true"
+		isExternal := r.FormValue("externalButton") != ""
 
-		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
+		var (
+			amount int64
+			fee    float64
+		)
 
 		selectedOutputs := r.Form["selected_outputs[]"]
 		subtractFeeFromAmount := r.FormValue("subtractfee") == "on"
-		isPegin := r.FormValue("isPegin") == "true"
 
-		totalAmount := int64(0)
-
-		if len(selectedOutputs) > 0 {
-			// check that outputs add up
-
-			cl, clean, er := ln.GetClient()
-			if er != nil {
-				redirectWithError(w, r, "/config?", er)
+		if !isExternal {
+			if r.FormValue("peginAmount") == "" {
+				redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot be blank"))
 				return
 			}
-			defer clean()
 
-			var utxos []ln.UTXO
-			ln.ListUnspent(cl, &utxos, int32(1))
+			amount, err = strconv.ParseInt(r.FormValue("peginAmount"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
 
-			for _, utxo := range utxos {
-				for _, output := range selectedOutputs {
-					vin := utxo.TxidStr + ":" + strconv.FormatUint(uint64(utxo.OutputIndex), 10)
-					if vin == output {
-						totalAmount += utxo.AmountSat
+			if r.FormValue("feeRate") == "" {
+				redirectWithError(w, r, "/bitcoin?", errors.New("fee rate cannot be blank"))
+				return
+			}
+
+			fee, err = strconv.ParseFloat(r.FormValue("feeRate"), 64)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+
+			totalAmount := int64(0)
+
+			if len(selectedOutputs) > 0 {
+				// check that outputs add up
+
+				cl, clean, er := ln.GetClient()
+				if er != nil {
+					redirectWithError(w, r, "/config?", er)
+					return
+				}
+				defer clean()
+
+				var utxos []ln.UTXO
+				ln.ListUnspent(cl, &utxos, int32(1))
+
+				for _, utxo := range utxos {
+					for _, output := range selectedOutputs {
+						vin := utxo.TxidStr + ":" + strconv.FormatUint(uint64(utxo.OutputIndex), 10)
+						if vin == output {
+							totalAmount += utxo.AmountSat
+						}
 					}
+				}
+
+				if amount > totalAmount {
+					redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot exceed the sum of the selected outputs"))
+					return
 				}
 			}
 
-			if amount > totalAmount {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount cannot exceed the sum of the selected outputs"))
+			if subtractFeeFromAmount {
+				if amount != totalAmount {
+					redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
+					return
+				}
+			}
+
+			if !subtractFeeFromAmount && amount == totalAmount {
+				redirectWithError(w, r, "/bitcoin?", errors.New("'subtract fee' option should be used when amount adds up to the selected outputs"))
 				return
 			}
-		}
-
-		if subtractFeeFromAmount {
-			if amount != totalAmount {
-				redirectWithError(w, r, "/bitcoin?", errors.New("amount should add up to the sum of the selected outputs for 'substract fee' option to be used"))
-				return
-			}
-		}
-
-		if !subtractFeeFromAmount && amount == totalAmount {
-			redirectWithError(w, r, "/bitcoin?", errors.New("'subtract fee' option should be used when amount adds up to the selected outputs"))
-			return
 		}
 
 		address := ""
 		claimScript := ""
+		config.Config.PeginClaimJoin = false
 
 		if isPegin {
-			// test on pre-existing tx that bitcon core can complete the peg
+			// check that elements is fully synced
+			info, err := liquid.GetBlockchainInfo()
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
+			if info.InitialBlockDownload {
+				redirectWithError(w, r, "/bitcoin?", errors.New("elements initial block download is not complete"))
+				return
+			}
+
+			// test on a pre-existing tx that bitcon core can complete the peg
 			tx := "b61ec844027ce18fd3eb91fa7bed8abaa6809c4d3f6cf4952b8ebaa7cd46583a"
 			if config.Config.Chain == "testnet" {
-				tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+				// identify testnet blockchain
+				genesisHash, err := bitcoin.GetBlockHash(0)
+				if err != nil {
+					redirectWithError(w, r, "/bitcoin?", err)
+					return
+				}
+
+				if genesisHash == "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943" {
+					// testnet3
+					tx = "2c7ec5043fe8ee3cb4ce623212c0e52087d3151c9e882a04073cce1688d6fc1e"
+				} else {
+					// testnet4
+					tx = "0b387c3b7a8d9fad4d7a1ac2cba4958451c03d6c4fe63dfbe10cdb86d666cdd7"
+				}
 			}
 
 			_, err = bitcoin.GetTxOutProof(tx)
@@ -819,9 +962,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			var addr liquid.PeginAddress
-
-			err = liquid.GetPeginAddress(&addr)
+			addr, err := liquid.GetPeginAddress()
 			if err != nil {
 				redirectWithError(w, r, "/bitcoin?", err)
 				return
@@ -829,45 +970,58 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 			address = addr.MainChainAddress
 			claimScript = addr.ClaimScript
+
+			if hasDiscountedvSize {
+				config.Config.PeginClaimJoin = r.FormValue("claimJoin") == "on"
+				if config.Config.PeginClaimJoin {
+					ln.ClaimStatus = "Awaiting funding tx to confirm"
+					db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+				}
+			}
 		} else {
 			address = r.FormValue("sendAddress")
 			claimScript = ""
 		}
 
-		label := "Liquid Peg-in"
-		if !isPegin {
-			label = "BTC Withdrawal"
-		}
+		if !isExternal {
+			label := "Liquid Pegin"
+			if !isPegin {
+				label = "BTC Withdrawal"
+			}
 
-		res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
-		if err != nil {
-			redirectWithError(w, r, "/bitcoin?", err)
-			return
-		}
+			res, err := ln.SendCoinsWithUtxos(&selectedOutputs, address, amount, fee, subtractFeeFromAmount, label)
+			if err != nil {
+				redirectWithError(w, r, "/bitcoin?", err)
+				return
+			}
 
-		if isPegin {
-			log.Println("Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
-			duration := time.Duration(1020) * time.Minute
-			formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-			telegramSendMessage("⏰ Started peg-in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+			if isPegin {
+				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
+				duration := time.Duration(10*peginBlocks) * time.Minute
+				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+			} else {
+				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
+				telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+			}
+			config.Config.PeginAmount = res.AmountSat
+			config.Config.PeginTxId = res.TxId
+			config.Config.PeginFeeRate = res.ExactSatVb
 		} else {
-			log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-			telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+			log.Println("Peg-in address for external funding:", address, "Claim script:", claimScript)
+			config.Config.PeginTxId = "external"
 		}
 
 		config.Config.PeginClaimScript = claimScript
 		config.Config.PeginAddress = address
-		config.Config.PeginAmount = res.AmountSat
-		config.Config.PeginTxId = res.TxId
 		config.Config.PeginReplacedTxId = ""
-		config.Config.PeginFeeRate = uint32(fee)
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		// Redirect to bitcoin page to follow the pegin progress
+		// Redirect to bitcoin page to follow the peg-in progress
 		http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -882,25 +1036,18 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fee, err := strconv.ParseUint(r.FormValue("feeRate"), 10, 64)
+		fee, err := strconv.ParseFloat(r.FormValue("feeRate"), 64)
 		if err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		if config.Config.PeginTxId == "" {
+		if config.Config.PeginTxId == "" || config.Config.PeginTxId == "external" {
 			redirectWithError(w, r, "/bitcoin?", errors.New("no pending peg-in"))
 			return
 		}
 
-		cl, clean, er := ln.GetClient()
-		if er != nil {
-			redirectWithError(w, r, "/config?", er)
-			return
-		}
-		defer clean()
-
-		confs, _ := ln.GetTxConfirmations(cl, config.Config.PeginTxId)
+		confs, _ := peginConfirmations(config.Config.PeginTxId)
 		if confs > 0 {
 			// transaction has been confirmed already
 			http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
@@ -919,7 +1066,7 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if ln.CanRBF() {
-			log.Println("RBF TxId:", res.TxId)
+			log.Println("RBF TxId:", res.TxId, "RawHex:", res.RawHex)
 			config.Config.PeginReplacedTxId = config.Config.PeginTxId
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
@@ -929,14 +1076,14 @@ func bumpfeeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// save the new rate, so the next bump cannot be lower
-		config.Config.PeginFeeRate = uint32(fee)
+		config.Config.PeginFeeRate = res.ExactSatVb
 
 		if err := config.Save(); err != nil {
 			redirectWithError(w, r, "/bitcoin?", err)
 			return
 		}
 
-		// Redirect to bitcoin page to follow the pegin progress
+		// Redirect to bitcoin page to follow the peg-in progress
 		http.Redirect(w, r, "/bitcoin?msg=New transaction broadcasted", http.StatusSeeOther)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1202,6 +1349,9 @@ func swapHandler(w http.ResponseWriter, r *http.Request) {
 
 	swap := res.GetSwap()
 
+	// refresh swap rebate
+	ln.GetChannelStats(swap.LndChanId, uint64(time.Now().Add(-time.Hour).Unix()))
+
 	isPending := true
 
 	switch swap.State {
@@ -1345,16 +1495,30 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += `<tr><td style="text-align: right">LndChanId:</td><td>`
 	swapData += strconv.FormatUint(uint64(swap.LndChanId), 10)
 
-	cost := swapCost(swap)
+	cost, breakdown, persist := swapCost(swap)
 	if cost != 0 {
 		ppm := cost * 1_000_000 / int64(swap.Amount)
 
-		swapData += `<tr><td style="text-align: right">Swap Cost:</td><td>`
-		swapData += formatSigned(cost) + " sats"
+		swapData += `<tr><td style="text-align: right">Swap `
+		if cost >= 0 {
+			swapData += `Cost`
+		} else {
+			swapData += `Profit`
+			cost = -cost
+			ppm = -ppm
+		}
+
+		swapData += `:</td><td>`
+		swapData += formatSigned(cost) + " sats (" + breakdown + ")"
 
 		if swap.State == "State_ClaimedPreimage" {
-			swapData += `<tr><td style="text-align: right">Cost PPM:</td><td>`
+			swapData += `<tr><td style="text-align: right">PPM:</td><td>`
 			swapData += formatSigned(ppm)
+		}
+
+		// save to db
+		if persist {
+			db.Save("Swaps", "txFee", txFee)
 		}
 	}
 
@@ -1412,7 +1576,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		Config:          config.Config,
 		Version:         version,
 		Latest:          latestVersion,
-		Implementation:  ln.Implementation,
+		Implementation:  ln.IMPLEMENTATION,
 		HTTPS:           "https://" + hostname + ".local:" + config.Config.SecurePort,
 		IsPossibleHTTPS: os.Getenv("NO_HTTPS") == "",
 	}
@@ -1645,6 +1809,59 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "externalPeginTxId":
+			if config.Config.PeginTxId != "external" {
+				redirectWithError(w, r, "/bitcoin?", errors.New("not expected"))
+				return
+			}
+
+			if r.FormValue("externalPeginCancel") != "" {
+				config.Config.PeginTxId = ""
+				config.Config.PeginClaimJoin = false
+			} else {
+				txid := r.FormValue("peginTxId")
+				if txid == "" {
+					redirectWithError(w, r, "/bitcoin?", errors.New("TxId is blank"))
+					return
+				}
+
+				// find the funding output
+				var tx bitcoin.Transaction
+				_, err := bitcoin.GetRawTransaction(txid, &tx)
+				if err != nil {
+					redirectWithError(w, r, "/bitcoin?", err)
+					return
+				}
+
+				found := false
+				for _, out := range tx.Vout {
+					if out.ScriptPubKey.Address == config.Config.PeginAddress {
+						found = true
+						config.Config.PeginAmount = int64(toSats(out.Value))
+						break
+					}
+				}
+
+				if !found {
+					redirectWithError(w, r, "/bitcoin?", errors.New("the tx fails to pay the pegin address"))
+					return
+				}
+
+				config.Config.PeginTxId = txid
+				config.Config.PeginFeeRate = 0
+
+				log.Println("External Funding TxId:", txid)
+				duration := time.Duration(10*(int32(peginBlocks)-tx.Confirmations)) * time.Minute
+				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
+			}
+
+			config.Save()
+
+			// all done, display tx confirmations
+			http.Redirect(w, r, "/bitcoin", http.StatusSeeOther)
+			return
+
 		case "advertiseLiquidBalance":
 			enabled := r.FormValue("enabled") == "on"
 			if enabled && !config.Config.AllowSwapRequests {
@@ -1670,7 +1887,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		case "advertiseBitcoinBalance":
 			enabled := r.FormValue("enabled") == "on"
 			if enabled && (!config.Config.AllowSwapRequests || !config.Config.BitcoinSwaps) {
-				redirectWithError(w, r, "/bitcoin?", errors.New("bitcoin swap requests are disabled"))
+				redirectWithError(w, r, "/bitcoin?", errors.New("bitcoin swap requests are disabled on configuration page"))
 				return
 			}
 
@@ -1995,7 +2212,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			inbound := r.FormValue("direction") == "inbound"
 
 			if inbound {
-				if ln.Implementation == "CLN" || !ln.CanRBF() {
+				if ln.IMPLEMENTATION == "CLN" || !ln.CanRBF() {
 					// CLN and LND < 0.18 cannot set inbound fees
 					redirectWithError(w, r, nextPage, errors.New("inbound fees are not allowed by your LN backend"))
 					return
@@ -2060,7 +2277,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					password = r.FormValue("password")
 				}
 				// restart with HTTPS listener
-				restart(w, r, true, password)
+				showRestartScreen(w, r, true, password, true)
 			} else {
 				redirectWithError(w, r, "/ca?", err)
 			}
@@ -2270,62 +2487,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
-				// reserve depends on asset and LND/CLN implementation
-				var reserve uint64
-				var amountAvailable uint64
-
-				if asset == "btc" {
-					cl, clean, er := ln.GetClient()
-					if er != nil {
-						redirectWithError(w, r, "/config?", er)
-						return
-					}
-					defer clean()
-
-					amountAvailable = uint64(ln.ConfirmedWalletBalance(cl))
-					reserve = ln.SwapFeeReserveBTC
-				} else if asset == "lbtc" {
-					client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-					if err != nil {
-						redirectWithError(w, r, "/config?", err)
-						return
-					}
-					defer cleanup()
-
-					res, err := ps.LiquidGetBalance(client)
-					if err != nil {
-						log.Printf("unable to connect to RPC server: %v", err)
-						redirectWithError(w, r, "/config?", err)
-						return
-					}
-
-					amountAvailable = res.GetSatAmount()
-					reserve = ln.SwapFeeReserveLBTC
-				}
-
-				if amountAvailable < reserve || swapAmount > amountAvailable-reserve {
-					redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds wallet balance less reserve "+formatWithThousandSeparators(reserve)+" sats"))
-					return
-				}
-
 				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
 			case "out":
-				peerId := peerNodeId[channelId]
-				var ptr *ln.BalanceInfo
-
-				if asset == "btc" {
-					ptr = ln.BitcoinBalances[peerId]
-				} else if asset == "lbtc" {
-					ptr = ln.LiquidBalances[peerId]
-				}
-
-				if ptr != nil {
-					if ptr.Amount < swapOutChainReserve || swapAmount > ptr.Amount-swapOutChainReserve {
-						redirectWithError(w, r, "/peer?id="+nodeId+"&", errors.New("swap amount exceeds peer's wallet balance less reserve "+formatWithThousandSeparators(swapOutChainReserve)+" sats"))
-						return
-					}
-				}
-
 				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
 			}
 
@@ -2399,7 +2562,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.ServerIPs = r.FormValue("serverIPs")
 				if secureConnection {
 					if err := config.GenerateServerCertificate(); err == nil {
-						restart(w, r, true, config.Config.Password)
+						showRestartScreen(w, r, true, config.Config.Password, true)
 					} else {
 						log.Println("GenereateServerCertificate:", err)
 						redirectWithError(w, r, "/config?", err)
@@ -2410,7 +2573,7 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 			if !secureConnection && config.Config.SecureConnection {
 				// restart to listen on HTTP only
-				restart(w, r, false, "")
+				showRestartScreen(w, r, false, "", true)
 			}
 		}
 
@@ -2501,9 +2664,14 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if mustRestart {
 			// update peerswap config
 			config.SavePS()
-			// show progress bar and log
-			go http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			if ln.IMPLEMENTATION == "LND" {
+				// show progress bar and log
+				go http.Redirect(w, r, "/loading", http.StatusSeeOther)
+			} else {
+				showRestartScreen(w, r, config.Config.SecureConnection, config.Config.Password, false)
+			}
 			ps.Stop()
+
 		} else if clientIsDown { // configs did not work, try again
 			redirectWithError(w, r, "/config?", err)
 		} else { // configs are good
@@ -2537,7 +2705,7 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 
 	logFile := "log" // peerswapd log
 	searchText := "peerswapd grpc listening on"
-	if ln.Implementation == "CLN" {
+	if ln.IMPLEMENTATION == "CLN" {
 		logFile = "cln.log"
 		searchText = "plugin-peerswap: peerswap initialized"
 	}
@@ -2611,7 +2779,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    1, // from first line
 		LogFile:        logFile,
-		Implementation: ln.Implementation,
+		Implementation: ln.IMPLEMENTATION,
 	}
 
 	// executing template named "logpage"

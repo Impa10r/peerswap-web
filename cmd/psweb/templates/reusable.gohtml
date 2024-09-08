@@ -31,8 +31,8 @@
                         <div class="dropdown-menu" id="dropdown-menu" role="menu">
                             <div class="dropdown-content">
                                 <a href="/" class="dropdown-item"> Peer List </a>
-                                <a href="/bitcoin" class="dropdown-item"> Bitcoin Options </a>
-                                <a href="/liquid" class="dropdown-item"> Liquid Options </a>
+                                <a href="/bitcoin" class="dropdown-item"> Bitcoin Actions </a>
+                                <a href="/liquid" class="dropdown-item"> Liquid Actions </a>
                                 <a href="/af" class="dropdown-item"> Channel Auto Fees </a>
                                 <hr class="dropdown-divider" />
                                 <a href="/config" class="dropdown-item"> Configuration </a>
@@ -51,6 +51,41 @@
                 <div id="error-message" class="hidden"></div>
             </div>
             <script>
+                function displayQR(id) {
+                    var text = document.getElementById(id).value;
+                    var container = document.getElementById("qrcode-container");
+                    var qrcode = new QRCode(document.getElementById("qrcode"), {
+                        text: text,
+                        width: container.clientWidth,  // Set QR code width to the container's width
+                        height: container.clientWidth   // Set QR code height to the container's width
+                    });
+
+                    // Update QR code size on window resize
+                    window.addEventListener("resize", function() {
+                        document.getElementById("qrcode").innerHTML = ""; // Clear the previous QR code
+                        qrcode = new QRCode(document.getElementById("qrcode"), {
+                            text: text,
+                            width: container.clientWidth,
+                            height: container.clientWidth
+                        });
+                    });
+                }
+                
+                function copyToClipboard(inputName) {
+                    // Get the text to copy
+                    var copyText = document.getElementById(inputName);
+
+                    // Select the text
+                    copyText.select();
+                    copyText.setSelectionRange(0, 99999); // For mobile devices
+
+                    // Copy the selected text
+                    document.execCommand("copy");
+
+                    // Alert the user that the text has been copied
+                    displayTemporaryMessage("Copied the address to clipboard");
+                }
+                
                 function displayTemporaryMessage(msg) {
                     var messageContainer = document.getElementById("message-container");
                     var tempMessage = document.getElementById("temp-message");
@@ -99,6 +134,7 @@
             <script src="/static/js/moment.min.js"></script>
             <script src="/static/js/chart.js"></script>
             <script src="/static/js/chartjs-adapter-moment.js"></script>
+            <script src="/static/js/qrcode.min.js"></script>
         </head>
         </header>
         <section class="section">
@@ -128,7 +164,7 @@
                     <td style="width: 100px;">
                         <div class="content has-text-centered">
                             <p>
-                                <strong>PeerSwap Web UI</strong> by <a href="https://github.com/Impa10r/peerswap-web" target="_blank">Impa10r</a>
+                                <strong>PeerSwap Web UI</strong> by <a href="https://github.com/Impa10r/peerswap-web" target="_blank">Impalor</a>
                             </p>
                         </div>
                     </td>

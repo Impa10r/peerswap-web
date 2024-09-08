@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/ln"
 
 	"github.com/alexmullins/zip"
 )
@@ -220,7 +219,7 @@ func SendToAddress(address string,
 
 	params := &SendParams{
 		Address:               address,
-		Amount:                toBitcoin(amountSats),
+		Amount:                ToBitcoin(amountSats),
 		Comment:               comment,
 		SubtractFeeFromAmount: subtractFeeFromAmount,
 		Replaceable:           replaceable,
@@ -323,19 +322,7 @@ type PeginAddress struct {
 	ClaimScript      string `json:"claim_script"`
 }
 
-func GetPeginAddress(address *PeginAddress) error {
-
-	if config.Config.Chain == "testnet" {
-		// to not waste testnet sats where pegin is not implemented
-		// return new P2TR address in our own bitcoin wallet
-		addr, err := ln.NewAddress()
-		if err != nil {
-			return err
-		}
-		address.ClaimScript = "peg-in is not implemented on testnet"
-		address.MainChainAddress = addr
-		return nil
-	}
+func GetPeginAddress() (*PeginAddress, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
@@ -345,16 +332,17 @@ func GetPeginAddress(address *PeginAddress) error {
 	r, err := service.client.call("getpeginaddress", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
 		log.Printf("getpeginaddress: %v", err)
-		return err
+		return nil, err
 	}
 
+	var address PeginAddress
 	err = json.Unmarshal([]byte(r.Result), &address)
 	if err != nil {
 		log.Printf("getpeginaddress unmarshall: %v", err)
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &address, nil
 }
 
 func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
@@ -378,8 +366,8 @@ func ClaimPegin(rawTx, proof, claimScript string) (string, error) {
 	return txid, nil
 }
 
-func toBitcoin(amountSats uint64) float64 {
-	return float64(amountSats) / float64(100000000)
+func ToBitcoin(amountSats uint64) float64 {
+	return float64(amountSats) / float64(100_000_000)
 }
 
 type MemPoolInfo struct {
@@ -415,4 +403,474 @@ func EstimateFee() float64 {
 	}
 
 	return math.Round(result.MemPoolMinFee*100_000_000) / 1000
+}
+
+// get version of Elements Core supports discounted vSize
+func GetVersion() float64 {
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+	params := &[]string{}
+
+	r, err := service.client.call("getnetworkinfo", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Elements GetVersion error: %v", err)
+		return 0
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("Elements GetVersion error: %v", err)
+		return 0
+	}
+
+	return response["version"].(float64)
+}
+
+// returns block hash
+func GetBlockHash(block uint32) (string, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]interface{}{block}
+
+	r, err := service.client.call("getblockhash", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetBlockHash: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetBlockHash unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func CreatePSET(params interface{}) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	r, err := service.client.call("createpsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to create PSET: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CreatePSET unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func ProcessPSET(base64psbt, wallet string) (string, bool, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{base64psbt}
+
+	r, err := service.client.call("walletprocesspsbt", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to process PSET: %v", err)
+		return "", false, err
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("ProcessPSET unmarshall: %v", err)
+		return "", false, err
+	}
+
+	return response["psbt"].(string), response["complete"].(bool), nil
+}
+
+func FinalizePSET(psbt string) (string, bool, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{psbt}
+
+	r, err := service.client.call("finalizepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to finalize PSET: %v", err)
+		return "", false, err
+	}
+
+	var response map[string]interface{}
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("FinalizePSET unmarshall: %v", err)
+		return "", false, err
+	}
+
+	if response["complete"].(bool) {
+		return response["hex"].(string), true, nil
+	}
+
+	return response["psbt"].(string), false, nil
+}
+
+type Missing struct {
+	Pubkeys []string `json:"pubkeys"`
+}
+
+type AnalyzeInput struct {
+	HasUTXO bool    `json:"has_utxo"`
+	IsFinal bool    `json:"is_final"`
+	Next    string  `json:"next"`
+	Missing Missing `json:"missing"`
+}
+
+type AnalyzeOutput struct {
+	Blind  bool   `json:"blind"`
+	Status string `json:"status"`
+}
+
+type AnalyzedPSET struct {
+	Inputs  []AnalyzeInput  `json:"inputs"`
+	Outputs []AnalyzeOutput `json:"outputs"`
+	Fee     float64         `json:"fee"`
+	Next    string          `json:"next"`
+}
+
+func AnalyzePSET(psbt string) (*AnalyzedPSET, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{psbt}
+
+	r, err := service.client.call("analyzepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to analyze PSET: %v", err)
+		return nil, err
+	}
+
+	var response AnalyzedPSET
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("AnalyzePSET unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type DecodedScript struct {
+	Asm     string `json:"asm"`
+	Desc    string `json:"desc"`
+	Hex     string `json:"hex"`
+	Address string `json:"address,omitempty"`
+	Type    string `json:"type"`
+}
+
+type DecodedOutput struct {
+	Amount         float64       `json:"amount"`
+	Script         DecodedScript `json:"script"`
+	Asset          string        `json:"asset"`
+	BlindingPubKey string        `json:"blinding_pubkey,omitempty"`
+	BlinderIndex   int           `json:"blinder_index,omitempty"`
+	Status         string        `json:"status,omitempty"`
+}
+
+type DecodedInput struct {
+	PreviousTxid       string   `json:"previous_txid"`
+	PreviousVout       int      `json:"previous_vout"`
+	Sequence           uint32   `json:"sequence"`
+	PeginBitcoinTx     string   `json:"pegin_bitcoin_tx"`
+	PeginTxoutProof    string   `json:"pegin_txout_proof"`
+	PeginClaimScript   string   `json:"pegin_claim_script"`
+	PeginGenesisHash   string   `json:"pegin_genesis_hash"`
+	PeginValue         float64  `json:"pegin_value"`
+	FinalScriptWitness []string `json:"final_scriptwitness,omitempty"`
+}
+
+type DecodedFees struct {
+	Bitcoin float64 `json:"bitcoin"`
+}
+
+type DecodedPSET struct {
+	GlobalXpubs      []interface{}          `json:"global_xpubs"`
+	TxVersion        int                    `json:"tx_version"`
+	FallbackLocktime int                    `json:"fallback_locktime"`
+	InputCount       int                    `json:"input_count"`
+	OutputCount      int                    `json:"output_count"`
+	PsbtVersion      int                    `json:"psbt_version"`
+	Proprietary      []interface{}          `json:"proprietary"`
+	Fees             DecodedFees            `json:"fees"`
+	Unknown          map[string]interface{} `json:"unknown"`
+	Inputs           []DecodedInput         `json:"inputs"`
+	Outputs          []DecodedOutput        `json:"outputs"`
+}
+
+func DecodePSET(psbt string) (*DecodedPSET, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{psbt}
+
+	r, err := service.client.call("decodepsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to decode PSET: %v", err)
+		return nil, err
+	}
+
+	var response DecodedPSET
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("DecodePSET unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type ScriptSig struct {
+	Asm string `json:"asm"`
+	Hex string `json:"hex"`
+}
+
+type TxinWitness []string
+type PeginWitness []string
+
+type Vin struct {
+	Txid         string       `json:"txid"`
+	Vout         int          `json:"vout"`
+	ScriptSig    ScriptSig    `json:"scriptSig"`
+	IsPegin      bool         `json:"is_pegin"`
+	Sequence     uint32       `json:"sequence"`
+	TxinWitness  TxinWitness  `json:"txinwitness"`
+	PeginWitness PeginWitness `json:"pegin_witness"`
+}
+
+type ScriptPubKey struct {
+	Asm     string `json:"asm"`
+	Desc    string `json:"desc"`
+	Hex     string `json:"hex"`
+	Address string `json:"address"`
+	Type    string `json:"type"`
+}
+
+type Vout struct {
+	ValueMinimum         float64      `json:"value-minimum"`
+	ValueMaximum         float64      `json:"value-maximum"`
+	CtExponent           int          `json:"ct-exponent"`
+	CtBits               int          `json:"ct-bits"`
+	SurjectionProof      string       `json:"surjectionproof"`
+	ValueCommitment      string       `json:"valuecommitment"`
+	AssetCommitment      string       `json:"assetcommitment"`
+	CommitmentNonce      string       `json:"commitmentnonce"`
+	CommitmentNonceValid bool         `json:"commitmentnonce_fully_valid"`
+	N                    int          `json:"n"`
+	ScriptPubKey         ScriptPubKey `json:"scriptPubKey"`
+	Value                float64      `json:"value,omitempty"`
+	Asset                string       `json:"asset,omitempty"`
+}
+
+type Transaction struct {
+	Txid          string             `json:"txid"`
+	Hash          string             `json:"hash"`
+	Wtxid         string             `json:"wtxid"`
+	Withash       string             `json:"withash"`
+	Version       int                `json:"version"`
+	Size          int                `json:"size"`
+	Vsize         int                `json:"vsize"`
+	DiscountVsize int                `json:"discountvsize"`
+	Weight        int                `json:"weight"`
+	Locktime      int                `json:"locktime"`
+	Vin           []Vin              `json:"vin"`
+	Vout          []Vout             `json:"vout"`
+	Fee           map[string]float64 `json:"fee"`
+}
+
+func DecodeRawTransaction(hexTx string) (*Transaction, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{hexTx}
+
+	r, err := service.client.call("decoderawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to decode raw tx: %v", err)
+		return nil, err
+	}
+
+	var response Transaction
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("DecodeRawTransaction unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func GetRawTransaction(txid string, result *Transaction) (string, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{txid, result != nil}
+
+	r, err := service.client.call("getrawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		return "", err
+	}
+
+	raw := ""
+	if result == nil {
+		// return raw hex
+		err = json.Unmarshal([]byte(r.Result), &raw)
+		if err != nil {
+			log.Printf("GetRawTransaction unmarshall raw: %v", err)
+			return "", err
+		}
+	} else {
+		// decode into result
+		err = json.Unmarshal([]byte(r.Result), &result)
+		if err != nil {
+			log.Printf("GetRawTransaction decode: %v", err)
+			return "", err
+		}
+	}
+
+	return raw, nil
+}
+
+func SendRawTransaction(hexTx string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{hexTx}
+
+	r, err := service.client.call("sendrawtransaction", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to send raw tx: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("SendRawTransaction unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+type AddressInfo struct {
+	Address             string   `json:"address"`
+	ScriptPubKey        string   `json:"scriptPubKey"`
+	IsMine              bool     `json:"ismine"`
+	Solvable            bool     `json:"solvable"`
+	Desc                string   `json:"desc"`
+	IsWatchOnly         bool     `json:"iswatchonly"`
+	IsScript            bool     `json:"isscript"`
+	IsWitness           bool     `json:"iswitness"`
+	WitnessVersion      int      `json:"witness_version"`
+	WitnessProgram      string   `json:"witness_program"`
+	Pubkey              string   `json:"pubkey"`
+	Confidential        string   `json:"confidential"`
+	ConfidentialKey     string   `json:"confidential_key"`
+	Unconfidential      string   `json:"unconfidential"`
+	IsChange            bool     `json:"ischange"`
+	Timestamp           int64    `json:"timestamp"`
+	HDKeyPath           string   `json:"hdkeypath"`
+	HDSeedID            string   `json:"hdseedid"`
+	HDMasterFingerprint string   `json:"hdmasterfingerprint"`
+	Labels              []string `json:"labels"`
+}
+
+func GetAddressInfo(addr, wallet string) (*AddressInfo, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{addr}
+
+	r, err := service.client.call("getaddressinfo", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to get address info: %v", err)
+		return nil, err
+	}
+
+	var response AddressInfo
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetAddressInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type BlockchainInfo struct {
+	Chain                string   `json:"chain"`
+	Blocks               int      `json:"blocks"`
+	Headers              int      `json:"headers"`
+	BestBlockHash        string   `json:"bestblockhash"`
+	Time                 int64    `json:"time"`
+	Mediantime           int64    `json:"mediantime"`
+	VerificationProgress float64  `json:"verificationprogress"`
+	InitialBlockDownload bool     `json:"initialblockdownload"`
+	SizeOnDisk           int64    `json:"size_on_disk"`
+	Pruned               bool     `json:"pruned"`
+	CurrentParamsRoot    string   `json:"current_params_root"`
+	CurrentSignblockAsm  string   `json:"current_signblock_asm"`
+	CurrentSignblockHex  string   `json:"current_signblock_hex"`
+	MaxBlockWitness      int      `json:"max_block_witness"`
+	CurrentFedpegProgram string   `json:"current_fedpeg_program"`
+	CurrentFedpegScript  string   `json:"current_fedpeg_script"`
+	ExtensionSpace       []string `json:"extension_space"`
+	EpochLength          int      `json:"epoch_length"`
+	TotalValidEpochs     int      `json:"total_valid_epochs"`
+	EpochAge             int      `json:"epoch_age"`
+	Warnings             string   `json:"warnings"`
+}
+
+// returns block hash
+func GetBlockchainInfo() (*BlockchainInfo, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]interface{}{}
+
+	r, err := service.client.call("getblockchaininfo", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetBlockchainInfo: %v", err)
+		return nil, err
+	}
+
+	var response BlockchainInfo
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetBlockchainInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
 }

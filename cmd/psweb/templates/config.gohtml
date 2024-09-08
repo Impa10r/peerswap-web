@@ -201,7 +201,7 @@
                       <label class="label">Bitcoin Host</label>
                     </div>
                     <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host" required>
+                      <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host">
                     </div>
                   </div>
                   <div class="field is-horizontal">
@@ -223,7 +223,7 @@
                   {{if .IsPossibleHTTPS}}
                     <div class="field is-horizontal">
                       <div class="field-label is-normal">
-                        <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS **</label>
+                        <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS *{{if eq .Implementation "LND"}}*{{end}}</label>
                       </div>
                       <div class="field-body">
                         <div class="select is-medium is-fullwidth">
@@ -236,7 +236,7 @@
                     </div>
                     <div class="field is-horizontal">
                       <div class="field-label is-normal">
-                        <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs **</label>
+                        <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs *{{if eq .Implementation "LND"}}*{{end}}</label>
                       </div>
                       <div class="field-body">
                         <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
@@ -246,15 +246,16 @@
                 </div>
               </div>
               <center>
-                <p{{if not .IsPossibleHTTPS}} style="padding-bottom: 0.5em"{{end}}>* Changing these values will restart {{if eq .Implementation "CLN"}}
+                <p>* Changing these values will restart {{if eq .Implementation "CLN"}}
                     lightningd
                 {{else}}
                     peerswapd
                 {{end}}</p>
-                {{if .IsPossibleHTTPS}}
-                  <p style="padding-bottom: 0.5em">** Changing these values will restart PSWeb</p>
+                {{if and .IsPossibleHTTPS (eq .Implementation "LND")}}
+                  <p>** Changing these values will restart PSWeb</p>
                 {{end}}
-                <input class="button is-large" type="submit" value="Save Configuration">     
+                <span class="half-height"></span>
+                <input class="button is-large" type="submit" value="Save Configuration">
                 <br>
                 <small>
                   Version: {{.Version}}, latest: 

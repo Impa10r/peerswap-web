@@ -2,7 +2,7 @@
 
 # PeerSwap Web UI
 
-A lightweight server-side rendered Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to [rebalance lightning channels](https://medium.com/@goryachev/liquid-rebalancing-of-lightning-channels-2dadf4b2397a).
+A lightweight Web UI for PeerSwap, which allows trustless p2p submarine swaps Lightning<->BTC and Lightning<->Liquid. Also facilitates BTC->Liquid peg-ins and automatic channel fee management. PeerSwap with [Liquid](https://help.blockstream.com/hc/en-us/articles/900001408623-How-does-Liquid-Bitcoin-L-BTC-work) is a great cost efficient way to rebalance lightning channels.
 
 ### Disclaimer
 
@@ -48,7 +48,16 @@ Install and configure PeerSwap. Please consult [these instructions for LND](http
 
 Clone the repository and build PeerSwap Web UI:
 
-### LND:
+### CLN Install:
+
+```bash
+git clone https://github.com/Impa10r/peerswap-web && \
+cd peerswap-web && \
+make -j$(nproc) install-cln
+```
+PeerSwap Web UI is a now in your GOPATH (~/go/bin). To launch it as a CLN plugin, add ```plugin=/home/USER/go/bin/psweb``` to your ```~/.lightning/config``` file and restart ```lightningd``` (replace USER with your username).
+
+### LND Install:
 
 ```bash
 git clone https://github.com/Impa10r/peerswap-web && \
@@ -56,15 +65,7 @@ cd peerswap-web && \
 make -j$(nproc) install-lnd
 ```
 
-### CLN:
-
-```bash
-git clone https://github.com/Impa10r/peerswap-web && \
-cd peerswap-web && \
-make -j$(nproc) install-cln
-```
-
-This will install `psweb` to your GOPATH (/home/USER/go/bin). You can check that it is working by running `psweb --version`. If not, add the path in ~/.profile and reload with `source .profile`.
+This will install `psweb` to your GOPATH (~/go/bin). 
 
 To start psweb as a daemon, create a systemd service file as follows (replace USER with your username):
 
@@ -190,11 +191,11 @@ sudo systemctl stop psweb
 sudo systemctl disable psweb
 ```
 
-# Liquid Peg-In
+# Liquid Peg-in
 
-Update: From v1.2.0 this is handled via UI on the Bitcoin page.
+Update: Since v1.2.0 this is handled via UI on the Bitcoin page.
 
-To convert some BTC on your node into L-BTC you don't need any third party (but must run a full Bitcon node with txindex=1 enabled):
+To convert some BTC on your node into L-BTC you don't need any third party (but must run a full Bitcon node with txindex=1, or manually provide block hash from mempool.space for ```getrawtransaction``` and ```gettxoutproof```):
 
 1. Generate a special BTC address: ```elements-cli getpeginaddress```. Save claim_script for later.
 2. Send BTC onchain: ```lncli sendcoins --amt <sats to peg in> -addr <mainchain_address from step 1> --sat_per_vbyte <from mempool>```
@@ -215,6 +216,16 @@ alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcp
 
 (lookup Elements and Bitcoin rpc passwords in pswebconfig.com)
 
+## Confidential Liquid Peg-in
+
+Elements Core v23.2.2 introduced vsize discount for confidential transactions. Now sending a Liquid payment with a blinded amount costs the same or cheaper than a publicly visible (explicit) one. For example, claiming a peg-in with ```elements-cli claimpegin``` costs about 45 sats, but it is possible to manually construct the same transaction (```elements-cli createrawtransaction```) with confidential destination address, blind and sign it, then post and pay a lower fee. However, from privacy perspective, blinding a single peg-in claim makes little sense. The linked Bitcoin UTXO will still show the explicit amount, so it is easily traceable to your new Liquid address. To achieve a truly confidential peg-in, it is necessary to mix two or more independent claims into one single transaction, a-la CoinJoin.
+
+In v1.7.0 PSWeb implemented such "ClaimJoin". If you opt in when starting your peg-in, your node will send invitations to all other PSWeb nodes to join in while you wait for your 102 confirmations. To join your claim, a peer should opt in while starting his own peg-in. A node responds to an invitation by anonymously sending details of its peg-in funding transaction, once it confirms, to the initiator. Peers don't know which specific node initiated the ClaimJoin and who else will be joining. The initiator also doesn't know public Ids of the nodes that responded. All communication happens blindly via single use public/private key pairs (secp256k1). Nodes who do not directly participate act as p2p relays for the encrypted messages, not being able to read them and not knowing the sources and the final destinations. This way our ClaimJoin coordination is fully confidential and not limited to direct peers. 
+
+When all N peg-ins mature, the initiator node prepares one large PSET with N peg-in inputs and N CT outputs, shuffled randomly, and sends it secuentially to all participants: first to blind Liquid outputs and then to sign peg-in inputs. Before blinding/signing and returning the PSET, each joiner verifies that his output address is there for the correct amount (allowing for a small fee haircut). Upto 10 claims can be joined this way, to fit into one custom message (64kb). The price for such privacy is time. For the initiator, the wait can take upto 34 hours if the final peer joins at block 101. For that last joiner the wait will be the same 17 hours as for a standard peg-in. If the total fee cannot be divided equally, the last joiner pays slightnly more as an incentive to join earlier next time. In practice, the blinding and signing round may need to be done twice: first to find out the exact discounted vsize of the final transaction, then to set the exact total fee at 0.1 sat/vb. 
+
+The process bears no risk to the participants. If any joiner becomes unresponsive during the blinding/signing round, he is automatically kicked out. If the initiator fails to complete the process, each joiner reverts to a standard single peg-in claim 10 blocks after the final maturity. As the last resort, if your PSWeb dies completely, you can always [claim your peg-in manually](#liquid-pegin) with ```elements-cli```. All the necessary details will be in your PSWeb log. Your claim script and peg-in txid can only be used with your own Liquid wallet's private key. Blinding and signing your part happens locally on your node, no sensitive info is transmitted outside at any point.
+
 # Support
 
-Information about PeerSwap and a link to join our Discord channel is at [PeerSwap.dev](https://peerswap.dev). Additionally, there is a [Telegram group](https://t.me/PeerSwapLN) for node runners with PeerSwap. Just beware of scammers who may DM you. Immediately block and report to Telegram anyone with empty Username field.
+Information about PeerSwap and a link to join their Discord channel is at [PeerSwap.dev](https://peerswap.dev). Additionally, there is a [Telegram group](https://t.me/PeerSwapLN) for node runners with PeerSwap. Just beware of scammers who may DM you. Immediately block and report to Telegram anyone with empty Username field.

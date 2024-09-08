@@ -3,12 +3,15 @@
 package ln
 
 import (
+	"bytes"
+	"database/sql"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,22 +19,36 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
-	"peerswap-web/cmd/psweb/internet"
 
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
-	"github.com/lightningnetwork/lnd/zpay32"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
-	Implementation = "CLN"
-	fileRPC        = "lightning-rpc"
-	// https://github.com/ElementsProject/peerswap/blob/master/clightning/clightning_commands.go#L392
-	// 2000 to avoid high fee
-	SwapFeeReserveLBTC = uint64(2000)
-	SwapFeeReserveBTC  = uint64(2000)
+	IMPLEMENTATION = "CLN"
+	RPC_FILE       = "lightning-rpc"
+)
+
+var (
+	// arrays mapped per channel
+	forwardsIn        = make(map[uint64][]Forwarding)
+	forwardsOut       = make(map[uint64][]Forwarding)
+	forwardsLastIndex uint64
+	downloadComplete  bool
+	// track timestamp of the last failed forward
+	failedForwardTS = make(map[uint64]int64)
+	lightning       *glightning.Lightning
+	// cln database calls take too long, cache them
+	htlcsCache    = make(map[string][]HTLC)               // by shortChannelId
+	invoicesCache = make(map[string]ListInvoicesResponse) // by PaymentHash
+	sendpaysCache = make(map[string]ListSendPaysResponse) // by PaymentHash
+	// sqlite3 channel Id mapped to short_channel_id
+	sqlShortChannelId = make(map[int]string)
+	htlcStates        = []string{"SENT_ADD_HTLC", "SENT_ADD_COMMIT", "RCVD_ADD_REVOCATION", "RCVD_ADD_ACK_COMMIT", "SENT_ADD_ACK_REVOCATION", "RCVD_REMOVE_HTLC", "RCVD_REMOVE_COMMIT", "SENT_REMOVE_REVOCATION", "SENT_REMOVE_ACK_COMMIT", "RCVD_REMOVE_ACK_REVOCATION", "RCVD_ADD_HTLC", "RCVD_ADD_COMMIT", "SENT_ADD_REVOCATION", "SENT_ADD_ACK_COMMIT", "RCVD_ADD_ACK_REVOCATION", "SENT_REMOVE_HTLC", "SENT_REMOVE_COMMIT", "RCVD_REMOVE_REVOCATION", "RCVD_REMOVE_ACK_COMMIT", "SENT_REMOVE_ACK_REVOCATION"}
+	// map full channel id to short channel id
+	fullToShortChannelId = make(map[string]string)
 )
 
 type Forwarding struct {
@@ -46,26 +63,29 @@ type Forwarding struct {
 	FailCode     uint64  `json:"failcode,omitempty"`
 }
 
-var (
-	// arrays mapped per channel
-	forwardsIn        = make(map[uint64][]Forwarding)
-	forwardsOut       = make(map[uint64][]Forwarding)
-	forwardsLastIndex uint64
-	downloadComplete  bool
-	// track timestamp of the last failed forward
-	failedForwardTS = make(map[uint64]int64)
-)
+type SQLResponse struct {
+	Rows [][]interface{} `json:"rows"`
+}
+
+type SQLRequest struct {
+	Query string `json:"query"`
+}
+
+func (r SQLRequest) Name() string {
+	return "sql"
+}
 
 func GetClient() (*glightning.Lightning, func(), error) {
-	lightning := glightning.NewLightning()
-	err := lightning.StartUp(fileRPC, config.Config.RpcHost)
-	if err != nil {
-		return nil, nil, err
+	if lightning == nil {
+		lightning = glightning.NewLightning()
+		err := lightning.StartUp(RPC_FILE, config.Config.RpcHost)
+		if err != nil {
+			log.Println("Cannot start glightning client")
+			return nil, nil, err
+		}
 	}
 
-	cleanup := func() {
-		//lightning.Shutdown()
-	}
+	cleanup := func() {} // do nothing, keep connected
 
 	return lightning, cleanup, nil
 }
@@ -145,30 +165,31 @@ func ListUnspent(client *glightning.Lightning, list *[]UTXO, minConfs int32) err
 
 	return nil
 }
+func GetBlockHeight() uint32 {
+	client, _, err := GetClient()
+	if err != nil {
+		return 0
+	}
 
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
 	res, err := client.GetInfo()
 	if err != nil {
 		log.Println("GetInfo:", err)
-		return 0, true
+		return 0
 	}
 
-	tip := int32(res.Blockheight)
+	return uint32(res.Blockheight)
+}
 
-	height := internet.GetTxHeight(txid)
+// returns number of confirmations and whether the tx can be fee bumped
+func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
 
-	if height == 0 {
-		// mempool api error, use bitcoin core
-		var result bitcoin.Transaction
-		_, err = bitcoin.GetRawTransaction(txid, &result)
-		if err != nil {
-			return -1, true // signal tx not found
-		}
-
-		return result.Confirmations, true
+	var tx bitcoin.Transaction
+	_, err := bitcoin.GetRawTransaction(txid, &tx)
+	if err != nil {
+		return -1, false // signal tx not found
 	}
-	return tip - height, true
+
+	return tx.Confirmations, true
 }
 
 func GetAlias(nodeKey string) string {
@@ -217,7 +238,7 @@ type UnreserveInputsResponse struct {
 	Reservations []Reservation `json:"reservations"`
 }
 
-func BumpPeginFee(newFeeRate uint64, label string) (*SentResult, error) {
+func BumpPeginFee(newFeeRate float64, label string) (*SentResult, error) {
 
 	client, clean, err := GetClient()
 	if err != nil {
@@ -304,8 +325,26 @@ func GetRawTransaction(client *glightning.Lightning, txid string) (string, error
 	return tx.RawTx, nil
 }
 
+type WithdrawRequest struct {
+	Destination string   `json:"destination"`
+	Satoshi     string   `json:"satoshi"`
+	FeeRate     string   `json:"feerate,omitempty"`
+	MinConf     uint16   `json:"minconf,omitempty"`
+	Utxos       []string `json:"utxos,omitempty"`
+}
+
+func (r WithdrawRequest) Name() string {
+	return "withdraw"
+}
+
+type WithdrawResult struct {
+	Tx   string `json:"tx"`
+	TxId string `json:"txid"`
+	PSBT string `json:"psbt"`
+}
+
 // utxos: ["txid:index", ....]
-func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
+func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate float64, subtractFeeFromAmount bool, label string) (*SentResult, error) {
 	client, clean, err := GetClient()
 	if err != nil {
 		log.Println("GetClient:", err)
@@ -334,42 +373,67 @@ func SendCoinsWithUtxos(utxos *[]string, addr string, amount int64, feeRate uint
 	}
 
 	minConf := uint16(1)
-	multiplier := uint64(1000)
+	multiplier := float64(1000)
 	if !subtractFeeFromAmount && config.Config.Chain == "mainnet" {
-		multiplier = 935 // better sets fee rate for peg-in tx with change
+		multiplier = 935 // better sets fee rate for pegin tx with change
 	}
 
-	res, err := client.WithdrawWithUtxos(
-		addr,
-		&glightning.Sat{
-			Value:   uint64(amount),
-			SendAll: subtractFeeFromAmount,
-		},
-		&glightning.FeeRate{
-			Rate: uint(feeRate * multiplier),
-		},
-		&minConf,
-		inputs)
+	amountStr := fmt.Sprintf("%d", amount)
+	if subtractFeeFromAmount {
+		amountStr = "all"
+	}
 
+	var res WithdrawResult
+	err = client.Request(&WithdrawRequest{
+		Destination: addr,
+		Satoshi:     amountStr,
+		FeeRate:     fmt.Sprint(uint(feeRate*multiplier)) + "perkb",
+		MinConf:     minConf,
+		Utxos:       *utxos,
+	}, &res)
 	if err != nil {
-		log.Println("WithdrawWithUtxos:", err)
+		log.Println("WithdrawRequest:", err)
+		return nil, err
+	}
+
+	// The returned res.Tx is UNSIGNED, ignore it and get new
+	var decoded bitcoin.Transaction
+	_, err = bitcoin.GetRawTransaction(res.TxId, &decoded)
+	if err != nil {
 		return nil, err
 	}
 
 	amountSent := amount
-	if subtractFeeFromAmount {
-		decodedTx, err := bitcoin.DecodeRawTransaction(res.Tx)
-		if err == nil {
-			if len(decodedTx.Vout) == 1 {
-				amountSent = toSats(decodedTx.Vout[0].Value)
-			}
-		}
+	if subtractFeeFromAmount && len(decoded.Vout) == 1 {
+		amountSent = toSats(decoded.Vout[0].Value)
 	}
 
+	// default value if exact calculation fails
+	feePaid := feeRate * float64(decoded.VSize)
+
+	fee := int64(0)
+	for _, input := range decoded.Vin {
+		var decodedIn bitcoin.Transaction
+		_, err = bitcoin.GetRawTransaction(input.TXID, &decodedIn)
+		if err != nil {
+			goto return_result
+		}
+		fee += toSats(decodedIn.Vout[input.Vout].Value)
+	}
+
+	for _, output := range decoded.Vout {
+		fee -= toSats(output.Value)
+	}
+
+	feePaid = float64(fee)
+
+return_result:
+
 	result := SentResult{
-		RawHex:    res.Tx,
-		TxId:      res.TxId,
-		AmountSat: amountSent,
+		RawHex:     decoded.Hex,
+		TxId:       res.TxId,
+		AmountSat:  amountSent,
+		ExactSatVb: math.Ceil(feePaid*1000/float64(decoded.VSize)) / 1000,
 	}
 
 	return &result, nil
@@ -381,50 +445,187 @@ func CanRBF() bool {
 }
 
 type ListForwardsRequest struct {
-	Status string `json:"status"`
-	Index  string `json:"index"`
-	Start  uint64 `json:"start"`
-	Limit  uint64 `json:"limit"`
+	Index string `json:"index"`
+	Start uint64 `json:"start"`
+	Limit uint64 `json:"limit"`
 }
 
 func (r *ListForwardsRequest) Name() string {
 	return "listforwards"
 }
 
-// cache routing history per channel from cln
-func CacheForwards() {
-	// refresh history
+// queries lightningd.sqlite3 channel_htlcs table to pull
+// htlcs into htlcsCache map sorted by short channel id
+func CacheHTLCs(where string) int {
+	// refresh full channel id into short mapping
 	client, clean, err := GetClient()
 	if err != nil {
-		return
+		return 0
 	}
 	defer clean()
 
+	var response map[string]interface{}
+	err = client.Request(&ListPeerChannelsRequest{}, &response)
+	if err != nil {
+		log.Println("ListPeerChannelsRequest:", err)
+		return 0
+	}
+
+	// Iterate over channels to map channel ids
+	channels := response["channels"].([]interface{})
+	for _, channel := range channels {
+		channelMap := channel.(map[string]interface{})
+		if channelMap["channel_id"] != nil {
+			if channelMap["short_channel_id"] != nil {
+				fullToShortChannelId[channelMap["channel_id"].(string)] = channelMap["short_channel_id"].(string)
+			} else {
+				// private zero-conf channel
+				alias := channelMap["alias"].(map[string]interface{})
+				fullToShortChannelId[channelMap["channel_id"].(string)] = alias["local"].(string)
+			}
+		}
+	}
+
+	folder := "bitcoin"
+	if config.Config.Chain == "testnet" {
+		folder = "testnet"
+	}
+
+	// Open a database connection
+	db, err := sql.Open("sqlite3", config.Config.LightningDir+"/"+folder+"/lightningd.sqlite3")
+	if err != nil {
+		log.Println("Error opening database:", err)
+		return 0
+	}
+	defer db.Close()
+
+	// refresh full channel Ids
+	rows, err := db.Query("SELECT id, full_channel_id FROM channels")
+	if err != nil {
+		log.Println("Error executing query:", err)
+		return 0
+	}
+	defer rows.Close()
+
+	// Iterate through the results
+	for rows.Next() {
+		var id int
+		var data []byte
+		err := rows.Scan(&id, &data)
+		if err != nil {
+			log.Println("Error scanning row:", err)
+			continue
+		}
+
+		// map sql channel id to short channel id
+		shortChannelId, found := fullToShortChannelId[hex.EncodeToString(data)]
+		if !found {
+			// full channel ID not found, ignore channel
+			continue
+		}
+		sqlShortChannelId[id] = shortChannelId
+	}
+
+	// Check for errors from iterating over rows
+	if err = rows.Err(); err != nil {
+		log.Println("Error iterating rows:", err)
+	}
+
+	numHtlcs := 0
+	limit := 1000
+	offset := 0
+
+	// Get the HTLCs
+	for {
+		query := fmt.Sprintf("SELECT channel_id, id, cltv_expiry, msatoshi, payment_hash, hstate FROM channel_htlcs WHERE %s LIMIT %d OFFSET %d", where, limit, offset)
+		rows, err = db.Query(query)
+		if err != nil {
+			log.Println("Error executing query:", err)
+			return 0
+		}
+
+		numRows := 0
+		// Iterate through the results
+		for rows.Next() {
+			numRows++
+
+			var (
+				htlc   HTLC
+				cid    int
+				hstate int
+				hash   []byte
+			)
+
+			err := rows.Scan(&cid, &htlc.Id, &htlc.Expiry, &htlc.AmountMsat, &hash, &hstate)
+			if err != nil {
+				log.Println("Error scanning row:", err)
+				return 0
+			}
+
+			scid, ok := sqlShortChannelId[cid]
+			if ok {
+				htlc.ShortChannelId = scid
+				htlc.State = htlcStates[hstate]
+				htlc.PaymentHash = hex.EncodeToString(hash)
+				htlc.Direction = "in"
+				if hstate > 9 {
+					htlc.Direction = "out"
+				}
+				appendHTLC(htlc)
+				numHtlcs++
+			} else {
+				log.Println("Short channel id is missing for SQL channel id", cid)
+			}
+		}
+
+		// Check for errors from iterating over rows
+		if err = rows.Err(); err != nil {
+			log.Println("Error iterating rows:", err)
+		}
+
+		if numRows < limit {
+			break // end of data
+		}
+		offset += limit
+	}
+
+	return numHtlcs
+}
+
+// cache routing history per channel from cln
+func cacheForwards(client *glightning.Lightning) int {
+	// refresh history
 	var newForwards struct {
 		Forwards []Forwarding `json:"forwards"`
 	}
 
-	totalForwards := uint64(0)
+	totalForwards := 0
 
 	for {
 		// get incremental history
-		client.Request(&ListForwardsRequest{
+		err := client.Request(&ListForwardsRequest{
 			Index: "created",
 			Start: forwardsLastIndex,
 			Limit: 1000,
 		}, &newForwards)
+		if err != nil {
+			log.Println("cacheForwards:", err)
+			return 0
+		}
 
 		n := len(newForwards.Forwards)
 		if n > 0 {
 			forwardsLastIndex = newForwards.Forwards[n-1].CreatedIndex + 1
 			for _, f := range newForwards.Forwards {
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
-				if f.Status == "settled" && f.OutMsat > ignoreForwardsMsat {
+				if f.Status == "settled" && f.OutMsat >= IGNORE_FORWARDS_MSAT {
 					chIn := ConvertClnToLndChannelId(f.InChannel)
 					forwardsIn[chIn] = append(forwardsIn[chIn], f)
 					forwardsOut[chOut] = append(forwardsOut[chOut], f)
 					// save for autofees
 					LastForwardTS[chOut] = int64(f.ResolvedTime)
+					// forget last failed attempt
+					failedForwardTS[chOut] = 0
 				} else {
 					// catch not enough balance error
 					if f.FailCode == 4103 {
@@ -432,15 +633,13 @@ func CacheForwards() {
 					}
 				}
 			}
-			totalForwards += uint64(n)
+			totalForwards += n
 		} else {
 			break
 		}
 	}
 
-	if totalForwards > 0 {
-		log.Printf("Cached %d forwards", totalForwards)
-	}
+	return totalForwards
 }
 
 // get routing statistics for a channel
@@ -468,7 +667,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountOut6m += e.OutMsat
 			feeMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -482,7 +681,7 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountIn6m += e.OutMsat
 			assistedMsat6m += e.FeeMsat
 			if e.ResolvedTime > timestamp30d {
@@ -539,39 +738,33 @@ type Payment struct {
 	AmountMsat     uint64 `json:"amount_msat"`
 	AmountSentMsat uint64 `json:"amount_sent_msat"`
 	Bolt11         string `json:"bolt11"`
+	Destination    string `json:"destination"`
 }
 
 // HTLC represents the structure of a single HTLC entry
 type HTLC struct {
-	ShortChannelID string `json:"short_channel_id"`
-	ID             int    `json:"id"`
-	Expiry         int    `json:"expiry"`
+	ShortChannelId string `json:"short_channel_id"`
+	Id             uint64 `json:"id"`
+	Expiry         uint64 `json:"expiry"`
 	Direction      string `json:"direction"`
 	AmountMsat     uint64 `json:"amount_msat"`
 	PaymentHash    string `json:"payment_hash"`
 	State          string `json:"state"`
 }
 
-type Invoice struct {
-	Label              string `json:"label"`
-	Status             string `json:"status"`
-	AmountReceivedMsat uint64 `json:"amount_received_msat,omitempty"`
-	PaidAt             uint64 `json:"paid_at,omitempty"`
-	PaymentPreimage    string `json:"payment_preimage,omitempty"`
-	CreatedIndex       uint64 `json:"created_index"`
+type ListInvoicesRequest struct {
+	Label       string `json:"label,omitempty"`
+	PaymentHash string `json:"payment_hash,omitempty"`
 }
 
-type ListInvoicesRequest struct {
-	PaymentHash string `json:"payment_hash"`
+type ListInvoicesResponse struct {
+	Invoices []*glightning.Invoice `json:"invoices"`
 }
 
 func (r ListInvoicesRequest) Name() string {
 	return "listinvoices"
 }
 
-type ListInvoicesResponse struct {
-	Invoices []Invoice `json:"invoices"`
-}
 type ListSendPaysRequest struct {
 	PaymentHash string `json:"payment_hash"`
 }
@@ -604,9 +797,6 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 		amountIn     uint64
 		feeMsat      uint64
 		assistedMsat uint64
-		paidOutMsat  uint64
-		invoicedMsat uint64
-		costMsat     uint64
 	)
 
 	channelId := ConvertLndToClnChannelId(lndChannelId)
@@ -618,18 +808,19 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	}
 	defer clean()
 
-	invoicedMsat, paidOutMsat, costMsat = fetchPaymentsStats(client, timeStamp, channelId)
+	fetchPaymentsStats(client, timeStamp, channelId, &result)
+	cacheForwards(client)
 
 	timeStampF := float64(timeStamp)
 
 	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountOut += e.OutMsat
 			feeMsat += e.FeeMsat
 		}
 	}
 	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat > ignoreForwardsMsat {
+		if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			amountIn += e.OutMsat
 			assistedMsat += e.FeeMsat
 		}
@@ -639,9 +830,6 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 	result.RoutedIn = amountIn / 1000
 	result.FeeSat = feeMsat / 1000
 	result.AssistedFeeSat = assistedMsat / 1000
-	result.InvoicedIn = invoicedMsat / 1000
-	result.PaidOut = paidOutMsat / 1000
-	result.PaidCost = costMsat / 1000
 
 	return &result
 }
@@ -710,17 +898,17 @@ func NewAddress() (string, error) {
 	}
 
 	err = client.Request(&glightning.NewAddrRequest{
-		AddressType: "bech32",
+		AddressType: "p2tr",
 	}, &res)
 	if err != nil {
 		log.Println("NewAddrRequest:", err)
 		return "", err
 	}
 
-	return res.Bech32, nil
+	return res.Taproot, nil
 }
 
-// Returns Lightning channels as peerswaprpc.ListPeersResponse, excluding private channels and certain nodes
+// Returns Lightning channels as peerswaprpc.ListPeersResponse and certain nodes
 func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string) (*peerswaprpc.ListPeersResponse, error) {
 	var clnPeers []*glightning.Peer
 	var err error
@@ -736,11 +924,12 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 			return nil, err
 		}
 		clnPeers = append(clnPeers, peer)
+
 	}
 
 	var peers []*peerswaprpc.PeerSwapPeer
 
-	for _, clnPeer := range clnPeers {
+	for i, clnPeer := range clnPeers {
 		// skip excluded
 		if excludeIds != nil {
 			if stringIsInSlice(clnPeer.Id, *excludeIds) {
@@ -748,10 +937,12 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 			}
 		}
 
-		// skip peers with no channels
-		if len(clnPeer.Channels) == 0 {
-			continue
+		channels, err := client.ListPeerChannels(clnPeer.Id)
+		if err != nil {
+			return nil, err
 		}
+		// add channels
+		clnPeers[i].Channels = channels
 
 		peer := peerswaprpc.PeerSwapPeer{}
 		peer.NodeId = clnPeer.Id
@@ -770,11 +961,14 @@ func ListPeers(client *glightning.Lightning, peerId string, excludeIds *[]string
 		peers = append(peers, &peer)
 	}
 
-	list := peerswaprpc.ListPeersResponse{
-		Peers: peers,
+	if peerId != "" && len(peers) != 1 {
+		// none found
+		return nil, errors.New("Peer " + peerId + " not found")
 	}
 
-	return &list, nil
+	return &peerswaprpc.ListPeersResponse{
+		Peers: peers,
+	}, nil
 }
 
 type KeySendRequest struct {
@@ -822,185 +1016,218 @@ func SendKeysendMessage(destPubkey string, amountSats int64, message string) err
 	return nil
 }
 
-type GetInfoRequest struct {
-}
+// download all htlcs and forwards
+// return false if lightning did not start yet
+func DownloadAll() bool {
 
-func (r GetInfoRequest) Name() string {
-	return "getinfo"
-}
-
-type GetInfoResponse struct {
-	Alias string `json:"alias"`
-}
-
-func GetMyAlias() string {
-	if myNodeAlias == "" {
-		client, clean, err := GetClient()
-		if err != nil {
-			log.Println("GetClient:", err)
-			return ""
-		}
-		defer clean()
-
-		var res GetInfoResponse
-
-		// Send the keysend payment
-		err = client.Request(&GetInfoRequest{}, &res)
-		if err != nil {
-			return ""
-		}
-
-		myNodeAlias = res.Alias
-	}
-	return myNodeAlias
-}
-
-// scans all channels to get peerswap lightning fees cached
-func SubscribeAll() {
 	if downloadComplete {
 		// only run once
-		return
+		return true
 	}
 
 	client, clean, err := GetClient()
 	if err != nil {
-		return
+		return false
 	}
 	defer clean()
 
+	// cache my node Id and alias
+	resp, err := client.GetInfo()
+	if err != nil {
+		return false // lightning not ready yet
+	}
+	MyNodeId = resp.Id
+	MyNodeAlias = resp.Alias
+
+	// benchmark time
+	start := time.Now()
+
+	blockHeight := GetBlockHeight()
+	if blockHeight == 0 {
+		return false
+	}
+
+	// look back 6 months only
+	where := fmt.Sprintf("cltv_expiry > %d", blockHeight-26_352)
+	numHtlcs := CacheHTLCs(where)
+
+	downloadComplete = true
+
+	/*
+		duration := time.Since(start)
+		log.Printf("SQL took %v to execute", duration)
+
+		// benchmark time
+		start = time.Now()
+
+		var res ListHtlcsResponse
+		// cache all HTLCs
+		err = client.Request(&ListHtlcsRequest{}, &res)
+		if err != nil {
+			// CLN not ready
+			return false
+		}
+
+		// sort by channel
+		for _, htlc := range res.HTLCs {
+			appendHTLC(htlc)
+		}
+	*/
+
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
-		return
+		return false
 	}
 
 	// last 6 months
+	var stats ChannelStats
 	timestamp := uint64(time.Now().AddDate(0, -6, 0).Unix())
 
 	for _, peer := range peers.Peers {
 		for _, channel := range peer.Channels {
 			if channel.ChannelId > 0 {
 				channelId := ConvertLndToClnChannelId(channel.ChannelId)
-				fetchPaymentsStats(client, timestamp, channelId)
+				// cache peerswap costs
+				fetchPaymentsStats(client, timestamp, channelId, &stats)
 			}
 		}
 	}
 
-	downloadComplete = true
+	duration := time.Since(start)
+	if numHtlcs > 0 {
+		log.Printf("Cached %d HTLCs in %.2f seconds", numHtlcs, duration.Seconds())
+	}
+
+	start = time.Now()
+	forwards := cacheForwards(client)
+	if forwards > 0 {
+		duration = time.Since(start)
+		log.Printf("Cached %d forwards in %.2f seconds", forwards, duration.Seconds())
+	}
+
+	return true
 }
 
-// get invoicedMsat, paidOutMsat, costMsat
-func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelId string) (uint64, uint64, uint64) {
-	var harnessNetParams = &chaincfg.TestNet3Params
-	if config.Config.Chain == "mainnet" {
-		harnessNetParams = &chaincfg.MainNetParams
+func appendHTLC(htlc HTLC) {
+	// ignore unsettled
+	if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
+		return
 	}
+	htlcsCache[htlc.ShortChannelId] = append(htlcsCache[htlc.ShortChannelId], htlc)
+}
 
+func GetInvoice(client *glightning.Lightning, request *ListInvoicesRequest) (ListInvoicesResponse, error) {
+	inv, ok := invoicesCache[request.PaymentHash]
+	if !ok { // fetch from cln
+		err := client.Request(request, &inv)
+		if err != nil {
+			return inv, err
+		}
+		// cache it
+		invoicesCache[request.PaymentHash] = inv
+	}
+	return inv, nil
+}
+
+// get statistics for a channel since the timestamp
+// also caches swap rebates
+func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelId string, result *ChannelStats) {
 	var (
-		res          ListHtlcsResponse
-		invoicedMsat uint64
-		paidOutMsat  uint64
-		costMsat     uint64
+		paidOutMsat       uint64
+		paidCostMsat      uint64
+		invoicedInMsat    uint64
+		rebalancedInMsat  uint64
+		rebalancedOutMsat uint64
+		rebalanceCostMsat uint64
 	)
 
-	err := client.Request(&ListHtlcsRequest{
-		ChannelId: channelId,
-	}, &res)
-	if err != nil {
-		log.Println("ListHtlcsRequest:", err)
-	}
-
-	for _, htlc := range res.HTLCs {
+	for _, htlc := range htlcsCache[channelId] {
 		switch htlc.State {
 		case "SENT_REMOVE_ACK_REVOCATION":
 			// direction in, look for invoices
-			var inv ListInvoicesResponse
-			err := client.Request(&ListInvoicesRequest{
+			inv, err := GetInvoice(client, &ListInvoicesRequest{
 				PaymentHash: htlc.PaymentHash,
-			}, &inv)
+			})
 			if err != nil {
 				continue
 			}
-			if len(inv.Invoices) != 1 {
-				continue
-			}
-			if inv.Invoices[0].Status == "paid" {
-				continue
-			}
-			if inv.Invoices[0].PaidAt > timeStamp {
-				if parts := strings.Split(inv.Invoices[0].Label, " "); len(parts) > 4 {
-					if parts[0] == "peerswap" {
-						// find swap id
-						if parts[2] == "fee" && len(parts[4]) > 0 {
-							// save rebate payment
-							saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
+
+			if len(inv.Invoices) > 0 {
+				for _, i := range inv.Invoices {
+					if i.Status == "paid" && i.PaidAt > timeStamp {
+						amtMsat := i.MilliSatoshiReceived.MSat()
+						if !processInvoice(i.Description, int64(amtMsat)) {
+							// only account for non-peerswap related invoices
+							invoicedInMsat += amtMsat
 						}
-						continue
 					}
 				}
+			} else {
+				// no invoices
+				// can be a rebalance in, check timestamp and record the stats
+				pmt, ok := sendpaysCache[htlc.PaymentHash]
+				if !ok { // fetch from cln
+					err := client.Request(&ListSendPaysRequest{
+						PaymentHash: htlc.PaymentHash,
+					}, &pmt)
+					if err != nil {
+						continue
+					}
+					// cache it
+					sendpaysCache[htlc.PaymentHash] = pmt
+				}
 
-				// only account for non-peerswap related
-				invoicedMsat += htlc.AmountMsat
+				for _, p := range pmt.Payments {
+					if p.Status == "complete" && p.CompletedAt > timeStamp {
+						rebalancedInMsat += p.AmountMsat
+						rebalanceCostMsat += p.AmountSentMsat - p.AmountMsat
+					}
+				}
 			}
 
 		case "RCVD_REMOVE_ACK_REVOCATION":
 			// direction out, look for payments
-			var pmt ListSendPaysResponse
-			err := client.Request(&ListSendPaysRequest{
-				PaymentHash: htlc.PaymentHash,
-			}, &pmt)
-			if err != nil {
-				continue
+			pmt, ok := sendpaysCache[htlc.PaymentHash]
+			if !ok { // fetch from cln
+				err := client.Request(&ListSendPaysRequest{
+					PaymentHash: htlc.PaymentHash,
+				}, &pmt)
+				if err != nil {
+					continue
+				}
+				// cache it
+				sendpaysCache[htlc.PaymentHash] = pmt
 			}
-			if len(pmt.Payments) != 1 {
-				continue
-			}
-			if pmt.Payments[0].Status != "complete" {
-				continue
-			}
-			if pmt.Payments[0].CompletedAt > timeStamp {
-				if pmt.Payments[0].Bolt11 != "" {
-					// Decode the payment request
-					invoice, err := zpay32.Decode(pmt.Payments[0].Bolt11, harnessNetParams)
-					if err == nil {
-						if invoice.Description != nil {
-							if parts := strings.Split(*invoice.Description, " "); len(parts) > 4 {
-								if parts[0] == "peerswap" {
-									// find swap id
-									if parts[2] == "fee" && len(parts[4]) > 0 {
-										// save rebate payment
-										saveSwapRabate(parts[4], int64(htlc.AmountMsat)/1000)
-									}
-									// skip peerswap-related payments
-									continue
-								}
-							}
+
+			for _, p := range pmt.Payments {
+				if p.Status == "complete" && p.CompletedAt > timeStamp {
+					if !DecodeAndProcessInvoice(p.Bolt11, int64(htlc.AmountMsat)) {
+						// can be a rebalance out
+						if p.Destination == MyNodeId {
+							rebalancedOutMsat += p.AmountSentMsat
+						} else {
+							// some other payment like keysend
+							paidOutMsat += p.AmountSentMsat
+							paidCostMsat += p.AmountSentMsat - p.AmountMsat
 						}
 					}
 				}
-				paidOutMsat += htlc.AmountMsat
-				fee := pmt.Payments[0].AmountSentMsat - pmt.Payments[0].AmountMsat
-				costMsat += fee
 			}
 		}
 	}
 
-	return invoicedMsat, paidOutMsat, costMsat
+	result.PaidOut = paidOutMsat / 1000
+	result.PaidCost = paidCostMsat / 1000
+	result.InvoicedIn = invoicedInMsat / 1000
+	result.RebalanceCost = rebalanceCostMsat / 1000
+	result.RebalanceIn = rebalancedInMsat / 1000
+	result.RebalanceOut = rebalancedOutMsat / 1000
 }
 
 // Estimate sat/vB fee
 func EstimateFee() float64 {
-	client, clean, err := GetClient()
-	if err != nil {
-		return 0
-	}
-	defer clean()
-
-	res, err := client.FeeRates(glightning.PerKb)
-	if err != nil {
-		return 0
-	}
-
-	return float64(res.Details.Urgent) / 1000
+	// glightning FeeRates is broken
+	return bitcoin.EstimateSatvB(2)
 }
 
 // get fees for all channels by filling the maps [channelId]
@@ -1141,16 +1368,16 @@ func ApplyAutoFees() {
 		return
 	}
 
-	CacheForwards()
-
 	client, cleanup, err := GetClient()
 	if err != nil {
 		return
 	}
 	defer cleanup()
 
-	var response map[string]interface{}
+	// incrementally refresh
+	cacheForwards(client)
 
+	var response map[string]interface{}
 	if client.Request(&ListPeerChannelsRequest{}, &response) != nil {
 		return
 	}
@@ -1225,7 +1452,7 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 
 	for _, e := range forwardsOut[channelId] {
 		// ignore small forwards
-		if e.OutMsat > ignoreForwardsMsat {
+		if e.OutMsat >= IGNORE_FORWARDS_MSAT {
 			plot = append(plot, DataPoint{
 				TS:     uint64(e.ResolvedTime),
 				Amount: e.OutMsat / 1000,
@@ -1248,7 +1475,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 		}
 		for _, e := range forwardsOut[chId] {
 			// ignore small forwards
-			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+			if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
 					Amount:    e.OutMsat / 1000,
@@ -1264,7 +1491,7 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	if channelId > 0 {
 		for _, e := range forwardsIn[channelId] {
 			// ignore small forwards
-			if e.OutMsat > ignoreForwardsMsat && int64(e.ResolvedTime) >= fromTS {
+			if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
 					Amount:    e.OutMsat / 1000,
@@ -1285,26 +1512,33 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	return &log
 }
 
-func SendCustomMessage(client *glightning.Lightning, peerId string, message *Message) error {
-	// Marshal the Message struct to JSON
-	jsonData, err := json.Marshal(message)
+func SendCustomMessage(peerId string, message *Message) error {
+	client, _, err := GetClient()
 	if err != nil {
+		return err
+	}
+
+	// Serialize the message using gob
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if err := encoder.Encode(message); err != nil {
 		return err
 	}
 
 	// Create a buffer for the final output
-	data := make([]byte, 2+len(jsonData))
+	data := make([]byte, 2+len(buffer.Bytes()))
 
 	// Write the message type prefix
-	binary.BigEndian.PutUint16(data[:2], uint16(messageType))
+	binary.BigEndian.PutUint16(data[:2], uint16(MESSAGE_TYPE))
 
 	// Copy the JSON data to the buffer
-	copy(data[2:], jsonData)
+	copy(data[2:], buffer.Bytes())
 
-	_, err = client.SendCustomMessage(peerId, hex.EncodeToString(data))
-	if err != nil {
+	if _, err := client.SendCustomMessage(peerId, hex.EncodeToString(data)); err != nil {
 		return err
 	}
+
+	// log.Printf("Sent %d bytes %s to %s", len(buffer.Bytes()), message.Memo, GetAlias(peerId))
 
 	return nil
 }

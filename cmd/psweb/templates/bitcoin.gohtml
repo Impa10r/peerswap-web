@@ -5,39 +5,41 @@
         <div class="column">
           <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto;">
-                <div style="text-align: left;">
-                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}
-                    {{if .BitcoinSwaps}} 
-                      <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
-                    {{else}}
-                      <span style="font-size: 0.7em;" title="Bitcoin swaps disabled">❌</span>
-                    {{end}}
-                  </h4>
-                </div>
-                <div style="display: flex; justify-content: flex-end;">
-                  <form id="toggleForm_0" action="/submit" method="post">
-                    <input type="hidden" name="action" value="advertiseBitcoinBalance">
-                    <label class="checkbox is-large" style="padding-top: .5em;">
-                      <input title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="document.getElementById('toggleForm_0').submit()">
-                      {{if .AdvertiseEnabled}}
-                        <label title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                          📡 ON
-                        </label>
-                      {{else}}
-                        <label title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
-                          📡 OFF
-                        </label>
-                      {{end}}
-                    </label>
-                  </form>
-                </div>
+              <div style="text-align: left;">
+                <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}
+                  {{if .BitcoinSwaps}} 
+                    <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
+                  {{else}}
+                    <span style="font-size: 0.7em;" title="Bitcoin swaps disabled">❌</span>
+                  {{end}}
+                </h4>
               </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <form id="toggleForm_0" action="/submit" method="post">
+                  <input type="hidden" name="action" value="advertiseBitcoinBalance">
+                  <label class="checkbox is-large" style="padding-top: .5em;">
+                    <input title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers
+Amount is capped at remote channel balance to mimic brute force discovery" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="document.getElementById('toggleForm_0').submit()">
+                    {{if .AdvertiseEnabled}}
+                      <label title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers
+Amount is capped at remote channel balance to mimic brute force discovery" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        📡 ON
+                      </label>
+                    {{else}}
+                      <label title="Enable/Disable broadcasting BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                        📡 OFF
+                      </label>
+                    {{end}}
+                  </label>
+                </form>
+              </div>
+            </div>
           </div>
           {{if eq .PeginTxId ""}}
             <div class="box has-text-left">
               <div class="tabs is-large is-boxed">
                 <ul>
-                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-In</a></li>
+                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-in</a></li>
                   <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send BTC</a></li>
                 </ul>
               </div>
@@ -48,15 +50,15 @@
                     <label class="label">Address</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address" oninput="delayedCalculateTransactionFee()">
+                    <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address">
                   </div>
                 </div>
-                <div class="field is-horizontal">
+                <div title="Amount in sats" class="field is-horizontal">
                   <div class="field-label is-normal">
                     <label class="label">Amount</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" required placeholder="₿ BTC Amount (sats)">
+                    <input class="input is-medium" type="number" oninput="uncheckSubtractFee()" id="peginAmount" name="peginAmount" min="1000" max="{{.BitcoinBalance}}" placeholder="₿ BTC Amount (sats)">
                   </div>
                 </div>
                 <div class="field is-horizontal">
@@ -64,12 +66,31 @@
                     <label class="label">Fee Rate</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="number" oninput="delayedCalculateTransactionFee()" id="feeRate" name="feeRate" min="1" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                    <input class="input is-medium" type="number" oninput="calculateTransactionFee()" id="feeRate" name="feeRate" min="1" step="0.001" required value="{{if .SuggestedFeeRate}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                   </div>
                 </div>
+                {{if .CanClaimJoin}}
+                  <div id="claimJoinField" class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      🧬 ClaimJoin
+                    </div>
+                    <div class="field-body">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="claimJoin" onchange="calculateTransactionFee()" name="claimJoin" checked>
+                          {{if .HasClaimJoinPending}}
+                            <strong>&nbsp&nbspJoin a pending claim as a single confidential transaction</strong>
+                          {{else}}
+                            <strong>&nbsp&nbspInvite peers to join claims into a single confidential transaction</strong>
+                          {{end}}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                {{end}}
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Fee Estimate</label>
+                    <label class="label">Cost Estimate</label>
                   </div>
                   <div class="field-body">
                     <label id="result" class="label"></label>
@@ -91,133 +112,175 @@
                 <!-- Hidden true/false element -->
                 <input type="hidden" id="isPegin" name="isPegin" value="true">
                 <div style="text-align: center;">
-                  <input id="sendButton" class="button is-large" type="submit" value="Start Peg-In">
+                  <input id="sendButton" class="button is-large" type="submit" value="Start Peg-in">
+                  <input title="Generate peg-in address to be funded by an external wallet" id="externalButton" class="button is-large" name="externalButton" type="submit" value="External Funding">
                 </div>
             </div>
           {{else}}
             <div class="box has-text-left">
-              {{if .IsPegin}}
-                <h4 class="title is-4">Peg-In Progress</h4> 
-              {{else}}
-                <h4 class="title is-4">Bitcoin Withdrawal {{if gt .Confirmations 0}}(Complete){{else}}(Pending){{end}}</h4> 
-              {{end}}
-              <table style="table-layout:fixed; width: 100%;">
-                <tr>
-                  <td style="width: 8ch; text-align: right">
-                    Amount: 
-                  </td>
-                  <td>
-                    {{fmt .PeginAmount}} sats
-                  </td>
-                </tr>
-                <tr>
-                  <td style="text-align: right">
-                    Confs: 
-                  </td>
-                  <td>
-                    {{.Confirmations}} 
-                    {{if .IsPegin}}
-                      / 102
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="text-align: right">
-                          T left: 
-                        </td>
-                        <td>
-                          {{.Duration}}
-                    {{end}}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="text-align: right">
-                    TxId: 
-                  </td>
-                  <td style="overflow-wrap: break-word;">
-                    <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
-                  </td>
-                </tr>
-                {{if .CanBump}}
-                  <tr>
-                    <td style="text-align: right">
-                      Fee rate:
-                    </td>
-                    <td>
-                      {{.FeeRate}} sat/vB
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="text-align: right">
-                      {{if .CanRBF}}
-                        <div style="text-align: center; max-width: 6ch;">
-                          <p style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                            RBF
-                          </p>
-                        </div>
-                      {{else}}
-                        <div style="text-align: center; max-width: 7ch;">
-                          <p style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
-                            CPFP
-                          </p>
-                        </div>
-                      {{end}}
-                    </td>
-                    <td>
-                      {{if .CanRBF}}
-                        If the tx does not confirm for a long time, consider replacing it with a new one, paying a higher fee rate.
-                      {{else}}
-                        If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child).
-                      {{end}}
-                    </td>
-                  </tr>
-                {{end}}
-              </table>
-              {{if .CanBump}}
-                <form autocomplete="off" action="/bumpfee" method="post">
+              <div style="display: grid; grid-template-columns: auto auto; margin-bottom: 1em;">
+                <div style="text-align: left;">
+                  {{if .IsPegin}}
+                    <h4 class="title is-4">Peg-in Progress</h4>
+                  {{else}}
+                     <h4 class="title is-4">Bitcoin Withdrawal {{if gt .Confirmations 0}}(Complete){{else}}(Pending){{end}}</h4> 
+                  {{end}}
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                  <h4 class="title is-4" title="Refresh page"><a href="/bitcoin">⟳</a></h4>
+                </div>
+              </div>
+              {{if .IsExternal}}
+                <p>1. Please fund this mainchain Bitcoin address externally:</p>
+                <input class="input is-medium" type="text" onclick="copyToClipboard('peginAddress')" id="peginAddress" value="{{.PeginAddress}}" readonly>
+                <br>
+                <br>
+                <div id="qrcode-container">
+                    <div id="qrcode"></div>
+                </div>
+                <br>
+                <script>
+                  displayQR("peginAddress");
+                </script>
+                <p>2. Then, provide TxId below to proceed:</p>
+                <form autocomplete="off" action="/submit" method="post">
                   <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">New Fee Rate</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="field">
-                        <p>
-                          <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" required value="{{if gt .SuggestedFeeRate 0}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <input class="input is-medium" type="text" name="peginTxId" placeholder="External Funding TxId">
+                  <br>
+                  <br>
                   <center>
-                    <input class="button is-large" type="submit" value="Bump Fee Rate">
+                    <input type="hidden" name="action" value="externalPeginTxId">
+                    <input class="button is-large" type="submit" name="externalPeginTxId" value="Provide TxId">
+                    <input class="button is-large" type="submit" name="externalPeginCancel" value="Cancel Pegin">
                   </center>
                 </form>
               {{else}}
-                {{if .IsPegin}}
-                  <div class="progress is-large">
-                    <div class="current-progress" style="width: {{.Progress}}%">
+                <table style="table-layout:fixed; width: 100%; margin-bottom: 1em;">
+                  <tr>
+                    <td style="width: 8ch; text-align: right">
+                      Amount: 
+                    </td>
+                    <td>
+                      {{fmt .PeginAmount}} sats
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="text-align: right">
+                      Confs: 
+                    </td>
+                    <td>
+                      {{if eq .Confirmations -1}}
+                        Transaction not found in local mempool
+                      {{else}}
+                        {{.Confirmations}} 
+                        {{if .IsPegin}}
+                          / {{.TargetConfirmations}}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="text-align: right">
+                              ETA: 
+                            </td>
+                            <td>
+                              {{.Duration}}
+                        {{end}}
+                      {{end}}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="text-align: right">
+                      TxId: 
+                    </td>
+                    <td style="overflow-wrap: break-word;">
+                      <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
+                    </td>
+                  </tr>
+                  {{if .IsClaimJoin}}
+                    <tr title="ClaimJoin status">
+                      <td style="text-align: right">
+                        🧬 CJ: 
+                      </td>
+                      <td style="overflow-wrap: break-word;">
+                        {{.ClaimJoinStatus}}
+                      </td>
+                    </tr>
+                  {{end}}
+                  {{if .CanBump}}
+                    <tr>
+                      <td style="text-align: right">
+                        Fee rate:
+                      </td>
+                      <td>
+                        {{.FeeRate}} sat/vB
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: right">
+                        {{if .CanRBF}}
+                          <div style="text-align: center; max-width: 6ch;">
+                            <p style="color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                              RBF
+                            </p>
+                          </div>
+                        {{else}}
+                          <div style="text-align: center; max-width: 7ch;">
+                            <p style="color: white; background-color: #067cd6; font-weight: bold; padding: 3px; border-radius: 5px;">
+                              CPFP
+                            </p>
+                          </div>
+                        {{end}}
+                      </td>
+                      <td>
+                        {{if .CanRBF}}
+                          If the tx does not confirm for a long time, consider replacing it with a new one, paying a higher fee rate.
+                        {{else}}
+                          If the tx does not confirm for a long time, consider bumping the fee to at least 1.5x the current market rate, then wait for the child tx to appear in mempool. If the effective rate is still too low, you may bump again. The second and subsequent bumps will be RBF (replacing the child).
+                        {{end}}
+                      </td>
+                    </tr>
+                  {{end}}
+                </table>
+                {{if .CanBump}}
+                  <form autocomplete="off" action="/bumpfee" method="post">
+                    <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                    <div class="field is-horizontal">
+                      <div class="field-label is-normal">
+                        <label class="label">New Fee Rate</label>
+                      </div>
+                      <div class="field-body">
+                        <div class="field">
+                          <p>
+                            <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" step="0.001" required value="{{if .SuggestedFeeRate}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <script>
-                    // Reload the page every minute (60000 milliseconds)
-                    setInterval(function(){
-                        location.reload();
-                    }, 60000);
-                  </script>
-                {{else}}
-                  <form action="/submit" method="post">
-                    <input type="hidden" name="action" value="deleteTxId">
                     <center>
-                      <br>
-                      <input title="Stop tracking this withdrawal" class="button is-large" type="submit" value="OK">
+                      <input class="button is-large" type="submit" value="Bump Fee Rate">
                     </center>
                   </form>
+                {{else}}
+                  {{if .IsPegin}}
+                    <div class="progress is-large">
+                      <div class="current-progress" style="width: {{.Progress}}%">
+                      </div>
+                    </div>
+                  {{else}}
+                    <form action="/submit" method="post">
+                      <input type="hidden" name="action" value="deleteTxId">
+                      <center>
+                        <br>
+                        <input title="Stop tracking this withdrawal" class="button is-large" type="submit" value="OK">
+                      </center>
+                    </form>
+                  {{end}}
                 {{end}}
               {{end}}
             </div>
           {{end}}
         </div> 
         <div class="column"> 
-          <div class="box has-text-left">
+          <div class="box has-text-left" {{if ne .BitcoinAddress ""}}style="display: none;"{{end}}>
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
                   <h4 class="title is-4">Unspent Outputs</h4>
@@ -261,8 +324,12 @@
                 document.getElementById('sendTab').classList.remove("is-active");
                 document.getElementById("sendAddressField").style.display = "none";
                 document.getElementById('sendAddress').removeAttribute('required');
-                document.getElementById("sendButton").value = "Start Peg-In";
+                document.getElementById("sendButton").value = "Start Peg-in";
                 document.getElementById("isPegin").value = "true";
+                document.getElementById("externalButton").style.display = "";
+                {{if .CanClaimJoin}}
+                  document.getElementById("claimJoinField").style.display = "";
+                {{end}}
                 calculateTransactionFee();
               }
 
@@ -273,6 +340,10 @@
                 document.getElementById('sendAddress').setAttribute('required', 'true');
                 document.getElementById("sendButton").value = "Send Bitcoin";
                 document.getElementById("isPegin").value = "false";
+                document.getElementById("externalButton").style.display = "none";
+                {{if .CanClaimJoin}}
+                  document.getElementById("claimJoinField").style.display = "none";
+                {{end}}
                 calculateTransactionFee();
               }
 
@@ -325,9 +396,13 @@
                 const amount = Number(document.getElementById("peginAmount").value);
                 const payall = document.getElementById("subtractfee").checked;
 
-                if (payall && fee >= amount / 4) {
-                  alert("Total fee exceeding 25% of the amount is not allowed");
-                  return false;
+                if (fee > amount / 1000 && amount > 0) {
+                  // Display confirmation dialog
+                  var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
+                  if (!confirmed) {
+                    // user cancels, prevent form submission
+                    return false;
+                  }
                 }
 
                 {{if not .IsCLN}}
@@ -362,14 +437,6 @@
 
               // Function to execute after a delay
               function delayedCalculateTransactionFee() {
-                  // unselect UTXOs
-                  var fields = document.querySelectorAll('#select');
-                  fields.forEach(function(element) {
-                    element.checked = false
-                    document.getElementById(element.value).classList.remove('is-selected');
-                  });
-                  document.getElementById("unselectAll").style.visibility = "hidden";
-
                   // Clear previous timer if it exists
                   clearTimeout(timerId);
 
@@ -425,9 +492,9 @@
                   let outputsP2WPKH = change; // Number of P2WPKH outputs
                 {{end}}
 
-                // there is always one P2SH output for peg-in address
-                let outputsP2SH = 1;
-                
+                // there can be P2SH output for pegin address
+                let outputsP2WSH = 0;
+
                 // Initialize total UTXO amount and UTXO counters
                 let totalUtxoAmount = 0;
                 let selectedUtxoCount = 0;
@@ -505,10 +572,6 @@
                     }
                   });
                 } else {
-                  // reset peginAmount to selectedAmount
-                  peginAmount = selectedAmount;
-                  document.getElementById("peginAmount").value = selectedAmount;
-                  
                   // allow unselect all with one click
                   document.getElementById("unselectAll").textContent = selectedUtxoCount;
                   document.getElementById("unselectAll").style.visibility = "visible";
@@ -523,18 +586,20 @@
                 
                 const sendAddress = document.getElementById("sendAddress").value;
                 
-                if (!isPegin) {
-                  // identify send address type
+                if (isPegin) {
+                  // Assume pegin to P2WSH
+                  outputsP2WSH++;
+                } else {
+                  // identify destination address type
                   if (sendAddress.startsWith('bc1p') || sendAddress.startsWith('tb1p')) {
                     // is P2TR output count
                     outputsP2TR++;
-                    outputsP2SH = 0;
-                  } else if (sendAddress.startsWith('bc1q') || sendAddress.startsWith('tb1q')) {
-                    // is P2WPKH output count
+                  } else {
                     outputsP2WPKH++;
-                    outputsP2SH = 0;
-                  } 
+                  }
                 }
+
+                // console.log(inputsP2TR, inputsP2WPKH, outputsP2TR, outputsP2WPKH, outputsP2SH);
 
                 // Base size and total size initialization
                 let baseSize = 0;
@@ -575,16 +640,16 @@
                 totalSize += 1;
 
                 // Output amount
-                baseSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2SH);
-                totalSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2SH);
+                baseSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2WSH);
+                totalSize += 8 * (outputsP2TR + outputsP2WPKH + outputsP2WSH);
 
                 // ScriptPubKey length
-                baseSize += (outputsP2TR + outputsP2WPKH + outputsP2SH);
-                totalSize += (outputsP2TR + outputsP2WPKH + outputsP2SH);
+                baseSize += (outputsP2TR + outputsP2WPKH + outputsP2WSH);
+                totalSize += (outputsP2TR + outputsP2WPKH + outputsP2WSH);
 
                 // ScriptPubKey
-                baseSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 23 * outputsP2SH);
-                totalSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 23 * outputsP2SH);
+                baseSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 34 * outputsP2WSH);
+                totalSize += (34 * outputsP2TR + 22 * outputsP2WPKH + 34 * outputsP2WSH);
 
                 // Witness stack item count
                 totalSize += 1;
@@ -606,10 +671,15 @@
                 let text = "Transaction size: " + vbyteSize + " vBytes\n";
                 
                 if (isPegin) {
-                  //liquid peg-in fee estimate
-                  liquidFee = Math.ceil({{.LiquidFeeRate}} * 450)
-                  fee += liquidFee; 
-                  text += "Liquid chain fee: " + formatWithThousandSeparators(liquidFee) + " sats\n";
+                  //liquid pegin fee estimate
+                  let liquidFee = "45";
+                  fee += 45; 
+                  {{if .CanClaimJoin}}
+                    if (document.getElementById("claimJoin").checked) {
+                      liquidFee = "30-40"
+                    }
+                  {{end}}
+                  text += "Liquid chain fee: " + liquidFee + " sats\n";
                 }
 
                 document.getElementById("totalFee").value = Number(fee);
@@ -620,14 +690,26 @@
                   netAmount -= fee;
                 }
 
-                text += "Estimated total fee: " + formatWithThousandSeparators(fee) + " sats\n";
-                text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
+                text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
+                text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / netAmount));
                 
-                if (subtractFee && {{.BitcoinBalance}} - peginAmount < 25000) {
+                if (isPegin) {
+                  let hours = "17 hours";
+                  {{if .CanClaimJoin}}
+                      if (document.getElementById("claimJoin").checked) {
+                        hours = "17-{{.ClaimJoinETA}} hours";
+                      }
+                  {{end}}
+                  text += "\nClaim ETA: " + hours;
+                }
+
+                if ({{.BitcoinBalance}} - peginAmount < 25000) {
                   {{if .IsCLN}}
-                    text += "\nReserve for anchor fee bumping will be returned as change."
+                    if (subtractFee) {
+                      text += "\nReserve for anchor fee bumping will be returned as change."
+                    }
                   {{else}}
-                    text += "\nWARNING: No reserve is left for anchor fee bumping!"
+                    text += "\nWARNING: Not enough reserve left for anchor fee bumping!"
                   {{end}}
                 } 
                 document.getElementById('result').innerText = text;
@@ -647,22 +729,18 @@
                 </center>
               </form>
             {{else}}
-              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.BitcoinAddress}}" readonly>               
+              <input class="input is-medium" type="text" onclick="copyToClipboard('bitcoinAddress')" id="bitcoinAddress" value="{{.BitcoinAddress}}" readonly>
+              <br>
+              <br>
+              <div id="qrcode-container">
+                  <div id="qrcode"></div>
+              </div>
+              <br>
+              <center>
+                <input class="button is-large" onclick="window.location.href='/bitcoin';" value="OK">
+              </center>
               <script>
-                function copyToClipboard() {
-                  // Get the text to copy
-                  var copyText = document.getElementById("copyText");
-
-                  // Select the text
-                  copyText.select();
-                  copyText.setSelectionRange(0, 99999); // For mobile devices
-
-                  // Copy the selected text
-                  document.execCommand("copy");
-
-                  // Alert the user that the text has been copied
-                  displayTemporaryMessage("Copied the address to clipboard");
-                }
+                displayQR("bitcoinAddress");
               </script>
             {{end}}
           </div>
