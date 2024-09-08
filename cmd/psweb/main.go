@@ -1728,7 +1728,6 @@ func last(x int, a interface{}) bool {
 }
 
 func advertiseBalances() {
-
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return
@@ -1751,16 +1750,16 @@ func advertiseBalances() {
 	}
 	defer clean()
 
-	ln.BitcoinBalance = uint64(ln.ConfirmedWalletBalance(cl))
+	bitcoinBalance := uint64(ln.ConfirmedWalletBalance(cl))
 	// haircut by anchor reserve
-	if ln.BitcoinBalance >= 25000 {
-		ln.BitcoinBalance -= 25000
+	if bitcoinBalance >= 25000 {
+		bitcoinBalance -= 25000
 	}
 
-	ln.LiquidBalance = res2.GetSatAmount()
+	liquidBalance := res2.GetSatAmount()
 	// Elements fee bug does not permit sending the whole balance, haircut it
-	if ln.LiquidBalance >= 2000 {
-		ln.LiquidBalance -= 2000
+	if liquidBalance >= 2000 {
+		liquidBalance -= 2000
 	}
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
@@ -1800,7 +1799,7 @@ func advertiseBalances() {
 
 		if ln.AdvertiseLiquidBalance {
 			// cap the shown balance to maximum swappable
-			showBalance := min(maxBalance, ln.LiquidBalance)
+			showBalance := min(maxBalance, liquidBalance)
 			ptr := ln.SentLiquidBalances[peer.NodeId]
 			if ptr != nil {
 				// refresh every 24h or on change
@@ -1826,7 +1825,7 @@ func advertiseBalances() {
 
 		if ln.AdvertiseBitcoinBalance {
 			// cap the shown balance to maximum swappable
-			showBalance := min(maxBalance, ln.BitcoinBalance)
+			showBalance := min(maxBalance, bitcoinBalance)
 			ptr := ln.SentBitcoinBalances[peer.NodeId]
 			if ptr != nil {
 				// refresh every 24h or on change

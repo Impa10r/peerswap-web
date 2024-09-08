@@ -61,10 +61,6 @@ var (
 	SentLiquidBalances  = make(map[string]*BalanceInfo)
 	SentBitcoinBalances = make(map[string]*BalanceInfo)
 
-	// current Balance
-	LiquidBalance  uint64
-	BitcoinBalance uint64
-
 	// chain balances, upto our channel remote balance,
 	// are discoverable by peer's swap out attempts
 	// better broadcast them to prevent that behavior
@@ -297,38 +293,31 @@ func OnMyCustomMessage(nodeId string, payload []byte) {
 		Process(&msg, nodeId)
 
 	case "poll":
-		// received request for information
+		// repeat invite to ClaimJoin
 		shareInvite(nodeId)
 
-		if AdvertiseLiquidBalance {
+		// repeat last
+		if AdvertiseLiquidBalance && SentLiquidBalances[nodeId] != nil {
 			if SendCustomMessage(nodeId, &Message{
 				Version: MESSAGE_VERSION,
 				Memo:    "balance",
 				Asset:   "lbtc",
-				Amount:  LiquidBalance,
+				Amount:  SentLiquidBalances[nodeId].Amount,
 			}) == nil {
-				// save announcement
-				if SentLiquidBalances[nodeId] == nil {
-					SentLiquidBalances[nodeId] = new(BalanceInfo)
-				}
-				SentLiquidBalances[nodeId].Amount = LiquidBalance
+				// save timestamp
 				SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
 			}
+		}
 
-			if AdvertiseBitcoinBalance {
-				if SendCustomMessage(nodeId, &Message{
-					Version: MESSAGE_VERSION,
-					Memo:    "balance",
-					Asset:   "btc",
-					Amount:  BitcoinBalance,
-				}) == nil {
-					// save announcement
-					if SentBitcoinBalances[nodeId] == nil {
-						SentBitcoinBalances[nodeId] = new(BalanceInfo)
-					}
-					SentBitcoinBalances[nodeId].Amount = BitcoinBalance
-					SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
-				}
+		if AdvertiseBitcoinBalance && SentBitcoinBalances[nodeId] != nil {
+			if SendCustomMessage(nodeId, &Message{
+				Version: MESSAGE_VERSION,
+				Memo:    "balance",
+				Asset:   "btc",
+				Amount:  SentBitcoinBalances[nodeId].Amount,
+			}) == nil {
+				// save timestamp
+				SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
 			}
 		}
 

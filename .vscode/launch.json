@@ -14,7 +14,7 @@
             "showLog": false,
             "envFile": "${workspaceFolder}/.env",
             //"args": ["-datadir", "/home/vlad/.peerswap_t4"]
-            "args": ["-datadir", "/home/vlad/.peerswap2"]
+            "args": ["-datadir", "/home/vlad/.peerswap3"]
         },/*
         // sudo bash -c 'echo 0 > /proc/sys/kernel/yama/ptrace_scope'
         // go install -tags cln -gcflags 'all=-N -l' ./cmd/psweb
