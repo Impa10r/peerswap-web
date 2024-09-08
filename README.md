@@ -133,7 +133,7 @@ rm -rf peerswap-web && \
 git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
 make -j$(nproc) install-cln && \
-lightning-cli -k plugin subcommand=stop plugin=${HOME}/go/bin/psweb
+lightning-cli -k plugin subcommand=stop plugin=${HOME}/go/bin/psweb && \
 lightning-cli -k plugin subcommand=start plugin=${HOME}/go/bin/psweb
 ```
 
