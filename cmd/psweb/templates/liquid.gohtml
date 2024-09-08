@@ -12,9 +12,11 @@
                 <form id="toggleForm_0" action="/submit" method="post">
                   <input type="hidden" name="action" value="advertiseLiquidBalance">
                   <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
+Amount is capped at remote channel balance to mimic brute force discovery" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
                     {{if .AdvertiseEnabled}}
-                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
+Amount is capped at remote channel balance to mimic brute force discovery" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
                         📡 ON
                       </label>
                     {{else}}

@@ -2,7 +2,7 @@
 
 ## 1.7.0
 
-- Correct swap fee estimates for discounted vsize (Elements v23.2.3+)
+- Correct swap fee estimates for CT discounted vsize (Elements v23.2.3+)
 - Implement confidential joint peg-in claims (Elements v23.2.3+) 
 - Add option to fund peg-ins from an external wallet 
 - LND: Facilitate exact (to 0.001) fee rates for peg-ins and BTC withdrawals
@@ -10,12 +10,13 @@
 - Change Custom Message type from 42067 to 42065
 - Fix accounting for initiated swap outs and failed swaps
 - Show circular rebalancing volumes and costs on main screen
+- Advertised balances are now capped at remote channel balance
+- Balance advertising is now enabled by default to deter brute force discovery
+- CLN: Refactor psweb as a plugin to use hooks and notifications
 - Update keysend invite message
-- Advertised balances are now capped to remote channel balance
-- Balance advertising is enabled by default to avoid brute force discovery
-- CLN: Refactor psweb as a plugin to use hooks
 
 ## 1.6.9
+
 - Hot Fix bitcoinswaps=true persisting in peerswap.conf on psweb restart
 
 ## 1.6.8
