@@ -37,8 +37,8 @@ const (
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	swapOutChannelReserve = 5000
-	// Elements v23.2.2 introduced vsize discount
-	elementsdFeeDiscountedVersion = 230202
+	// Elements v23.2.3 introduced vsize discount
+	elementsdFeeDiscountedVersion = 230203
 )
 
 type SwapParams struct {
@@ -1338,7 +1338,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 		}
 		for _, channel := range peer.Channels {
 			// ignore if there was an opposite peerswap
-			if lastWasSwapOut[channel.ChannelId] {
+			if !channel.Active || lastWasSwapOut[channel.ChannelId] {
 				continue
 			}
 
@@ -1346,9 +1346,8 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			// find the potential swap amount to bring balance to target
 			targetBalance := chanInfo.Capacity * config.Config.AutoSwapTargetPct / 100
 
-			// limit target to Remote - reserve
-			reserve := chanInfo.Capacity / 100
-			targetBalance = min(targetBalance, chanInfo.Capacity-reserve)
+			// limit target to 99% of Capacity
+			targetBalance = min(targetBalance, chanInfo.Capacity*99/100)
 
 			if targetBalance < channel.LocalBalance {
 				continue
@@ -1370,14 +1369,14 @@ func findSwapInCandidate(candidate *SwapParams) error {
 			// limit to peer's max HTLC setting and remote balance less reserve for LN fee
 			swapAmount = min(swapAmount, chanInfo.PeerMaxHtlc, channel.RemoteBalance-1000, config.Config.AutoSwapMaxAmount)
 
-			// only consider active channels with enough remote balance
-			if channel.Active && swapAmount >= minAmount {
+			// only consider channels with enough remote balance
+			if swapAmount >= minAmount {
 				ppm := uint64(0)
-				if stats.RoutedOut > 1_000 { // ignore small results
+				if stats.RoutedOut > 100_000 { // ignore insignificant volume
 					ppm = stats.FeeSat * 1_000_000 / stats.RoutedOut
 				}
 
-				// aim to maximize accumulated PPM
+				// aim to maximize PPM
 				// if ppm ties, choose the candidate with larger potential swap amount
 				if ppm > minPPM || ppm == minPPM && swapAmount > candidate.Amount {
 					// set the candidate's PPM as the new target to beat
@@ -1753,9 +1752,13 @@ func advertiseBalances() {
 	defer clean()
 
 	ln.BitcoinBalance = uint64(ln.ConfirmedWalletBalance(cl))
-	ln.LiquidBalance = res2.GetSatAmount()
+	// haircut by anchor reserve
+	if ln.BitcoinBalance >= 25000 {
+		ln.BitcoinBalance -= 25000
+	}
 
-	// Elements bug does not permit sending the whole balance, haircut it
+	ln.LiquidBalance = res2.GetSatAmount()
+	// Elements fee bug does not permit sending the whole balance, haircut it
 	if ln.LiquidBalance >= 2000 {
 		ln.LiquidBalance -= 2000
 	}
@@ -1763,6 +1766,14 @@ func advertiseBalances() {
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
 
 	for _, peer := range res3.GetPeers() {
+		// find the largest remote balance
+		maxBalance := uint64(0)
+		if ln.AdvertiseBitcoinBalance || ln.AdvertiseLiquidBalance {
+			for _, ch := range peer.Channels {
+				maxBalance = max(maxBalance, ch.RemoteBalance)
+			}
+		}
+
 		// refresh balances received over 24 hours + 2 minutes ago
 		pollPeer := false
 		if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
@@ -1788,10 +1799,12 @@ func advertiseBalances() {
 		}
 
 		if ln.AdvertiseLiquidBalance {
+			// cap the shown balance to maximum swappable
+			showBalance := min(maxBalance, ln.LiquidBalance)
 			ptr := ln.SentLiquidBalances[peer.NodeId]
 			if ptr != nil {
-				if ptr.Amount == ln.LiquidBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
-					// do not resend within 24 hours unless changed
+				// refresh every 24h or on change
+				if ptr.Amount == showBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
 					continue
 				}
 			}
@@ -1800,22 +1813,24 @@ func advertiseBalances() {
 				Version: ln.MESSAGE_VERSION,
 				Memo:    "balance",
 				Asset:   "lbtc",
-				Amount:  ln.LiquidBalance,
+				Amount:  showBalance,
 			}) == nil {
 				// save announcement details
 				if ptr == nil {
 					ln.SentLiquidBalances[peer.NodeId] = new(ln.BalanceInfo)
 				}
-				ln.SentLiquidBalances[peer.NodeId].Amount = ln.LiquidBalance
+				ln.SentLiquidBalances[peer.NodeId].Amount = showBalance
 				ln.SentLiquidBalances[peer.NodeId].TimeStamp = time.Now().Unix()
 			}
 		}
 
 		if ln.AdvertiseBitcoinBalance {
+			// cap the shown balance to maximum swappable
+			showBalance := min(maxBalance, ln.BitcoinBalance)
 			ptr := ln.SentBitcoinBalances[peer.NodeId]
 			if ptr != nil {
-				if ptr.Amount == ln.BitcoinBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
-					// do not resend within 24 hours unless changed
+				// refresh every 24h or on change
+				if ptr.Amount == showBalance && ptr.TimeStamp > time.Now().AddDate(0, 0, -1).Unix() {
 					continue
 				}
 			}
@@ -1824,13 +1839,13 @@ func advertiseBalances() {
 				Version: ln.MESSAGE_VERSION,
 				Memo:    "balance",
 				Asset:   "btc",
-				Amount:  ln.BitcoinBalance,
+				Amount:  showBalance,
 			}) == nil {
 				// save announcement details
 				if ptr == nil {
 					ln.SentBitcoinBalances[peer.NodeId] = new(ln.BalanceInfo)
 				}
-				ln.SentBitcoinBalances[peer.NodeId].Amount = ln.BitcoinBalance
+				ln.SentBitcoinBalances[peer.NodeId].Amount = showBalance
 				ln.SentBitcoinBalances[peer.NodeId].TimeStamp = time.Now().Unix()
 			}
 		}

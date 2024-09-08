@@ -65,9 +65,11 @@ var (
 	LiquidBalance  uint64
 	BitcoinBalance uint64
 
-	// global settings
-	AdvertiseLiquidBalance  = false
-	AdvertiseBitcoinBalance = false
+	// chain balances, upto our channel remote balance,
+	// are discoverable by peer's swap out attempts
+	// better broadcast them to prevent that behavior
+	AdvertiseLiquidBalance  = true
+	AdvertiseBitcoinBalance = true
 )
 
 type PaymentInfo struct {

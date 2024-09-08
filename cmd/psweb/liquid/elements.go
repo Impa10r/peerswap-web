@@ -414,7 +414,7 @@ func GetVersion() float64 {
 
 	r, err := service.client.call("getnetworkinfo", params, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
-		log.Printf("getnetworkinfo: %v", err)
+		log.Printf("Elements GetVersion error: %v", err)
 		return 0
 	}
 
@@ -422,7 +422,7 @@ func GetVersion() float64 {
 
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
-		log.Printf("getnetworkinfo unmarshall: %v", err)
+		log.Printf("Elements GetVersion error: %v", err)
 		return 0
 	}
 
