@@ -36,7 +36,7 @@
                     </script>
                   {{else }}
                     <h4 class="title is-4">New Swap</h4> 
-                    <form action="/submit" method="post">
+                    <form action="/submit" method="post" onsubmit="return confirmSubmit()">
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
                           <label class="label">Channel</label>
@@ -90,6 +90,7 @@
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
                           <label id="resultLabel" class="label">Cost Estimate</label>
+                          <input type="number" id="totalFee" style="display: none;" value=0>
                         </div>
                         <div class="field-body">
                           <label id="result" class="label">Please enter the Swap Amount</label>
@@ -219,6 +220,7 @@
                             const maxAmount = {{.BitcoinBalance}} - {{.ReserveBTC}};
                             if (swapAmount > maxAmount) {
                               document.getElementById('result').innerText = "Insufficient BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
+                              document.getElementById('result').innerText += "\nFee reserve: {{fmt .ReserveBTC}} sats";
                               document.getElementById('result').title = '';
                               document.getElementById('resultLabel').title = '';
                               return;
@@ -289,6 +291,7 @@
                             const maxAmount = {{.LiquidBalance}} - {{.ReserveLBTC}};
                             if (swapAmount > maxAmount) {
                               document.getElementById('result').innerText = "Insufficient L-BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
+                              document.getElementById('result').innerText += "\nFee reserve: {{fmt .ReserveLBTC}} sats";
                               document.getElementById('result').title = '';
                               document.getElementById('resultLabel').title = '';
                               return;
@@ -396,6 +399,7 @@
                         document.getElementById('result').title = title;
                         document.getElementById('resultLabel').title = title;
                         document.getElementById('result').innerText = text;
+                        document.getElementById("totalFee").value = Number(fee);
                       }
 
                       let timerId;
@@ -406,6 +410,21 @@
 
                           // Set a new timer to execute after 300 milliseconds
                           timerId = setTimeout(calculateTransactionFee, 300);
+                      }
+
+                      // warning message if swap too expensive
+                      function confirmSubmit() {
+                        const fee = Number(document.getElementById("totalFee").value);
+                        const amount = Number(document.getElementById("swapAmount").value);
+
+                        if (fee > amount / 1000) {
+                          // Display confirmation dialog
+                          var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
+                          if (!confirmed) {
+                            // user cancels, prevent form submission
+                            return false;
+                          }
+                        }
                       }
 
                       // on load
