@@ -177,18 +177,22 @@
 
 {{define "log"}}
     <table style="table-layout:fixed; width: 100%; border-collapse: collapse;">
-    <tr>
-        <td style="max-width: 100%; overflow: hidden; padding: 0">
-        <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
-        </td>
-    </tr>
+        <tr>
+            <td style="max-width: 100%; overflow: hidden; padding: 0">
+            <pre {{if eq .LogPosition 0}}style="height:300px;"{{end}}id="log-content"></pre>
+            </td>
+        </tr>
     </table>
+    <label class="checkbox is-large">
+        &nbsp&nbsp<input type="checkbox" id="scroll" checked>
+        &nbsp&nbspAuto Scroll
+    </label>
     <script>
         const logContent = document.getElementById('log-content');
         let logPosition = {{.LogPosition}};             
         
         function updatePage(data) {
-            if (data.NextPosition > logPosition) {
+            if (document.getElementById('scroll').checked && data.NextPosition > logPosition) {
                 logPosition = data.NextPosition;
                 logContent.textContent += data.LogText;
                 logContent.scrollTop = logContent.scrollHeight;    

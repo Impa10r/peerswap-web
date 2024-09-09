@@ -2,13 +2,14 @@
 
 ## 1.7.0
 
-- Correct swap fee estimates for CT discounted vsize (Elements v23.2.3+)
-- Implement confidential joint peg-in claims (Elements v23.2.3+) 
-- Add option to fund peg-ins from an external wallet 
+- Enable CT discounted vsize with Elements v23.02.03+ on testnet
+- Correct swap fee estimates for CT discounted vsize 
+- Implement confidential joint peg-in claims for CT discounts
+- Add option to fund peg-ins with an external transaction 
 - LND: Facilitate exact (to 0.001) fee rates for peg-ins and BTC withdrawals
 - Change Custom Message serialization from JSON to GOB
 - Change Custom Message type from 42067 to 42065
-- Fix accounting for initiated swap outs and failed swaps
+- Improve accounting for initiated swap outs and failed swaps
 - Show circular rebalancing volumes and costs on main screen
 - Advertised balances: cap at remote channel balance
 - Advertised balances: round down to 0 if below 100k sats (min swap amount)

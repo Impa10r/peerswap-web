@@ -160,6 +160,7 @@ type AutoFeeStatus struct {
 	FeeRate     int64
 	InboundRate int64
 	DaysNoFlow  int
+	Active      bool
 }
 
 type AutoFeeParams struct {

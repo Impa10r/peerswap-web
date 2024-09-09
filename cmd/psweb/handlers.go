@@ -1185,6 +1185,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 				InboundRate: inboundFeeRates[ch.ChannelId],
 				ChannelId:   ch.ChannelId,
 				DaysNoFlow:  daysNoFlow,
+				Active:      ch.Active,
 			})
 
 			if ch.ChannelId == channelId {
@@ -1193,6 +1194,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 				capacity = ch.LocalBalance + ch.RemoteBalance
 				localPct = ch.LocalBalance * 100 / (ch.LocalBalance + ch.RemoteBalance)
 			}
+
 			if ln.AutoFeeEnabled[ch.ChannelId] {
 				anyEnabled = true
 			}
@@ -1303,6 +1305,15 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Chart          *[]ln.DataPoint
 		FeeLog         []FeeLog
 		ForwardsLog    *[]ln.DataPoint
+		RedColor       string
+		GreenColor     string
+	}
+
+	redColor := "red"
+	greenColor := "green"
+	if config.Config.ColorScheme == "dark" {
+		redColor = "pink"
+		greenColor = "lightgreen"
 	}
 
 	data := Page{
@@ -1328,6 +1339,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		Chart:          chart,
 		FeeLog:         feeLog,
 		ForwardsLog:    forwardsLog,
+		RedColor:       redColor,
+		GreenColor:     greenColor,
 	}
 
 	// executing template named "af"
@@ -2772,9 +2785,16 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 		Implementation string
 	}
 
+	//check for error message to display
+	errorMessage := ""
+	keys, ok := r.URL.Query()["err"]
+	if ok && len(keys[0]) > 0 {
+		errorMessage = keys[0]
+	}
+
 	logFile := "log"
 
-	keys, ok := r.URL.Query()["log"]
+	keys, ok = r.URL.Query()["log"]
 	if ok && len(keys[0]) > 0 {
 		logFile = keys[0]
 	}
@@ -2782,7 +2802,7 @@ func logHandler(w http.ResponseWriter, r *http.Request) {
 	data := Page{
 		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
 		ColorScheme:    config.Config.ColorScheme,
-		ErrorMessage:   "",
+		ErrorMessage:   errorMessage,
 		PopUpMessage:   "",
 		MempoolFeeRate: mempoolFeeRate,
 		LogPosition:    1, // from first line
@@ -2865,9 +2885,9 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 		logText = (string(content))
 		length := len(logText)
 
-		if startPosition == 1 && length > 10000 {
-			// limit to 10000 characters
-			logText = logText[length-10000:]
+		// limit to 50000 characters
+		if startPosition == 1 && length > 50000 {
+			logText = logText[length-50000:]
 		}
 	}
 
