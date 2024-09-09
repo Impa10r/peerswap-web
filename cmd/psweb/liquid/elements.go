@@ -406,7 +406,7 @@ func EstimateFee() float64 {
 }
 
 // get version of Elements Core supports discounted vSize
-func GetVersion() float64 {
+func GetVersion() int {
 	client := ElementsClient()
 	service := &Elements{client}
 	wallet := config.Config.ElementsWallet
@@ -426,7 +426,7 @@ func GetVersion() float64 {
 		return 0
 	}
 
-	return response["version"].(float64)
+	return int(response["version"].(float64))
 }
 
 // returns block hash

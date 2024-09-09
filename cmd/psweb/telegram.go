@@ -148,7 +148,7 @@ func telegramStart() {
 				}
 				telegramSendMessage(t)
 			case "/version":
-				t := "Current version: " + version + "\n"
+				t := "Current version: " + VERSION + "\n"
 				t += "Latest version: " + latestVersion
 				telegramSendMessage(t)
 			default:

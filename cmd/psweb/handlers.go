@@ -451,9 +451,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, int64(ptr.Amount)-int64(swapFeeReserveLBTC()))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveLBTC()))))
 	} else {
-		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
+		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
 	}
 
 	if maxLiquidSwapOut >= 100_000 {
@@ -471,9 +471,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerBitcoinBalance = formatWithThousandSeparators(ptr.Amount)
 		}
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-swapOutChannelReserve, int64(ptr.Amount)-int64(swapFeeReserveBTC))))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveBTC))))
 	} else {
-		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-swapOutChannelReserve))
+		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
 	}
 
 	if maxBitcoinSwapOut >= 100_000 {
@@ -1582,7 +1582,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 		MempoolFeeRate:  mempoolFeeRate,
 		ColorScheme:     config.Config.ColorScheme,
 		Config:          config.Config,
-		Version:         version,
+		Version:         VERSION,
 		Latest:          latestVersion,
 		Implementation:  ln.IMPLEMENTATION,
 		HTTPS:           "https://" + hostname + ".local:" + config.Config.SecurePort,

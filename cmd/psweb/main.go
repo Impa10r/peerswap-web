@@ -32,13 +32,13 @@ import (
 )
 
 const (
-	// App version tag
-	version = "v1.7.0"
+	// App VERSION tag
+	VERSION = "v1.7.0"
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
-	swapOutChannelReserve = 5000
-	// Elements v23.2.3 introduced vsize discount
-	elementsdFeeDiscountedVersion = 230203
+	SWAP_OUT_CHANNEL_RESERVE = 5000
+	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
+	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
 
 type SwapParams struct {
@@ -57,7 +57,7 @@ var (
 	//go:embed templates/*.gohtml
 	tplFolder     embed.FS
 	logFile       *os.File
-	latestVersion = version
+	latestVersion = VERSION
 	// Bitcoin sat/vB from mempool.space
 	mempoolFeeRate = float64(0)
 	// onchain realized transaction costs
@@ -92,10 +92,15 @@ func start() {
 	if config.Config.Chain == "testnet" {
 		// allow faster pegin on testnet4
 		peginBlocks = 10
+		// identify if Elements Core supports CT discounts
+		hasDiscountedvSize = liquid.GetVersion() >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
 	}
 
-	// identify if Elements Core supports CT discounts
-	hasDiscountedvSize = liquid.GetVersion() >= elementsdFeeDiscountedVersion
+	if hasDiscountedvSize {
+		log.Println("Discounted vsize on Liquid is enabled")
+	} else {
+		log.Println("Discounted vsize on Liquid is disabled")
+	}
 
 	// Load persisted data from database
 	ln.LoadDB()
