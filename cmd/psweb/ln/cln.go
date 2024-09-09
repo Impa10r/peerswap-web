@@ -1227,7 +1227,8 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 // Estimate sat/vB fee
 func EstimateFee() float64 {
 	// glightning FeeRates is broken
-	return bitcoin.EstimateSatvB(2)
+	// use 6 blocks estimate
+	return bitcoin.EstimateSatvB(6)
 }
 
 // get fees for all channels by filling the maps [channelId]

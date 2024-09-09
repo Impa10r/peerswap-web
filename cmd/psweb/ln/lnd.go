@@ -1739,9 +1739,9 @@ func EstimateFee() float64 {
 	}
 	cl := walletrpc.NewWalletKitClient(conn)
 
-	ctx := context.Background()
-	req := &walletrpc.EstimateFeeRequest{ConfTarget: 2}
-	res, err := cl.EstimateFee(ctx, req)
+	// use 6 blocks estimate
+	req := &walletrpc.EstimateFeeRequest{ConfTarget: 6}
+	res, err := cl.EstimateFee(context.Background(), req)
 
 	if err != nil {
 		return 0

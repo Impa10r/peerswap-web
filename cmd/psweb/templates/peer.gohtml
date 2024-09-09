@@ -467,14 +467,14 @@ Sincerely,
             {{if .PeerSwapPeer}}
               <table style="width:100%; table-layout:fixed;">
                 <tr>
-                  {{if gt .PeerBitcoinBalance -1}}
+                  {{if .PeerBitcoinBalance}}
                     <td style="text-align: center;">
-                      <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fs .PeerBitcoinBalance}}</p>
+                      <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{.PeerBitcoinBalance}}</p>
                     </td>
                   {{end}}
-                  {{if gt .PeerLiquidBalance -1}}
+                  {{if .PeerLiquidBalance}}
                     <td style="text-align: center;">
-                      <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{fs .PeerLiquidBalance}}</p>
+                      <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{.PeerLiquidBalance}}</p>
                     </td>
                   {{end}}
                 </tr> 

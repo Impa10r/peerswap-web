@@ -255,13 +255,14 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Peerswapd has not started listening yet. <a href='/log'>Check log</a>."
+		t = "Peerswapd has not started listening yet. Check log."
+		redirectUrl = "/log?"
 	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
-		t = "Peerswap is still in the process of starting up. <a href='/log?log=cln.log'>Check log</a>."
+		t = "Peerswap is still in the process of starting up. Check log."
+		redirectUrl = "/log?log=cln.log"
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Lightningd has not started listening yet. <a href='/log?log=cln.log'>Check log</a>."
-	case strings.HasPrefix(t, "-32601:Unknown command"):
-		t = "Peerswap plugin is not installed or has wrong configuration. Check .lightning/config."
+		t = "Lightningd has not started listening yet. Check log."
+		redirectUrl = "/log?log=cln.log"
 	case strings.HasPrefix(t, "rpc error: code = "):
 		i := strings.Index(t, "desc =")
 		if i > 0 {
@@ -670,10 +671,12 @@ func convertPeersToHTMLTable(
 				btcBalance := ptr.Amount
 				tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
 				flooredBalance := "<span style=\"color:grey\">0m</span>"
-				if btcBalance > 100_000 {
+				bal := "<100k"
+				if btcBalance >= 100_000 {
 					flooredBalance = toMil(btcBalance)
+					bal = formatWithThousandSeparators(btcBalance)
 				}
-				peerTable += "<span title=\"Peer's BTC balance: " + formatWithThousandSeparators(btcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
+				peerTable += "<span title=\"Peer's BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
 		}
 
@@ -684,10 +687,12 @@ func convertPeersToHTMLTable(
 				lbtcBalance := ptr.Amount
 				tm := timePassedAgo(time.Unix(ptr.TimeStamp, 0).UTC())
 				flooredBalance := "<span style=\"color:grey\">0m</span>"
-				if lbtcBalance > 100_000 {
+				bal := "<100k"
+				if lbtcBalance >= 100_000 {
 					flooredBalance = toMil(lbtcBalance)
+					bal = formatWithThousandSeparators(lbtcBalance)
 				}
-				peerTable += "<span title=\"Peer's L-BTC balance: " + formatWithThousandSeparators(lbtcBalance) + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
+				peerTable += "<span title=\"Peer's L-BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
 		}
 
@@ -1800,6 +1805,10 @@ func advertiseBalances() {
 		if ln.AdvertiseLiquidBalance {
 			// cap the shown balance to maximum swappable
 			showBalance := min(maxBalance, liquidBalance)
+			// round down to 0 if below 100k
+			if showBalance < 100_000 {
+				showBalance = 0
+			}
 			ptr := ln.SentLiquidBalances[peer.NodeId]
 			if ptr != nil {
 				// refresh every 24h or on change
@@ -1826,6 +1835,10 @@ func advertiseBalances() {
 		if ln.AdvertiseBitcoinBalance {
 			// cap the shown balance to maximum swappable
 			showBalance := min(maxBalance, bitcoinBalance)
+			// round down to 0 if below 100k
+			if showBalance < 100_000 {
+				showBalance = 0
+			}
 			ptr := ln.SentBitcoinBalances[peer.NodeId]
 			if ptr != nil {
 				// refresh every 24h or on change
