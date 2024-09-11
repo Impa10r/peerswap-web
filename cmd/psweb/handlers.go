@@ -592,6 +592,12 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		RecommendLiquidSwapIn   int64
 		SelectedChannel         uint64
 		HasDiscountedvSize      bool
+		RedColor                string
+	}
+
+	redColor := "red"
+	if config.Config.ColorScheme == "dark" {
+		redColor = "pink"
 	}
 
 	data := Page{
@@ -642,6 +648,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		RecommendLiquidSwapIn:   recommendLiquidSwapIn,
 		SelectedChannel:         selectedChannel,
 		HasDiscountedvSize:      hasDiscountedvSize,
+		RedColor:                redColor,
 	}
 
 	// executing template named "peer"

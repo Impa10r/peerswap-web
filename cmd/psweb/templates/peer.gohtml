@@ -358,7 +358,10 @@
                           } 
                         } else {
                           let claimSize = 149; // BTC
+                          let claimPadding = 0; // sats 
                           if (asset == "btc") {
+                            claimPadding = 200; // BTC padding hardcoded here: 
+                            // https://github.com/ElementsProject/peerswap/blob/89d79f7bf2ea0d5bec61933a2f8438947250db70/onchain/bitcoin.go#L224
                             vbyteSize = 350; // onchain.EstimatedOpeningTxSize
                             title = "Assumed opening transaction size 350 vB";
                           } else {
@@ -375,7 +378,7 @@
                           }
 
                           const rebate = Math.ceil(vbyteSize * feeRate);
-                          const claim = Math.ceil(claimSize * feeRate);
+                          const claim = Math.ceil(claimSize * feeRate) + claimPadding;
                           fee = rebate + claim;
                           rebateText = "Rebate to opener: " + formatWithThousandSeparators(rebate) + " sats\n";
                           claimText = "Claim tx fee: " + formatWithThousandSeparators(claim) + " sats\n";
@@ -442,9 +445,9 @@
                       <textarea name="keysendMessage" class="textarea" rows="13">
 Dear {{.PeerAlias}}, 
 
-We are direct peers and could be using Liquid PeerSwap to rebalance our lightning channel. Recently, Liquid introduced discounted fee rates for confidential transactions. Now I can rebalance any amount for a flat fee of 43 sats (swap in) or 75 sats (swap out). Compare that to your circular rebalancing costs.
+We are direct peers and could be using Liquid PeerSwap to rebalance our lightning channel. Recently, Liquid introduced discounted fee rates for confidential transactions. Now I can rebalance any amount for a flat fee of only 43 sats (swap in) or ~110 sats (swap out). Compare that to your circular rebalancing costs.
 
-PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. It allows sourcing L-BTC via confidential peg-ins, supports auto rebalancing and can manage channel fees. Check it out at https://github.com/Impa10r/peerswap-web.
+PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. It allows sourcing L-BTC via confidential peg-ins, supports auto swap rebalancing and can manage channel fees. Check it out at https://github.com/Impa10r/peerswap-web.
 
 Feel free to ping me if you have any questions!
 
@@ -565,81 +568,80 @@ Sincerely,
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="Channel Id: {{.ChannelId}}
-Capacity: {{fmt .Capacity}}" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+                  <td style="padding: 0px; text-align: center; {{if not .Active}}
+                      color:{{$.RedColor}};" title="Channel is INACTIVE"
+                    {{else}}" title="Channel Id: {{.ChannelId}}
+Capacity: {{fmt .Capacity}}"
+                    {{end}}>{{m .Capacity}}</td>
 <td title="Local: {{fmt .LocalBalance}}
 Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.LocalPct}}%</td>
-                  {{if .Active}}
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setFee">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="outbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
-                      </form>
-                    </td>
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setBase">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="outbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
-                      </form>
-                    </td>
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setFee">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="inbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
-                      </form>
-                    </td>
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setBase">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="inbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
-                      </form>
-                    </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setFee">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="outbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
+                    </form>
+                  </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setBase">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="outbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
+                    </form>
+                  </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setFee">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="inbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
+                    </form>
+                  </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setBase">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="inbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
+                    </form>
+                  </td>
+                  <tr style="border: 1px dotted">
+                      <td colspan="2" style="text-align: right; padding: 0px;">
+                        Peer Fees:
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerFeeRate}}
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerFeeBase}}
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerInboundFeeRate}}
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerInboundFeeBase}}
+                      </td>
+                    </tr>
+                  {{if ne .AutoFeeLog ""}}
                     <tr style="border: 1px dotted">
-                        <td colspan="2" style="text-align: right; padding: 0px;">
-                          Peer Fees:
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerFeeRate}}
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerFeeBase}}
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerInboundFeeRate}}
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerInboundFeeBase}}
-                        </td>
-                      </tr>
-                    {{if ne .AutoFeeLog ""}}
-                      <tr style="border: 1px dotted">
-                        <td colspan="6" style="text-align: center; padding: 0px;">
-                          {{.AutoFeeLog}}
-                        </td>
-                      </tr>
-                    {{end}}
-                  {{else}}
-                    <td colspan="4" style="text-align: center">INACTIVE CHANNEL</td>
+                      <td colspan="6" style="text-align: center; padding: 0px;">
+                        {{.AutoFeeLog}}
+                      </td>
+                    </tr>
                   {{end}}
                 </tr>
               {{end}}
