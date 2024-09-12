@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	// ignore forwards < 10 sats
-	IGNORE_FORWARDS_MSAT = 10_000
+	// ignore forwards < 1000 sats
+	// to not blow out PPM chart
+	IGNORE_FORWARDS_MSAT = 1_000_000
 	// one custom type for peeswap web
 	MESSAGE_TYPE    = 42065
 	MESSAGE_VERSION = 1
