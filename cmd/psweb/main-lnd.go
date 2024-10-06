@@ -31,7 +31,7 @@ func main() {
 	}
 
 	if *showVersion {
-		fmt.Printf("PeerSwap Web UI %s for LND", VERSION)
+		fmt.Printf("PeerSwap Web UI %s for LND\n", VERSION)
 		os.Exit(0)
 	}
 

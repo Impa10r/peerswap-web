@@ -219,7 +219,7 @@
                 <input class="button is-large" type="submit" name="update_button" value="{{if .ChannelId}}{{if .CustomRule}}Update{{else}}Add{{end}} Custom{{else}}Update Default{{end}} Rule">
                 {{if and .CustomRule .ChannelId}}
                   <input title="Apply specific changed value(s) to all custom rules" class="button is-large" type="submit" name="update_all" value="Update All">
-                  <input title="Delete custom rule for this channel" class="button is-large" type="submit" name="delete_button" value="Delete">
+                  <input title="Delete custom rule for this channel and reset to default" class="button is-large" type="submit" name="delete_button" value="Reset">
                 {{end}}
               </div>
             </form>
