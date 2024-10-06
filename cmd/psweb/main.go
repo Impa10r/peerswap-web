@@ -260,14 +260,14 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Peerswapd has not started listening yet. Check log."
+		t = "Peerswapd has not started listening yet. Check logs."
 		redirectUrl = "/log?"
 	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
-		t = "Peerswap is still in the process of starting up. Check log."
-		redirectUrl = "/log?log=cln.log"
+		t = "Peerswap is still in the process of starting up. Check logs."
+		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Lightningd has not started listening yet. Check log."
-		redirectUrl = "/log?log=cln.log"
+		t = "Lightningd has not started listening yet. Check logs."
+		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "rpc error: code = "):
 		i := strings.Index(t, "desc =")
 		if i > 0 {
