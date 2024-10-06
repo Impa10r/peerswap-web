@@ -6,15 +6,17 @@
           <div class="box has-text-left">
             <div style="display: grid; grid-template-columns: auto auto;">
               <div style="text-align: left;">
-                <h4 class="title is-4" style="white-space: nowrap"><a title="Download Elements wallet backup" href = '/backup'>🌊&nbsp{{fmt .LiquidBalance}}&nbsp💾</a></h4>
+                <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}&nbsp<a title="Download Elements wallet backup" href = '/backup'>💾</a></h4>
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 <form id="toggleForm_0" action="/submit" method="post">
                   <input type="hidden" name="action" value="advertiseLiquidBalance">
                   <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                    <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
+Amount is capped at remote channel balance to mimic brute force discovery" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
                     {{if .AdvertiseEnabled}}
-                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
+Amount is capped at remote channel balance to mimic brute force discovery" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
                         📡 ON
                       </label>
                     {{else}}
@@ -110,86 +112,90 @@
           </div>
         </div>
         <div class="column">
-          {{if eq .TxId ""}}
-            <div class="box has-text-left">
-              <h4 class="title is-4">Send Liquid</h4> 
-              <form autocomplete="off" action="/submit" method="post">
-                <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Address</label>
-                  </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
-                  </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label title="Internal comment" class="label">Comment</label>
-                  </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                  </div>
-                  <div class="field-body">
-                    <div class="control">
-                      <label class="checkbox is-large">
-                        <input type="checkbox" id="subtractfee" name="subtractfee">
-                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                      </label>
+          {{if eq .LiquidAddress ""}}
+            {{if eq .TxId ""}}
+              <div class="box has-text-left">
+                <h4 class="title is-4">Send Liquid</h4> 
+                <form autocomplete="off" action="/submit" method="post">
+                  <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Address</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
                     </div>
                   </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                  </div>
-                  <div class="field-body">
-                    <div class="control">
-                      <label class="checkbox is-large">
-                        <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
-                        <strong>&nbsp&nbspIgnore Blind Fail</strong>
-                      </label>
+                  <div title="Amount in sats" class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
                     </div>
                   </div>
-                </div>
-                <center>
-                  <input type="hidden" name="action" value="sendLiquid">
-                  <input class="button is-large" type="submit" value="Send Liquid">
-                </center>
-              </form>
-              <script>
-                function setMax() {
-                  document.getElementById("sendAmount").value = {{.LiquidBalance}};
-                  document.getElementById("subtractfee").checked = true;
-                }
-                // submits enable/disable toggle 
-                function submitForm(formId) {
-                  document.getElementById(formId).submit();
-                }
-              </script>
-            </div>     
-          {{else}}
-            <div class="box has-text-left">
-              <h4 class="title is-4">Payment Sent</h4> 
-              <table style="table-layout:fixed; width: 100%;">
-                <tr><td style="overflow-wrap: break-word;">
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Internal comment" class="label">Comment</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                    </div>
+                    <div class="field-body">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="subtractfee" name="subtractfee">
+                          <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                    </div>
+                    <div class="field-body">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
+                          <strong>&nbsp&nbspIgnore Blind Fail</strong>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                   <center>
-                    TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a>
+                    <input type="hidden" name="action" value="sendLiquid">
+                    <input class="button is-large" type="submit" value="Send Liquid">
                   </center>
-                </td></tr>
-              </table>
-            </div>
+                </form>
+                <script>
+                  function setMax() {
+                    document.getElementById("sendAmount").value = {{.LiquidBalance}};
+                    document.getElementById("subtractfee").checked = true;
+                  }
+                  // submits enable/disable toggle 
+                  function submitForm(formId) {
+                    document.getElementById(formId).submit();
+                  }
+                </script>
+              </div>     
+            {{else}}
+              <div class="box has-text-left">
+                <h4 class="title is-4">Payment Sent</h4> 
+                <table style="table-layout:fixed; width: 100%;">
+                  <tr><td style="overflow-wrap: break-word;">
+                    <center>
+                      <p>TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a></p>
+                      <br>
+                      <button title="Return to main page" class="button is-large" onclick="window.location.href='/';">OK</button>
+                    </center>
+                  </td></tr>
+                </table>
+              </div>
+            {{end}}
           {{end}}
           <div class="box has-text-left">
             <h4 class="title is-4">Receive Liquid</h4> 
@@ -201,22 +207,18 @@
                 </center>
               </form>
             {{else}}
-              <input class="input is-medium" type="text" onclick="copyToClipboard()" id="copyText" value="{{.LiquidAddress}}" readonly>               
+              <input class="input is-medium" type="text" onclick="copyToClipboard('liquidAddress')" id="liquidAddress" value="{{.LiquidAddress}}" readonly>
+              <br>
+              <br>
+              <div id="qrcode-container">
+                  <div id="qrcode"></div>
+              </div>
+              <br>
+              <center>
+                <input class="button is-large" onclick="window.location.href='/liquid';" value="OK">
+              </center>
               <script>
-                function copyToClipboard() {
-                  // Get the text to copy
-                  var copyText = document.getElementById("copyText");
-
-                  // Select the text
-                  copyText.select();
-                  copyText.setSelectionRange(0, 99999); // For mobile devices
-
-                  // Copy the selected text
-                  document.execCommand("copy");
-
-                  // Alert the user that the text has been copied
-                  displayTemporaryMessage("Copied the address to clipboard");
-                }
+                displayQR("liquidAddress");
               </script>
             {{end}}
           </div>

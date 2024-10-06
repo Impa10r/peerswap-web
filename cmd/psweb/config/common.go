@@ -36,7 +36,8 @@ type Configuration struct {
 	PeginReplacedTxId       string
 	PeginAddress            string
 	PeginAmount             int64
-	PeginFeeRate            uint32
+	PeginFeeRate            float64
+	PeginClaimJoin          bool
 	LightningDir            string
 	BitcoinHost             string
 	BitcoinUser             string
@@ -55,7 +56,7 @@ type Configuration struct {
 
 var Config Configuration
 
-func Load(dataDir string) {
+func Load(dataDir string, network string) {
 
 	// Get the current user's information
 	currentUser, err := user.Current()
@@ -88,11 +89,12 @@ func Load(dataDir string) {
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 
-	if os.Getenv("NETWORK") == "testnet" {
+	if network == "testnet" {
 		Config.Chain = "testnet"
 		Config.NodeApi = "https://mempool.space/testnet/lightning/node"
 		Config.BitcoinApi = "https://mempool.space/testnet"
 		Config.LiquidApi = "https://liquid.network/testnet"
+		Config.ElementsPort = "7039"
 	}
 
 	// environment values take priority
@@ -175,10 +177,10 @@ func Save() error {
 
 // fallback for Bitcoin Core API if local is unreachable
 func GetBlockIoHost() string {
-	if os.Getenv("NETWORK") == "testnet" {
-		return "https://go.getblock.io/af084a9cb73840be95696eb29b5165e0"
+	if Config.Chain == "testnet" {
+		return "https://go.getblock.io/77cfc97c83e0454fb35557331188e7d6"
 	} else {
-		return "https://go.getblock.io/6885fe0778944e28979adc739c7105b6"
+		return "https://go.getblock.io/62af44fe83f540539ed0a1b52a80d41e"
 	}
 }
 

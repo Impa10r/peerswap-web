@@ -206,3 +206,23 @@ input[type=checkbox] {
     display: none;
     font-size: 12px;
 }
+
+/* Make the container full-width */
+#qrcode-container {
+    width: 100%;
+    max-width: 500px; /* Optional: Limit the maximum width */
+    margin: 0 auto; /* Center the QR code */
+}
+
+/* Ensure the QR code canvas is responsive */
+#qrcode canvas {
+    width: 100% !important;
+    height: auto !important;
+}
+
+/* half height <br> */
+.half-height {
+    display: block;
+    height: 0.5em; /* Half the typical line-height */
+    content: "";
+}

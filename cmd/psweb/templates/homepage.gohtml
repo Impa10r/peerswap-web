@@ -26,10 +26,14 @@
                     {{if .PeginPending}}
                       <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
                     {{else}}
-                      {{if and .AdvertiseLiquid .AllowSwapRequests}}
-                        <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                      {{if .ClaimJoinInvite}}
+                        <a href="/bitcoin" title="Received an invite to ClaimJoin">🧬</a>
                       {{else}}
-                        <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                        {{if and .AdvertiseLiquid .AllowSwapRequests}}
+                          <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                        {{else}}
+                          <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                        {{end}}
                       {{end}}
                     {{end}}
                     {{if .AutoSwapEnabled}}
@@ -52,7 +56,7 @@
             {{.ListPeers}}
             {{if eq .OtherPeers ""}}
               <center>
-                <p id="showOtherLink" style="text-align: center; white-space: nowrap"><a href="/?showall">Display Non-PeerSwap Channels</a></p>
+                <p id="showOtherLink" style="text-align: center; white-space: nowrap"><a href="/?showall">Show Non-PeerSwap Channels</a></p>
               </center>
             {{end}}
           </div>

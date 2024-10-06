@@ -36,7 +36,7 @@
                     </script>
                   {{else }}
                     <h4 class="title is-4">New Swap</h4> 
-                    <form action="/submit" method="post">
+                    <form action="/submit" method="post" onsubmit="return confirmSubmit()">
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
                           <label class="label">Channel</label>
@@ -89,7 +89,8 @@
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
-                          <label id="resultLabel" class="label">Fee Estimate</label>
+                          <label id="resultLabel" class="label">Cost Estimate</label>
+                          <input type="number" id="totalFee" style="display: none;" value=0>
                         </div>
                         <div class="field-body">
                           <label id="result" class="label">Please enter the Swap Amount</label>
@@ -142,13 +143,19 @@
                       function fromChanged() {
                         if (document.getElementById("from").value == "ln") {
                           document.getElementById("to").value = "lbtc";   
-                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          if ({{.RecommendLiquidSwapOut}} > 0) {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          }
                         } else {
                           document.getElementById("to").value = "ln";
                           if (document.getElementById("from").value == "btc") {
-                            document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};                     
+                            if ({{.RecommendBitcoinSwapIn}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};   
+                            }                  
                           } else {
-                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
+                            if ({{.RecommendLiquidSwapIn}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
+                            }
                           }
                         }
                         calculateTransactionFee();
@@ -157,13 +164,19 @@
                       function toChanged() {
                         if (document.getElementById("to").value == "ln") {
                           document.getElementById("from").value = "lbtc";
-                          document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};                     
+                          if ({{.RecommendLiquidSwapIn}} > 0) {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};              
+                          }       
                         } else {
                           document.getElementById("from").value = "ln";
                           if (document.getElementById("to").value == "btc") {
-                            document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};                     
+                            if ({{.RecommendBitcoinSwapOut}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};
+                            }                
                           } else {
-                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                            if ({{.RecommendLiquidSwapOut}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                            }
                           }
                         }
                         calculateTransactionFee();
@@ -176,6 +189,9 @@
                         let title = ""; 
                         let change = 25000;
                         let asset = document.getElementById("from").value;
+                        let discount = "";
+                        let claimText = "";
+                        let rebateText = "";
 
                         if (asset == "ln") {
                           asset = document.getElementById("to").value;
@@ -192,6 +208,8 @@
                         // amount cannot be blank
                         if (swapAmount < 100000) {
                           document.getElementById('result').innerText = "Minimum Swap Amount is 100,000 sats";
+                          document.getElementById('result').title = '';
+                          document.getElementById('resultLabel').title = '';
                           return;
                         }
                         
@@ -202,6 +220,9 @@
                             const maxAmount = {{.BitcoinBalance}} - {{.ReserveBTC}};
                             if (swapAmount > maxAmount) {
                               document.getElementById('result').innerText = "Insufficient BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
+                              document.getElementById('result').innerText += "\nFee reserve: {{fmt .ReserveBTC}} sats";
+                              document.getElementById('result').title = '';
+                              document.getElementById('resultLabel').title = '';
                               return;
                             }
 
@@ -251,7 +272,7 @@
                             let baseSize = 41 * (inputsP2TR + inputsP2WPKH);
                             let totalSize = 41 * (inputsP2TR + inputsP2WPKH);
                             totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH;
-                            vbyteSize = 96 + Math.ceil((3 * baseSize + totalSize) / 4);
+                            vbyteSize = 97 + Math.ceil((3 * baseSize + totalSize) / 4);
                             fee = vbyteSize * feeRate;
 
                             // peerswap spends dust change as extra fee
@@ -259,6 +280,8 @@
                             if (change < 1000) {
                               if (change < 0) {
                                 document.getElementById('result').innerText = "Insufficient BTC balance to cover expected fee of " + formatWithThousandSeparators(fee) + " sats";
+                                document.getElementById('result').title = '';
+                                document.getElementById('resultLabel').title = '';
                                 return;
                               }
                               fee += change;
@@ -268,6 +291,9 @@
                             const maxAmount = {{.LiquidBalance}} - {{.ReserveLBTC}};
                             if (swapAmount > maxAmount) {
                               document.getElementById('result').innerText = "Insufficient L-BTC balance (only " + formatWithThousandSeparators(maxAmount) + " sats available for swap)";
+                              document.getElementById('result').innerText += "\nFee reserve: {{fmt .ReserveLBTC}} sats";
+                              document.getElementById('result').title = '';
+                              document.getElementById('resultLabel').title = '';
                               return;
                             }
 
@@ -306,33 +332,68 @@
                             });
 
                             // Calculate tx size assuming always two outputs
-                            vbyteSize = 2503 + (inputs-1) * 84;
+                            vbyteSize = 2420 + inputs * 84;
+                            
+                            {{if .HasDiscountedvSize}}
+                              vbyteSize = 284 + inputs * 69;
+                              discount =" discount";
+                            {{end}}
+
                             fee = Math.ceil(vbyteSize * feeRate);
 
-                            // peerswap spends dust change as extra fee
+                            // elements spends dust change as extra fee
                             change = {{.LiquidBalance}} - swapAmount - fee;
 
-                            if (change < 1000) {
-                              // one output
-                              vbyteSize -= 1,191;
-                              // but the fee increases
+                            // liquid dust size
+                            if (change < 500) {
+                              // one output only
+                              {{if .HasDiscountedvSize}}
+                                vbyteSize -= 109;
+                              {{else}}
+                                vbyteSize -= 1,191;
+                              {{end}}
+                              // but the fee increases by change
                               fee += change;
                             }
                           } 
                         } else {
+                          let claimSize = 149; // BTC
+                          let claimPadding = 0; // sats 
                           if (asset == "btc") {
+                            claimPadding = 200; // BTC padding hardcoded here: 
+                            // https://github.com/ElementsProject/peerswap/blob/89d79f7bf2ea0d5bec61933a2f8438947250db70/onchain/bitcoin.go#L224
                             vbyteSize = 350; // onchain.EstimatedOpeningTxSize
                             title = "Assumed opening transaction size 350 vB";
                           } else {
-                            vbyteSize = 3000; // prepaid
-                            title = "Assumed opening transaction size 3000 vB";
+                            {{if .HasDiscountedvSize}}
+                              claimSize = 330;
+                              vbyteSize = 750; // prepaid
+                              title = "Assumed opening transaction size: 750 discounded vB";
+                              discount =" discount";
+                            {{else}}
+                              claimSize = 1350;
+                              vbyteSize = 3000; // prepaid
+                              title = "Assumed opening transaction size: 3000 vB";
+                            {{end}}
                           }
-                          fee = Math.ceil(vbyteSize * feeRate);
-                        } 
 
-                        let text = "Transaction size: " + vbyteSize + " vBytes\n";
-                        text += "Estimated fee: " + formatWithThousandSeparators(fee) + " sats\n";
-                        text += "Estimated PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
+                          const rebate = Math.ceil(vbyteSize * feeRate);
+                          const claim = Math.ceil(claimSize * feeRate) + claimPadding;
+                          fee = rebate + claim;
+                          rebateText = "Rebate to opener: " + formatWithThousandSeparators(rebate) + " sats\n";
+                          claimText = "Claim tx fee: " + formatWithThousandSeparators(claim) + " sats\n";
+                        } 
+                    
+                        let text = "Opening tx size: " + vbyteSize + discount + " vBytes\n";
+                        text += "Opening tx fee: " + formatWithThousandSeparators(fee) + " sats\n";
+
+                        if (rebateText != "") {
+                          text = rebateText;
+                        }
+
+                        text += claimText;      
+                        text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
+                        text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
                         
                         if (asset == "btc" && change < 25000) {
                           text += "\nWARNING: No reserve is left for anchor fee bumping!";
@@ -341,6 +402,7 @@
                         document.getElementById('result').title = title;
                         document.getElementById('resultLabel').title = title;
                         document.getElementById('result').innerText = text;
+                        document.getElementById("totalFee").value = Number(fee);
                       }
 
                       let timerId;
@@ -351,6 +413,21 @@
 
                           // Set a new timer to execute after 300 milliseconds
                           timerId = setTimeout(calculateTransactionFee, 300);
+                      }
+
+                      // warning message if swap too expensive
+                      function confirmSubmit() {
+                        const fee = Number(document.getElementById("totalFee").value);
+                        const amount = Number(document.getElementById("swapAmount").value);
+
+                        if (fee > amount / 1000) {
+                          // Display confirmation dialog
+                          var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
+                          if (!confirmed) {
+                            // user cancels, prevent form submission
+                            return false;
+                          }
+                        }
                       }
 
                       // on load
@@ -366,11 +443,11 @@
                   <div class="field-body">
                     <div class="field">
                       <textarea name="keysendMessage" class="textarea" rows="13">
-Hello {{.PeerAlias}}! 
+Dear {{.PeerAlias}}, 
 
-It's great to have you as a peer! I've been rebalancing my channels with Liquid PeerSwap for a while now and am really enjoying it. Currently, it costs about 300 sats for any swap amount, and it will be even cheaper when Liquid implements a 10x discount for confidential transactions.
+We are direct peers and could be using Liquid PeerSwap to rebalance our lightning channel. Recently, Liquid introduced discounted fee rates for confidential transactions. Now I can rebalance any amount for a flat fee of only 43 sats (swap in) or ~110 sats (swap out). Compare that to your circular rebalancing costs.
 
-PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. Check it out at https://github.com/Impa10r/peerswap-web and give it a try.
+PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. It allows sourcing L-BTC via confidential peg-ins, supports auto swap rebalancing and can manage channel fees. Check it out at https://github.com/Impa10r/peerswap-web.
 
 Feel free to ping me if you have any questions!
 
@@ -412,14 +489,14 @@ Sincerely,
             {{if .PeerSwapPeer}}
               <table style="width:100%; table-layout:fixed;">
                 <tr>
-                  {{if gt .PeerBitcoinBalance -1}}
+                  {{if .PeerBitcoinBalance}}
                     <td style="text-align: center;">
-                      <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fs .PeerBitcoinBalance}}</p>
+                      <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{.PeerBitcoinBalance}}</p>
                     </td>
                   {{end}}
-                  {{if gt .PeerLiquidBalance -1}}
+                  {{if .PeerLiquidBalance}}
                     <td style="text-align: center;">
-                      <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{fs .PeerLiquidBalance}}</p>
+                      <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{.PeerLiquidBalance}}</p>
                     </td>
                   {{end}}
                 </tr> 
@@ -437,12 +514,12 @@ Sincerely,
                   <td title="Initiated {{fmt .Peer.AsSender.SwapsIn}} swap-ins for {{fmt .Peer.AsSender.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
                   <td title="Opening fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
                   <td title="Initiated {{fmt .Peer.AsSender.SwapsOut}} swap-outs for {{fmt .Peer.AsSender.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                  <td title="Rebated paid to peer, Sats (PPM)" style="text-align: center">{{fmt .Peer.PaidFee}}{{if .Peer.PaidFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
+                  <td title="Rebates paid + claim fees, Sats (PPM)" style="text-align: center">{{fs .SenderOutFee}}{{if .SenderOutFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
                 </tr>
                 <tr style="border: 1px dotted">
                   <td style="text-align: center">Rcvd
                   <td title="Received {{fmt .Peer.AsReceiver.SwapsOut}} swap-outs for {{fmt .Peer.AsReceiver.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
-                  <td title="Opening fees less rebates, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
+                  <td title="Opening fees less rebates received, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
                   <td title="Received {{fmt .Peer.AsReceiver.SwapsIn}} swap-ins for {{fmt .Peer.AsReceiver.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
                   <td title="Claim fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
                 </tr>
@@ -491,84 +568,80 @@ Sincerely,
               </tr>
               {{range .ChannelInfo}}
                 <tr style="border: 1px dotted">
-                  <td title="Channel Id: {{.ChannelId}}
-Capacity: {{fmt .Capacity}}" style="padding: 0px; text-align: center">{{m .Capacity}}</td>
+                  <td style="padding: 0px; text-align: center; {{if not .Active}}
+                      color:{{$.RedColor}};" title="Channel is INACTIVE"
+                    {{else}}" title="Channel Id: {{.ChannelId}}
+Capacity: {{fmt .Capacity}}"
+                    {{end}}>{{m .Capacity}}</td>
 <td title="Local: {{fmt .LocalBalance}}
 Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.LocalPct}}%</td>
-                  {{if .Active}}
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setFee">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="outbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
-                      </form>
-                    </td>
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setBase">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="outbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
-                      </form>
-                    </td>
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setFee">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="inbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
-                      </form>
-                    </td>
-                    <td style="padding: 0px; text-align: center">
-                      <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
-                        <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                        <input type="hidden" name="action" value="setBase">
-                        <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                        <input type="hidden" name="direction" value="inbound">
-                        <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                        <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                        <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
-                      </form>
-                    </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setFee">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="outbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
+                    </form>
+                  </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setBase">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="outbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
+                    </form>
+                  </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setFee">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="inbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
+                    </form>
+                  </td>
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setBase">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="direction" value="inbound">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
+                    </form>
+                  </td>
+                  <tr style="border: 1px dotted">
+                      <td colspan="2" style="text-align: right; padding: 0px;">
+                        Peer Fees:
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerFeeRate}}
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerFeeBase}}
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerInboundFeeRate}}
+                      </td>
+                      <td style="text-align: center; padding: 0px;">
+                        {{.PeerInboundFeeBase}}
+                      </td>
+                    </tr>
+                  {{if ne .AutoFeeLog ""}}
                     <tr style="border: 1px dotted">
-                        <td colspan="2" style="text-align: right; padding: 0px;">
-                          Peer Fees:
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerFeeRate}}
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerFeeBase}}
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerInboundFeeRate}}
-                        </td>
-                        <td style="text-align: center; padding: 0px;">
-                          {{.PeerInboundFeeBase}}
-                        </td>
-                      </tr>
-                    {{if ne .AutoFeeLog ""}}
-                      <tr style="border: 1px dotted">
-                        <td colspan="6" style="text-align: center; padding: 0px;">
-                          {{.AutoFeeLog}}
-                        </td>
-                      </tr>
-                    {{end}}
-                  {{else}}
-                    <td style="text-align: right"></td>
-                    <td style="text-align: right">INACTIVE</td>
-                    <td style="text-align: left">CHANNEL</td>
-                    <td style="text-align: left"></td>
+                      <td colspan="6" style="text-align: center; padding: 0px;">
+                        {{.AutoFeeLog}}
+                      </td>
+                    </tr>
                   {{end}}
                 </tr>
               {{end}}

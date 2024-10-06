@@ -2,12 +2,12 @@ package bitcoin
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"time"
@@ -207,6 +207,57 @@ func GetRawTransaction(txid string, result *Transaction) (string, error) {
 	return raw, nil
 }
 
+type FeeInfo struct {
+	Feerate float64 `json:"feerate"`
+	Blocks  int     `json:"blocks"`
+}
+
+// Estimate sat/vB fee rate from bitcoin core
+func EstimateSatvB(targetConf uint) float64 {
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+
+	params := []interface{}{targetConf}
+
+	r, err := service.client.call("estimatesmartfee", params, "")
+	if err = handleError(err, &r); err != nil {
+		return 0
+	}
+
+	var feeInfo FeeInfo
+
+	err = json.Unmarshal([]byte(r.Result), &feeInfo)
+	if err != nil {
+		log.Printf("GetRawTransaction unmarshall raw: %v", err)
+		return 0
+	}
+
+	return math.Round(feeInfo.Feerate * 100_000)
+}
+
+// returns block hash
+func GetBlockHash(block uint32) (string, error) {
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+	params := &[]interface{}{block}
+
+	r, err := service.client.call("getblockhash", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetBlockHash: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetBlockHash unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
 func GetTxOutProof(txid string) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
@@ -293,6 +344,21 @@ func DecodeRawTransaction(hexstring string) (*Transaction, error) {
 	return &transaction, nil
 }
 
+func FindVout(hexTx string, amount uint64) (uint, error) {
+	tx, err := DecodeRawTransaction(hexTx)
+	if err != nil {
+		return 0, err
+	}
+
+	for i, o := range tx.Vout {
+		if uint64(o.Value*100_000_000) == amount {
+			return uint(i), nil
+		}
+	}
+
+	return 0, fmt.Errorf("vout not found")
+}
+
 func SendRawTransaction(hexstring string) (string, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
@@ -316,9 +382,7 @@ func SendRawTransaction(hexstring string) (string, error) {
 }
 
 // extracts Fee from PSBT
-func GetFeeFromPsbt(psbtBytes *[]byte) (float64, error) {
-	base64string := base64.StdEncoding.EncodeToString(*psbtBytes)
-
+func GetFeeFromPsbt(base64string string) (float64, error) {
 	client := BitcoinClient()
 	service := &Bitcoin{client}
 
@@ -340,4 +404,26 @@ func GetFeeFromPsbt(psbtBytes *[]byte) (float64, error) {
 	fee := data["fee"].(float64)
 
 	return fee, nil
+}
+
+func CreatePSBT(params interface{}) (string, error) {
+
+	client := BitcoinClient()
+	service := &Bitcoin{client}
+
+	r, err := service.client.call("createpsbt", params, "")
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to create PSET: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("CreatePSET unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
 }

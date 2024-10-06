@@ -1,13 +1,79 @@
 package ln
 
 import (
+	"bytes"
+	"encoding/gob"
+	"log"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
+
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/lightningnetwork/lnd/zpay32"
 )
+
+const (
+	// ignore forwards < 1000 sats
+	// to not blow out PPM chart
+	IGNORE_FORWARDS_MSAT = 1_000_000
+	// one custom type for peeswap web
+	MESSAGE_TYPE    = 42065
+	MESSAGE_VERSION = 1
+)
+
+var (
+	// lightning payments from swap out initiator to receiver
+	SwapRebates = make(map[string]int64)
+	MyNodeAlias string
+	MyNodeId    string
+
+	AutoFeeEnabledAll bool
+	// maps to LND channel Id
+	AutoFee         = make(map[uint64]*AutoFeeParams)
+	AutoFeeLog      = make(map[uint64][]*AutoFeeEvent)
+	AutoFeeEnabled  = make(map[uint64]bool)
+	AutoFeeDefaults = AutoFeeParams{
+		FailedBumpPPM:     10,
+		LowLiqPct:         10,
+		LowLiqRate:        1000,
+		NormalRate:        300,
+		ExcessPct:         75,
+		ExcessRate:        50,
+		InactivityDays:    7,
+		InactivityDropPPM: 5,
+		InactivityDropPct: 5,
+		CoolOffHours:      24,
+		LowLiqDiscount:    0,
+	}
+
+	// track timestamp of the last outbound forward per channel
+	LastForwardTS = make(map[uint64]int64)
+
+	// received via custom messages, per peer nodeId
+	LiquidBalances  = make(map[string]*BalanceInfo)
+	BitcoinBalances = make(map[string]*BalanceInfo)
+
+	// sent via custom messages
+	SentLiquidBalances  = make(map[string]*BalanceInfo)
+	SentBitcoinBalances = make(map[string]*BalanceInfo)
+
+	// chain balances, upto our channel remote balance,
+	// are discoverable by peer's swap out attempts
+	// better broadcast them to prevent that behavior
+	AdvertiseLiquidBalance  = true
+	AdvertiseBitcoinBalance = true
+)
+
+type PaymentInfo struct {
+	TimeStampNs    uint64
+	AmountPaidMsat uint64
+	FeePaidMsat    uint64
+}
 
 type UTXO struct {
 	Address       string
@@ -19,9 +85,10 @@ type UTXO struct {
 }
 
 type SentResult struct {
-	RawHex    string
-	AmountSat int64
-	TxId      string
+	RawHex     string
+	AmountSat  int64
+	TxId       string
+	ExactSatVb float64
 }
 
 type ForwardingStats struct {
@@ -54,6 +121,9 @@ type ChannelStats struct {
 	PaidOut        uint64
 	InvoicedIn     uint64
 	PaidCost       uint64
+	RebalanceIn    uint64
+	RebalanceOut   uint64
+	RebalanceCost  uint64
 }
 
 type ChanneInfo struct {
@@ -91,6 +161,7 @@ type AutoFeeStatus struct {
 	FeeRate     int64
 	InboundRate int64
 	DaysNoFlow  int
+	Active      bool
 }
 
 type AutoFeeParams struct {
@@ -144,12 +215,18 @@ type DataPoint struct {
 	TimeUTC   string
 }
 
-// sent/received as json
+// sent/received as GOB
 type Message struct {
-	Version int    `json:"version"`
-	Memo    string `json:"memo"`
-	Asset   string `json:"asset"`
-	Amount  uint64 `json:"amount"`
+	// cleartext announcements
+	Version   int
+	Memo      string
+	Asset     string
+	Amount    uint64
+	TimeStamp uint64
+	// encrypted communications via peer relay
+	Sender      string
+	Destination string
+	Payload     []byte
 }
 
 type BalanceInfo struct {
@@ -157,61 +234,8 @@ type BalanceInfo struct {
 	TimeStamp int64
 }
 
-// ignore small forwards
-const (
-	ignoreForwardsMsat = 1_000_000
-	// one custom type for peeswap web
-	messageType    = uint32(42067)
-	MessageVersion = 1
-)
-
-var (
-	// lightning payments from swap out initiator to receiver
-	SwapRebates = make(map[string]int64)
-	myNodeAlias string
-	myNodeId    string
-
-	AutoFeeEnabledAll bool
-	// maps to LND channel Id
-	AutoFee         = make(map[uint64]*AutoFeeParams)
-	AutoFeeLog      = make(map[uint64][]*AutoFeeEvent)
-	AutoFeeEnabled  = make(map[uint64]bool)
-	AutoFeeDefaults = AutoFeeParams{
-		FailedBumpPPM:     10,
-		LowLiqPct:         10,
-		LowLiqRate:        1000,
-		NormalRate:        300,
-		ExcessPct:         75,
-		ExcessRate:        50,
-		InactivityDays:    7,
-		InactivityDropPPM: 5,
-		InactivityDropPct: 5,
-		CoolOffHours:      24,
-		LowLiqDiscount:    0,
-	}
-
-	// track timestamp of the last outbound forward per channel
-	LastForwardTS = make(map[uint64]int64)
-
-	// received via custom messages, per peer nodeId
-	LiquidBalances  = make(map[string]*BalanceInfo)
-	BitcoinBalances = make(map[string]*BalanceInfo)
-
-	// sent via custom messages
-	SentLiquidBalances  = make(map[string]*BalanceInfo)
-	SentBitcoinBalances = make(map[string]*BalanceInfo)
-
-	// current Balance
-	LiquidBalance  uint64
-	BitcoinBalance uint64
-
-	// global settings
-	AdvertiseLiquidBalance  = false
-	AdvertiseBitcoinBalance = false
-)
-
 func toSats(amount float64) int64 {
-	return int64(float64(100000000) * amount)
+	return int64(math.Round(float64(100000000) * amount))
 }
 
 // convert short channel id 2568777x70x1 to LND format
@@ -237,6 +261,86 @@ func ConvertClnToLndChannelId(s string) uint64 {
 		}
 	}
 	return scid
+}
+
+func OnMyCustomMessage(nodeId string, payload []byte) {
+	var msg Message
+	var buffer bytes.Buffer
+
+	// Write the byte slice into the buffer
+	buffer.Write(payload)
+
+	// Deserialize binary data
+	decoder := gob.NewDecoder(&buffer)
+	if err := decoder.Decode(&msg); err != nil {
+		log.Println("Cannot deserialize the received message ")
+		return
+	}
+
+	if msg.Version != MESSAGE_VERSION {
+		return
+	}
+
+	switch msg.Memo {
+	case "broadcast":
+		// received broadcast of pegin status
+		// msg.Asset: "pegin_started" or "pegin_ended"
+		Broadcast(nodeId, &msg)
+
+	case "unable":
+		forgetPubKey(msg.Destination)
+
+	case "process":
+		// messages related to pegin claimjoin
+		Process(&msg, nodeId)
+
+	case "poll":
+		// repeat invite to ClaimJoin
+		shareInvite(nodeId)
+
+		// repeat last
+		if AdvertiseLiquidBalance && SentLiquidBalances[nodeId] != nil {
+			if SendCustomMessage(nodeId, &Message{
+				Version: MESSAGE_VERSION,
+				Memo:    "balance",
+				Asset:   "lbtc",
+				Amount:  SentLiquidBalances[nodeId].Amount,
+			}) == nil {
+				// save timestamp
+				SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
+			}
+		}
+
+		if AdvertiseBitcoinBalance && SentBitcoinBalances[nodeId] != nil {
+			if SendCustomMessage(nodeId, &Message{
+				Version: MESSAGE_VERSION,
+				Memo:    "balance",
+				Asset:   "btc",
+				Amount:  SentBitcoinBalances[nodeId].Amount,
+			}) == nil {
+				// save timestamp
+				SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
+			}
+		}
+
+	case "balance":
+		// received information
+		ts := time.Now().Unix()
+		if msg.Asset == "lbtc" {
+			if LiquidBalances[nodeId] == nil {
+				LiquidBalances[nodeId] = new(BalanceInfo)
+			}
+			LiquidBalances[nodeId].Amount = msg.Amount
+			LiquidBalances[nodeId].TimeStamp = ts
+		}
+		if msg.Asset == "btc" {
+			if BitcoinBalances[nodeId] == nil {
+				BitcoinBalances[nodeId] = new(BalanceInfo)
+			}
+			BitcoinBalances[nodeId].Amount = msg.Amount
+			BitcoinBalances[nodeId].TimeStamp = ts
+		}
+	}
 }
 
 // convert LND channel id to CLN 2568777x70x1
@@ -286,6 +390,9 @@ func AutoFeeRatesSummary(channelId uint64) (string, bool) {
 }
 
 func LoadDB() {
+	// load ClaimJoin variables
+	loadClaimJoinDB()
+
 	// load rebates from db
 	db.Load("Swaps", "SwapRebates", &SwapRebates)
 
@@ -406,9 +513,53 @@ func moveLowLiqThreshold(channelId uint64, bump int) {
 
 }
 
+// saves swap fee rebate if found,
+// returns true if the payment is related to PeerSwap
+func DecodeAndProcessInvoice(bolt11 string, valueMsat int64) bool {
+	if bolt11 == "" {
+		return false
+	}
+
+	// Decode the payment request
+	var harnessNetParams = &chaincfg.MainNetParams
+	if config.Config.Chain == "testnet" {
+		harnessNetParams = &chaincfg.TestNet3Params
+	}
+	invoice, err := zpay32.Decode(bolt11, harnessNetParams)
+
+	if err == nil {
+		if invoice.Description != nil {
+			return processInvoice(*invoice.Description, valueMsat)
+		}
+	}
+	return false
+}
+
+func processInvoice(memo string, valueMsat int64) bool {
+	if parts := strings.Split(memo, " "); len(parts) > 4 {
+		if parts[0] == "peerswap" {
+			// find swap id
+			if parts[2] == "fee" && len(parts[4]) > 0 {
+				// save rebate payment
+				saveSwapRabate(parts[4], valueMsat/1000)
+			}
+			// skip peerswap-related payments
+			return true
+		}
+	}
+	return false
+}
+
 func saveSwapRabate(swapId string, rebate int64) {
+	_, exists := SwapRebates[swapId]
+	if exists {
+		// already existed
+		return
+	}
 	// save rebate payment
 	SwapRebates[swapId] = rebate
+	// persist to db
+	db.Save("Swaps", "SwapRebates", SwapRebates)
 }
 
 // check if the last logged fee rate is the same as newFee

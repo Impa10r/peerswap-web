@@ -1,4 +1,2 @@
 push.sh
 cmd/psweb/__debug_bin*
-.vscode
-.vscode/launch.json
