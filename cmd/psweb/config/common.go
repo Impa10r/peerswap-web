@@ -131,14 +131,32 @@ func Load(dataDir string, network string) {
 		} else {
 			log.Println("Config file created in", Config.DataDir)
 		}
-		return
+	} else {
+		err = json.Unmarshal(fileData, &Config)
+		if err != nil {
+			log.Println("Error unmarshalling config file. Using defaults.")
+		}
 	}
 
-	err = json.Unmarshal(fileData, &Config)
-	if err != nil {
-		log.Println("Error unmarshalling config file. Using defaults.")
+	// on the first start without pswebconfig.json there will be no elements user and password
+	if Config.ElementsPass == "" || Config.ElementsUser == "" {
+		// check in peerswap.conf
+		Config.ElementsPass = GetPeerswapLNDSetting("elementsd.rpcpass")
+		Config.ElementsUser = GetPeerswapLNDSetting("elementsd.rpcuser")
+
+		// check if they were passed as env
+		if Config.ElementsUser == "" && os.Getenv("ELEMENTS_USER") != "" {
+			Config.ElementsUser = os.Getenv("ELEMENTS_USER")
+		}
+		if Config.ElementsPass == "" && os.Getenv("ELEMENTS_PASS") != "" {
+			Config.ElementsPass = os.Getenv("ELEMENTS_PASS")
+		}
+		// save changes
+		Save()
 	}
 
+	// if ElementPass is still empty, this will create temporary peerswap.conf with Liquid disabled
+	SavePS()
 }
 
 // saves PS Web config to pswebconfig.json
