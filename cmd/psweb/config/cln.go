@@ -205,3 +205,8 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 	}
 	return ""
 }
+
+func getElementsCredentials() {
+	Config.ElementsPass = GetPeerswapCLNSetting("Liquid", "rpcpassword")
+	Config.ElementsUser = GetPeerswapCLNSetting("Liquid", "rpcuser")
+}
