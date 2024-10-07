@@ -141,8 +141,7 @@ func Load(dataDir string, network string) {
 	// on the first start without pswebconfig.json there will be no elements user and password
 	if Config.ElementsPass == "" || Config.ElementsUser == "" {
 		// check in peerswap.conf
-		Config.ElementsPass = GetPeerswapLNDSetting("elementsd.rpcpass")
-		Config.ElementsUser = GetPeerswapLNDSetting("elementsd.rpcuser")
+		getElementsCredentials()
 
 		// check if they were passed as env
 		if Config.ElementsUser == "" && os.Getenv("ELEMENTS_USER") != "" {

@@ -220,3 +220,8 @@ func getConfSetting(searchVariable, filePath string) string {
 	// not found
 	return ""
 }
+
+func getElementsCredentials() {
+	Config.ElementsPass = GetPeerswapLNDSetting("elementsd.rpcpass")
+	Config.ElementsUser = GetPeerswapLNDSetting("elementsd.rpcuser")
+}

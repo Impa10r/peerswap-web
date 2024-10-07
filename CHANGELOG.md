@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.1
+
+- CLN: Fix compile bug
+
 ## 1.7.0
 
 - Enable CT discounted vsize with Elements v23.02.03+ on testnet
