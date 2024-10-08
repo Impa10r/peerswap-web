@@ -1,5 +1,10 @@
 # Versions
 
+## 1.7.2
+
+- Ignore inline comments in peerswap.conf
+- Fix Docker building
+
 ## 1.7.1
 
 - CLN: Fix compile bug
