@@ -197,8 +197,10 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 			}
 			if parts := strings.Split(line, "="); len(parts) > 1 {
 				if parts[0] == searchVariable {
+					// ignore inline comments
+					value := strings.TrimSpace(strings.Split(parts[1], "#")[0])
 					// Remove double quotes
-					return strings.ReplaceAll(strings.TrimSpace(parts[1]), `"`, "")
+					return strings.ReplaceAll(value, `"`, "")
 				}
 			}
 		}

@@ -4,6 +4,10 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
 
 jobs:
   build:
@@ -32,7 +36,7 @@ jobs:
         run: |
           docker buildx build \
           --platform linux/arm64,linux/amd64 \
-          --tag ghcr.io/impa10r/peerswap-web:v1.6.6 \
+          --tag ghcr.io/impa10r/peerswap-web:${{ github.event.inputs.version }} \
           --tag ghcr.io/impa10r/peerswap-web:latest \
           --output "type=registry" \
           .

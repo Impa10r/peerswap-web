@@ -12,20 +12,19 @@ WORKDIR /app
 
 COPY . .
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /go/bin/psweb cmd/psweb/*.go
-RUN git clone https://github.com/ElementsProject/peerswap.git && cd peerswap && git checkout $COMMIT
-RUN cd peerswap && make -j$(nproc) lnd-release
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j$(nproc) install-lnd && \
+    git clone https://github.com/ElementsProject/peerswap.git && \
+    cd peerswap && \
+    git checkout $COMMIT && \
+    make -j$(nproc) lnd-release
 
 FROM debian:buster-slim
 
-RUN sed -i 's|$|deb http://deb.debian.org/debian buster main contrib non-free|' /etc/apt/sources.list
-RUN apt-get update 
+RUN sed -i 's|$|deb http://deb.debian.org/debian buster main contrib non-free|' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y supervisor ca-certificates && \
+    mkdir -p /var/log/supervisor
 
-RUN apt-get install -y supervisor
-RUN mkdir -p /var/log/supervisor
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-RUN apt-get install -y ca-certificates
-
 COPY --from=builder /go/bin/* /bin/
 
 RUN useradd -rm -s /bin/bash -u 1000 -U peerswap 
