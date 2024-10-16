@@ -298,28 +298,30 @@ func OnMyCustomMessage(nodeId string, payload []byte) {
 		// repeat invite to ClaimJoin
 		shareInvite(nodeId)
 
-		// repeat last
-		if AdvertiseLiquidBalance && SentLiquidBalances[nodeId] != nil {
-			if SendCustomMessage(nodeId, &Message{
-				Version: MESSAGE_VERSION,
-				Memo:    "balance",
-				Asset:   "lbtc",
-				Amount:  SentLiquidBalances[nodeId].Amount,
-			}) == nil {
-				// save timestamp
-				SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
+		if config.Config.AllowSwapRequests {
+			// repeat last
+			if AdvertiseLiquidBalance && SentLiquidBalances[nodeId] != nil {
+				if SendCustomMessage(nodeId, &Message{
+					Version: MESSAGE_VERSION,
+					Memo:    "balance",
+					Asset:   "lbtc",
+					Amount:  SentLiquidBalances[nodeId].Amount,
+				}) == nil {
+					// save timestamp
+					SentLiquidBalances[nodeId].TimeStamp = time.Now().Unix()
+				}
 			}
-		}
 
-		if AdvertiseBitcoinBalance && SentBitcoinBalances[nodeId] != nil {
-			if SendCustomMessage(nodeId, &Message{
-				Version: MESSAGE_VERSION,
-				Memo:    "balance",
-				Asset:   "btc",
-				Amount:  SentBitcoinBalances[nodeId].Amount,
-			}) == nil {
-				// save timestamp
-				SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
+			if config.Config.BitcoinSwaps && AdvertiseBitcoinBalance && SentBitcoinBalances[nodeId] != nil {
+				if SendCustomMessage(nodeId, &Message{
+					Version: MESSAGE_VERSION,
+					Memo:    "balance",
+					Asset:   "btc",
+					Amount:  SentBitcoinBalances[nodeId].Amount,
+				}) == nil {
+					// save timestamp
+					SentBitcoinBalances[nodeId].TimeStamp = time.Now().Unix()
+				}
 			}
 		}
 

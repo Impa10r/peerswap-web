@@ -255,16 +255,16 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Peerswapd has not started listening yet. Check logs."
+		t = "Peerswapd has not started listening yet"
 		redirectUrl = "/log?"
 	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
-		t = "Peerswap is still in the process of starting up. Check logs."
+		t = "Peerswap is still in the process of starting up"
 		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Lightningd has not started listening yet. Check logs."
+		t = "Lightningd has not started listening yet"
 		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-"):
-		t = "Peerswap plugin is not running. Check logs."
+		t = "Peerswap plugin is not running"
 		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "rpc error: code = "):
 		i := strings.Index(t, "desc =")
@@ -1778,6 +1778,11 @@ func last(x int, a interface{}) bool {
 }
 
 func advertiseBalances() {
+
+	if !config.Config.AllowSwapRequests {
+		return
+	}
+
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return
@@ -1877,7 +1882,7 @@ func advertiseBalances() {
 			}
 		}
 
-		if ln.AdvertiseBitcoinBalance {
+		if config.Config.BitcoinSwaps && ln.AdvertiseBitcoinBalance {
 			// cap the shown balance to maximum swappable
 			showBalance := min(maxBalance, bitcoinBalance)
 			// round down to 0 if below 100k
