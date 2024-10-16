@@ -259,7 +259,7 @@ func RemoveSusPeer(client *glightning.Lightning, nodeId string) (*peerswaprpc.Po
 	return &res, nil
 }
 
-func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset string, force bool) (string, error) {
+func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset string, force bool, premiumLimit int64) (string, error) {
 	var res map[string]interface{}
 
 	err := client.Request(&clightning.SwapIn{
@@ -267,6 +267,7 @@ func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset st
 		SatAmt:         swapAmount,
 		Asset:          asset,
 		Force:          force,
+		PremiumLimit:   premiumLimit,
 	}, &res)
 
 	if err != nil {
@@ -276,7 +277,7 @@ func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset st
 	return res["id"].(string), nil
 }
 
-func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset string, force bool) (string, error) {
+func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset string, force bool, premiumLimit int64) (string, error) {
 	var res map[string]interface{}
 
 	err := client.Request(&clightning.SwapOut{
@@ -284,6 +285,7 @@ func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset s
 		SatAmt:         swapAmount,
 		Asset:          asset,
 		Force:          force,
+		PremiumLimit:   premiumLimit,
 	}, &res)
 
 	if err != nil {

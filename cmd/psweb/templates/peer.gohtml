@@ -89,6 +89,14 @@
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
+                          <label class="label">Premium Limit</label>
+                        </div>
+                        <div class="field-body">
+                          <input class="input is-medium" type="number" id="premiumLimit" name="premiumLimit" oninput="delayedCalculateTransactionFee()" placeholder="Swap Premium Limit (PPM)">
+                        </div>
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
                           <label id="resultLabel" class="label">Cost Estimate</label>
                           <input type="number" id="totalFee" style="display: none;" value=0>
                         </div>
@@ -391,7 +399,12 @@
                           text = rebateText;
                         }
 
-                        text += claimText;      
+                        text += claimText;   
+
+                        const premium = document.getElementById('premiumLimit').value * swapAmount / 1000000;
+                        fee += premium;
+                        
+                        text += "Max premium: " + formatWithThousandSeparators(premium) + " sats\n";  
                         text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
                         text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
                         

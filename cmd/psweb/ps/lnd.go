@@ -124,13 +124,14 @@ func RemoveSusPeer(client peerswaprpc.PeerSwapClient, nodeId string) (*peerswapr
 	})
 }
 
-func SwapIn(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, asset string, force bool) (string, error) {
+func SwapIn(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, asset string, force bool, premiumLimit int64) (string, error) {
 	ctx := context.Background()
 	resp, err := client.SwapIn(ctx, &peerswaprpc.SwapInRequest{
-		SwapAmount: swapAmount,
-		ChannelId:  channelId,
-		Asset:      asset,
-		Force:      force,
+		SwapAmount:   swapAmount,
+		ChannelId:    channelId,
+		Asset:        asset,
+		Force:        force,
+		PremiumLimit: premiumLimit,
 	})
 
 	if err == nil {
@@ -140,13 +141,14 @@ func SwapIn(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, ass
 	}
 }
 
-func SwapOut(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, asset string, force bool) (string, error) {
+func SwapOut(client peerswaprpc.PeerSwapClient, swapAmount, channelId uint64, asset string, force bool, premiumLimit int64) (string, error) {
 	ctx := context.Background()
 	resp, err := client.SwapOut(ctx, &peerswaprpc.SwapOutRequest{
-		SwapAmount: swapAmount,
-		ChannelId:  channelId,
-		Asset:      asset,
-		Force:      force,
+		SwapAmount:   swapAmount,
+		ChannelId:    channelId,
+		Asset:        asset,
+		Force:        force,
+		PremiumLimit: premiumLimit,
 	})
 
 	if err == nil {

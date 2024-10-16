@@ -33,7 +33,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.2"
+	VERSION = "v1.7.3"
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	SWAP_OUT_CHANNEL_RESERVE = 5000
@@ -41,12 +41,13 @@ const (
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
 
-type SwapParams struct {
-	PeerAlias string
-	PeerId    string
-	ChannelId uint64
-	Amount    uint64
-	PPM       uint64
+type AutoSwapCandidate struct {
+	PeerAlias    string
+	PeerId       string
+	ChannelId    uint64
+	Amount       uint64
+	PPM          uint64
+	PremiumLimit int64
 }
 
 var (
@@ -1298,7 +1299,7 @@ func cacheAliases() {
 // Finds a candidate for an automatic swap-in
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
-func findSwapInCandidate(candidate *SwapParams) error {
+func findSwapInCandidate(candidate *AutoSwapCandidate) error {
 	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC()
 	minPPM := config.Config.AutoSwapThresholdPPM
 
@@ -1466,7 +1467,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	var candidate SwapParams
+	var candidate AutoSwapCandidate
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		// some error prevented candidate finding
@@ -1482,8 +1483,8 @@ func executeAutoSwap() {
 
 	amount = min(amount, satAmount-swapFeeReserveLBTC())
 
-	// execute swap
-	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
+	// execute swap with 0 premium limit
+	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false, 0)
 	if err != nil {
 		log.Println("AutoSwap error:", err)
 		return
@@ -1505,55 +1506,77 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 	fee := int64(0)
 	breakdown := ""
 	newChanges := false
-	new := false
 
 	switch swap.Type + swap.Role {
 	case "swap-outsender":
+		if swap.PremiumAmount > 0 {
+			fee = swap.PremiumAmount
+			breakdown = fmt.Sprintf("premium paid: %s, ", formatSigned(swap.PremiumAmount))
+		}
+
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
-			breakdown = fmt.Sprintf("rebate paid: %s", formatSigned(-rebate))
-			fee = rebate
+			breakdown += fmt.Sprintf("rebate paid: %s", formatSigned(rebate))
+			fee += rebate
 		}
 		claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		if claim > 0 {
 			newChanges = newChanges || new
 			fee += claim
-			breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
+			breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 		}
 	case "swap-insender":
-		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		if swap.PremiumAmount > 0 {
+			fee = swap.PremiumAmount
+			breakdown = fmt.Sprintf("premium paid: %s, ", formatSigned(swap.PremiumAmount))
+		}
+
+		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("opening: %s", formatSigned(-fee))
+		fee += chainFee
+		breakdown += fmt.Sprintf("opening cost: %s", formatSigned(chainFee))
 		if swap.State == "State_ClaimedCoop" {
 			claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 			if claim > 0 {
 				newChanges = newChanges || new
 				fee += claim
-				breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
+				breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 			}
 		}
 
 	case "swap-outreceiver":
-		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		if swap.PremiumAmount > 0 {
+			fee = -swap.PremiumAmount
+			breakdown = fmt.Sprintf("premium received: %s, ", formatSigned(swap.PremiumAmount))
+		}
+
+		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("opening: %s", formatSigned(-fee))
+		fee += chainFee
+		breakdown += fmt.Sprintf("opening cost: %s", formatSigned(chainFee))
 		if swap.State == "State_ClaimedCoop" {
 			claim, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 			if claim > 0 {
 				newChanges = newChanges || new
 				fee += claim
-				breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
+				breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 			}
 		}
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
 			fee -= rebate
-			breakdown += fmt.Sprintf(", rebate received: +%s", formatSigned(rebate))
+			breakdown += fmt.Sprintf(", rebate received: %s", formatSigned(rebate))
 		}
 	case "swap-inreceiver":
-		fee, new = onchainTxFee(swap.Asset, swap.ClaimTxId)
+		if swap.PremiumAmount > 0 {
+			fee = -swap.PremiumAmount
+			breakdown = fmt.Sprintf("premium received: %s, ", formatSigned(swap.PremiumAmount))
+		}
+
+		chainFee, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("claim: %s", formatSigned(-fee))
+		fee += chainFee
+		breakdown += fmt.Sprintf("claim cost: %s", formatSigned(chainFee))
 	}
 
 	return fee, breakdown, newChanges

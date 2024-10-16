@@ -2,6 +2,8 @@ module peerswap-web
 
 go 1.21.5
 
+replace github.com/elementsproject/peerswap => /home/vlad/peerswap
+
 // peerswap uses go-elements v0.4.0 which is not compatible with lnd v0.18
 // until they upgrade, I link to a compatible version in my repository
 replace github.com/vulpemventures/go-elements => github.com/impa10r/go-elements v0.5.4-0.20240428143053-2c0646844473
@@ -185,6 +187,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/errgo.v1 v1.0.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/macaroon-bakery.v2 v2.3.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

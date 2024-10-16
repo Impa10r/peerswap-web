@@ -1537,7 +1537,10 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		swapData += `:</td><td>`
-		swapData += formatSigned(cost) + " sats (" + breakdown + ")"
+		swapData += formatSigned(cost) + " sats</td></tr>"
+
+		swapData += `<tr><td style="text-align: right">Breakdown:</td>`
+		swapData += `<td>` + breakdown + `</td></tr>`
 
 		if swap.State == "State_ClaimedPreimage" {
 			swapData += `<tr><td style="text-align: right">PPM:</td><td>`
@@ -1767,7 +1770,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res2.GetSatAmount()
 
-	var candidate SwapParams
+	var candidate AutoSwapCandidate
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		log.Printf("unable findSwapInCandidate: %v", err)
@@ -1790,7 +1793,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdAmount uint64
 		AutoSwapMaxAmount       uint64
 		AutoSwapThresholdPPM    uint64
-		AutoSwapCandidate       *SwapParams
+		AutoSwapCandidate       *AutoSwapCandidate
 		AutoSwapTargetPct       uint64
 		AdvertiseEnabled        bool
 	}
@@ -2501,6 +2504,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			premiumLimit, _ := strconv.ParseInt(r.FormValue("premiumLimit"), 10, 64)
+
 			var id string
 			asset := r.FormValue("from")
 			direction := "in"
@@ -2515,9 +2520,9 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
-				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
+				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false, premiumLimit)
 			case "out":
-				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
+				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false, premiumLimit)
 			}
 
 			if err != nil {

@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.3
+
+- Add swap premium limit
+
 ## 1.7.2
 
 - Ignore inline comments in peerswap.conf
