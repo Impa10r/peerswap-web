@@ -46,6 +46,7 @@ func main() {
 	var (
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
+		_           = flag.Bool("developer", false, "Ignored by PSWeb")
 	)
 
 	flag.Parse()

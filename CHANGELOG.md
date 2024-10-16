@@ -2,7 +2,9 @@
 
 ## 1.7.3
 
-- Add swap premium limit
+- Add swap premium limit input field
+- CLN: Fix psweb exiting with developer flag in CLN config
+- CLN: Add support for wallet=sqlite3:// in CLN config
 
 ## 1.7.2
 

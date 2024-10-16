@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var DatabaseFile string
+
 // Config defaults for CLN
 func loadDefaults(home, dataDir string) {
 	if dataDir == "" {
@@ -23,7 +25,48 @@ func loadDefaults(home, dataDir string) {
 	if Config.Chain == "testnet" {
 		Config.RpcHost = filepath.Join(Config.LightningDir, "testnet")
 	}
+
 	Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
+
+	// only sqlite3 supported for now
+	DatabaseFile = filepath.Join(Config.RpcHost, "lightningd.sqlite3")
+
+	// check if the sqlite3 database is in a different location
+	filePath := filepath.Join(Config.LightningDir, "config")
+
+	// Read the entire content of the file
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Println("Unable to read CLN config file")
+		return
+	}
+	// Convert the content to a string
+	fileContent := string(content)
+
+	// Search lines
+	lines := strings.Split(fileContent, "\n")
+	for _, line := range lines {
+		l := strings.TrimSpace(line)
+		if strings.HasPrefix(l, "#") {
+			// ignore commented out lines
+			continue
+		}
+		if parts := strings.Split(l, "="); len(parts) > 1 {
+			if parts[0] == "wallet" {
+				// ignore inline comments
+				value := strings.TrimSpace(strings.Split(parts[1], "#")[0])
+				// sqlite3:///home/user/.lightning/bitcoin/lightningd.sqlite3:/backup/lightningd.sqlite3
+				// identify scheme and location
+				p := strings.Split(value, ":")
+				if p[0] != "sqlite3" {
+					log.Fatalf("Only sqlite3 database is supported")
+				}
+
+				DatabaseFile = p[1][2:]
+				break
+			}
+		}
+	}
 }
 
 // CLN-specific load from Peerswap config

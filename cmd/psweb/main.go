@@ -71,6 +71,8 @@ var (
 	peerNodeId = make(map[uint64]string)
 	// only poll all peers once after peerswap initializes
 	initalPollComplete = false
+	// wait for elements to start
+	elementsHasStarted = false
 	// identifies if this version of Elements Core supports discounted vSize
 	hasDiscountedvSize = false
 	// required maturity for peg-in funding tx
@@ -93,14 +95,6 @@ func start() {
 	if config.Config.Chain == "testnet" {
 		// allow faster pegin on testnet4
 		peginBlocks = 10
-		// identify if Elements Core supports CT discounts
-		hasDiscountedvSize = liquid.GetVersion() >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
-	}
-
-	if hasDiscountedvSize {
-		log.Println("Discounted vsize on Liquid is enabled")
-	} else {
-		log.Println("Discounted vsize on Liquid is disabled")
 	}
 
 	// Load persisted data from database
@@ -269,6 +263,9 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	case strings.HasPrefix(t, "Unable to dial socket"):
 		t = "Lightningd has not started listening yet. Check logs."
 		redirectUrl = "/log?log=cln.log&"
+	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-"):
+		t = "Peerswap plugin is not running. Check logs."
+		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "rpc error: code = "):
 		i := strings.Index(t, "desc =")
 		if i > 0 {
@@ -342,10 +339,26 @@ func onTimer() {
 		}
 	} else {
 		// run only once when lighting becomes available
-		go cacheAliases()
+		lightningHasStarted = cacheAliases()
 	}
 
-	lightningHasStarted = true
+	// check for Elements after Lighting has started
+	if lightningHasStarted && !elementsHasStarted {
+		elementsVersion := liquid.GetVersion()
+		if elementsVersion > 0 {
+			// identify if Elements Core supports CT discounts
+			hasDiscountedvSize = elementsVersion >= ELEMENTS_DISCOUNTED_VSIZE_VERSION &&
+				config.Config.Chain == "testnet"
+
+			if hasDiscountedvSize {
+				log.Println("Discounted vsize on Liquid is enabled")
+			} else {
+				log.Println("Discounted vsize on Liquid is disabled")
+			}
+
+			elementsHasStarted = true
+		}
+	}
 }
 
 func liquidBackup(force bool) {
@@ -1277,23 +1290,27 @@ func getNodeAlias(key string) string {
 }
 
 // preemptively load all Aliases in cache
-func cacheAliases() {
+func cacheAliases() bool {
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
-		return
+		return false
 	}
 	defer clean()
 
 	res, err := ln.ListPeers(cl, "", nil)
 	if err != nil {
-		return
+		return false
 	}
 
-	peers := res.GetPeers()
-	for _, peer := range peers {
-		getNodeAlias(peer.NodeId)
-	}
+	go func() {
+		peers := res.GetPeers()
+		for _, peer := range peers {
+			getNodeAlias(peer.NodeId)
+		}
+	}()
+
+	return true
 }
 
 // Finds a candidate for an automatic swap-in

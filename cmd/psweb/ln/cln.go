@@ -486,13 +486,8 @@ func CacheHTLCs(where string) int {
 		}
 	}
 
-	folder := "bitcoin"
-	if config.Config.Chain == "testnet" {
-		folder = "testnet"
-	}
-
 	// Open a database connection
-	db, err := sql.Open("sqlite3", config.Config.LightningDir+"/"+folder+"/lightningd.sqlite3")
+	db, err := sql.Open("sqlite3", config.DatabaseFile)
 	if err != nil {
 		log.Println("Error opening database:", err)
 		return 0
@@ -1052,27 +1047,6 @@ func DownloadAll() bool {
 	numHtlcs := CacheHTLCs(where)
 
 	downloadComplete = true
-
-	/*
-		duration := time.Since(start)
-		log.Printf("SQL took %v to execute", duration)
-
-		// benchmark time
-		start = time.Now()
-
-		var res ListHtlcsResponse
-		// cache all HTLCs
-		err = client.Request(&ListHtlcsRequest{}, &res)
-		if err != nil {
-			// CLN not ready
-			return false
-		}
-
-		// sort by channel
-		for _, htlc := range res.HTLCs {
-			appendHTLC(htlc)
-		}
-	*/
 
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
