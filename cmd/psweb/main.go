@@ -37,7 +37,7 @@ const (
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	SWAP_OUT_CHANNEL_RESERVE = 5000
-	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
+	// Elements v23.02.03 introduced vsize discount enabled on testnet
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
 

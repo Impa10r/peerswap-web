@@ -2,9 +2,12 @@
 
 ## 1.7.3
 
+*** replace peerswap in mod
+
 - Add swap premium limit input field
 - CLN: Fix psweb exiting with developer flag in CLN config
 - CLN: Add support for wallet=sqlite3:// in CLN config
+- Don't advertise balances if swaps disabled
 
 ## 1.7.2
 
