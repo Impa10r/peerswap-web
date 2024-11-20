@@ -3,7 +3,7 @@
 ## 1.7.3
 
 - Show L-BTC balance changes when sending backup by telegram
-- Add generating bech32m addresses for descriptor wallets
+- Add generating bech32m addresses for descriptors wallets
 
 ## 1.7.2
 
