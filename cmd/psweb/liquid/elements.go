@@ -874,3 +874,72 @@ func GetBlockchainInfo() (*BlockchainInfo, error) {
 
 	return &response, nil
 }
+
+type WalletInfo struct {
+	WalletName            string      `json:"walletname"`
+	WalletVersion         int         `json:"walletversion"`
+	Format                string      `json:"format"`
+	Balance               BalanceInfo `json:"balance"`
+	UnconfirmedBalance    BalanceInfo `json:"unconfirmed_balance"`
+	ImmatureBalance       BalanceInfo `json:"immature_balance"`
+	TxCount               int         `json:"txcount"`
+	KeypoolSize           int         `json:"keypoolsize"`
+	KeypoolSizeHDInternal int         `json:"keypoolsize_hd_internal"`
+	PayTxFee              float64     `json:"paytxfee"`
+	PrivateKeysEnabled    bool        `json:"private_keys_enabled"`
+	AvoidReuse            bool        `json:"avoid_reuse"`
+	Scanning              bool        `json:"scanning"`
+	Descriptors           bool        `json:"descriptors"`
+	ExternalSigner        bool        `json:"external_signer"`
+}
+
+type BalanceInfo struct {
+	Bitcoin float64 `json:"bitcoin"`
+}
+
+// returns block hash
+func GetWalletInfo(wallet string) (*WalletInfo, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]interface{}{}
+
+	r, err := service.client.call("getwalletinfo", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetWalletInfo: %v", err)
+		return nil, err
+	}
+
+	var response WalletInfo
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetWalletInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func GetNewAddress(label, addressType, wallet string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+
+	params := []interface{}{label, addressType}
+
+	r, err := service.client.call("getnewaddress", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to get new address: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetNewAddress unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}

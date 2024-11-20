@@ -200,7 +200,32 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
           <div class="box has-text-left">
             <h4 class="title is-4">Receive Liquid</h4> 
             {{if eq .LiquidAddress ""}}
-              <form action="/submit" method="post">
+              <form autocomplete="off" action="/submit" method="post">
+                <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Label</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" name="addressLabel" placeholder="Address Label">
+                  </div>
+                </div>
+                {{if .DescriptorsWallet}}
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                    </div>
+                    <div class="field-body">
+                      <div class="control">
+                        <label class="checkbox is-large">
+                          <input type="checkbox" name="bech32m" checked>
+                          <strong>&nbsp&nbspTaproot (bech32m) address</strong>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                {{else}}
+                  <input type="hidden" name="bech32m" value="off">
+                {{end}}
                 <center>
                   <input type="hidden" name="action" value="newAddress">
                   <input class="button is-large" type="submit" value="Get New Address">
