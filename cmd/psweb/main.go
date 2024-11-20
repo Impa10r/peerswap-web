@@ -33,7 +33,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.2"
+	VERSION = "v1.7.3"
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	SWAP_OUT_CHANNEL_RESERVE = 5000
@@ -388,7 +388,14 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	err = telegramSendFile(config.Config.DataDir, destinationZip, formatWithThousandSeparators(satAmount))
+	sign := ""
+	if satAmount > config.Config.ElementsBackupAmount {
+		sign = "+"
+	}
+
+	msg := formatWithThousandSeparators(satAmount) + " (" + sign + formatSigned(int64(satAmount)-int64(config.Config.ElementsBackupAmount)) + ")"
+
+	err = telegramSendFile(config.Config.DataDir, destinationZip, msg)
 	if err != nil {
 		log.Println("Error sending zip:", err)
 		return

@@ -1775,6 +1775,12 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	walletInfo, err := liquid.GetWalletInfo(config.Config.ElementsWallet)
+	if err != nil {
+		redirectWithError(w, r, "/?", err)
+		return
+	}
+
 	type Page struct {
 		Authenticated           bool
 		ErrorMessage            string
@@ -1793,6 +1799,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapCandidate       *SwapParams
 		AutoSwapTargetPct       uint64
 		AdvertiseEnabled        bool
+		DescriptorsWallet       bool
 	}
 
 	data := Page{
@@ -1813,6 +1820,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
 		AdvertiseEnabled:        ln.AdvertiseLiquidBalance,
+		DescriptorsWallet:       walletInfo.Descriptors,
 	}
 
 	// executing template named "liquid"
@@ -2410,15 +2418,20 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case "newAddress":
-			res, err := ps.LiquidGetAddress(client)
+			label := r.FormValue("addressLabel")
+			addressType := "blech32"
+			if r.FormValue("bech32m") == "on" {
+				addressType = "bech32m"
+			}
+
+			addr, err := liquid.GetNewAddress(label, addressType, config.Config.ElementsWallet)
 			if err != nil {
-				log.Printf("unable to connect to RPC server: %v", err)
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
 
 			// Redirect to liquid page with new address
-			http.Redirect(w, r, "/liquid?addr="+res.Address, http.StatusSeeOther)
+			http.Redirect(w, r, "/liquid?addr="+addr, http.StatusSeeOther)
 			return
 
 		case "sendLiquid":
