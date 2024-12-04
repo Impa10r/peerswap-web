@@ -3,6 +3,7 @@
 ## 1.7.4
 
 - Bump Go version to v1.22.2
+- Bypass BTC balance check for a pegin from external wallet
 
 ## 1.7.3
 
