@@ -1,6 +1,6 @@
 module peerswap-web
 
-go 1.21.5
+go 1.22.2
 
 // peerswap uses go-elements v0.4.0 which is not compatible with lnd v0.18
 // until they upgrade, I link to a compatible version in my repository

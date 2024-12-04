@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.4
+
+- Bump Go version to v1.22.2
+
 ## 1.7.3
 
 - Show L-BTC balance changes when sending backup by telegram

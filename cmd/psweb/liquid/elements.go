@@ -409,10 +409,9 @@ func EstimateFee() float64 {
 func GetVersion() int {
 	client := ElementsClient()
 	service := &Elements{client}
-	wallet := config.Config.ElementsWallet
 	params := &[]string{}
 
-	r, err := service.client.call("getnetworkinfo", params, "/wallet/"+wallet)
+	r, err := service.client.call("getnetworkinfo", params, "")
 	if err = handleError(err, &r); err != nil {
 		log.Printf("Elements GetVersion error: %v", err)
 		return 0

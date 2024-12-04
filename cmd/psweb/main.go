@@ -33,7 +33,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.3"
+	VERSION = "v1.7.4"
 	// Swap Out reserves are hardcoded here:
 	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
 	SWAP_OUT_CHANNEL_RESERVE = 5000
@@ -1208,12 +1208,8 @@ func checkPegin() {
 			}
 
 			if failed {
-				log.Println("Peg-in claim FAILED!")
-				log.Println("Mainchain TxId:", config.Config.PeginTxId)
-				log.Println("Raw tx:", rawTx)
-				log.Println("Proof:", proof)
-				log.Println("Claim Script:", config.Config.PeginClaimScript)
-				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+				log.Printf("Peg-in claim FAILED! Recover your funds manually with this command line:\n\nelements-cli claimpegin %s %s %s\n", rawTx, proof, config.Config.PeginClaimScript)
+				telegramSendMessage("❗ Peg-in claim FAILED! See log for instructions.")
 			} else {
 				log.Println("Peg-in complete! Liquid TxId:", txid)
 				telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + txid + "`")
