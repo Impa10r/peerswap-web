@@ -71,7 +71,8 @@ var (
 	// only poll all peers once after peerswap initializes
 	initalPollComplete = false
 	// identifies if this version of Elements Core supports discounted vSize
-	hasDiscountedvSize = false
+	hasDiscountedvSize        = false
+	discountedvSizeIdentified = false
 	// required maturity for peg-in funding tx
 	peginBlocks = uint32(102)
 	// wait for lighting to sync
@@ -92,14 +93,6 @@ func start() {
 	if config.Config.Chain == "testnet" {
 		// allow faster pegin on testnet4
 		peginBlocks = 10
-		// identify if Elements Core supports CT discounts
-		hasDiscountedvSize = liquid.GetVersion() >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
-	}
-
-	if hasDiscountedvSize {
-		log.Println("Discounted vsize on Liquid is enabled")
-	} else {
-		log.Println("Discounted vsize on Liquid is disabled")
 	}
 
 	// Load persisted data from database
@@ -338,6 +331,20 @@ func onTimer() {
 		// see if possible to execute Automatic Liquid Swap In
 		if config.Config.AutoSwapEnabled {
 			executeAutoSwap()
+		}
+
+		if !discountedvSizeIdentified {
+			// identify if Elements Core supports CT discounts
+			elementsVersion := liquid.GetVersion()
+			if elementsVersion > 0 {
+				hasDiscountedvSize = elementsVersion >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
+				discountedvSizeIdentified = true
+				if hasDiscountedvSize {
+					log.Println("Discounted vsize on Liquid is enabled")
+				} else {
+					log.Println("Discounted vsize on Liquid is disabled")
+				}
+			}
 		}
 	} else {
 		// run only once when lighting becomes available

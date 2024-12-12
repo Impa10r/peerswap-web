@@ -4,6 +4,7 @@
 
 - Bump Go version to v1.22.2
 - Bypass BTC balance check for a pegin from external wallet
+- Assume CT discounts on mainnet for Elements v23.02.03+
 
 ## 1.7.3
 
