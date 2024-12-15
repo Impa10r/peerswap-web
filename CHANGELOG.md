@@ -1,5 +1,14 @@
 # Versions
 
+## 1.7.4
+
+- Bump Go version to v1.22.2
+- Bypass BTC balance check for a pegin from an external wallet
+- Assume CT discounts on mainnet for Elements v23.02.03+
+- Better predict swap cost for edge cases when change is under 1000 sats
+- Try to get tx fee from local Elements first
+- Warn of swap amount exceeding maximum
+
 ## 1.7.3
 
 - Show L-BTC balance changes when sending backup by telegram

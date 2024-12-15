@@ -182,7 +182,7 @@ create_pset:
 			if blinder == 0 {
 				// my output
 				log.Println(ClaimStatus)
-				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+				claimPSET, _, err = liquid.ProcessPSET(claimPSET)
 				if err != nil {
 					log.Println("Unable to blind output, cancelling ClaimJoin:", err)
 					EndClaimJoin("", "Coordination failure")
@@ -246,7 +246,7 @@ create_pset:
 			if i == 0 {
 				// my input, last to sign
 				log.Println(ClaimStatus)
-				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+				claimPSET, _, err = liquid.ProcessPSET(claimPSET)
 				if err != nil {
 					log.Println("Unable to sign input, cancelling ClaimJoin:", err)
 					EndClaimJoin("", "Initiator signing failure")
@@ -492,7 +492,7 @@ func Broadcast(fromNodeId string, message *Message) bool {
 					return false
 				}
 
-				addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
+				addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address)
 				if err != nil {
 					return false
 				}
@@ -718,7 +718,7 @@ func Process(message *Message, senderNodeId string) {
 
 				// process my output
 				newClaimPSET := base64.StdEncoding.EncodeToString(msg.PSET)
-				newClaimPSET, _, err = liquid.ProcessPSET(newClaimPSET, config.Config.ElementsWallet)
+				newClaimPSET, _, err = liquid.ProcessPSET(newClaimPSET)
 				if err != nil {
 					log.Println("Unable to encode PSET:", err)
 					return
@@ -787,7 +787,7 @@ func Process(message *Message, senderNodeId string) {
 				}
 
 				// process my output
-				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+				claimPSET, _, err = liquid.ProcessPSET(claimPSET)
 				if err != nil {
 					log.Println("Unable to process PSET:", err)
 					return
@@ -1377,7 +1377,7 @@ func verifyPSET(newClaimPSET string) bool {
 		}
 	}
 
-	addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
+	addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address)
 	if err != nil {
 		return false
 	}
