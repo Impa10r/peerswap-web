@@ -14,6 +14,6 @@ BTC and L-BTC on-chain balances are advertised to direct peers only to the exten
 
 ## Reporting Vulnerability
 
-If you discover a vulnerability, please report it to email impalor@pm.me.
+If you discover a vulnerability, please report it via [email](mailto:psweb.reprise336@passinbox.com).
 
 Sensitive information should be encrypted with this [PGP key](https://gist.github.com/Impa10r/33b09271ac8ae3f1545cf78318369810) (fingerprint FDD6 C5A6 EAD5 F4F2 3404  27FB 770B CCFB 70F3 133D).
