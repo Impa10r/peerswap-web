@@ -8,15 +8,15 @@ type SafeMap[K comparable, V any] struct {
 	m  map[K]V
 }
 
-// NewSafeMap creates and initializes a new SafeMap
-func NewSafeMap[K comparable, V any]() *SafeMap[K, V] {
+// New creates and initializes a new SafeMap
+func New[K comparable, V any]() *SafeMap[K, V] {
 	return &SafeMap[K, V]{
 		m: make(map[K]V),
 	}
 }
 
 // SafeWrite safely writes a key-value pair to the map
-func (sm *SafeMap[K, V]) SafeWrite(key K, value V) {
+func (sm *SafeMap[K, V]) Write(key K, value V) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.m[key] = value
@@ -24,7 +24,7 @@ func (sm *SafeMap[K, V]) SafeWrite(key K, value V) {
 
 // SafeRead safely reads a value for a given key from the map
 // Returns the value and a boolean indicating if the key exists
-func (sm *SafeMap[K, V]) SafeRead(key K) (V, bool) {
+func (sm *SafeMap[K, V]) Read(key K) (V, bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	value, ok := sm.m[key]
@@ -32,7 +32,7 @@ func (sm *SafeMap[K, V]) SafeRead(key K) (V, bool) {
 }
 
 // SafeDelete safely deletes a key from the map
-func (sm *SafeMap[K, V]) SafeDelete(key K) {
+func (sm *SafeMap[K, V]) Delete(key K) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	delete(sm.m, key)

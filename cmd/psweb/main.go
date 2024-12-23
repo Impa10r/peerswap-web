@@ -25,6 +25,7 @@ import (
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/ps"
+	"peerswap-web/cmd/psweb/safemap"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
@@ -49,7 +50,7 @@ type SwapParams struct {
 }
 
 var (
-	aliasCache = make(map[string]string)
+	aliasCache = safemap.New[string, string]()
 	templates  = template.New("")
 	//go:embed static/*
 	staticFiles embed.FS
@@ -486,11 +487,12 @@ func convertPeersToHTMLTable(
 	}
 
 	// find last swap timestamps per channel
-	swapTimestamps := make(map[uint64]int64)
+	swapTimestamps := safemap.New[uint64, int64]()
 
 	for _, swap := range swaps {
-		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+		ts, ok := swapTimestamps.Read(swap.LndChanId)
+		if simplifySwapState(swap.State) == "success" && ok && ts < swap.CreatedAt {
+			swapTimestamps.Write(swap.LndChanId, swap.CreatedAt)
 		}
 	}
 
@@ -544,8 +546,8 @@ func convertPeersToHTMLTable(
 
 			// timestamp of the last swap or 6 months horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
-			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
-				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+			if ts, ok := swapTimestamps.Read(channel.ChannelId); ok && ts > lastSwapTimestamp {
+				lastSwapTimestamp = ts
 				tooltip = "Since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 				sinceLastSwap = "since the last swap"
 			}
@@ -1265,7 +1267,7 @@ func checkPegin() {
 
 func getNodeAlias(key string) string {
 	// search in cache
-	alias, exists := aliasCache[key]
+	alias, exists := aliasCache.Read(key)
 	if exists {
 		return alias
 	}
@@ -1288,7 +1290,7 @@ func getNodeAlias(key string) string {
 	}
 
 	// save to cache if alias was found
-	aliasCache[key] = alias
+	aliasCache.Write(key, alias)
 
 	return alias
 }

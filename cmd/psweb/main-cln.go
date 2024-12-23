@@ -46,7 +46,7 @@ func main() {
 	var (
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
-		developer   = flag.Bool("developer", false, "Flag passed by clightningd, ignored")
+		developer   = flag.Bool("developer", false, "Flag passed by clightningd")
 	)
 
 	flag.Parse()
