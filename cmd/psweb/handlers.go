@@ -1171,7 +1171,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			daysNoFlow := 999
-			ts, ok := ln.LastForwardTS[ch.ChannelId]
+			ts, ok := ln.LastForwardTS.SafeRead(ch.ChannelId)
 			if ok {
 				daysNoFlow = int(currentTime.Sub(time.Unix(ts, 0)).Hours() / 24)
 			}

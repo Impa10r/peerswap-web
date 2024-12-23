@@ -33,7 +33,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.4"
+	VERSION = "v1.7.5"
 	// Swap Out reserve
 	SWAP_OUT_CHANNEL_RESERVE = 10000
 	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
@@ -78,6 +78,8 @@ var (
 	peginBlocks = uint32(102)
 	// wait for lighting to sync
 	lightningHasStarted = false
+	// debug flag
+	debug = os.Getenv("DEBUG") == "1"
 )
 
 func start() {
@@ -441,7 +443,7 @@ func setLogging(logFileName string) (func(), error) {
 	}
 
 	log.SetFlags(log.Ldate | log.Ltime)
-	if os.Getenv("DEBUG") == "1" {
+	if debug {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	}
 

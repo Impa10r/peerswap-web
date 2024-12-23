@@ -1,5 +1,10 @@
 # Versions
 
+## 1.7.5
+
+- CLN: allow -developer flag
+- Refactor to use thread-safe maps
+
 ## 1.7.4
 
 - Bump Go version to v1.22.2

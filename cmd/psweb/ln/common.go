@@ -12,6 +12,7 @@ import (
 
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
+	"peerswap-web/cmd/psweb/safemap"
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/lightningnetwork/lnd/zpay32"
@@ -52,7 +53,7 @@ var (
 	}
 
 	// track timestamp of the last outbound forward per channel
-	LastForwardTS = make(map[uint64]int64)
+	LastForwardTS = safemap.NewSafeMap[uint64, int64]()
 
 	// received via custom messages, per peer nodeId
 	LiquidBalances  = make(map[string]*BalanceInfo)
@@ -438,7 +439,7 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 		// must be definitely above threshold and cool-off period passed
 		if liqPct > params.LowLiqPct && lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the inactivity period
-			if LastForwardTS[channelId] < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
+			if ts, ok := LastForwardTS.SafeRead(channelId); ok && ts < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
 				newFee -= params.InactivityDropPPM
 				newFee = newFee * (100 - params.InactivityDropPct) / 100

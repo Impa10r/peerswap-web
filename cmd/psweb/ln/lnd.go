@@ -862,7 +862,7 @@ func downloadForwards(client lnrpc.LightningClient) bool {
 			if event.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
 				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
 				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
-				LastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
+				LastForwardTS.SafeWrite(event.ChanIdOut, int64(event.TimestampNs/1_000_000_000))
 			}
 		}
 
@@ -1080,7 +1080,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 						// settled htlcEvent has no Outgoing info, take from queue
 						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
 						// TS for autofee
-						LastForwardTS[htlc.OutgoingChannelId] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
+						LastForwardTS.SafeWrite(htlc.OutgoingChannelId, int64(htlc.forwardingEvent.TimestampNs/1_000_000_000))
 
 						// execute autofee
 						client, cleanup, err := GetClient()

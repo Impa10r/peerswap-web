@@ -46,6 +46,7 @@ func main() {
 	var (
 		showHelp    = flag.Bool("help", false, "Show help")
 		showVersion = flag.Bool("version", false, "Show version")
+		developer   = flag.Bool("developer", false, "Flag passed by clightningd, ignored")
 	)
 
 	flag.Parse()
@@ -59,6 +60,10 @@ func main() {
 	if *showVersion {
 		fmt.Printf("PeerSwap Web UI %s for CLN\n", VERSION)
 		os.Exit(0)
+	}
+
+	if *developer {
+		debug = true
 	}
 
 	plugin = glightning.NewPlugin(onInit)
