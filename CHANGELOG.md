@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.6
+
+- Fix peg-in join rounding bug
+
 ## 1.7.5
 
 - CLN: allow -developer flag

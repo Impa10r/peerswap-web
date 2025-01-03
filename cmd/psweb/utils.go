@@ -149,7 +149,7 @@ func simplifySwapState(state string) string {
 }
 
 func toSats(amount float64) uint64 {
-	return uint64(math.Round(float64(100_000_000) * amount))
+	return uint64(math.Round(amount*100_000_000 + 0.5))
 }
 
 func toUint(num int64) uint64 {

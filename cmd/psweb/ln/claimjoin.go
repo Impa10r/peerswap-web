@@ -1017,7 +1017,6 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 		if myPrivateKey != nil {
 			// persist to db
 			savePrivateKey()
-
 		} else {
 			return false
 		}
@@ -1026,7 +1025,12 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 	if len(ClaimParties) != 1 || ClaimParties[0].PubKey != MyPublicKey() {
 		// initiate array of claim parties for single entry
 		ClaimParties = nil
-		ClaimParties = append(ClaimParties, *createClaimParty(claimBlockHeight))
+		cp := createClaimParty(claimBlockHeight)
+		if cp == nil {
+			// something went wrong
+			return false
+		}
+		ClaimParties = append(ClaimParties, *cp)
 		ClaimBlockHeight = claimBlockHeight
 		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 		db.Save("ClaimJoin", "ClaimParties", ClaimParties)

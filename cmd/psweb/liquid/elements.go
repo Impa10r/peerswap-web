@@ -407,7 +407,7 @@ func EstimateFee() float64 {
 		return 0
 	}
 
-	return math.Round(result.MemPoolMinFee*100_000_000) / 1000
+	return math.Round(result.MemPoolMinFee*100_000_000+0.5) / 1000
 }
 
 // get version of Elements Core supports discounted vSize
