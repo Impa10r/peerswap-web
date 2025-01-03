@@ -2,7 +2,8 @@
 
 ## 1.7.6
 
-- Fix peg-in join rounding bug
+- Fix BTC to sats rounding bug preventing claim init or join
+- Fix external funding peg-in num of confirmations not registered
 
 ## 1.7.5
 

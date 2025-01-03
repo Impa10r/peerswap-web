@@ -181,18 +181,6 @@ func GetBlockHeight() uint32 {
 	return uint32(res.Blockheight)
 }
 
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
-
-	var tx bitcoin.Transaction
-	_, err := bitcoin.GetRawTransaction(txid, &tx)
-	if err != nil {
-		return -1, false // signal tx not found
-	}
-
-	return tx.Confirmations, true
-}
-
 func GetAlias(nodeKey string) string {
 	// not implemented, use mempool
 	return ""

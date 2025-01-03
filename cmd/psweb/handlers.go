@@ -725,23 +725,26 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	var utxos []ln.UTXO
 	ln.ListUnspent(cl, &utxos, int32(1))
 
-	if config.Config.PeginTxId != "" && config.Config.PeginTxId != "external" {
-		// update ClaimJoin status
-		checkPegin()
+	isExternal := config.Config.PeginTxId == "external"
 
-		confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
-		if confs == 0 && config.Config.PeginFeeRate > 0 {
-			canBump = true
-			if !ln.CanRBF() {
-				// can bump only if there is a change output
-				canBump = canCPFP
-				if fee > 0 {
-					// for CPFP the fee must be 1.5x the market
-					fee = fee + fee/2
+	if config.Config.PeginTxId != "" {
+		if !isExternal {
+			confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
+			// update ClaimJoin status
+			checkPegin()
+			if confs == 0 && config.Config.PeginFeeRate > 0 {
+				canBump = true
+				if !ln.CanRBF() {
+					// can bump only if there is a change output
+					canBump = canCPFP
+					if fee > 0 {
+						// for CPFP the fee must be 1.5x the market
+						fee = fee + fee/2
+					}
 				}
-			}
-			if fee < config.Config.PeginFeeRate+1 {
-				fee = config.Config.PeginFeeRate + 1 // min increment
+				if fee < config.Config.PeginFeeRate+1 {
+					fee = config.Config.PeginFeeRate + 1 // min increment
+				}
 			}
 		}
 	}
@@ -775,7 +778,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Outputs:             &utxos,
 		PeginTxId:           config.Config.PeginTxId,
 		IsPegin:             config.Config.PeginClaimScript != "",
-		IsExternal:          config.Config.PeginTxId == "external",
+		IsExternal:          isExternal,
 		PeginAddress:        config.Config.PeginAddress,
 		PeginAmount:         uint64(config.Config.PeginAmount),
 		BitcoinApi:          config.Config.BitcoinApi,
@@ -807,28 +810,16 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 // returns number of confirmations and whether the tx can be fee bumped
 func peginConfirmations(txid string) (int32, bool) {
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		return -1, false
-	}
-
-	defer clean()
-
-	// -1 indicates error
-	confs, canCPFP := ln.GetTxConfirmations(cl, txid)
-
-	if confs >= 0 {
-		return confs, canCPFP
-	}
 
 	// can be external funding
 	var tx bitcoin.Transaction
 	_, err := bitcoin.GetRawTransaction(txid, &tx)
-	if err != nil {
-		return -1, false
+	if err == nil {
+		return tx.Confirmations, len(tx.Vout) > 1
 	}
 
-	return tx.Confirmations, false
+	// -1 indicates error
+	return -1, false
 }
 
 // handles Liquid peg-in and Bitcoin send form

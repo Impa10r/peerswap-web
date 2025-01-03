@@ -213,15 +213,6 @@ func getTransaction(client lnrpc.LightningClient, txid string) (*lnrpc.Transacti
 	return nil, errors.New("txid not found")
 }
 
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client lnrpc.LightningClient, txid string) (int32, bool) {
-	tx, err := getTransaction(client, txid)
-	if err == nil {
-		return tx.NumConfirmations, len(tx.OutputDetails) > 1
-	}
-	return -1, false // signal tx not found in local mempool
-}
-
 func GetAlias(nodeKey string) string {
 	client, cleanup, err := GetClient()
 	if err != nil {
