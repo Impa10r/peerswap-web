@@ -1,6 +1,6 @@
 module peerswap-web
 
-go 1.21.5
+go 1.22.2
 
 replace github.com/elementsproject/peerswap => /home/vlad/peerswap
 
@@ -19,7 +19,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
-	github.com/elementsproject/glightning v0.0.0-20240910115322-5c07410a8494
+	github.com/elementsproject/glightning v0.0.0-20241120003711-1fdc5d319d74
 	github.com/elementsproject/peerswap v0.2.98-0.20240802020201-5935fb465630
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
@@ -187,7 +187,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/errgo.v1 v1.0.1 // indirect
-	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/macaroon-bakery.v2 v2.3.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
