@@ -25,6 +25,7 @@ import (
 	"peerswap-web/cmd/psweb/liquid"
 	"peerswap-web/cmd/psweb/ln"
 	"peerswap-web/cmd/psweb/ps"
+	"peerswap-web/cmd/psweb/safemap"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 	"github.com/gorilla/mux"
@@ -33,11 +34,10 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.3"
-	// Swap Out reserves are hardcoded here:
-	// https://github.com/ElementsProject/peerswap/blob/c77a82913d7898d0d3b7c83e4a990abf54bd97e5/peerswaprpc/server.go#L105
-	SWAP_OUT_CHANNEL_RESERVE = 5000
-	// Elements v23.02.03 introduced vsize discount enabled on testnet
+	VERSION = "v1.7.6"
+	// Swap Out reserve
+	SWAP_OUT_CHANNEL_RESERVE = 10000
+	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
 
@@ -51,7 +51,7 @@ type AutoSwapCandidate struct {
 }
 
 var (
-	aliasCache = make(map[string]string)
+	aliasCache = safemap.New[string, string]()
 	templates  = template.New("")
 	//go:embed static/*
 	staticFiles embed.FS
@@ -74,11 +74,16 @@ var (
 	// wait for elements to start
 	elementsHasStarted = false
 	// identifies if this version of Elements Core supports discounted vSize
-	hasDiscountedvSize = false
+	hasDiscountedvSize        = false
+	discountedvSizeIdentified = false
+	// asset id for L-BTC
+	elementsBitcoinId = ""
 	// required maturity for peg-in funding tx
 	peginBlocks = uint32(102)
 	// wait for lighting to sync
 	lightningHasStarted = false
+	// debug flag
+	debug = os.Getenv("DEBUG") == "1"
 )
 
 func start() {
@@ -305,6 +310,26 @@ func onTimer() {
 		}
 	}()
 
+	if !discountedvSizeIdentified {
+		// identify if Elements Core supports CT discounts
+		elementsVersion := liquid.GetVersion()
+		if elementsVersion > 0 {
+			hasDiscountedvSize = elementsVersion >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
+			discountedvSizeIdentified = true
+			if hasDiscountedvSize {
+				log.Println("Discounted vsize on Liquid is enabled")
+			} else {
+				log.Println("Discounted vsize on Liquid is disabled")
+			}
+
+			// find asset id for Bitcoin
+			assets, err := liquid.DumpAssetLabels()
+			if err == nil {
+				elementsBitcoinId = (*assets)["bitcoin"]
+			}
+		}
+	}
+
 	// LND: download and subscribe to invoices, forwards and payments
 	// CLN: cache paid and received HTLCs
 	if !ln.DownloadAll() {
@@ -395,14 +420,20 @@ func liquidBackup(force bool) {
 		return
 	}
 
-	wallet := config.Config.ElementsWallet
-	destinationZip, err := liquid.BackupAndZip(wallet)
+	destinationZip, err := liquid.BackupAndZip()
 	if err != nil {
 		log.Println("Error zipping backup:", err)
 		return
 	}
 
-	err = telegramSendFile(config.Config.DataDir, destinationZip, formatWithThousandSeparators(satAmount))
+	sign := ""
+	if satAmount > config.Config.ElementsBackupAmount {
+		sign = "+"
+	}
+
+	msg := formatWithThousandSeparators(satAmount) + " (" + sign + formatSigned(int64(satAmount)-int64(config.Config.ElementsBackupAmount)) + ")"
+
+	err = telegramSendFile(config.Config.DataDir, destinationZip, msg)
 	if err != nil {
 		log.Println("Error sending zip:", err)
 		return
@@ -435,7 +466,7 @@ func setLogging(logFileName string) (func(), error) {
 	}
 
 	log.SetFlags(log.Ldate | log.Ltime)
-	if os.Getenv("DEBUG") == "1" {
+	if debug {
 		log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	}
 
@@ -478,11 +509,12 @@ func convertPeersToHTMLTable(
 	}
 
 	// find last swap timestamps per channel
-	swapTimestamps := make(map[uint64]int64)
+	swapTimestamps := safemap.New[uint64, int64]()
 
 	for _, swap := range swaps {
-		if simplifySwapState(swap.State) == "success" && swapTimestamps[swap.LndChanId] < swap.CreatedAt {
-			swapTimestamps[swap.LndChanId] = swap.CreatedAt
+		ts, ok := swapTimestamps.Read(swap.LndChanId)
+		if simplifySwapState(swap.State) == "success" && ok && ts < swap.CreatedAt {
+			swapTimestamps.Write(swap.LndChanId, swap.CreatedAt)
 		}
 	}
 
@@ -536,8 +568,8 @@ func convertPeersToHTMLTable(
 
 			// timestamp of the last swap or 6 months horizon
 			lastSwapTimestamp := time.Now().AddDate(0, -6, 0).Unix()
-			if swapTimestamps[channel.ChannelId] > lastSwapTimestamp {
-				lastSwapTimestamp = swapTimestamps[channel.ChannelId]
+			if ts, ok := swapTimestamps.Read(channel.ChannelId); ok && ts > lastSwapTimestamp {
+				lastSwapTimestamp = ts
 				tooltip = "Since the last swap " + timePassedAgo(time.Unix(lastSwapTimestamp, 0).UTC())
 				sinceLastSwap = "since the last swap"
 			}
@@ -1215,12 +1247,8 @@ func checkPegin() {
 			}
 
 			if failed {
-				log.Println("Peg-in claim FAILED!")
-				log.Println("Mainchain TxId:", config.Config.PeginTxId)
-				log.Println("Raw tx:", rawTx)
-				log.Println("Proof:", proof)
-				log.Println("Claim Script:", config.Config.PeginClaimScript)
-				telegramSendMessage("❗ Peg-in claim FAILED! See log for details.")
+				log.Printf("Peg-in claim FAILED! Recover your funds manually with this command line:\n\nelements-cli claimpegin %s %s %s\n", rawTx, proof, config.Config.PeginClaimScript)
+				telegramSendMessage("❗ Peg-in claim FAILED! See log for instructions.")
 			} else {
 				log.Println("Peg-in complete! Liquid TxId:", txid)
 				telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + txid + "`")
@@ -1261,7 +1289,7 @@ func checkPegin() {
 
 func getNodeAlias(key string) string {
 	// search in cache
-	alias, exists := aliasCache[key]
+	alias, exists := aliasCache.Read(key)
 	if exists {
 		return alias
 	}
@@ -1284,7 +1312,7 @@ func getNodeAlias(key string) string {
 	}
 
 	// save to cache if alias was found
-	aliasCache[key] = alias
+	aliasCache.Write(key, alias)
 
 	return alias
 }
@@ -1317,7 +1345,7 @@ func cacheAliases() bool {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *AutoSwapCandidate) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC()
+	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC(10) // assume 10 UTXOs
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1498,7 +1526,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-swapFeeReserveLBTC())
+	amount = min(amount, satAmount-swapFeeReserveLBTC(10)) // assume 10 UTXOs
 
 	// execute swap with 0 premium limit
 	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false, 0)
@@ -1610,10 +1638,23 @@ func onchainTxFee(asset, txId string) (int64, bool) {
 	if exists {
 		return fee, false
 	}
+
 	switch asset {
 	case "lbtc":
-		fee = internet.GetLiquidTxFee(txId)
+
+		var tx liquid.Transaction
+		_, err := liquid.GetRawTransaction(txId, &tx)
+		if err == nil {
+			for _, v := range tx.Fee {
+				fee = int64(toSats(v))
+			}
+		}
+		if fee == 0 {
+			fee = internet.GetLiquidTxFee(txId)
+		}
+
 	case "btc":
+
 		fee = internet.GetBitcoinTxFee(txId)
 
 	}
@@ -1945,9 +1986,14 @@ func pollBalances() {
 	}
 }
 
-func swapFeeReserveLBTC() uint64 {
+// depends on number of UTXOs
+func swapFeeReserveLBTC(numUTXOs int) uint64 {
 	if hasDiscountedvSize {
-		return 75
+		n := numUTXOs*7 + 20 // better estimate for lots of UTXOs
+		if n < 75 {
+			n = 75 // peerswap assumes 75 sats
+		}
+		return uint64(n)
 	}
 	return 300
 }

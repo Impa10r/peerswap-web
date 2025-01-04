@@ -23,6 +23,7 @@ import (
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
+	"peerswap-web/cmd/psweb/safemap"
 
 	"github.com/elementsproject/peerswap/peerswaprpc"
 
@@ -58,18 +59,18 @@ var (
 	LndVerson = float64(0) // must be 0.18+ for RBF ability
 
 	// arrays mapped per channel
-	forwardsIn        = make(map[uint64][]*lnrpc.ForwardingEvent)
-	forwardsOut       = make(map[uint64][]*lnrpc.ForwardingEvent)
-	paymentHtlcs      = make(map[uint64][]*lnrpc.HTLCAttempt)
-	rebalanceInHtlcs  = make(map[uint64][]*lnrpc.HTLCAttempt)
-	rebalanceOutHtlcs = make(map[uint64][]*lnrpc.HTLCAttempt)
-	invoiceHtlcs      = make(map[uint64][]*lnrpc.InvoiceHTLC)
+	forwardsIn        = safemap.New[uint64, []*lnrpc.ForwardingEvent]()
+	forwardsOut       = safemap.New[uint64, []*lnrpc.ForwardingEvent]()
+	paymentHtlcs      = safemap.New[uint64, []*lnrpc.HTLCAttempt]()
+	rebalanceInHtlcs  = safemap.New[uint64, []*lnrpc.HTLCAttempt]()
+	rebalanceOutHtlcs = safemap.New[uint64, []*lnrpc.HTLCAttempt]()
+	invoiceHtlcs      = safemap.New[uint64, []*lnrpc.InvoiceHTLC]()
 
 	// inflight HTLCs mapped per Incoming channel
-	inflightHTLCs = make(map[uint64][]*InflightHTLC)
+	inflightHTLCs = safemap.New[uint64, []*InflightHTLC]()
 
 	// cache peer addresses for reconnects
-	peerAddresses = make(map[string][]*lnrpc.NodeAddress)
+	peerAddresses = safemap.New[string, []*lnrpc.NodeAddress]()
 
 	// las index for invoice subscriptions
 	lastInvoiceSettleIndex uint64
@@ -210,15 +211,6 @@ func getTransaction(client lnrpc.LightningClient, txid string) (*lnrpc.Transacti
 		}
 	}
 	return nil, errors.New("txid not found")
-}
-
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client lnrpc.LightningClient, txid string) (int32, bool) {
-	tx, err := getTransaction(client, txid)
-	if err == nil {
-		return tx.NumConfirmations, len(tx.OutputDetails) > 1
-	}
-	return -1, false // signal tx not found in local mempool
 }
 
 func GetAlias(nodeKey string) string {
@@ -860,9 +852,21 @@ func downloadForwards(client lnrpc.LightningClient) bool {
 		// sort by in and out channels
 		for _, event := range res.ForwardingEvents {
 			if event.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-				forwardsIn[event.ChanIdIn] = append(forwardsIn[event.ChanIdIn], event)
-				forwardsOut[event.ChanIdOut] = append(forwardsOut[event.ChanIdOut], event)
-				LastForwardTS[event.ChanIdOut] = int64(event.TimestampNs / 1_000_000_000)
+				fi, ok := forwardsIn.Read(event.ChanIdIn)
+				if !ok {
+					fi = []*lnrpc.ForwardingEvent{} // Initialize an empty slice if the key does not exist
+				}
+				fi = append(fi, event)               // Append the new forwarding record
+				forwardsIn.Write(event.ChanIdIn, fi) // Write the updated slice
+
+				fo, ok := forwardsOut.Read(event.ChanIdOut)
+				if !ok {
+					fo = []*lnrpc.ForwardingEvent{} // Initialize an empty slice if the key does not exist
+				}
+				fo = append(fo, event)                 // Append the new forwarding record
+				forwardsOut.Write(event.ChanIdOut, fo) // Write the updated slice
+
+				LastForwardTS.Write(event.ChanIdOut, int64(event.TimestampNs/1_000_000_000))
 			}
 		}
 
@@ -967,10 +971,26 @@ func appendPayment(payment *lnrpc.Payment) {
 				lastHop := htlc.Route.Hops[len(htlc.Route.Hops)-1]
 				if lastHop.PubKey == MyNodeId {
 					// this is a circular rebalancing
-					rebalanceOutHtlcs[chanId] = append(rebalanceOutHtlcs[chanId], htlc)
-					rebalanceInHtlcs[lastHop.ChanId] = append(rebalanceInHtlcs[lastHop.ChanId], htlc)
+					htlcs, ok := rebalanceOutHtlcs.Read(chanId)
+					if !ok {
+						htlcs = []*lnrpc.HTLCAttempt{} // Initialize an empty slice if the key does not exist
+					}
+					htlcs = append(htlcs, htlc)            // Append the new forwarding record
+					rebalanceOutHtlcs.Write(chanId, htlcs) // Write the updated slice
+
+					htlcs, ok = rebalanceInHtlcs.Read(lastHop.ChanId)
+					if !ok {
+						htlcs = []*lnrpc.HTLCAttempt{} // Initialize an empty slice if the key does not exist
+					}
+					htlcs = append(htlcs, htlc)                   // Append the new forwarding record
+					rebalanceInHtlcs.Write(lastHop.ChanId, htlcs) // Write the updated slice
 				} else {
-					paymentHtlcs[chanId] = append(paymentHtlcs[chanId], htlc)
+					htlcs, ok := paymentHtlcs.Read(chanId)
+					if !ok {
+						htlcs = []*lnrpc.HTLCAttempt{} // Initialize an empty slice if the key does not exist
+					}
+					htlcs = append(htlcs, htlc)       // Append the new forwarding record
+					paymentHtlcs.Write(chanId, htlcs) // Write the updated slice
 				}
 			}
 		}
@@ -1041,7 +1061,12 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 					htlc.IncomingHtlcId = htlcEvent.IncomingHtlcId
 					htlc.OutgoingHtlcId = htlcEvent.OutgoingHtlcId
 
-					inflightHTLCs[htlcEvent.IncomingChannelId] = append(inflightHTLCs[htlcEvent.IncomingChannelId], htlc)
+					htlcs, ok := inflightHTLCs.Read(htlcEvent.IncomingChannelId)
+					if !ok {
+						htlcs = []*InflightHTLC{} // Initialize an empty slice if the key does not exist
+					}
+					htlcs = append(htlcs, htlc)                             // Append the new forwarding record
+					inflightHTLCs.Write(htlcEvent.IncomingChannelId, htlcs) // Write the updated slice
 				}
 			}
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
@@ -1066,32 +1091,47 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 
 		case *routerrpc.HtlcEvent_SettleEvent:
 			// find HTLC in queue
-			for _, htlc := range inflightHTLCs[htlcEvent.IncomingChannelId] {
-				if htlc.IncomingHtlcId == htlcEvent.IncomingHtlcId {
-					// store the last timestamp
-					lastForwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
-					// delete from queue
-					removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
+			htlcs, ok := inflightHTLCs.Read(htlcEvent.IncomingChannelId)
+			if ok {
+				for _, htlc := range htlcs {
+					if htlc.IncomingHtlcId == htlcEvent.IncomingHtlcId {
+						// store the last timestamp
+						lastForwardCreationTs = htlc.forwardingEvent.TimestampNs / 1_000_000_000
+						// delete from queue
+						removeInflightHTLC(htlcEvent.IncomingChannelId, htlcEvent.IncomingHtlcId)
 
-					// ignore dust
-					if htlc.forwardingEvent.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-						// add our stored forwards
-						forwardsIn[htlcEvent.IncomingChannelId] = append(forwardsIn[htlcEvent.IncomingChannelId], htlc.forwardingEvent)
-						// settled htlcEvent has no Outgoing info, take from queue
-						forwardsOut[htlc.OutgoingChannelId] = append(forwardsOut[htlc.OutgoingChannelId], htlc.forwardingEvent)
-						// TS for autofee
-						LastForwardTS[htlc.OutgoingChannelId] = int64(htlc.forwardingEvent.TimestampNs / 1_000_000_000)
+						// ignore dust
+						if htlc.forwardingEvent.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
+							// add our stored forwards
+							fi, ok := forwardsIn.Read(htlcEvent.IncomingChannelId)
+							if !ok {
+								fi = []*lnrpc.ForwardingEvent{} // Initialize an empty slice if the key does not exist
+							}
+							fi = append(fi, htlc.forwardingEvent)             // Append the new forwarding record
+							forwardsIn.Write(htlcEvent.IncomingChannelId, fi) // Write the updated slice
 
-						// execute autofee
-						client, cleanup, err := GetClient()
-						if err != nil {
-							return err
+							// settled htlcEvent has no Outgoing info, take from queue
+							fo, ok := forwardsOut.Read(htlc.OutgoingChannelId)
+							if !ok {
+								fo = []*lnrpc.ForwardingEvent{} // Initialize an empty slice if the key does not exist
+							}
+							fo = append(fo, htlc.forwardingEvent)         // Append the new forwarding record
+							forwardsOut.Write(htlc.OutgoingChannelId, fo) // Write the updated slice
+
+							// TS for autofee
+							LastForwardTS.Write(htlc.OutgoingChannelId, int64(htlc.forwardingEvent.TimestampNs/1_000_000_000))
+
+							// execute autofee
+							client, cleanup, err := GetClient()
+							if err != nil {
+								return err
+							}
+							defer cleanup()
+
+							// calculate with new balance
+							applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
+							break
 						}
-						defer cleanup()
-
-						// calculate with new balance
-						applyAutoFee(client, htlc.forwardingEvent.ChanIdOut, false)
-						break
 					}
 				}
 			}
@@ -1102,7 +1142,7 @@ func subscribeForwards(ctx context.Context, client routerrpc.RouterClient) error
 // Function to remove an InflightHTLC object from a slice in the map by IncomingChannelId
 func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 	// Retrieve the slice from the map
-	htlcSlice, exists := inflightHTLCs[incomingChannelId]
+	htlcSlice, exists := inflightHTLCs.Read(incomingChannelId)
 	if !exists {
 		return
 	}
@@ -1118,12 +1158,12 @@ func removeInflightHTLC(incomingChannelId, incomingHtlcId uint64) {
 
 	// If the object is found, remove it from the slice
 	if index != -1 {
-		inflightHTLCs[incomingChannelId] = append(htlcSlice[:index], htlcSlice[index+1:]...)
+		inflightHTLCs.Write(incomingChannelId, append(htlcSlice[:index], htlcSlice[index+1:]...))
 	}
 
 	// If the slice becomes empty after removal, delete the map entry
-	if len(inflightHTLCs[incomingChannelId]) == 0 {
-		delete(inflightHTLCs, incomingChannelId)
+	if htlcs, ok := inflightHTLCs.Read(incomingChannelId); ok && len(htlcs) == 0 {
+		inflightHTLCs.Delete(incomingChannelId)
 	}
 }
 
@@ -1273,7 +1313,12 @@ func appendInvoice(invoice *lnrpc.Invoice) {
 		}
 		for _, htlc := range invoice.Htlcs {
 			if htlc.State == lnrpc.InvoiceHTLCState_SETTLED {
-				invoiceHtlcs[htlc.ChanId] = append(invoiceHtlcs[htlc.ChanId], htlc)
+				inv, ok := invoiceHtlcs.Read(htlc.ChanId)
+				if !ok {
+					inv = []*lnrpc.InvoiceHTLC{} // Initialize an empty slice if the key does not exist
+				}
+				inv = append(inv, htlc)              // Append the new forwarding record
+				invoiceHtlcs.Write(htlc.ChanId, inv) // Write the updated slice
 			}
 		}
 	}
@@ -1319,11 +1364,11 @@ func subscribeMessages(ctx context.Context, client lnrpc.LightningClient) error 
 
 			OnMyCustomMessage(nodeId, data.Data)
 
-			if peerAddresses[nodeId] == nil {
+			if _, ok := peerAddresses.Read(nodeId); !ok {
 				// cache peer addresses for reconnects
 				info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
 				if err == nil {
-					peerAddresses[nodeId] = info.Node.Addresses
+					peerAddresses.Write(nodeId, info.Node.Addresses)
 				}
 			}
 		}
@@ -1394,31 +1439,37 @@ func GetForwardingStats(channelId uint64) *ForwardingStats {
 	timestamp30d := uint64(now.AddDate(0, 0, -30).Unix()) * 1_000_000_000
 	timestamp6m := uint64(now.AddDate(0, -6, 0).Unix()) * 1_000_000_000
 
-	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-			result.AmountOut6m += e.AmtOut
-			feeMsat6m += e.FeeMsat
-			if e.TimestampNs > timestamp30d {
-				result.AmountOut30d += e.AmtOut
-				feeMsat30d += e.FeeMsat
-				if e.TimestampNs > timestamp7d {
-					result.AmountOut7d += e.AmtOut
-					feeMsat7d += e.FeeMsat
+	fo, ok := forwardsOut.Read(channelId)
+	if ok {
+		for _, e := range fo {
+			if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
+				result.AmountOut6m += e.AmtOut
+				feeMsat6m += e.FeeMsat
+				if e.TimestampNs > timestamp30d {
+					result.AmountOut30d += e.AmtOut
+					feeMsat30d += e.FeeMsat
+					if e.TimestampNs > timestamp7d {
+						result.AmountOut7d += e.AmtOut
+						feeMsat7d += e.FeeMsat
+					}
 				}
 			}
 		}
 	}
 
-	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-			result.AmountIn6m += e.AmtIn
-			assistedMsat6m += e.FeeMsat
-			if e.TimestampNs > timestamp30d {
-				result.AmountIn30d += e.AmtIn
-				assistedMsat30d += e.FeeMsat
-				if e.TimestampNs > timestamp7d {
-					result.AmountIn7d += e.AmtIn
-					assistedMsat7d += e.FeeMsat
+	fi, ok := forwardsIn.Read(channelId)
+	if ok {
+		for _, e := range fi {
+			if e.TimestampNs > timestamp6m && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
+				result.AmountIn6m += e.AmtIn
+				assistedMsat6m += e.FeeMsat
+				if e.TimestampNs > timestamp30d {
+					result.AmountIn30d += e.AmtIn
+					assistedMsat30d += e.FeeMsat
+					if e.TimestampNs > timestamp7d {
+						result.AmountIn7d += e.AmtIn
+						assistedMsat7d += e.FeeMsat
+					}
 				}
 			}
 		}
@@ -1515,58 +1566,80 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 
 	timestampNs := timeStamp * 1_000_000_000
 
-	for _, e := range forwardsOut[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-			routedOutMsat += e.AmtOutMsat
-			feeMsat += e.FeeMsat
+	fo, ok := forwardsOut.Read(channelId)
+	if ok {
+		for _, e := range fo {
+			if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
+				routedOutMsat += e.AmtOutMsat
+				feeMsat += e.FeeMsat
+			}
 		}
 	}
 
-	for _, e := range forwardsIn[channelId] {
-		if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-			routedInMsat += e.AmtInMsat
-			assistedMsat += e.FeeMsat
+	fi, ok := forwardsIn.Read(channelId)
+	if ok {
+		for _, e := range fi {
+			if e.TimestampNs > timestampNs && e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
+				routedInMsat += e.AmtInMsat
+				assistedMsat += e.FeeMsat
+			}
 		}
 	}
 
-	for i := 0; i < len(invoiceHtlcs[channelId]); i++ {
-		e := invoiceHtlcs[channelId][i]
-		if uint64(e.AcceptTime) > timeStamp {
-			// check if it is related to a circular rebalancing
-			found := false
-			for _, r := range rebalanceInHtlcs[channelId] {
-				if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
-					found = true
-					break
+	inv, ok := invoiceHtlcs.Read(channelId)
+	if ok {
+		for i := 0; i < len(inv); i++ {
+			e := inv[i]
+			if uint64(e.AcceptTime) > timeStamp {
+				// check if it is related to a circular rebalancing
+				htcls, ok := rebalanceInHtlcs.Read(channelId)
+				if ok {
+					found := false
+					for _, r := range htcls {
+						if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
+							found = true
+							break
+						}
+					}
+					if found {
+						// remove invoice to avoid double counting
+						inv = append(inv[:i], inv[i+1:]...)
+						invoiceHtlcs.Write(channelId, inv)
+						i--
+					} else {
+						invoicedMsat += e.AmtMsat
+					}
 				}
 			}
-			if found {
-				// remove invoice to avoid double counting
-				invoiceHtlcs[channelId] = append(invoiceHtlcs[channelId][:i], invoiceHtlcs[channelId][i+1:]...)
-				i--
-			} else {
-				invoicedMsat += e.AmtMsat
+		}
+	}
+
+	htlcs, ok := paymentHtlcs.Read(channelId)
+	if ok {
+		for _, e := range htlcs {
+			if uint64(e.AttemptTimeNs) > timestampNs {
+				paidOutMsat += e.Route.TotalAmtMsat
+				costMsat += e.Route.TotalFeesMsat
 			}
 		}
 	}
 
-	for _, e := range paymentHtlcs[channelId] {
-		if uint64(e.AttemptTimeNs) > timestampNs {
-			paidOutMsat += e.Route.TotalAmtMsat
-			costMsat += e.Route.TotalFeesMsat
+	htcls, ok := rebalanceInHtlcs.Read(channelId)
+	if ok {
+		for _, e := range htcls {
+			if uint64(e.AttemptTimeNs) > timestampNs {
+				rebalanceInMsat += e.Route.TotalAmtMsat - e.Route.TotalFeesMsat
+				rebalanceCostMsat += e.Route.TotalFeesMsat
+			}
 		}
 	}
 
-	for _, e := range rebalanceInHtlcs[channelId] {
-		if uint64(e.AttemptTimeNs) > timestampNs {
-			rebalanceInMsat += e.Route.TotalAmtMsat - e.Route.TotalFeesMsat
-			rebalanceCostMsat += e.Route.TotalFeesMsat
-		}
-	}
-
-	for _, e := range rebalanceOutHtlcs[channelId] {
-		if uint64(e.AttemptTimeNs) > timestampNs {
-			rebalanceOutMsat += e.Route.TotalAmtMsat
+	htcls, ok = rebalanceOutHtlcs.Read(channelId)
+	if ok {
+		for _, e := range htcls {
+			if uint64(e.AttemptTimeNs) > timestampNs {
+				rebalanceOutMsat += e.Route.TotalAmtMsat
+			}
 		}
 	}
 
@@ -2147,15 +2220,18 @@ func ApplyAutoFees() {
 func PlotPPM(channelId uint64) *[]DataPoint {
 	var plot []DataPoint
 
-	for _, e := range forwardsOut[channelId] {
-		// ignore small forwards
-		if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
-			plot = append(plot, DataPoint{
-				TS:     e.TimestampNs / 1_000_000_000,
-				Amount: e.AmtOut,
-				Fee:    float64(e.FeeMsat) / 1000,
-				PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
-			})
+	fo, ok := forwardsOut.Read(channelId)
+	if ok {
+		for _, e := range fo {
+			// ignore small forwards
+			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT {
+				plot = append(plot, DataPoint{
+					TS:     e.TimestampNs / 1_000_000_000,
+					Amount: e.AmtOut,
+					Fee:    float64(e.FeeMsat) / 1000,
+					PPM:    e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+				})
+			}
 		}
 	}
 
@@ -2167,11 +2243,12 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	var log []DataPoint
 	fromTS_Ns := uint64(fromTS * 1_000_000_000)
 
-	for chId := range forwardsOut {
+	// Process forwards from forwardsOut
+	forwardsOut.Iterate(func(chId uint64, fo []*lnrpc.ForwardingEvent) {
 		if channelId > 0 && channelId != chId {
-			continue
+			return
 		}
-		for _, e := range forwardsOut[chId] {
+		for _, e := range fo {
 			// ignore small forwards
 			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
 				log = append(log, DataPoint{
@@ -2184,20 +2261,23 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 				})
 			}
 		}
-	}
+	})
 
 	if channelId > 0 {
-		for _, e := range forwardsIn[channelId] {
-			// ignore small forwards
-			if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
-				log = append(log, DataPoint{
-					TS:        e.TimestampNs / 1_000_000_000,
-					Amount:    e.AmtOut,
-					Fee:       float64(e.FeeMsat) / 1000,
-					PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
-					ChanIdIn:  e.ChanIdIn,
-					ChanIdOut: e.ChanIdOut,
-				})
+		fi, ok := forwardsIn.Read(channelId)
+		if ok {
+			for _, e := range fi {
+				// ignore small forwards
+				if e.AmtOutMsat >= IGNORE_FORWARDS_MSAT && e.TimestampNs >= fromTS_Ns {
+					log = append(log, DataPoint{
+						TS:        e.TimestampNs / 1_000_000_000,
+						Amount:    e.AmtOut,
+						Fee:       float64(e.FeeMsat) / 1000,
+						PPM:       e.FeeMsat * 1_000_000 / e.AmtOutMsat,
+						ChanIdIn:  e.ChanIdIn,
+						ChanIdOut: e.ChanIdOut,
+					})
+				}
 			}
 		}
 	}
@@ -2212,9 +2292,9 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 
 func reconnectPeer(client lnrpc.LightningClient, nodeId string) bool {
 	ctx := context.Background()
-	addresses := peerAddresses[nodeId]
+	addresses, ok := peerAddresses.Read(nodeId)
 
-	if addresses == nil {
+	if !ok {
 		info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: nodeId, IncludeChannels: false})
 		if err == nil {
 			addresses = info.Node.Addresses

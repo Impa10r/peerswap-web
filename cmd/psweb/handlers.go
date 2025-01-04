@@ -354,7 +354,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	ln.ListUnspent(cl, &utxosBTC, 1)
 
 	var utxosLBTC []liquid.UTXO
-	liquid.ListUnspent(&utxosLBTC)
+	liquid.ListUnspent(&utxosLBTC, elementsBitcoinId)
 
 	// to find a channel for swap-out
 	maxLocalBalance := uint64(0)
@@ -435,7 +435,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC()), int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC(len(utxosLBTC))), int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -451,7 +451,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveLBTC()))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveLBTC(1)))))
 	} else {
 		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
 	}
@@ -577,8 +577,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		KeysendSats             uint64
 		OutputsBTC              *[]ln.UTXO
 		OutputsLBTC             *[]liquid.UTXO
-		ReserveLBTC             uint64
-		ReserveBTC              uint64
 		HasInboundFees          bool
 		PeerBitcoinBalance      string // "" means no data
 		MaxBitcoinSwapOut       uint64
@@ -633,8 +631,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		KeysendSats:             keysendSats,
 		OutputsBTC:              &utxosBTC,
 		OutputsLBTC:             &utxosLBTC,
-		ReserveLBTC:             swapFeeReserveLBTC(),
-		ReserveBTC:              swapFeeReserveBTC,
 		HasInboundFees:          ln.HasInboundFees(),
 		PeerBitcoinBalance:      peerBitcoinBalance,
 		MaxBitcoinSwapOut:       maxBitcoinSwapOut,
@@ -729,23 +725,26 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	var utxos []ln.UTXO
 	ln.ListUnspent(cl, &utxos, int32(1))
 
-	if config.Config.PeginTxId != "" && config.Config.PeginTxId != "external" {
-		// update ClaimJoin status
-		checkPegin()
+	isExternal := config.Config.PeginTxId == "external"
 
-		confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
-		if confs == 0 && config.Config.PeginFeeRate > 0 {
-			canBump = true
-			if !ln.CanRBF() {
-				// can bump only if there is a change output
-				canBump = canCPFP
-				if fee > 0 {
-					// for CPFP the fee must be 1.5x the market
-					fee = fee + fee/2
+	if config.Config.PeginTxId != "" {
+		if !isExternal {
+			confs, canCPFP = peginConfirmations(config.Config.PeginTxId)
+			// update ClaimJoin status
+			checkPegin()
+			if confs == 0 && config.Config.PeginFeeRate > 0 {
+				canBump = true
+				if !ln.CanRBF() {
+					// can bump only if there is a change output
+					canBump = canCPFP
+					if fee > 0 {
+						// for CPFP the fee must be 1.5x the market
+						fee = fee + fee/2
+					}
 				}
-			}
-			if fee < config.Config.PeginFeeRate+1 {
-				fee = config.Config.PeginFeeRate + 1 // min increment
+				if fee < config.Config.PeginFeeRate+1 {
+					fee = config.Config.PeginFeeRate + 1 // min increment
+				}
 			}
 		}
 	}
@@ -779,7 +778,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Outputs:             &utxos,
 		PeginTxId:           config.Config.PeginTxId,
 		IsPegin:             config.Config.PeginClaimScript != "",
-		IsExternal:          config.Config.PeginTxId == "external",
+		IsExternal:          isExternal,
 		PeginAddress:        config.Config.PeginAddress,
 		PeginAmount:         uint64(config.Config.PeginAmount),
 		BitcoinApi:          config.Config.BitcoinApi,
@@ -811,28 +810,16 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 // returns number of confirmations and whether the tx can be fee bumped
 func peginConfirmations(txid string) (int32, bool) {
-	cl, clean, er := ln.GetClient()
-	if er != nil {
-		return -1, false
-	}
-
-	defer clean()
-
-	// -1 indicates error
-	confs, canCPFP := ln.GetTxConfirmations(cl, txid)
-
-	if confs >= 0 {
-		return confs, canCPFP
-	}
 
 	// can be external funding
 	var tx bitcoin.Transaction
 	_, err := bitcoin.GetRawTransaction(txid, &tx)
-	if err != nil {
-		return -1, false
+	if err == nil {
+		return tx.Confirmations, len(tx.Vout) > 1
 	}
 
-	return tx.Confirmations, false
+	// -1 indicates error
+	return -1, false
 }
 
 // handles Liquid peg-in and Bitcoin send form
@@ -1175,7 +1162,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			daysNoFlow := 999
-			ts, ok := ln.LastForwardTS[ch.ChannelId]
+			ts, ok := ln.LastForwardTS.Read(ch.ChannelId)
 			if ok {
 				daysNoFlow = int(currentTime.Sub(time.Unix(ts, 0)).Hours() / 24)
 			}
@@ -1778,6 +1765,12 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	walletInfo, err := liquid.GetWalletInfo()
+	if err != nil {
+		redirectWithError(w, r, "/?", err)
+		return
+	}
+
 	type Page struct {
 		Authenticated           bool
 		ErrorMessage            string
@@ -1796,6 +1789,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapCandidate       *AutoSwapCandidate
 		AutoSwapTargetPct       uint64
 		AdvertiseEnabled        bool
+		DescriptorsWallet       bool
 	}
 
 	data := Page{
@@ -1816,6 +1810,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
 		AutoSwapCandidate:       &candidate,
 		AdvertiseEnabled:        ln.AdvertiseLiquidBalance,
+		DescriptorsWallet:       walletInfo.Descriptors,
 	}
 
 	// executing template named "liquid"
@@ -2413,15 +2408,20 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case "newAddress":
-			res, err := ps.LiquidGetAddress(client)
+			label := r.FormValue("addressLabel")
+			addressType := "blech32"
+			if r.FormValue("bech32m") == "on" {
+				addressType = "bech32m"
+			}
+
+			addr, err := liquid.GetNewAddress(label, addressType)
 			if err != nil {
-				log.Printf("unable to connect to RPC server: %v", err)
 				redirectWithError(w, r, "/liquid?", err)
 				return
 			}
 
 			// Redirect to liquid page with new address
-			http.Redirect(w, r, "/liquid?addr="+res.Address, http.StatusSeeOther)
+			http.Redirect(w, r, "/liquid?addr="+addr, http.StatusSeeOther)
 			return
 
 		case "sendLiquid":
@@ -2759,9 +2759,8 @@ func loadingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func backupHandler(w http.ResponseWriter, r *http.Request) {
-	wallet := config.Config.ElementsWallet
 	// returns .bak with the name of the wallet
-	if fileName, err := liquid.BackupAndZip(wallet); err == nil {
+	if fileName, err := liquid.BackupAndZip(); err == nil {
 		// Set the Content-Disposition header to suggest a filename
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
 		// Serve the file for download

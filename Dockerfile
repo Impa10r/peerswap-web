@@ -2,7 +2,7 @@
 ## Build PeerSwap and PeerSwap Web UI in a joint container 
 ###
 
-FROM golang:1.21.5-bullseye AS builder
+FROM golang:1.22.2-bullseye AS builder
 
 ARG TARGETOS
 ARG TARGETARCH

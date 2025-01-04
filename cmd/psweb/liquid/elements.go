@@ -177,10 +177,14 @@ type UTXO struct {
 	Safe             bool    `json:"safe"`
 }
 
-func ListUnspent(outputs *[]UTXO) error {
+func ListUnspent(outputs *[]UTXO, assetId string) error {
 	client := ElementsClient()
 	service := &Elements{client}
-	params := []string{}
+	queryOptions := make(map[string]interface{})
+	if assetId != "" {
+		queryOptions["asset"] = assetId
+	}
+	params := []interface{}{1, 9999999, []string{}, true, queryOptions}
 	wallet := config.Config.ElementsWallet
 
 	r, err := service.client.call("listunspent", params, "/wallet/"+wallet)
@@ -242,10 +246,11 @@ func SendToAddress(address string,
 
 // Backup wallet and zip it with Elements Core password
 // .bak's name is equal to master blinding key
-func BackupAndZip(wallet string) (string, error) {
+func BackupAndZip() (string, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
 
 	r, err := service.client.call("dumpmasterblindingkey", []string{}, "/wallet/"+wallet)
 	if err = handleError(err, &r); err != nil {
@@ -409,12 +414,10 @@ func EstimateFee() float64 {
 func GetVersion() int {
 	client := ElementsClient()
 	service := &Elements{client}
-	wallet := config.Config.ElementsWallet
 	params := &[]string{}
 
-	r, err := service.client.call("getnetworkinfo", params, "/wallet/"+wallet)
+	r, err := service.client.call("getnetworkinfo", params, "")
 	if err = handleError(err, &r); err != nil {
-		log.Printf("Elements GetVersion error: %v", err)
 		return 0
 	}
 
@@ -422,7 +425,6 @@ func GetVersion() int {
 
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
-		log.Printf("Elements GetVersion error: %v", err)
 		return 0
 	}
 
@@ -474,11 +476,11 @@ func CreatePSET(params interface{}) (string, error) {
 	return response, nil
 }
 
-func ProcessPSET(base64psbt, wallet string) (string, bool, error) {
+func ProcessPSET(base64psbt string) (string, bool, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
-
+	wallet := config.Config.ElementsWallet
 	params := []interface{}{base64psbt}
 
 	r, err := service.client.call("walletprocesspsbt", params, "/wallet/"+wallet)
@@ -804,11 +806,11 @@ type AddressInfo struct {
 	Labels              []string `json:"labels"`
 }
 
-func GetAddressInfo(addr, wallet string) (*AddressInfo, error) {
+func GetAddressInfo(addr string) (*AddressInfo, error) {
 
 	client := ElementsClient()
 	service := &Elements{client}
-
+	wallet := config.Config.ElementsWallet
 	params := []interface{}{addr}
 
 	r, err := service.client.call("getaddressinfo", params, "/wallet/"+wallet)
@@ -869,6 +871,101 @@ func GetBlockchainInfo() (*BlockchainInfo, error) {
 	err = json.Unmarshal([]byte(r.Result), &response)
 	if err != nil {
 		log.Printf("GetBlockchainInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+type WalletInfo struct {
+	WalletName            string      `json:"walletname"`
+	WalletVersion         int         `json:"walletversion"`
+	Format                string      `json:"format"`
+	Balance               BalanceInfo `json:"balance"`
+	UnconfirmedBalance    BalanceInfo `json:"unconfirmed_balance"`
+	ImmatureBalance       BalanceInfo `json:"immature_balance"`
+	TxCount               int         `json:"txcount"`
+	KeypoolSize           int         `json:"keypoolsize"`
+	KeypoolSizeHDInternal int         `json:"keypoolsize_hd_internal"`
+	PayTxFee              float64     `json:"paytxfee"`
+	PrivateKeysEnabled    bool        `json:"private_keys_enabled"`
+	AvoidReuse            bool        `json:"avoid_reuse"`
+	Scanning              bool        `json:"scanning"`
+	Descriptors           bool        `json:"descriptors"`
+	ExternalSigner        bool        `json:"external_signer"`
+}
+
+type BalanceInfo struct {
+	Bitcoin float64 `json:"bitcoin"`
+}
+
+// returns block hash
+func GetWalletInfo() (*WalletInfo, error) {
+	client := ElementsClient()
+	service := &Elements{client}
+	params := &[]interface{}{}
+	wallet := config.Config.ElementsWallet
+
+	r, err := service.client.call("getwalletinfo", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("GetWalletInfo: %v", err)
+		return nil, err
+	}
+
+	var response WalletInfo
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetWalletInfo unmarshall: %v", err)
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func GetNewAddress(label, addressType string) (string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+	params := []interface{}{label, addressType}
+
+	r, err := service.client.call("getnewaddress", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to get new address: %v", err)
+		return "", err
+	}
+
+	var response string
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("GetNewAddress unmarshall: %v", err)
+		return "", err
+	}
+
+	return response, nil
+}
+
+func DumpAssetLabels() (*map[string]string, error) {
+
+	client := ElementsClient()
+	service := &Elements{client}
+	wallet := config.Config.ElementsWallet
+
+	params := []interface{}{}
+
+	r, err := service.client.call("dumpassetlabels", params, "/wallet/"+wallet)
+	if err = handleError(err, &r); err != nil {
+		log.Printf("Failed to DumpAssetLabels: %v", err)
+		return nil, err
+	}
+
+	var response = make(map[string]string)
+
+	err = json.Unmarshal([]byte(r.Result), &response)
+	if err != nil {
+		log.Printf("DumpAssetLabels unmarshall: %v", err)
 		return nil, err
 	}
 

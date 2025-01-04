@@ -19,6 +19,7 @@ import (
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
+	"peerswap-web/cmd/psweb/safemap"
 
 	"github.com/elementsproject/glightning/glightning"
 	"github.com/elementsproject/peerswap/peerswaprpc"
@@ -33,22 +34,22 @@ const (
 
 var (
 	// arrays mapped per channel
-	forwardsIn        = make(map[uint64][]Forwarding)
-	forwardsOut       = make(map[uint64][]Forwarding)
+	forwardsIn        = safemap.New[uint64, []Forwarding]()
+	forwardsOut       = safemap.New[uint64, []Forwarding]()
 	forwardsLastIndex uint64
 	downloadComplete  bool
 	// track timestamp of the last failed forward
-	failedForwardTS = make(map[uint64]int64)
+	failedForwardTS = safemap.New[uint64, int64]()
 	lightning       *glightning.Lightning
 	// cln database calls take too long, cache them
-	htlcsCache    = make(map[string][]HTLC)               // by shortChannelId
-	invoicesCache = make(map[string]ListInvoicesResponse) // by PaymentHash
-	sendpaysCache = make(map[string]ListSendPaysResponse) // by PaymentHash
+	htlcsCache    = safemap.New[string, []HTLC]()               // by shortChannelId
+	invoicesCache = safemap.New[string, ListInvoicesResponse]() // by PaymentHash
+	sendpaysCache = safemap.New[string, ListSendPaysResponse]() // by PaymentHash
 	// sqlite3 channel Id mapped to short_channel_id
-	sqlShortChannelId = make(map[int]string)
+	sqlShortChannelId = safemap.New[int, string]()
 	htlcStates        = []string{"SENT_ADD_HTLC", "SENT_ADD_COMMIT", "RCVD_ADD_REVOCATION", "RCVD_ADD_ACK_COMMIT", "SENT_ADD_ACK_REVOCATION", "RCVD_REMOVE_HTLC", "RCVD_REMOVE_COMMIT", "SENT_REMOVE_REVOCATION", "SENT_REMOVE_ACK_COMMIT", "RCVD_REMOVE_ACK_REVOCATION", "RCVD_ADD_HTLC", "RCVD_ADD_COMMIT", "SENT_ADD_REVOCATION", "SENT_ADD_ACK_COMMIT", "RCVD_ADD_ACK_REVOCATION", "SENT_REMOVE_HTLC", "SENT_REMOVE_COMMIT", "RCVD_REMOVE_REVOCATION", "RCVD_REMOVE_ACK_COMMIT", "SENT_REMOVE_ACK_REVOCATION"}
 	// map full channel id to short channel id
-	fullToShortChannelId = make(map[string]string)
+	fullToShortChannelId = safemap.New[string, string]()
 )
 
 type Forwarding struct {
@@ -178,18 +179,6 @@ func GetBlockHeight() uint32 {
 	}
 
 	return uint32(res.Blockheight)
-}
-
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client *glightning.Lightning, txid string) (int32, bool) {
-
-	var tx bitcoin.Transaction
-	_, err := bitcoin.GetRawTransaction(txid, &tx)
-	if err != nil {
-		return -1, false // signal tx not found
-	}
-
-	return tx.Confirmations, true
 }
 
 func GetAlias(nodeKey string) string {
@@ -477,11 +466,11 @@ func CacheHTLCs(where string) int {
 		channelMap := channel.(map[string]interface{})
 		if channelMap["channel_id"] != nil {
 			if channelMap["short_channel_id"] != nil {
-				fullToShortChannelId[channelMap["channel_id"].(string)] = channelMap["short_channel_id"].(string)
+				fullToShortChannelId.Write(channelMap["channel_id"].(string), channelMap["short_channel_id"].(string))
 			} else {
 				// private zero-conf channel
 				alias := channelMap["alias"].(map[string]interface{})
-				fullToShortChannelId[channelMap["channel_id"].(string)] = alias["local"].(string)
+				fullToShortChannelId.Write(channelMap["channel_id"].(string), alias["local"].(string))
 			}
 		}
 	}
@@ -513,12 +502,12 @@ func CacheHTLCs(where string) int {
 		}
 
 		// map sql channel id to short channel id
-		shortChannelId, found := fullToShortChannelId[hex.EncodeToString(data)]
+		shortChannelId, found := fullToShortChannelId.Read(hex.EncodeToString(data))
 		if !found {
 			// full channel ID not found, ignore channel
 			continue
 		}
-		sqlShortChannelId[id] = shortChannelId
+		sqlShortChannelId.Write(id, shortChannelId)
 	}
 
 	// Check for errors from iterating over rows
@@ -557,7 +546,7 @@ func CacheHTLCs(where string) int {
 				return 0
 			}
 
-			scid, ok := sqlShortChannelId[cid]
+			scid, ok := sqlShortChannelId.Read(cid)
 			if ok {
 				htlc.ShortChannelId = scid
 				htlc.State = htlcStates[hstate]
@@ -615,16 +604,29 @@ func cacheForwards(client *glightning.Lightning) int {
 				chOut := ConvertClnToLndChannelId(f.OutChannel)
 				if f.Status == "settled" && f.OutMsat >= IGNORE_FORWARDS_MSAT {
 					chIn := ConvertClnToLndChannelId(f.InChannel)
-					forwardsIn[chIn] = append(forwardsIn[chIn], f)
-					forwardsOut[chOut] = append(forwardsOut[chOut], f)
+
+					fi, ok := forwardsIn.Read(chIn)
+					if !ok {
+						fi = []Forwarding{} // Initialize an empty slice if the key does not exist
+					}
+					fi = append(fi, f)         // Append the new forwarding record
+					forwardsIn.Write(chIn, fi) // Write the updated slice
+
+					fo, ok := forwardsOut.Read(chOut)
+					if !ok {
+						fo = []Forwarding{} // Initialize an empty slice if the key does not exist
+					}
+					fo = append(fo, f)           // Append the new forwarding record
+					forwardsOut.Write(chOut, fo) // Write the updated slice
+
 					// save for autofees
-					LastForwardTS[chOut] = int64(f.ResolvedTime)
+					LastForwardTS.Write(chOut, int64(f.ResolvedTime))
 					// forget last failed attempt
-					failedForwardTS[chOut] = 0
+					failedForwardTS.Write(chOut, 0)
 				} else {
 					// catch not enough balance error
 					if f.FailCode == 4103 {
-						failedForwardTS[chOut] = int64(f.ReceivedTime)
+						failedForwardTS.Write(chOut, int64(f.ReceivedTime))
 					}
 				}
 			}
@@ -661,30 +663,37 @@ func GetForwardingStats(lndChannelId uint64) *ForwardingStats {
 	timestamp30d := float64(now.AddDate(0, 0, -30).Unix())
 	timestamp6m := float64(now.AddDate(0, -6, 0).Unix())
 
-	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
-			amountOut6m += e.OutMsat
-			feeMsat6m += e.FeeMsat
-			if e.ResolvedTime > timestamp30d {
-				amountOut30d += e.OutMsat
-				feeMsat30d += e.FeeMsat
-				if e.ResolvedTime > timestamp7d {
-					amountOut7d += e.OutMsat
-					feeMsat7d += e.FeeMsat
+	fo, ok := forwardsOut.Read(lndChannelId)
+	if ok {
+		for _, e := range fo {
+			if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
+				amountOut6m += e.OutMsat
+				feeMsat6m += e.FeeMsat
+				if e.ResolvedTime > timestamp30d {
+					amountOut30d += e.OutMsat
+					feeMsat30d += e.FeeMsat
+					if e.ResolvedTime > timestamp7d {
+						amountOut7d += e.OutMsat
+						feeMsat7d += e.FeeMsat
+					}
 				}
 			}
 		}
 	}
-	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
-			amountIn6m += e.OutMsat
-			assistedMsat6m += e.FeeMsat
-			if e.ResolvedTime > timestamp30d {
-				amountIn30d += e.OutMsat
-				assistedMsat30d += e.FeeMsat
-				if e.ResolvedTime > timestamp7d {
-					amountIn7d += e.OutMsat
-					assistedMsat7d += e.FeeMsat
+
+	fi, ok := forwardsIn.Read(lndChannelId)
+	if ok {
+		for _, e := range fi {
+			if e.ResolvedTime > timestamp6m && e.OutMsat >= IGNORE_FORWARDS_MSAT {
+				amountIn6m += e.OutMsat
+				assistedMsat6m += e.FeeMsat
+				if e.ResolvedTime > timestamp30d {
+					amountIn30d += e.OutMsat
+					assistedMsat30d += e.FeeMsat
+					if e.ResolvedTime > timestamp7d {
+						amountIn7d += e.OutMsat
+						assistedMsat7d += e.FeeMsat
+					}
 				}
 			}
 		}
@@ -808,16 +817,23 @@ func GetChannelStats(lndChannelId uint64, timeStamp uint64) *ChannelStats {
 
 	timeStampF := float64(timeStamp)
 
-	for _, e := range forwardsOut[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
-			amountOut += e.OutMsat
-			feeMsat += e.FeeMsat
+	fo, ok := forwardsOut.Read(lndChannelId)
+	if ok {
+		for _, e := range fo {
+			if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
+				amountOut += e.OutMsat
+				feeMsat += e.FeeMsat
+			}
 		}
 	}
-	for _, e := range forwardsIn[lndChannelId] {
-		if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
-			amountIn += e.OutMsat
-			assistedMsat += e.FeeMsat
+
+	fi, ok := forwardsIn.Read(lndChannelId)
+	if ok {
+		for _, e := range fi {
+			if e.ResolvedTime > timeStampF && e.OutMsat >= IGNORE_FORWARDS_MSAT {
+				amountIn += e.OutMsat
+				assistedMsat += e.FeeMsat
+			}
 		}
 	}
 
@@ -1087,18 +1103,23 @@ func appendHTLC(htlc HTLC) {
 	if htlc.State != "SENT_REMOVE_ACK_REVOCATION" && htlc.State != "RCVD_REMOVE_ACK_REVOCATION" {
 		return
 	}
-	htlcsCache[htlc.ShortChannelId] = append(htlcsCache[htlc.ShortChannelId], htlc)
+	htlcs, ok := htlcsCache.Read(htlc.ShortChannelId)
+	if !ok {
+		htlcs = []HTLC{} // Initialize an empty slice if the key does not exist
+	}
+	htlcs = append(htlcs, htlc)                  // Append the new HTLC
+	htlcsCache.Write(htlc.ShortChannelId, htlcs) // Write the updated slice
 }
 
 func GetInvoice(client *glightning.Lightning, request *ListInvoicesRequest) (ListInvoicesResponse, error) {
-	inv, ok := invoicesCache[request.PaymentHash]
+	inv, ok := invoicesCache.Read(request.PaymentHash)
 	if !ok { // fetch from cln
 		err := client.Request(request, &inv)
 		if err != nil {
 			return inv, err
 		}
 		// cache it
-		invoicesCache[request.PaymentHash] = inv
+		invoicesCache.Write(request.PaymentHash, inv)
 	}
 	return inv, nil
 }
@@ -1115,31 +1136,56 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 		rebalanceCostMsat uint64
 	)
 
-	for _, htlc := range htlcsCache[channelId] {
-		switch htlc.State {
-		case "SENT_REMOVE_ACK_REVOCATION":
-			// direction in, look for invoices
-			inv, err := GetInvoice(client, &ListInvoicesRequest{
-				PaymentHash: htlc.PaymentHash,
-			})
-			if err != nil {
-				continue
-			}
+	htlcs, ok := htlcsCache.Read(channelId)
 
-			if len(inv.Invoices) > 0 {
-				for _, i := range inv.Invoices {
-					if i.Status == "paid" && i.PaidAt > timeStamp {
-						amtMsat := i.MilliSatoshiReceived.MSat()
-						if !processInvoice(i.Description, int64(amtMsat)) {
-							// only account for non-peerswap related invoices
-							invoicedInMsat += amtMsat
+	if ok {
+		for _, htlc := range htlcs {
+			switch htlc.State {
+			case "SENT_REMOVE_ACK_REVOCATION":
+				// direction in, look for invoices
+				inv, err := GetInvoice(client, &ListInvoicesRequest{
+					PaymentHash: htlc.PaymentHash,
+				})
+				if err != nil {
+					continue
+				}
+
+				if len(inv.Invoices) > 0 {
+					for _, i := range inv.Invoices {
+						if i.Status == "paid" && i.PaidAt > timeStamp {
+							amtMsat := i.MilliSatoshiReceived.MSat()
+							if !processInvoice(i.Description, int64(amtMsat)) {
+								// only account for non-peerswap related invoices
+								invoicedInMsat += amtMsat
+							}
+						}
+					}
+				} else {
+					// no invoices
+					// can be a rebalance in, check timestamp and record the stats
+					pmt, ok := sendpaysCache.Read(htlc.PaymentHash)
+					if !ok { // fetch from cln
+						err := client.Request(&ListSendPaysRequest{
+							PaymentHash: htlc.PaymentHash,
+						}, &pmt)
+						if err != nil {
+							continue
+						}
+						// cache it
+						sendpaysCache.Write(htlc.PaymentHash, pmt)
+					}
+
+					for _, p := range pmt.Payments {
+						if p.Status == "complete" && p.CompletedAt > timeStamp {
+							rebalancedInMsat += p.AmountMsat
+							rebalanceCostMsat += p.AmountSentMsat - p.AmountMsat
 						}
 					}
 				}
-			} else {
-				// no invoices
-				// can be a rebalance in, check timestamp and record the stats
-				pmt, ok := sendpaysCache[htlc.PaymentHash]
+
+			case "RCVD_REMOVE_ACK_REVOCATION":
+				// direction out, look for payments
+				pmt, ok := sendpaysCache.Read(htlc.PaymentHash)
 				if !ok { // fetch from cln
 					err := client.Request(&ListSendPaysRequest{
 						PaymentHash: htlc.PaymentHash,
@@ -1148,54 +1194,33 @@ func fetchPaymentsStats(client *glightning.Lightning, timeStamp uint64, channelI
 						continue
 					}
 					// cache it
-					sendpaysCache[htlc.PaymentHash] = pmt
+					sendpaysCache.Write(htlc.PaymentHash, pmt)
 				}
 
 				for _, p := range pmt.Payments {
 					if p.Status == "complete" && p.CompletedAt > timeStamp {
-						rebalancedInMsat += p.AmountMsat
-						rebalanceCostMsat += p.AmountSentMsat - p.AmountMsat
-					}
-				}
-			}
-
-		case "RCVD_REMOVE_ACK_REVOCATION":
-			// direction out, look for payments
-			pmt, ok := sendpaysCache[htlc.PaymentHash]
-			if !ok { // fetch from cln
-				err := client.Request(&ListSendPaysRequest{
-					PaymentHash: htlc.PaymentHash,
-				}, &pmt)
-				if err != nil {
-					continue
-				}
-				// cache it
-				sendpaysCache[htlc.PaymentHash] = pmt
-			}
-
-			for _, p := range pmt.Payments {
-				if p.Status == "complete" && p.CompletedAt > timeStamp {
-					if !DecodeAndProcessInvoice(p.Bolt11, int64(htlc.AmountMsat)) {
-						// can be a rebalance out
-						if p.Destination == MyNodeId {
-							rebalancedOutMsat += p.AmountSentMsat
-						} else {
-							// some other payment like keysend
-							paidOutMsat += p.AmountSentMsat
-							paidCostMsat += p.AmountSentMsat - p.AmountMsat
+						if !DecodeAndProcessInvoice(p.Bolt11, int64(htlc.AmountMsat)) {
+							// can be a rebalance out
+							if p.Destination == MyNodeId {
+								rebalancedOutMsat += p.AmountSentMsat
+							} else {
+								// some other payment like keysend
+								paidOutMsat += p.AmountSentMsat
+								paidCostMsat += p.AmountSentMsat - p.AmountMsat
+							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	result.PaidOut = paidOutMsat / 1000
-	result.PaidCost = paidCostMsat / 1000
-	result.InvoicedIn = invoicedInMsat / 1000
-	result.RebalanceCost = rebalanceCostMsat / 1000
-	result.RebalanceIn = rebalancedInMsat / 1000
-	result.RebalanceOut = rebalancedOutMsat / 1000
+		result.PaidOut = paidOutMsat / 1000
+		result.PaidCost = paidCostMsat / 1000
+		result.InvoicedIn = invoicedInMsat / 1000
+		result.RebalanceCost = rebalanceCostMsat / 1000
+		result.RebalanceIn = rebalancedInMsat / 1000
+		result.RebalanceOut = rebalancedOutMsat / 1000
+	}
 }
 
 // Estimate sat/vB fee
@@ -1386,9 +1411,10 @@ func ApplyAutoFees() {
 		liqPct := int(channelMap["to_us_msat"].(float64) * 100 / channelMap["total_msat"].(float64))
 
 		// check 10 minutes back to be sure
-		if failedForwardTS[channelId] > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
+		ts, ok := LastForwardTS.Read(channelId)
+		if ok && ts > time.Now().Add(-time.Duration(10*time.Minute)).Unix() {
 			// forget failed HTLC to prevent duplicate action
-			failedForwardTS[channelId] = 0
+			failedForwardTS.Write(channelId, 0)
 
 			if liqPct <= params.LowLiqPct {
 				// bump fee
@@ -1422,18 +1448,21 @@ func ApplyAutoFees() {
 	}
 }
 
-func PlotPPM(channelId uint64) *[]DataPoint {
+func PlotPPM(lndChannelId uint64) *[]DataPoint {
 	var plot []DataPoint
 
-	for _, e := range forwardsOut[channelId] {
-		// ignore small forwards
-		if e.OutMsat >= IGNORE_FORWARDS_MSAT {
-			plot = append(plot, DataPoint{
-				TS:     uint64(e.ResolvedTime),
-				Amount: e.OutMsat / 1000,
-				Fee:    float64(e.FeeMsat) / 1000,
-				PPM:    e.FeeMsat * 1_000_000 / e.OutMsat,
-			})
+	fo, ok := forwardsOut.Read(lndChannelId)
+	if ok {
+		for _, e := range fo {
+			// ignore small forwards
+			if e.OutMsat >= IGNORE_FORWARDS_MSAT {
+				plot = append(plot, DataPoint{
+					TS:     uint64(e.ResolvedTime),
+					Amount: e.OutMsat / 1000,
+					Fee:    float64(e.FeeMsat) / 1000,
+					PPM:    e.FeeMsat * 1_000_000 / e.OutMsat,
+				})
+			}
 		}
 	}
 
@@ -1444,12 +1473,12 @@ func PlotPPM(channelId uint64) *[]DataPoint {
 func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 	var log []DataPoint
 
-	for chId := range forwardsOut {
+	// Process forwards from forwardsOut
+	forwardsOut.Iterate(func(chId uint64, fo []Forwarding) {
 		if channelId > 0 && channelId != chId {
-			continue
+			return
 		}
-		for _, e := range forwardsOut[chId] {
-			// ignore small forwards
+		for _, e := range fo {
 			if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
 				log = append(log, DataPoint{
 					TS:        uint64(e.ResolvedTime),
@@ -1461,20 +1490,23 @@ func ForwardsLog(channelId uint64, fromTS int64) *[]DataPoint {
 				})
 			}
 		}
-	}
+	})
 
 	if channelId > 0 {
-		for _, e := range forwardsIn[channelId] {
-			// ignore small forwards
-			if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
-				log = append(log, DataPoint{
-					TS:        uint64(e.ResolvedTime),
-					Amount:    e.OutMsat / 1000,
-					Fee:       float64(e.FeeMsat) / 1000,
-					PPM:       e.FeeMsat * 1_000_000 / e.OutMsat,
-					ChanIdIn:  channelId,
-					ChanIdOut: ConvertClnToLndChannelId(e.OutChannel),
-				})
+		fi, ok := forwardsIn.Read(channelId)
+		if ok {
+			for _, e := range fi {
+				// ignore small forwards
+				if e.OutMsat >= IGNORE_FORWARDS_MSAT && int64(e.ResolvedTime) >= fromTS {
+					log = append(log, DataPoint{
+						TS:        uint64(e.ResolvedTime),
+						Amount:    e.OutMsat / 1000,
+						Fee:       float64(e.FeeMsat) / 1000,
+						PPM:       e.FeeMsat * 1_000_000 / e.OutMsat,
+						ChanIdIn:  channelId,
+						ChanIdOut: ConvertClnToLndChannelId(e.OutChannel),
+					})
+				}
 			}
 		}
 	}

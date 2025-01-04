@@ -182,7 +182,7 @@ create_pset:
 			if blinder == 0 {
 				// my output
 				log.Println(ClaimStatus)
-				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+				claimPSET, _, err = liquid.ProcessPSET(claimPSET)
 				if err != nil {
 					log.Println("Unable to blind output, cancelling ClaimJoin:", err)
 					EndClaimJoin("", "Coordination failure")
@@ -246,7 +246,7 @@ create_pset:
 			if i == 0 {
 				// my input, last to sign
 				log.Println(ClaimStatus)
-				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+				claimPSET, _, err = liquid.ProcessPSET(claimPSET)
 				if err != nil {
 					log.Println("Unable to sign input, cancelling ClaimJoin:", err)
 					EndClaimJoin("", "Initiator signing failure")
@@ -492,7 +492,7 @@ func Broadcast(fromNodeId string, message *Message) bool {
 					return false
 				}
 
-				addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
+				addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address)
 				if err != nil {
 					return false
 				}
@@ -718,7 +718,7 @@ func Process(message *Message, senderNodeId string) {
 
 				// process my output
 				newClaimPSET := base64.StdEncoding.EncodeToString(msg.PSET)
-				newClaimPSET, _, err = liquid.ProcessPSET(newClaimPSET, config.Config.ElementsWallet)
+				newClaimPSET, _, err = liquid.ProcessPSET(newClaimPSET)
 				if err != nil {
 					log.Println("Unable to encode PSET:", err)
 					return
@@ -787,7 +787,7 @@ func Process(message *Message, senderNodeId string) {
 				}
 
 				// process my output
-				claimPSET, _, err = liquid.ProcessPSET(claimPSET, config.Config.ElementsWallet)
+				claimPSET, _, err = liquid.ProcessPSET(claimPSET)
 				if err != nil {
 					log.Println("Unable to process PSET:", err)
 					return
@@ -1017,7 +1017,6 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 		if myPrivateKey != nil {
 			// persist to db
 			savePrivateKey()
-
 		} else {
 			return false
 		}
@@ -1026,7 +1025,12 @@ func JoinClaimJoin(claimBlockHeight uint32) bool {
 	if len(ClaimParties) != 1 || ClaimParties[0].PubKey != MyPublicKey() {
 		// initiate array of claim parties for single entry
 		ClaimParties = nil
-		ClaimParties = append(ClaimParties, *createClaimParty(claimBlockHeight))
+		cp := createClaimParty(claimBlockHeight)
+		if cp == nil {
+			// something went wrong
+			return false
+		}
+		ClaimParties = append(ClaimParties, *cp)
 		ClaimBlockHeight = claimBlockHeight
 		db.Save("ClaimJoin", "ClaimBlockHeight", ClaimBlockHeight)
 		db.Save("ClaimJoin", "ClaimParties", ClaimParties)
@@ -1377,7 +1381,7 @@ func verifyPSET(newClaimPSET string) bool {
 		}
 	}
 
-	addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address, config.Config.ElementsWallet)
+	addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address)
 	if err != nil {
 		return false
 	}
