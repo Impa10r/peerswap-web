@@ -1190,6 +1190,10 @@ func DownloadAll() bool {
 			// lnd not ready
 			return false
 		}
+		if !res.SyncedToChain || !res.SyncedToGraph {
+			// lnd not ready
+			return false
+		}
 		MyNodeAlias = res.GetAlias()
 		MyNodeId = res.GetIdentityPubkey()
 	}
