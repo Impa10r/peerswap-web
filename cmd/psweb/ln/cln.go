@@ -1047,6 +1047,9 @@ func DownloadAll() bool {
 	if err != nil {
 		return false // lightning not ready yet
 	}
+	if resp.WarningLightningSync == "Still loading latest blocks from bitcoind." {
+		return false // lightning not ready yet
+	}
 	MyNodeId = resp.Id
 	MyNodeAlias = resp.Alias
 
