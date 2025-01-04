@@ -367,23 +367,6 @@ func onTimer() {
 		lightningHasStarted = cacheAliases()
 	}
 
-	// check for Elements after Lighting has started
-	if lightningHasStarted && !elementsHasStarted {
-		elementsVersion := liquid.GetVersion()
-		if elementsVersion > 0 {
-			// identify if Elements Core supports CT discounts
-			hasDiscountedvSize = elementsVersion >= ELEMENTS_DISCOUNTED_VSIZE_VERSION &&
-				config.Config.Chain == "testnet"
-
-			if hasDiscountedvSize {
-				log.Println("Discounted vsize on Liquid is enabled")
-			} else {
-				log.Println("Discounted vsize on Liquid is disabled")
-			}
-
-			elementsHasStarted = true
-		}
-	}
 }
 
 func liquidBackup(force bool) {
