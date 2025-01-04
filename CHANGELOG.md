@@ -4,6 +4,7 @@
 
 - Fix BTC to sats rounding bug preventing claim init or join
 - Fix external funding peg-in num of confirmations not registered
+- Wait for lightning to sync before subscribing
 
 ## 1.7.5
 
