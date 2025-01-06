@@ -6,7 +6,7 @@
 - Fix external funding peg-in num of confirmations not registered
 - Add swap premium limit input field
 - CLN: Add support for wallet=sqlite3:// in CLN config
-- Don't advertise balances if swaps disabled
+- Don't advertise balances if swaps are disabled
 
 ## 1.7.5
 
