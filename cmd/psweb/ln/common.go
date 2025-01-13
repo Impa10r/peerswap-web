@@ -567,7 +567,7 @@ func saveSwapRabate(swapId string, rebate int64) {
 func lastFeeIsTheSame(channelId uint64, newFee int, isInbound bool) bool {
 	lastFee := LastAutoFeeLog(channelId, isInbound)
 	if lastFee != nil {
-		if newFee == lastFee.NewRate {
+		if newFee == lastFee.NewRate && time.Now().Unix()-lastFee.TimeStamp < 86_400 { // only care about the last 24h
 			return true
 		}
 	}
