@@ -133,9 +133,11 @@ func lndConnection() (*grpc.ClientConn, error) {
 		grpc.WithPerRPCCredentials(macCred),
 	}
 
-	conn, err := grpc.Dial(host, opts...)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, host, opts...)
 	if err != nil {
-		fmt.Println("lndConnection dial:", err)
 		return nil, err
 	}
 
@@ -1185,7 +1187,7 @@ func DownloadAll() bool {
 	ctx := context.Background()
 
 	if MyNodeId == "" {
-		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
 			// lnd not ready
 			return false

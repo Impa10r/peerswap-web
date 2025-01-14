@@ -281,7 +281,7 @@ func startTimer() {
 	onTimer()
 
 	// then every minute
-	for range time.Tick(60 * time.Second) {
+	for range time.Tick(time.Minute) {
 		onTimer()
 	}
 }
@@ -457,7 +457,7 @@ func setLogging(logFileName string) (func(), error) {
 	}
 
 	// add new line after start up
-	log.Println("------------------START-----------------")
+	log.Printf("------------------START %s-----------------", VERSION)
 
 	return cleanup, nil
 }
