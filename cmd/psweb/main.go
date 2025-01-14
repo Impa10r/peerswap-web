@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.5"
+	VERSION = "v1.7.6"
 	// Swap Out reserve
 	SWAP_OUT_CHANNEL_RESERVE = 10000
 	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
@@ -281,7 +281,7 @@ func startTimer() {
 	onTimer()
 
 	// then every minute
-	for range time.Tick(60 * time.Second) {
+	for range time.Tick(time.Minute) {
 		onTimer()
 	}
 }
@@ -457,7 +457,7 @@ func setLogging(logFileName string) (func(), error) {
 	}
 
 	// add new line after start up
-	log.Println("------------------START-----------------")
+	log.Printf("------------------START %s-----------------", VERSION)
 
 	return cleanup, nil
 }

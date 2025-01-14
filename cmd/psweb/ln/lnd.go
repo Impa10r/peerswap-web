@@ -133,9 +133,11 @@ func lndConnection() (*grpc.ClientConn, error) {
 		grpc.WithPerRPCCredentials(macCred),
 	}
 
-	conn, err := grpc.Dial(host, opts...)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, host, opts...)
 	if err != nil {
-		fmt.Println("lndConnection dial:", err)
 		return nil, err
 	}
 
@@ -211,15 +213,6 @@ func getTransaction(client lnrpc.LightningClient, txid string) (*lnrpc.Transacti
 		}
 	}
 	return nil, errors.New("txid not found")
-}
-
-// returns number of confirmations and whether the tx can be fee bumped
-func GetTxConfirmations(client lnrpc.LightningClient, txid string) (int32, bool) {
-	tx, err := getTransaction(client, txid)
-	if err == nil {
-		return tx.NumConfirmations, len(tx.OutputDetails) > 1
-	}
-	return -1, false // signal tx not found in local mempool
 }
 
 func GetAlias(nodeKey string) string {
@@ -1194,8 +1187,12 @@ func DownloadAll() bool {
 	ctx := context.Background()
 
 	if MyNodeId == "" {
-		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
+			// lnd not ready
+			return false
+		}
+		if !res.SyncedToChain || !res.SyncedToGraph {
 			// lnd not ready
 			return false
 		}

@@ -351,7 +351,7 @@ func FindVout(hexTx string, amount uint64) (uint, error) {
 	}
 
 	for i, o := range tx.Vout {
-		if uint64(o.Value*100_000_000) == amount {
+		if uint64(math.Round(o.Value*100_000_000)) == amount {
 			return uint(i), nil
 		}
 	}
