@@ -2,6 +2,10 @@
 
 ## 1.7.6
 
+- Fix AF decrease not working for channels with no outbound forwards
+
+## 1.7.6
+
 - Fix BTC to sats rounding bug preventing claim init or join
 - Fix external funding peg-in num of confirmations not registered
 - Fix ClaimJoin OP_RETURN string
