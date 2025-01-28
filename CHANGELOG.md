@@ -3,6 +3,7 @@
 ## 1.7.6
 
 - Fix AF decrease not working for channels with no outbound forwards
+- Better indication when all channels with a peer are inactive
 
 ## 1.7.6
 

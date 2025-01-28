@@ -363,6 +363,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// to find a channel for swap-in
 	maxRemoteBalance := uint64(0)
 	maxRemoteBalanceIndex := 0
+	isOnline := false
 
 	// get routing stats
 	for i, ch := range peer.Channels {
@@ -383,6 +384,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		info.Active = ch.GetActive()
+		isOnline = isOnline || info.Active
+
 		info.LocalPct = info.LocalBalance * 100 / info.Capacity
 		channelInfo = append(channelInfo, info)
 
@@ -591,6 +594,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SelectedChannel         uint64
 		HasDiscountedvSize      bool
 		RedColor                string
+		IsOnline                bool
 	}
 
 	redColor := "red"
@@ -645,6 +649,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SelectedChannel:         selectedChannel,
 		HasDiscountedvSize:      hasDiscountedvSize,
 		RedColor:                redColor,
+		IsOnline:                isOnline,
 	}
 
 	// executing template named "peer"
