@@ -331,6 +331,7 @@ func DecodeRawTransaction(hexstring string) (*Transaction, error) {
 	r, err := service.client.call("decoderawtransaction", params, "")
 	if err = handleError(err, &r); err != nil {
 		log.Printf("DecodeRawTransaction: %v", err)
+		log.Printf("Hex: %s", hexstring)
 		return nil, err
 	}
 

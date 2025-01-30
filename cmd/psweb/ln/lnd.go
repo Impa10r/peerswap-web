@@ -334,6 +334,7 @@ finalize:
 
 	decoded, err := bitcoin.DecodeRawTransaction(hex.EncodeToString(rawTx))
 	if err != nil {
+		log.Println("Funded PSBT:", hex.EncodeToString(psbtBytes))
 		return nil, err
 	}
 
