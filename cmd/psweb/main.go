@@ -34,10 +34,10 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.6"
+	VERSION = "v1.7.7"
 	// Swap Out reserve
 	SWAP_OUT_CHANNEL_RESERVE = 10000
-	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
+	// Elements v23.02.03 introduced vsize discount (set creatediscountct=1 for mainnet)
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
 

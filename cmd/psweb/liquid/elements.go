@@ -128,8 +128,8 @@ func handleError(err error, r *rpcResponse) error {
 	if err != nil {
 		return err
 	}
-	if r.Err != nil {
-		return r.Err
+	if r != nil && r.Err != nil {
+		return fmt.Errorf(r.Err.Message)
 	}
 
 	return nil

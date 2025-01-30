@@ -4,6 +4,7 @@
 
 - Fix AF decrease not working for channels with no outbound forwards
 - Better indication when all channels with a peer are inactive
+- Catch Bitcoin Core and Elements Core RPC errors
 
 ## 1.7.6
 
