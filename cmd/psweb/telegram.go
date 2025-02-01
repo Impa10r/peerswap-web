@@ -189,7 +189,12 @@ func telegramConnect() bool {
 		config.Config.TelegramChatId = chatId
 		config.Save()
 	} else {
-		chatId = 0
+		if chatId > 0 {
+			chatId = 0
+			config.Config.TelegramChatId = chatId
+			config.Save()
+			log.Println("Chat Id was reset. Use /start in Telegram to start the bot.")
+		}
 		bot = nil
 		return false
 	}
