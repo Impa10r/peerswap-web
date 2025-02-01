@@ -66,7 +66,13 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                     <label class="label">Fee Rate</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="number" oninput="calculateTransactionFee()" id="feeRate" name="feeRate" min="1" step="0.001" required value="{{if .SuggestedFeeRate}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                    <input class="input is-medium" type="number" 
+                      onblur="formatFeeRate(this)" 
+                      oninput="calculateTransactionFee()" 
+                      id="feeRate" name="feeRate" 
+                      min="1" step="0.01" required 
+                      value="{{if .SuggestedFeeRate}}{{printf "%.2f" .SuggestedFeeRate}}{{end}}" 
+                      placeholder="Sat/vByte">
                   </div>
                 </div>
                 {{if .CanClaimJoin}}
@@ -94,7 +100,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                   </div>
                   <div class="field-body">
                     <label id="result" class="label"></label>
-                    <input type="number" id="totalFee" style="display: none;" value=0>
+                    <input type="number" id="totalFee" name="totalFee" style="display: none;" value=0>
                   </div>
                 </div>
                 <div class="field is-horizontal">
@@ -250,7 +256,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                       <div class="field-body">
                         <div class="field">
                           <p>
-                            <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" step="0.001" required value="{{if .SuggestedFeeRate}}{{.SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                            <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" step="0.001" required value="{{if .SuggestedFeeRate}}{{printf "%.3f" .SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                           </p>
                         </div>
                       </div>
@@ -440,6 +446,12 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                 {{end}}  
               }
 
+              function formatFeeRate(input) {
+                if (input.value) {
+                  input.value = parseFloat(input.value).toFixed(2);
+                }
+              }
+              
               // Function to format number with thousand separators
               function formatWithThousandSeparators(number) {
                   return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -677,8 +689,8 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                 totalSize += 4;
 
                 // vbyte and fee calculation
-                vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4)
-                let fee = feeRate * vbyteSize
+                vbyteSize = Math.ceil((3 * baseSize + totalSize) / 4);
+                let fee = Math.ceil(feeRate * vbyteSize);
                 
                 let text = "Transaction size: " + vbyteSize + " vBytes\n";
                 

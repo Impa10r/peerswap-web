@@ -5,6 +5,8 @@
 - Fix AF decrease not working for channels with no outbound forwards
 - Better indication when all channels with a peer are inactive
 - Catch Bitcoin Core and Elements Core RPC errors
+- Fix telegram bot panic on wrong token
+- Allow fee rate with decimals
 
 ## 1.7.6
 
