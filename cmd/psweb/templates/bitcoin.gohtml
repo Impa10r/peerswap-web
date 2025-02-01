@@ -256,7 +256,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                       <div class="field-body">
                         <div class="field">
                           <p>
-                            <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" step="0.001" required value="{{if .SuggestedFeeRate}}{{printf "%.3f" .SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
+                            <input class="input is-medium" type="number" name="feeRate" min="{{.MinBumpFeeRate}}" step="0.01" required value="{{if .SuggestedFeeRate}}{{printf "%.2f" .SuggestedFeeRate}}{{end}}" placeholder="Sat/vByte">
                           </p>
                         </div>
                       </div>
