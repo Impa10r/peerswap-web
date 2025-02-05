@@ -35,8 +35,10 @@ import (
 const (
 	// App VERSION tag
 	VERSION = "v1.7.7"
-	// Swap Out reserve
+	// Swap Out reserve to deduct from channel local balance
 	SWAP_OUT_CHANNEL_RESERVE = 10000
+	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
+	SWAP_LBTC_RESERVE = 2000
 	// Elements v23.02.03 introduced vsize discount (set creatediscountct=1 for mainnet)
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
@@ -1319,7 +1321,7 @@ func cacheAliases() {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *SwapParams) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC(10) // assume 10 UTXOs
+	minAmount := config.Config.AutoSwapThresholdAmount - SWAP_LBTC_RESERVE
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1500,7 +1502,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-swapFeeReserveLBTC(10)) // assume 10 UTXOs
+	amount = min(amount, satAmount-SWAP_LBTC_RESERVE)
 
 	// execute swap
 	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
@@ -1931,16 +1933,4 @@ func pollBalances() {
 	if initalPollComplete {
 		log.Println("Polled peers for balances")
 	}
-}
-
-// depends on number of UTXOs
-func swapFeeReserveLBTC(numUTXOs int) uint64 {
-	if hasDiscountedvSize {
-		n := numUTXOs*7 + 20 // better estimate for lots of UTXOs
-		if n < 75 {
-			n = 75 // peerswap assumes 75 sats
-		}
-		return uint64(n)
-	}
-	return 300
 }

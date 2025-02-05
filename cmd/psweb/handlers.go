@@ -438,7 +438,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC(len(utxosLBTC))), int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -454,7 +454,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveLBTC(1)))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-SWAP_LBTC_RESERVE)))
 	} else {
 		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
 	}

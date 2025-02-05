@@ -345,7 +345,7 @@
                               change = Math.floor(-amountToAllocate);
 
                               // elements spends dust change as extra fee     
-                              if (change < 1000) {
+                              if (change <= 1100) {
                                 // one output only
                                 {{if .HasDiscountedvSize}}
                                   // 1->1 230 (= 1->2 - 39)
