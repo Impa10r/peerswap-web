@@ -305,8 +305,8 @@
                                   return amountB - amountA;
                               });
 
-                              // total amount to allocate among UTXOs 
-                              let amountToAllocate = swapAmount;
+                              // total amount to allocate among UTXOs, including reserve
+                              let amountToAllocate = swapAmount + 1200;
                               
                               // Iterate through table rows
                               tableArray.forEach(function(row) {
@@ -338,26 +338,11 @@
                                 // 2->2 338 (= 1->2 + 69)
                                 // 3->2 406 (= 2->2 + 68)
                                 vbyteSize = 200 + inputs * 69;
-                                discount =" discount";
+                                discount =" discounted";
                               {{end}}
 
                               fee = Math.ceil(vbyteSize * feeRate);
                               change = Math.floor(-amountToAllocate);
-
-                              // elements spends dust change as extra fee     
-                              if (change <= 1100) {
-                                // one output only
-                                {{if .HasDiscountedvSize}}
-                                  // 1->1 230 (= 1->2 - 39)
-                                  // 2->1 271 (= 2->2 - 67)
-                                  // 3->1 340 (= 3->2 - 66)
-                                  vbyteSize -= 66;
-                                {{else}}
-                                  vbyteSize -= 1,191;
-                                {{end}}
-                                // but the fee increases by change
-                                fee += change;
-                              }
                             } 
                           } else {
                             let claimSize = 149; // BTC
