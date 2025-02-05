@@ -38,8 +38,8 @@ const (
 	// Swap Out reserve to deduct from channel local balance
 	SWAP_OUT_CHANNEL_RESERVE = 10000
 	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
-	SWAP_LBTC_RESERVE = 2000
-	// Elements v23.02.03 introduced vsize discount (set creatediscountct=1 for mainnet)
+	SWAP_LBTC_RESERVE = 1200
+	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
 

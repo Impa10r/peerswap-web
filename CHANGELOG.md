@@ -7,7 +7,7 @@
 - Catch Bitcoin Core and Elements Core RPC errors
 - Fix telegram bot panic on wrong token or chat id
 - Allow fee rate with decimals precision
-- Set LBTC balance reserve to 2000 sats to save on fees
+- Set LBTC balance reserve to 1200 sats to save on fees
 
 ## 1.7.6
 
