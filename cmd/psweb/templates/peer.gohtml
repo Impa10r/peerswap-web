@@ -227,7 +227,8 @@
                             return;
                           }
 
-                          if (document.getElementById("from").value != "ln") {
+                          const isSwapIn = document.getElementById("from").value != "ln";
+                          if (isSwapIn) {
                             title = "Assumed UTXOs:\n";
                             if (asset == "btc") {
                               // Initialize total UTXO amount and UTXO counters
@@ -306,7 +307,7 @@
                               });
 
                               // total amount to allocate among UTXOs, including reserve
-                              let amountToAllocate = swapAmount + 1200;
+                              let amountToAllocate = swapAmount + {{.LiquidReserve}};
                               
                               // Iterate through table rows
                               tableArray.forEach(function(row) {
@@ -383,7 +384,7 @@
                           text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
                           text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
                           
-                          if (asset == "btc" && change < 25000) {
+                          if (isSwapIn && asset == "btc" && change < {{.AnchorReserve}}) {
                             text += "\nWARNING: No reserve is left for anchor fee bumping!";
                           } 
 

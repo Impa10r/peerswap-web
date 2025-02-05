@@ -6,8 +6,8 @@
 - Better indication when all channels with a peer are inactive
 - Catch Bitcoin Core and Elements Core RPC errors
 - Fix telegram bot panic on wrong token or chat id
-- Allow fee rate with decimals precision
-- Set LBTC balance reserve to 1200 sats to save on fees
+- Allow Bitcoin fee rates with 0.01 precision
+- Reserve 1200 sats of LBTC balance to save on Elements fees
 
 ## 1.7.6
 

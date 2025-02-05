@@ -36,9 +36,11 @@ const (
 	// App VERSION tag
 	VERSION = "v1.7.7"
 	// Swap Out reserve to deduct from channel local balance
-	SWAP_OUT_CHANNEL_RESERVE = 10000
+	SWAP_OUT_CHANNEL_RESERVE = 10_000
 	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
-	SWAP_LBTC_RESERVE = 1200
+	SWAP_LBTC_RESERVE = 1_200
+	// Unusable BTC balance
+	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
 )
@@ -1040,12 +1042,12 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		if cost != 0 {
 			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
-			table += " <span title=\"Swap +profit/-cost, sats. PPM: "
+			table += " <span title=\"Swap "
 
 			if cost < 0 {
-				table += formatSigned(-ppm) + "\">+"
+				table += "profit, sats. PPM: " + formatSigned(-ppm) + "\">+"
 			} else {
-				table += formatSigned(ppm) + "\">"
+				table += "cost, sats. PPM: " + formatSigned(ppm) + "\">"
 			}
 			table += formatSigned(-cost) + "</span>"
 		}
@@ -1797,14 +1799,14 @@ func advertiseBalances() {
 
 	bitcoinBalance := uint64(ln.ConfirmedWalletBalance(cl))
 	// haircut by anchor reserve
-	if bitcoinBalance >= 25000 {
-		bitcoinBalance -= 25000
+	if bitcoinBalance >= ANCHOR_RESERVE {
+		bitcoinBalance -= ANCHOR_RESERVE
 	}
 
 	liquidBalance := res2.GetSatAmount()
 	// Elements fee bug does not permit sending the whole balance, haircut it
-	if liquidBalance >= 2000 {
-		liquidBalance -= 2000
+	if liquidBalance >= SWAP_LBTC_RESERVE {
+		liquidBalance -= SWAP_LBTC_RESERVE
 	}
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
@@ -1814,7 +1816,7 @@ func advertiseBalances() {
 		maxBalance := uint64(0)
 		if ln.AdvertiseBitcoinBalance || ln.AdvertiseLiquidBalance {
 			for _, ch := range peer.Channels {
-				maxBalance = max(maxBalance, ch.RemoteBalance)
+				maxBalance = max(maxBalance, ch.RemoteBalance-SWAP_OUT_CHANNEL_RESERVE)
 			}
 		}
 

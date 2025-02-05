@@ -454,7 +454,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-SWAP_LBTC_RESERVE)))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount))))
 	} else {
 		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
 	}
@@ -595,6 +595,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		HasDiscountedvSize      bool
 		RedColor                string
 		IsOnline                bool
+		AnchorReserve           uint64
+		LiquidReserve           uint64
 	}
 
 	redColor := "red"
@@ -650,6 +652,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		HasDiscountedvSize:      hasDiscountedvSize,
 		RedColor:                redColor,
 		IsOnline:                isOnline,
+		AnchorReserve:           ANCHOR_RESERVE,
+		LiquidReserve:           SWAP_LBTC_RESERVE,
 	}
 
 	// executing template named "peer"
