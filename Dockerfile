@@ -2,7 +2,7 @@
 ## Build PeerSwap and PeerSwap Web UI in a joint container 
 ###
 
-FROM golang:1.22.2-bullseye AS builder
+FROM golang:1.22.2-bookworm AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -12,11 +12,11 @@ WORKDIR /app
 
 COPY . .
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j1 install-lnd && \
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j$(nproc) install-lnd && \
     git clone https://github.com/ElementsProject/peerswap.git && \
     cd peerswap && \
     git checkout $COMMIT && \
-    make -j1 lnd-release
+    make -j$(nproc) lnd-release
 
 FROM debian:buster-slim
 
