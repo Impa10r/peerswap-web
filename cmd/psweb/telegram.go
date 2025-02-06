@@ -72,7 +72,9 @@ func telegramStart() {
 	// Try saved chatId
 	chatId = config.Config.TelegramChatId
 	if chatId > 0 {
-		telegramConnect()
+		if !telegramConnect() {
+			return
+		}
 	}
 
 	updates := bot.GetUpdatesChan(u)
@@ -158,7 +160,7 @@ func telegramStart() {
 	}
 }
 
-func telegramConnect() {
+func telegramConnect() bool {
 	if telegramSendMessage("📟 PeerSwap connected") {
 		// successfully connected
 		cmdCfg := tgbotapi.NewSetMyCommands(
@@ -187,9 +189,16 @@ func telegramConnect() {
 		config.Config.TelegramChatId = chatId
 		config.Save()
 	} else {
-		chatId = 0
+		if chatId > 0 {
+			chatId = 0
+			config.Config.TelegramChatId = chatId
+			config.Save()
+			log.Println("Chat Id was reset. Use /start in Telegram to start the bot.")
+		}
 		bot = nil
+		return false
 	}
+	return true
 }
 
 func telegramSendMessage(msgText string) bool {

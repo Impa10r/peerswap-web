@@ -363,6 +363,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	// to find a channel for swap-in
 	maxRemoteBalance := uint64(0)
 	maxRemoteBalanceIndex := 0
+	isOnline := false
 
 	// get routing stats
 	for i, ch := range peer.Channels {
@@ -383,6 +384,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		info.Active = ch.GetActive()
+		isOnline = isOnline || info.Active
+
 		info.LocalPct = info.LocalBalance * 100 / info.Capacity
 		channelInfo = append(channelInfo, info)
 
@@ -435,7 +438,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-int64(swapFeeReserveLBTC(len(utxosLBTC))), int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(maxRemoteBalance)-10000)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -451,7 +454,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveLBTC(1)))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount))))
 	} else {
 		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
 	}
@@ -591,6 +594,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SelectedChannel         uint64
 		HasDiscountedvSize      bool
 		RedColor                string
+		IsOnline                bool
+		AnchorReserve           uint64
+		LiquidReserve           uint64
 	}
 
 	redColor := "red"
@@ -645,6 +651,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		SelectedChannel:         selectedChannel,
 		HasDiscountedvSize:      hasDiscountedvSize,
 		RedColor:                redColor,
+		IsOnline:                isOnline,
+		AnchorReserve:           ANCHOR_RESERVE,
+		LiquidReserve:           SWAP_LBTC_RESERVE,
 	}
 
 	// executing template named "peer"
@@ -714,6 +723,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		ClaimJoinStatus     string
 		HasClaimJoinPending bool
 		ClaimJoinETA        int
+		ClaimJointTimeLimit string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -752,14 +762,16 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 	maxConfs := int32(peginBlocks)
 	cjETA := 34
+	cjTimeLimit := ""
 
-	bh := int32(ln.GetBlockHeight())
+	currentBlockHeight := int32(ln.GetBlockHeight())
 	if ln.MyRole != "none" {
 		target := int32(ln.ClaimBlockHeight)
-		maxConfs = target - bh + confs
-		duration = time.Duration(10*(target-bh)) * time.Minute
+		maxConfs = target - currentBlockHeight + confs
+		duration = time.Duration(10*(target-currentBlockHeight)) * time.Minute
 	} else if ln.ClaimJoinHandler != "" {
-		cjETA = int((int32(ln.JoinBlockHeight) - bh + int32(peginBlocks)) / 6)
+		cjETA = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
+		cjTimeLimit = time.Now().Add(time.Duration(10*(ln.JoinBlockHeight-uint32(currentBlockHeight))) * time.Minute).Format("3:04 PM")
 	}
 
 	progress := confs * 100 / int32(maxConfs)
@@ -801,6 +813,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		IsClaimJoin:         config.Config.PeginClaimJoin,
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
+		ClaimJointTimeLimit: cjTimeLimit,
 		ClaimJoinETA:        cjETA,
 	}
 
@@ -1004,7 +1017,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-				telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+				telegramSendMessage("⛓️ BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
 			}
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
@@ -1833,11 +1846,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "externalPeginTxId":
-			if config.Config.PeginTxId != "external" {
-				redirectWithError(w, r, "/bitcoin?", errors.New("not expected"))
-				return
-			}
-
 			if r.FormValue("externalPeginCancel") != "" {
 				config.Config.PeginTxId = ""
 				config.Config.PeginClaimJoin = false

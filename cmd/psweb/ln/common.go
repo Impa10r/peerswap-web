@@ -439,7 +439,7 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 		// must be definitely above threshold and cool-off period passed
 		if liqPct > params.LowLiqPct && lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the inactivity period
-			if ts, ok := LastForwardTS.Read(channelId); ok && ts < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
+			if ts, ok := LastForwardTS.Read(channelId); !ok || ok && ts < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
 				newFee -= params.InactivityDropPPM
 				newFee = newFee * (100 - params.InactivityDropPct) / 100

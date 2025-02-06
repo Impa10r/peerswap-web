@@ -334,6 +334,7 @@ finalize:
 
 	decoded, err := bitcoin.DecodeRawTransaction(hex.EncodeToString(rawTx))
 	if err != nil {
+		//log.Println("Funded PSBT:", hex.EncodeToString(psbtBytes))
 		return nil, err
 	}
 
@@ -345,7 +346,7 @@ finalize:
 	requiredFee := int64(feeRate * float64(decoded.VSize))
 
 	if requiredFee != toSats(feePaid) {
-		if pass < 5 {
+		if pass < 3 || requiredFee > toSats(feePaid) {
 			log.Println("Trying to fix fee paid", toSats(feePaid), "vs required", requiredFee)
 
 			releaseOutputs(cl, utxos, &lockId)
