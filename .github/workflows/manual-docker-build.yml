@@ -31,6 +31,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Check buildkit version
+        run: |
+          docker buildx build
   
       - name: Build and Push Docker image
         run: |
