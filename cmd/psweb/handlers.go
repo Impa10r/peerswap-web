@@ -1017,7 +1017,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-				telegramSendMessage("BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+				telegramSendMessage("⛓️ BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
 			}
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId

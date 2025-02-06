@@ -1142,7 +1142,7 @@ func checkPegin() {
 	if config.Config.PeginTxId == "" {
 		// send telegram if received new ClaimJoin invitation
 		if peginInvite != ln.ClaimJoinHandler {
-			t := "🧬 ClaimJoin invitation has expired"
+			t := "⌚ ClaimJoin invitation has expired"
 			if ln.ClaimJoinHandler != "" {
 				duration := time.Duration(10*(ln.JoinBlockHeight-currentBlockHeight)) * time.Minute
 				timeLimit := time.Now().Add(duration).Format("3:04 PM")
