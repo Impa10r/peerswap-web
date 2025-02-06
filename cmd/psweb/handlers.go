@@ -1846,11 +1846,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch action {
 		case "externalPeginTxId":
-			if config.Config.PeginTxId != "external" {
-				redirectWithError(w, r, "/bitcoin?", errors.New("not expected"))
-				return
-			}
-
 			if r.FormValue("externalPeginCancel") != "" {
 				config.Config.PeginTxId = ""
 				config.Config.PeginClaimJoin = false
