@@ -4,8 +4,6 @@
 
 FROM golang:1.22.2-bookworm AS builder
 
-ENV CGO_ENABLED=1
-
 ARG TARGETOS
 ARG TARGETARCH
 ARG COMMIT
@@ -20,10 +18,9 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j$(nproc) install-lnd && \
     git checkout $COMMIT && \
     make -j$(nproc) lnd-release
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
-RUN sed -i 's|$|deb http://deb.debian.org/debian buster main contrib non-free|' /etc/apt/sources.list && \
-    apt-get update && apt-get install -y supervisor ca-certificates && \
+RUN apt-get update && apt-get install -y supervisor ca-certificates && \
     mkdir -p /var/log/supervisor
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
