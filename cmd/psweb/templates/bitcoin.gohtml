@@ -85,7 +85,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                         <label class="checkbox is-large">
                           <input type="checkbox" id="claimJoin" onchange="calculateTransactionFee()" name="claimJoin" checked>
                           {{if .HasClaimJoinPending}}
-                            <strong>&nbsp&nbspJoin a pending confidential claim before {{.ClaimJointTimeLimit}}</strong>
+                            <strong>&nbsp&nbspJoin a pending confidential peg-in before {{.ClaimJointTimeLimit}}</strong>
                           {{else}}
                             <strong>&nbsp&nbspInvite peers to join claims into a single confidential transaction</strong>
                           {{end}}

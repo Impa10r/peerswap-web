@@ -2,12 +2,13 @@
 
 ## 1.7.7
 
-- Fix AF decrease not working for channels with no outbound forwards
+- Fix Auto Fee not working for channels with no outbound forwards
 - Better indication when all channels with a peer are inactive
 - Catch Bitcoin Core and Elements Core RPC errors
 - Fix telegram bot panic on wrong token or chat id
 - Allow Bitcoin fee rates with 0.01 precision
 - Reserve 1200 sats of LBTC balance to save on Elements fees
+- Show confidential peg-in join time limit on peg-in form
 
 ## 1.7.6
 
