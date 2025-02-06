@@ -34,7 +34,7 @@ jobs:
     
       - name: Check buildkit version
         run: |
-          docker buildx build
+          docker buildx ls
   
       - name: Build and Push Docker image
         run: |
