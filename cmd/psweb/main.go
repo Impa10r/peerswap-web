@@ -1133,7 +1133,6 @@ func checkPegin() {
 		// invitation expired
 		ln.ClaimStatus = "No ClaimJoin peg-in is pending"
 		log.Println("Invitation expired from", ln.ClaimJoinHandler)
-		telegramSendMessage("🧬 ClaimJoin Invitation expired")
 
 		ln.ClaimJoinHandler = ""
 		db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
@@ -1143,13 +1142,11 @@ func checkPegin() {
 	if config.Config.PeginTxId == "" {
 		// send telegram if received new ClaimJoin invitation
 		if peginInvite != ln.ClaimJoinHandler {
-			t := "🧬 There is a ClaimJoin peg-in pending"
-			if ln.ClaimJoinHandler == "" {
-				t = "🧬 ClaimJoin peg-in has ended"
-			} else {
+			t := "🧬 ClaimJoin invitation has expired"
+			if ln.ClaimJoinHandler != "" {
 				duration := time.Duration(10*(ln.JoinBlockHeight-currentBlockHeight)) * time.Minute
-				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				t += ", time limit to join: " + formattedDuration
+				timeLimit := time.Now().Add(duration).Format("3:04 PM")
+				t = "🧬 Invitation to join a confidential peg-in before " + timeLimit
 			}
 			if telegramSendMessage(t) {
 				peginInvite = ln.ClaimJoinHandler

@@ -723,6 +723,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		ClaimJoinStatus     string
 		HasClaimJoinPending bool
 		ClaimJoinETA        int
+		ClaimJointTimeLimit string
 	}
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
@@ -761,14 +762,16 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 	maxConfs := int32(peginBlocks)
 	cjETA := 34
+	cjTimeLimit := ""
 
-	bh := int32(ln.GetBlockHeight())
+	currentBlockHeight := int32(ln.GetBlockHeight())
 	if ln.MyRole != "none" {
 		target := int32(ln.ClaimBlockHeight)
-		maxConfs = target - bh + confs
-		duration = time.Duration(10*(target-bh)) * time.Minute
+		maxConfs = target - currentBlockHeight + confs
+		duration = time.Duration(10*(target-currentBlockHeight)) * time.Minute
 	} else if ln.ClaimJoinHandler != "" {
-		cjETA = int((int32(ln.JoinBlockHeight) - bh + int32(peginBlocks)) / 6)
+		cjETA = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
+		cjTimeLimit = time.Now().Add(time.Duration(10*(ln.JoinBlockHeight-uint32(currentBlockHeight))) * time.Minute).Format("3:04 PM")
 	}
 
 	progress := confs * 100 / int32(maxConfs)
@@ -810,6 +813,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		IsClaimJoin:         config.Config.PeginClaimJoin,
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
+		ClaimJointTimeLimit: cjTimeLimit,
 		ClaimJoinETA:        cjETA,
 	}
 
