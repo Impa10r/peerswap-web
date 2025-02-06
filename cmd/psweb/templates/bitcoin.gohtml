@@ -176,20 +176,22 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                     </td>
                     <td>
                       {{if eq .Confirmations -1}}
-                        Transaction not found in local mempool! Provide another TxId or cancel peg-in.
-                        <br>
-                        <br>
-                        <form autocomplete="off" action="/submit" method="post">
-                          <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                          <input class="input is-medium" type="text" name="peginTxId" placeholder="External Funding TxId">
+                        Transaction not found in local mempool!
+                        {{if .IsPegin}}<br><br>Provide another TxId or cancel the peg-in.
                           <br>
                           <br>
-                          <center>
-                            <input type="hidden" name="action" value="externalPeginTxId">
-                            <input class="button is-large" type="submit" name="externalPeginTxId" value="Provide TxId">
-                            <input class="button is-large" type="submit" name="externalPeginCancel" value="Cancel Pegin">
-                          </center>
-                        </form>
+                          <form autocomplete="off" action="/submit" method="post">
+                            <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                            <input class="input is-medium" type="text" name="peginTxId" placeholder="External Funding TxId">
+                            <br>
+                            <br>
+                            <center>
+                              <input type="hidden" name="action" value="externalPeginTxId">
+                              <input class="button is-large" type="submit" name="externalPeginTxId" value="Provide TxId">
+                              <input class="button is-large" type="submit" name="externalPeginCancel" value="Cancel Pegin">
+                            </center>
+                          </form>
+                        {{end}}
                       {{else}}
                         {{.Confirmations}} 
                         {{if .IsPegin}}
