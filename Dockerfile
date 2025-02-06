@@ -2,7 +2,7 @@
 ## Build PeerSwap and PeerSwap Web UI in a joint container 
 ###
 
-FROM golang:1.22.2-bullseye AS builder
+FROM golang:1.22.2-bookworm AS builder
 
 ENV CGO_ENABLED=1
 
