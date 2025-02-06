@@ -30,6 +30,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
     
+      - name: Show buildkit version
+        run: |
+          docker buildx ls
+    
       - name: Build Docker image and push to registry
         run: |
           docker buildx build \
