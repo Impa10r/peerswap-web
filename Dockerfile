@@ -12,11 +12,11 @@ WORKDIR /app
 
 COPY . .
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j2 install-lnd && \
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j1 install-lnd && \
     git clone https://github.com/ElementsProject/peerswap.git && \
     cd peerswap && \
     git checkout $COMMIT && \
-    make -j$(nproc) lnd-release
+    make -j1 lnd-release
 
 FROM debian:buster-slim
 
