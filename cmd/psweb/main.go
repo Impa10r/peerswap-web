@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.8"
+	VERSION = "v1.7.7"
 	// Swap Out reserve to deduct from channel local balance
 	SWAP_OUT_CHANNEL_RESERVE = 10_000
 	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
