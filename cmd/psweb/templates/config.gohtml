@@ -1,341 +1,341 @@
 {{define "config"}}
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column"> 
-          <div class="box has-text-left">
-            <h4 class="title is-4">Configuration</h4> 
-            <form autocomplete="off" action="/save" method="post">
-              <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <div class="columns">
-                <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Swap Requests</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="select is-medium is-fullwidth">
-                        <select name="allowSwapRequests">
-                          <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
-                          <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
-                        </select>
-                      </div>
+  <div class="container">
+    <div class="columns">
+      <div class="column"> 
+        <div class="box has-text-left">
+          <h4 class="title is-4">Configuration</h4> 
+          <form autocomplete="off" action="/save" method="post">
+            <input autocomplete="false" name="hidden" type="text" style="display:none;">
+            <div class="columns">
+              <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Swap Requests</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="select is-medium is-fullwidth">
+                      <select name="allowSwapRequests">
+                        <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
+                        <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
+                      </select>
                     </div>
                   </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Bitcon Swaps *</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="select is-medium is-fullwidth">
-                        <select name="bitcoinSwaps">
-                          <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
-                          <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Node Info</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="select is-medium is-fullwidth">
-                        <select name="nodeApi">
-                          {{if ne .Config.LocalMempool ""}}
-                            <option value="{{.Config.LocalMempool}}/lightning/node" {{if eq .Config.NodeApi "{{.Config.LocalMempool}}/lightning/node"}}selected{{end}}>{{.Config.LocalMempool}}/lightning/node</option>
-                          {{end}}
-                          <option value="https://mempool.space/testnet/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/testnet/lightning/node"}}selected{{end}}>https://mempool.space/testnet/lightning/node</option>
-                          <option value="https://mempool.space/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/lightning/node"}}selected{{end}}>https://mempool.space/lightning/node</option>
-                          <option value="https://amboss.space/node" {{if eq .Config.NodeApi "https://amboss.space/node"}}selected{{end}}>https://amboss.space/node</option> 
-                          <option value="https://lightningnetwork.plus/nodes" {{if eq .Config.NodeApi "https://lightningnetwork.plus/nodes"}}selected{{end}}>https://lightningnetwork.plus/nodes</option>   
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Bitcoin Tx</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="select is-medium is-fullwidth">
-                        <select name="bitcoinApi">
-                          {{if ne .Config.LocalMempool ""}}
-                            <option value="{{.Config.LocalMempool}}" {{if eq .Config.NodeApi .Config.LocalMempool}}selected{{end}}>{{.Config.LocalMempool}}</option>
-                          {{end}}
-                          <option value="https://mempool.space/testnet" {{if eq .Config.BitcoinApi "https://mempool.space/testnet"}}selected{{end}}>https://mempool.space/testnet</option>
-                          <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>
-                          <option value="https://blockstream.info/testnet" {{if eq .Config.BitcoinApi "https://blockstream.info/testnet"}}selected{{end}}>https://blockstream.info/testnet</option>
-                          <option value="https://blockstream.info" {{if eq .Config.BitcoinApi "https://blockstream.info"}}selected{{end}}>https://blockstream.info</option>  
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Local Mempool</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Liquid Tx</label>
-                    </div>
-                    <div class="field-body">
-                      <div class="select is-medium is-fullwidth">
-                        <select name="liquidApi">
-                          <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
-                          <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>
-                          <option value="https://blockstream.info/liquidtestnet" {{if eq .Config.LiquidApi "https://blockstream.info/liquidtestnet"}}selected{{end}}>https://blockstream.info/liquidtestnet</option>
-                          <option value="https://blockstream.info/liquid" {{if eq .Config.LiquidApi "https://blockstream.info/liquid"}}selected{{end}}>https://blockstream.info/liquid</option>            
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Swaps History Limit</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" value="{{.Config.MaxHistory}}" name="maxHistory" placeholder="100">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Telegram Bot Token</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Tor Proxy</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.ProxyURL}}" name="proxyURL" placeholder="socks5://127.0.0.1:9050">
-                    </div>
-                  </div>
-                  {{if .IsPossibleHTTPS}}
-                    <div class="field is-horizontal">
-                      <div class="field-label is-normal">
-                        <label class="label">Color Theme</label>
-                      </div>
-                      <div class="field-body">
-                        <div class="select is-medium is-fullwidth">
-                          <select name="colorScheme">
-                            <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
-                            <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  {{end}}
                 </div>
-                <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
-                  {{if not .IsPossibleHTTPS}}
-                    <div class="field is-horizontal">
-                      <div class="field-label is-normal">
-                        <label class="label">Color Theme</label>
-                      </div>
-                      <div class="field-body">
-                        <div class="select is-medium is-fullwidth">
-                          <select name="colorScheme">
-                            <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
-                            <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
-                          </select>
-                        </div>
-                      </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Bitcon Swaps *</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="select is-medium is-fullwidth">
+                      <select name="bitcoinSwaps">
+                        <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
+                        <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
+                      </select>
                     </div>
-                  {{end}}
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">
-                        {{if eq .Implementation "CLN"}}
-                          JSON RPC Dir
-                        {{else}}
-                          PeerSwap Host
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Node Info</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="select is-medium is-fullwidth">
+                      <select name="nodeApi">
+                        {{if ne .Config.LocalMempool ""}}
+                          <option value="{{.Config.LocalMempool}}/lightning/node" {{if eq .Config.NodeApi "{{.Config.LocalMempool}}/lightning/node"}}selected{{end}}>{{.Config.LocalMempool}}/lightning/node</option>
                         {{end}}
-                      </label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements User *</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
+                        <option value="https://mempool.space/testnet/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/testnet/lightning/node"}}selected{{end}}>https://mempool.space/testnet/lightning/node</option>
+                        <option value="https://mempool.space/lightning/node" {{if eq .Config.NodeApi "https://mempool.space/lightning/node"}}selected{{end}}>https://mempool.space/lightning/node</option>
+                        <option value="https://amboss.space/node" {{if eq .Config.NodeApi "https://amboss.space/node"}}selected{{end}}>https://amboss.space/node</option> 
+                        <option value="https://lightningnetwork.plus/nodes" {{if eq .Config.NodeApi "https://lightningnetwork.plus/nodes"}}selected{{end}}>https://lightningnetwork.plus/nodes</option>   
+                      </select>
                     </div>
                   </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Pass *</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Elements Own Folder</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Elements Mapped Folder</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Bitcoin Host</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Bitcoin User</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" value="{{.Config.BitcoinUser}}" name="bitcoinUser" placeholder="Bitcoin Core RPC User">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Bitcoin Pass</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="password" value="{{.Config.BitcoinPass}}" name="bitcoinPass" placeholder="Bitcoin Core RPC Password">
-                    </div>
-                  </div>
-                  {{if .IsPossibleHTTPS}}
-                    <div class="field is-horizontal">
-                      <div class="field-label is-normal">
-                        <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS *{{if eq .Implementation "LND"}}*{{end}}</label>
-                      </div>
-                      <div class="field-body">
-                        <div class="select is-medium is-fullwidth">
-                          <select id="secureConnection" name="secureConnection">
-                            <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enable</option>
-                            <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disable</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="field is-horizontal">
-                      <div class="field-label is-normal">
-                        <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs *{{if eq .Implementation "LND"}}*{{end}}</label>
-                      </div>
-                      <div class="field-body">
-                        <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
-                      </div>
-                    </div>
-                  {{end}}
                 </div>
-              </div>
-              <center>
-                <p>* Changing these values will restart {{if eq .Implementation "CLN"}}
-                    lightningd
-                {{else}}
-                    peerswapd
-                {{end}}</p>
-                {{if and .IsPossibleHTTPS (eq .Implementation "LND")}}
-                  <p>** Changing these values will restart PSWeb</p>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Bitcoin Tx</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="select is-medium is-fullwidth">
+                      <select name="bitcoinApi">
+                        {{if ne .Config.LocalMempool ""}}
+                          <option value="{{.Config.LocalMempool}}" {{if eq .Config.NodeApi .Config.LocalMempool}}selected{{end}}>{{.Config.LocalMempool}}</option>
+                        {{end}}
+                        <option value="https://mempool.space/testnet" {{if eq .Config.BitcoinApi "https://mempool.space/testnet"}}selected{{end}}>https://mempool.space/testnet</option>
+                        <option value="https://mempool.space" {{if eq .Config.BitcoinApi "https://mempool.space"}}selected{{end}}>https://mempool.space</option>
+                        <option value="https://blockstream.info/testnet" {{if eq .Config.BitcoinApi "https://blockstream.info/testnet"}}selected{{end}}>https://blockstream.info/testnet</option>
+                        <option value="https://blockstream.info" {{if eq .Config.BitcoinApi "https://blockstream.info"}}selected{{end}}>https://blockstream.info</option>  
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Local Mempool</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.LocalMempool}}" name="localMempool" placeholder="http://umbrel.local:3006">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Liquid Tx</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="select is-medium is-fullwidth">
+                      <select name="liquidApi">
+                        <option value="https://liquid.network/testnet" {{if eq .Config.LiquidApi "https://liquid.network/testnet"}}selected{{end}}>https://liquid.network/testnet</option>
+                        <option value="https://liquid.network" {{if eq .Config.LiquidApi "https://liquid.network"}}selected{{end}}>https://liquid.network</option>
+                        <option value="https://blockstream.info/liquidtestnet" {{if eq .Config.LiquidApi "https://blockstream.info/liquidtestnet"}}selected{{end}}>https://blockstream.info/liquidtestnet</option>
+                        <option value="https://blockstream.info/liquid" {{if eq .Config.LiquidApi "https://blockstream.info/liquid"}}selected{{end}}>https://blockstream.info/liquid</option>            
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Swaps History Limit</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" value="{{.Config.MaxHistory}}" name="maxHistory" placeholder="100">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Telegram Bot Token</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.TelegramToken}}" name="telegramToken">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Tor Proxy</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.ProxyURL}}" name="proxyURL" placeholder="socks5://127.0.0.1:9050">
+                  </div>
+                </div>
+                {{if .IsPossibleHTTPS}}
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Color Theme</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="select is-medium is-fullwidth">
+                        <select name="colorScheme">
+                          <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
+                          <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 {{end}}
-                <span class="half-height"></span>
-                <input class="button is-large" type="submit" value="Save Configuration">
-                <br>
-                <small>
-                  Version: {{.Version}}, latest: 
-                  {{if ne .Version .Latest}}
-                    <a href="https://github.com/Impa10r/peerswap-web/releases" target="_blank">{{.Latest}}</a>
-                  {{else}}
-                    {{.Latest}}
-                  {{end}}
-                </small>         
-              </center>
-            </form>
-            <div id="passwordModal" class="modal">
-              <div class="modal-background"></div>
-              <div class="modal-card">
-                <header class="modal-card-head">
-                    <p class="modal-card-title">Password Required</p>
-                    <button class="delete" aria-label="close"></button>
-                </header>
-                <section class="modal-card-body">
-                  <p>Please enter the password to disable HTTPS:</p>
-                  <input type="password" id="passwordInput" class="input">
-                </section>
-                <footer class="modal-card-foot">
-                    <button id="submitPassword" class="button is-success">Submit</button>
-                    <button class="button" id="closeModal">Cancel</button>
-                </footer>
+              </div>
+              <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
+                {{if not .IsPossibleHTTPS}}
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Color Theme</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="select is-medium is-fullwidth">
+                        <select name="colorScheme">
+                          <option value="dark" {{if eq .Config.ColorScheme "dark"}}selected{{end}}>Dark</option>
+                          <option value="light" {{if eq .Config.ColorScheme "light"}}selected{{end}}>Light</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                {{end}}
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">
+                      {{if eq .Implementation "CLN"}}
+                        JSON RPC Dir
+                      {{else}}
+                        PeerSwap Host
+                      {{end}}
+                    </label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements User *</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Pass *</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Elements Own Folder</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Elements Mapped Folder</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Bitcoin Host</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.BitcoinHost}}" name="bitcoinHost" placeholder="Bitcoin Core RPC Host">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Bitcoin User</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" value="{{.Config.BitcoinUser}}" name="bitcoinUser" placeholder="Bitcoin Core RPC User">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Bitcoin Pass</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="password" value="{{.Config.BitcoinPass}}" name="bitcoinPass" placeholder="Bitcoin Core RPC Password">
+                  </div>
+                </div>
+                {{if .IsPossibleHTTPS}}
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Enable TLS connection at {{.HTTPS}}" class="label">HTTPS *{{if eq .Implementation "LND"}}*{{end}}</label>
+                    </div>
+                    <div class="field-body">
+                      <div class="select is-medium is-fullwidth">
+                        <select id="secureConnection" name="secureConnection">
+                          <option id="secureConnectionTrue" value="true" {{if .Config.SecureConnection}}selected{{end}}>Enable</option>
+                          <option id="secureConnectionFalse" value="false" {{if not .Config.SecureConnection}}selected{{end}}>Disable</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label title="Space separated additional IP addresses for PeerSwap Web UI server certificate (LAN, Tailscale, etc)" class="label">PSWeb IPs *{{if eq .Implementation "LND"}}*{{end}}</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium" type="text" value="{{.Config.ServerIPs}}" name="serverIPs" placeholder="192.168.1.123 100.123.123.1">
+                    </div>
+                  </div>
+                {{end}}
               </div>
             </div>
-            <script>
-              document.addEventListener('DOMContentLoaded', () => {
-                const toggleField = document.getElementById('secureConnection');
-                const correctPassword = "{{.Config.Password}}";
-                let previousValue = toggleField.value;
-                const passwordModal = document.getElementById('passwordModal');
-                const closeModal = document.getElementById('closeModal');
-                const passwordInput = document.getElementById('passwordInput');
-                const submitPassword = document.getElementById('submitPassword');
+            <center>
+              <p>* Changing these values will restart {{if eq .Implementation "CLN"}}
+                  lightningd
+              {{else}}
+                  peerswapd
+              {{end}}</p>
+              {{if and .IsPossibleHTTPS (eq .Implementation "LND")}}
+                <p>** Changing these values will restart PSWeb</p>
+              {{end}}
+              <span class="half-height"></span>
+              <input class="button is-large" type="submit" value="Save Configuration">
+              <br>
+              <small>
+                Version: {{.Version}}, latest: 
+                {{if ne .Version .Latest}}
+                  <a href="https://github.com/Impa10r/peerswap-web/releases" target="_blank">{{.Latest}}</a>
+                {{else}}
+                  {{.Latest}}
+                {{end}}
+              </small>         
+            </center>
+          </form>
+          <div id="passwordModal" class="modal">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+              <header class="modal-card-head">
+                  <p class="modal-card-title">Password Required</p>
+                  <button class="delete" aria-label="close"></button>
+              </header>
+              <section class="modal-card-body">
+                <p>Please enter the password to disable HTTPS:</p>
+                <input type="password" id="passwordInput" class="input">
+              </section>
+              <footer class="modal-card-foot">
+                  <button id="submitPassword" class="button is-success">Submit</button>
+                  <button class="button" id="closeModal">Cancel</button>
+              </footer>
+            </div>
+          </div>
+          <script>
+            document.addEventListener('DOMContentLoaded', () => {
+              const toggleField = document.getElementById('secureConnection');
+              const correctPassword = "{{.Config.Password}}";
+              let previousValue = toggleField.value;
+              const passwordModal = document.getElementById('passwordModal');
+              const closeModal = document.getElementById('closeModal');
+              const passwordInput = document.getElementById('passwordInput');
+              const submitPassword = document.getElementById('submitPassword');
 
-                toggleField.addEventListener('change', function() {
-                  const newValue = this.value;
-                  if (previousValue === 'true' && newValue === 'false' && correctPassword != '') {
-                      passwordInput.value = ''; // Clear the password input
-                      // show password modal
-                      passwordModal.classList.add('is-active');
-                  } 
-                });
+              toggleField.addEventListener('change', function() {
+                const newValue = this.value;
+                if (previousValue === 'true' && newValue === 'false' && correctPassword != '') {
+                    passwordInput.value = ''; // Clear the password input
+                    // show password modal
+                    passwordModal.classList.add('is-active');
+                } 
+              });
 
-                closeModal.addEventListener('click', () => {
+              closeModal.addEventListener('click', () => {
+                passwordModal.classList.remove('is-active');
+                // Revert the value back to 'true'
+                document.getElementById('secureConnectionTrue').selected = true;
+                document.getElementById('secureConnectionFalse').selected = false;
+              });
+
+              submitPassword.addEventListener('click', () => {
+                const password = passwordInput.value;
+                if (password !== correctPassword) {
+                  // Revert the value back to 'true'
+                  document.getElementById('secureConnectionTrue').selected = true;
+                  document.getElementById('secureConnectionFalse').selected = false;
+                }
+                // close password modal
+                passwordModal.classList.remove('is-active');
+              });
+
+              // Close the modal when clicking outside of it
+              window.addEventListener('click', (event) => {
+                if (event.target == passwordModal) {
+                  // close password modal
                   passwordModal.classList.remove('is-active');
                   // Revert the value back to 'true'
                   document.getElementById('secureConnectionTrue').selected = true;
                   document.getElementById('secureConnectionFalse').selected = false;
-                });
-
-                submitPassword.addEventListener('click', () => {
-                  const password = passwordInput.value;
-                  if (password !== correctPassword) {
-                    // Revert the value back to 'true'
-                    document.getElementById('secureConnectionTrue').selected = true;
-                    document.getElementById('secureConnectionFalse').selected = false;
-                  }
-                  // close password modal
-                  passwordModal.classList.remove('is-active');
-                });
-
-                // Close the modal when clicking outside of it
-                window.addEventListener('click', (event) => {
-                  if (event.target == passwordModal) {
-                    // close password modal
-                    passwordModal.classList.remove('is-active');
-                    // Revert the value back to 'true'
-                    document.getElementById('secureConnectionTrue').selected = true;
-                    document.getElementById('secureConnectionFalse').selected = false;
-                  }
-                });
+                }
               });
-            </script>
-          </div>
+            });
+          </script>
         </div>
       </div>
     </div>
+  </div>
   {{template "footer" .}}
 {{end}}
