@@ -1,150 +1,150 @@
 {{define "homepage"}}
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          <div class="box">
-            <table style="width:100%; table-layout:fixed;">
-              <tr>
-                <td style="padding: 0px; text-align: left;">
-                  <h4 class="title is-4" style="white-space: nowrap">
-                    <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
-                    {{if and .AllowSwapRequests .BitcoinSwaps}} 
-                      {{if .AdvertiseBitcoin}}
-                        <a href="/bitcoin" title="Broadcasting BTC balance to peers">📡</a>
-                      {{else}}
-                        <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
-                      {{end}}
+  <div class="container">
+    <div class="columns">
+      <div class="column">
+        <div class="box">
+          <table style="width:100%; table-layout:fixed;">
+            <tr>
+              <td style="padding: 0px; text-align: left;">
+                <h4 class="title is-4" style="white-space: nowrap">
+                  <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
+                  {{if and .AllowSwapRequests .BitcoinSwaps}} 
+                    {{if .AdvertiseBitcoin}}
+                      <a href="/bitcoin" title="Broadcasting BTC balance to peers">📡</a>
                     {{else}}
-                      <span style="font-size: 0.7em;" title="Bitcoin swaps disabled">❌</span>
+                      <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
                     {{end}}
-                  </h4>
-                </td>
-                <td style="padding: 0px; text-align: left;">
-                  <h4 class="title is-4" style="white-space: nowrap">
-                    🌊&nbsp<a title="On-chain L-BTC balance" href="/liquid" id="scramble">{{fmt .LiquidBalance}}</a>
-                    {{if .PeginPending}}
-                      <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
+                  {{else}}
+                    <span style="font-size: 0.7em;" title="Bitcoin swaps disabled">❌</span>
+                  {{end}}
+                </h4>
+              </td>
+              <td style="padding: 0px; text-align: left;">
+                <h4 class="title is-4" style="white-space: nowrap">
+                  🌊&nbsp<a title="On-chain L-BTC balance" href="/liquid" id="scramble">{{fmt .LiquidBalance}}</a>
+                  {{if .PeginPending}}
+                    <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
+                  {{else}}
+                    {{if .ClaimJoinInvite}}
+                      <a href="/bitcoin" title="Received an invite to ClaimJoin">🧬</a>
                     {{else}}
-                      {{if .ClaimJoinInvite}}
-                        <a href="/bitcoin" title="Received an invite to ClaimJoin">🧬</a>
+                      {{if and .AdvertiseLiquid .AllowSwapRequests}}
+                        <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
                       {{else}}
-                        {{if and .AdvertiseLiquid .AllowSwapRequests}}
-                          <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
-                        {{else}}
-                          <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
-                        {{end}}
+                        <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
                       {{end}}
                     {{end}}
-                    {{if .AutoSwapEnabled}}
-                      <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
-                    {{end}}
-                  </h4> 
-                </td>
-              </tr> 
-            </table>
-          </div>          
-          <div class="box has-text-left">
+                  {{end}}
+                  {{if .AutoSwapEnabled}}
+                    <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
+                  {{end}}
+                </h4> 
+              </td>
+            </tr> 
+          </table>
+        </div>          
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+            <div style="text-align: left;">
+              <h4 class="title is-4">Peer List</h4>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <button class="button is-small" onclick="toggleScramble()">Privacy</button>
+            </div>
+          </div>
+          {{.ListPeers}}
+          {{if eq .OtherPeers ""}}
+            <center>
+              <p id="showOtherLink" style="text-align: center; white-space: nowrap"><a href="/?showall">Show Non-PeerSwap Channels</a></p>
+            </center>
+          {{end}}
+        </div>
+      </div>
+      <div id="swaps" class="column">
+        <div class="box has-text-left">
+          {{if eq .OtherPeers ""}}
             <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
               <div style="text-align: left;">
-                <h4 class="title is-4">Peer List</h4>
+                <h4 class="title is-4">Swaps History</h4>  
               </div>
               <div style="display: flex; justify-content: flex-end;">
-                <button class="button is-small" onclick="toggleScramble()">Privacy</button>
+                {{if .Filter}}
+                  <h4 style="transform: scale(1.5)"><a title="Clear filters" href="/">🔍</a></h4>
+                {{end}}
               </div>
             </div>
-            {{.ListPeers}}
-            {{if eq .OtherPeers ""}}
-              <center>
-                <p id="showOtherLink" style="text-align: center; white-space: nowrap"><a href="/?showall">Show Non-PeerSwap Channels</a></p>
-              </center>
-            {{end}}
-          </div>
-        </div>
-        <div id="swaps" class="column">
-          <div class="box has-text-left">
-            {{if eq .OtherPeers ""}}
-              <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
-                <div style="text-align: left;">
-                  <h4 class="title is-4">Swaps History</h4>  
-                </div>
-                <div style="display: flex; justify-content: flex-end;">
-                  {{if .Filter}}
-                    <h4 style="transform: scale(1.5)"><a title="Clear filters" href="/">🔍</a></h4>
-                  {{end}}
-                </div>
-              </div>
-              {{.ListSwaps}}
-            {{else}}
-              <h4 class="title is-4">Non-PeerSwap Channels</h4>
-              {{.OtherPeers}}
-            {{end}}
-          </div>
+            {{.ListSwaps}}
+          {{else}}
+            <h4 class="title is-4">Non-PeerSwap Channels</h4>
+            {{.OtherPeers}}
+          {{end}}
         </div>
       </div>
     </div>
-    <script>
-      // Function to find all table cells with a specific ID
-      function findElementsById(id) {
-        return document.querySelectorAll('#' + id);
-      }
+  </div>
+  <script>
+    // Function to find all table cells with a specific ID
+    function findElementsById(id) {
+      return document.querySelectorAll('#' + id);
+    }
 
-      function toggleScramble() {
-        var fields = findElementsById('scramble');
+    function toggleScramble() {
+      var fields = findElementsById('scramble');
 
-        fields.forEach(function(element) {
-          if (element) {
-            if (element.dataset.originalContent) {
-              // If original content is saved, show it
-              element.innerText = element.dataset.originalContent;
-              delete element.dataset.originalContent;
-            } else {
-              // Otherwise, scramble and save original content
-              element.dataset.originalContent = element.innerText;
-              element.innerText = scrambleText(element.innerText);
-            }
+      fields.forEach(function(element) {
+        if (element) {
+          if (element.dataset.originalContent) {
+            // If original content is saved, show it
+            element.innerText = element.dataset.originalContent;
+            delete element.dataset.originalContent;
+          } else {
+            // Otherwise, scramble and save original content
+            element.dataset.originalContent = element.innerText;
+            element.innerText = scrambleText(element.innerText);
           }
-        });
-      }
+        }
+      });
+    }
 
-      function scrambleText(text) {
-        // Scramble starting from the second symbol with Greek alphabet
-        var scrambledText = ""; 
-        
-        for (var i = 0; i < text.length; i++) {
-          var char = text[i];
-          // Check if the character is a letter or a number
-          if (i > 0 || /^[a-zA-Z0-9., ]$/.test(char)) {
-            // If it's a letter or number, replace it with a random Greek alphabet character
+    function scrambleText(text) {
+      // Scramble starting from the second symbol with Greek alphabet
+      var scrambledText = ""; 
+      
+      for (var i = 0; i < text.length; i++) {
+        var char = text[i];
+        // Check if the character is a letter or a number
+        if (i > 0 || /^[a-zA-Z0-9., ]$/.test(char)) {
+          // If it's a letter or number, replace it with a random Greek alphabet character
+          scrambledText += getRandomGreekLetter();
+        } else {
+          if (char == "-") {
+            // replace 0 amount with five greek letters
+            scrambledText += getRandomGreekLetter();
+            scrambledText += getRandomGreekLetter();
+            scrambledText += getRandomGreekLetter();
+            scrambledText += getRandomGreekLetter();
             scrambledText += getRandomGreekLetter();
           } else {
-            if (char == "-") {
-              // replace 0 amount with five greek letters
-              scrambledText += getRandomGreekLetter();
-              scrambledText += getRandomGreekLetter();
-              scrambledText += getRandomGreekLetter();
-              scrambledText += getRandomGreekLetter();
-              scrambledText += getRandomGreekLetter();
-            } else {
-              // If it's not a letter or number, keep it as it is
-              scrambledText += char;
-            }
-          }        
-        }
-        
-        return scrambledText;
+            // If it's not a letter or number, keep it as it is
+            scrambledText += char;
+          }
+        }        
       }
+      
+      return scrambledText;
+    }
 
-      function getRandomGreekLetter() {
-        var greekAlphabet = 'αβγδεζηθικλμνξοπρστυφχψω';
-        var randomIndex = Math.floor(Math.random() * greekAlphabet.length);
-        return greekAlphabet.charAt(randomIndex);
-      }
+    function getRandomGreekLetter() {
+      var greekAlphabet = 'αβγδεζηθικλμνξοπρστυφχψω';
+      var randomIndex = Math.floor(Math.random() * greekAlphabet.length);
+      return greekAlphabet.charAt(randomIndex);
+    }
 
-      // submits new fee rate 
-      function feeSubmitForm(formId) {
-        document.getElementById(formId).submit();
-      }
-    </script>
+    // submits new fee rate 
+    function feeSubmitForm(formId) {
+      document.getElementById(formId).submit();
+    }
+  </script>
   {{template "footer" .}}
 {{end}}

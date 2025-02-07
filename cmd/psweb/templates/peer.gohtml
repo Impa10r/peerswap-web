@@ -1,437 +1,437 @@
 {{define "peer"}}
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          {{if .PeerSwapPeer}}
-            <div class="box">
-              <table style="width:100%; table-layout:fixed;">
-                <tr>
-                  <td style="padding: 0px; text-align: left;">
-                    <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
-                  </td>
-                  <td style="padding: 0px; text-align: left;">
-                    <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
-                  </td>
-                </tr> 
-              </table>
-            </div>
-          {{end}}
-          <div class="box has-text-left">
-            {{if .IsOnline}}
-              {{if .PeerSwapPeer}}         
-                {{if not .Peer.Channels}}
-                  <p>🙁 There are no channels with {{.PeerAlias}}.</p>
+  <div class="container">
+    <div class="columns">
+      <div class="column">
+        {{if .PeerSwapPeer}}
+          <div class="box">
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                <td style="padding: 0px; text-align: left;">
+                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
+                </td>
+                <td style="padding: 0px; text-align: left;">
+                  <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
+                </td>
+              </tr> 
+            </table>
+          </div>
+        {{end}}
+        <div class="box has-text-left">
+          {{if .IsOnline}}
+            {{if .PeerSwapPeer}}         
+              {{if not .Peer.Channels}}
+                <p>🙁 There are no channels with {{.PeerAlias}}.</p>
+              {{else}}
+                {{if not .Peer.SwapsAllowed}}
+                  <p>⛔ {{.PeerAlias}} did not whitelist your node. Please contact them to do it.</p>
                 {{else}}
-                  {{if not .Peer.SwapsAllowed}}
-                    <p>⛔ {{.PeerAlias}} did not whitelist your node. Please contact them to do it.</p>
-                  {{else}}
-                    {{if ne .ActiveSwaps ""}}
-                      <h4 class="title is-4">Pending Swaps</h4>
-                      {{.ActiveSwaps}}
-                      <script>
-                        // Reload the page every minute (60000 milliseconds)
-                        setInterval(function(){
-                            location.reload();
-                        }, 60000);
-                      </script>
-                    {{else }}
-                      <h4 class="title is-4">New Swap</h4> 
-                      <form action="/submit" method="post" onsubmit="return confirmSubmit()">
-                        <div class="field is-horizontal">
-                          <div class="field-label is-normal">
-                            <label class="label">Channel</label>
-                          </div>
-                          <div class="field-body">
-                            <div class="select is-medium is-fullwidth">
-                              <select name="channelId">
-                                {{range .Peer.Channels}}
-                                  <option value="{{.ChannelId}}" {{if eq .ChannelId $.SelectedChannel}}selected{{end}}>L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
-                                {{end}}
-                              </select>
-                            </div>
+                  {{if ne .ActiveSwaps ""}}
+                    <h4 class="title is-4">Pending Swaps</h4>
+                    {{.ActiveSwaps}}
+                    <script>
+                      // Reload the page every minute (60000 milliseconds)
+                      setInterval(function(){
+                          location.reload();
+                      }, 60000);
+                    </script>
+                  {{else }}
+                    <h4 class="title is-4">New Swap</h4> 
+                    <form action="/submit" method="post" onsubmit="return confirmSubmit()">
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                          <label class="label">Channel</label>
+                        </div>
+                        <div class="field-body">
+                          <div class="select is-medium is-fullwidth">
+                            <select name="channelId">
+                              {{range .Peer.Channels}}
+                                <option value="{{.ChannelId}}" {{if eq .ChannelId $.SelectedChannel}}selected{{end}}>L {{fmt .LocalBalance}} - {{fmt .RemoteBalance}} R</option>
+                              {{end}}
+                            </select>
                           </div>
                         </div>
-                        <div class="field is-horizontal">
-                          <div class="field-label is-normal">
-                            <label class="label">From</label>
-                          </div>
-                          <div class="field-body">
-                            <div class="select is-medium is-fullwidth">
-                              <select id="from" name="from" onchange="fromChanged()">
-                                <option value="ln"{{if not .DirectionIn}} selected{{end}}>Lightning ⚡</option>
-                                <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if .DirectionIn}} selected{{end}}>Liquid 🌊</option>
-                                <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
-                              </select>
-                            </div>
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                          <label class="label">From</label>
+                        </div>
+                        <div class="field-body">
+                          <div class="select is-medium is-fullwidth">
+                            <select id="from" name="from" onchange="fromChanged()">
+                              <option value="ln"{{if not .DirectionIn}} selected{{end}}>Lightning ⚡</option>
+                              <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if .DirectionIn}} selected{{end}}>Liquid 🌊</option>
+                              <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
+                            </select>
                           </div>
                         </div>
-                        <div class="field is-horizontal">
-                          <div class="field-label is-normal">
-                            <label class="label">To</label>
-                          </div>
-                          <div class="field-body">
-                            <div class="select is-medium is-fullwidth">
-                              <select id="to" name="to" onchange="toChanged()">
-                                <option value="ln"{{if .DirectionIn}} selected{{end}}>Lightning ⚡</option>
-                                <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if not .DirectionIn}} selected{{end}}>Liquid 🌊</option>
-                                <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
-                              </select>
-                            </div>
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                          <label class="label">To</label>
+                        </div>
+                        <div class="field-body">
+                          <div class="select is-medium is-fullwidth">
+                            <select id="to" name="to" onchange="toChanged()">
+                              <option value="ln"{{if .DirectionIn}} selected{{end}}>Lightning ⚡</option>
+                              <option value="lbtc"{{if not .LBTC}} disabled{{end}}{{if not .DirectionIn}} selected{{end}}>Liquid 🌊</option>
+                              <option value="btc"{{if not .BTC}} disabled{{end}}>Bitcoin ₿</option>
+                            </select>
                           </div>
                         </div>
-                        <div class="field is-horizontal">
-                          <div class="field-label is-normal">
-                            <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
-                          </div>
-                          <div class="field-body">
-                            <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
-                          </div>
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                          <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
                         </div>
-                        <div class="field is-horizontal">
-                          <div class="field-label is-normal">
-                            <label id="resultLabel" class="label">Cost Estimate</label>
-                            <input type="number" id="totalFee" style="display: none;" value=0>
-                          </div>
-                          <div class="field-body">
-                            <label id="result" class="label">Please enter the Swap Amount</label>
-                          </div>
+                        <div class="field-body">
+                          <input class="input is-medium" type="number" id="swapAmount" name="swapAmount" oninput="delayedCalculateTransactionFee()" required min="100000" placeholder="⚡ Swap Amount (sats)">
                         </div>
-                        <center>
-                          <table id="utxoTableBTC" style="display: none; width:100%; table-layout:fixed;">
-                            {{range .OutputsBTC}}
-                              <tr>
-                                <td id="utxoAddressBTC">{{.Address}}</td>
-                                <td id="utxoAmountBTC">{{.AmountSat}}</td>
-                              </tr>
-                            {{end}}
-                          </table>
-                          <table id="utxoTableLBTC" style="display: none; width:100%; table-layout:fixed;">
-                            {{range .OutputsLBTC}}
-                              <tr>
-                                <td id="utxoAmountLBTC">{{.Amount}}</td>
-                              </tr>
-                            {{end}}
-                          </table>
-                          <input type="hidden" name="action" value="doSwap">
-                          <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                          <input class="button is-large" type="submit" value="Execute Swap">
-                        </center>
-                      </form>
-                      <script>
-                        // Function to format number with thousand separators
-                        function formatWithThousandSeparators(number) {
-                            return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-                        }
-                        
-                        function swapMaxAmount() {
-                          if (document.getElementById("to").value == "ln") {
-                            if (document.getElementById("from").value == "lbtc") {
-                              return {{.MaxLiquidSwapIn}}; 
-                            } else {
-                              return {{.MaxBitcoinSwapIn}};
-                            }                      
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                          <label id="resultLabel" class="label">Cost Estimate</label>
+                          <input type="number" id="totalFee" style="display: none;" value=0>
+                        </div>
+                        <div class="field-body">
+                          <label id="result" class="label">Please enter the Swap Amount</label>
+                        </div>
+                      </div>
+                      <center>
+                        <table id="utxoTableBTC" style="display: none; width:100%; table-layout:fixed;">
+                          {{range .OutputsBTC}}
+                            <tr>
+                              <td id="utxoAddressBTC">{{.Address}}</td>
+                              <td id="utxoAmountBTC">{{.AmountSat}}</td>
+                            </tr>
+                          {{end}}
+                        </table>
+                        <table id="utxoTableLBTC" style="display: none; width:100%; table-layout:fixed;">
+                          {{range .OutputsLBTC}}
+                            <tr>
+                              <td id="utxoAmountLBTC">{{.Amount}}</td>
+                            </tr>
+                          {{end}}
+                        </table>
+                        <input type="hidden" name="action" value="doSwap">
+                        <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                        <input class="button is-large" type="submit" value="Execute Swap">
+                      </center>
+                    </form>
+                    <script>
+                      // Function to format number with thousand separators
+                      function formatWithThousandSeparators(number) {
+                          return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                      }
+                      
+                      function swapMaxAmount() {
+                        if (document.getElementById("to").value == "ln") {
+                          if (document.getElementById("from").value == "lbtc") {
+                            return {{.MaxLiquidSwapIn}}; 
                           } else {
-                            if (document.getElementById("to").value == "btc") {
-                              return {{.MaxBitcoinSwapOut}};                     
-                            } else {
-                              return {{.MaxLiquidSwapOut}};
+                            return {{.MaxBitcoinSwapIn}};
+                          }                      
+                        } else {
+                          if (document.getElementById("to").value == "btc") {
+                            return {{.MaxBitcoinSwapOut}};                     
+                          } else {
+                            return {{.MaxLiquidSwapOut}};
+                          }
+                        }
+                      }
+
+                      function setMax() {
+                        document.getElementById("swapAmount").value = swapMaxAmount();
+                        calculateTransactionFee();
+                      }
+
+                      function fromChanged() {
+                        if (document.getElementById("from").value == "ln") {
+                          document.getElementById("to").value = "lbtc";   
+                          if ({{.RecommendLiquidSwapOut}} > 0) {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
+                          }
+                        } else {
+                          document.getElementById("to").value = "ln";
+                          if (document.getElementById("from").value == "btc") {
+                            if ({{.RecommendBitcoinSwapIn}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};   
+                            }                  
+                          } else {
+                            if ({{.RecommendLiquidSwapIn}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
                             }
                           }
                         }
+                        calculateTransactionFee();
+                      }
 
-                        function setMax() {
-                          document.getElementById("swapAmount").value = swapMaxAmount();
-                          calculateTransactionFee();
-                        }
-
-                        function fromChanged() {
-                          if (document.getElementById("from").value == "ln") {
-                            document.getElementById("to").value = "lbtc";   
+                      function toChanged() {
+                        if (document.getElementById("to").value == "ln") {
+                          document.getElementById("from").value = "lbtc";
+                          if ({{.RecommendLiquidSwapIn}} > 0) {
+                            document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};              
+                          }       
+                        } else {
+                          document.getElementById("from").value = "ln";
+                          if (document.getElementById("to").value == "btc") {
+                            if ({{.RecommendBitcoinSwapOut}} > 0) {
+                              document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};
+                            }                
+                          } else {
                             if ({{.RecommendLiquidSwapOut}} > 0) {
                               document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
                             }
-                          } else {
-                            document.getElementById("to").value = "ln";
-                            if (document.getElementById("from").value == "btc") {
-                              if ({{.RecommendBitcoinSwapIn}} > 0) {
-                                document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapIn}};   
-                              }                  
-                            } else {
-                              if ({{.RecommendLiquidSwapIn}} > 0) {
-                                document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};
-                              }
-                            }
                           }
-                          calculateTransactionFee();
+                        }
+                        calculateTransactionFee();
+                      }
+
+                      function calculateTransactionFee() {
+                        const swapAmount = Number(document.getElementById("swapAmount").value);
+                        let fee = 0;
+                        let feeRate = {{.MempoolFeeRate}}; // LBTC
+                        let title = ""; 
+                        let change = 0;
+                        let asset = document.getElementById("from").value;
+                        let discount = "";
+                        let claimText = "";
+                        let rebateText = "";
+
+                        if (asset == "ln") {
+                          asset = document.getElementById("to").value;
+                        }
+                        
+                        if (asset == "btc") {
+                          feeRate = {{.BtcFeeRate}};
+                          document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
+                        } else {
+                          // Liquid
+                          document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
+                        }   
+
+                        // amount cannot be blank
+                        if (swapAmount < 100000) {
+                          document.getElementById('result').innerText = "Minimum Swap Amount is 100,000 sats";
+                          document.getElementById('result').title = '';
+                          document.getElementById('resultLabel').title = '';
+                          return;
                         }
 
-                        function toChanged() {
-                          if (document.getElementById("to").value == "ln") {
-                            document.getElementById("from").value = "lbtc";
-                            if ({{.RecommendLiquidSwapIn}} > 0) {
-                              document.getElementById("swapAmount").value = {{.RecommendLiquidSwapIn}};              
-                            }       
-                          } else {
-                            document.getElementById("from").value = "ln";
-                            if (document.getElementById("to").value == "btc") {
-                              if ({{.RecommendBitcoinSwapOut}} > 0) {
-                                document.getElementById("swapAmount").value = {{.RecommendBitcoinSwapOut}};
-                              }                
-                            } else {
-                              if ({{.RecommendLiquidSwapOut}} > 0) {
-                                document.getElementById("swapAmount").value = {{.RecommendLiquidSwapOut}};
-                              }
-                            }
-                          }
-                          calculateTransactionFee();
+                        // check max amount
+                        const maxAmount = swapMaxAmount();
+                        if (swapAmount > maxAmount) {
+                          document.getElementById('result').innerText = "Maximum Swap Amount is " + formatWithThousandSeparators(maxAmount) + " sats";
+                          document.getElementById('result').title = '';
+                          document.getElementById('resultLabel').title = '';
+                          return;
                         }
 
-                        function calculateTransactionFee() {
-                          const swapAmount = Number(document.getElementById("swapAmount").value);
-                          let fee = 0;
-                          let feeRate = {{.MempoolFeeRate}}; // LBTC
-                          let title = ""; 
-                          let change = 0;
-                          let asset = document.getElementById("from").value;
-                          let discount = "";
-                          let claimText = "";
-                          let rebateText = "";
-
-                          if (asset == "ln") {
-                            asset = document.getElementById("to").value;
-                          }
-                          
+                        const isSwapIn = document.getElementById("from").value != "ln";
+                        if (isSwapIn) {
+                          title = "Assumed UTXOs:\n";
                           if (asset == "btc") {
-                            feeRate = {{.BtcFeeRate}};
-                            document.getElementById("mempoolFeeRate").textContent = "{{.BtcFeeRate}} sats/vB"
+                            // Initialize total UTXO amount and UTXO counters
+                            let totalUtxoAmount = 0;
+                            let inputsP2TR = 0; // Number of P2TR inputs
+                            let inputsP2WPKH = 0; // Number of P2WPKH inputs
+                            
+                            // Get all table rows and convert NodeList to an array
+                            let tableArray = Array.from(document.querySelectorAll("#utxoTableBTC tr"));  
+
+                            // Sort the array of table rows based on UTXO amount from high to low
+                            tableArray.sort((a, b) => {
+                                let amountA = parseFloat(a.querySelector("#utxoAmountBTC").textContent);
+                                let amountB = parseFloat(b.querySelector("#utxoAmountBTC").textContent);
+                                return amountB - amountA;
+                            });
+
+                            // total amount to allocate among UTXOs 
+                            let amountToAllocate = swapAmount;
+                            
+                            // Iterate through table rows
+                            tableArray.forEach(function(row) {
+                              // Check if allocation is not finished
+                              if (amountToAllocate >= 0) {
+                                // Reduce unallocated amount by UTXO size
+                                const utxoAmount = parseFloat(row.querySelector("#utxoAmountBTC").textContent);
+                                amountToAllocate -= utxoAmount;
+
+                                // each used UTXO increases total fee, which may need more UTXOs
+                                amountToAllocate += 84 * feeRate;
+
+                                // identify P2TR vs P2WPKH address
+                                const address = row.querySelector("#utxoAddressBTC").textContent
+                                if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+                                  // Increment P2TR UTXO count
+                                  inputsP2TR++;
+                                } else {
+                                  // Increment P2WPKH UTXO count
+                                  inputsP2WPKH++;
+                                }
+                                title += "#" + formatWithThousandSeparators(inputsP2WPKH+inputsP2TR) + ": " + formatWithThousandSeparators(utxoAmount) + "\n";
+                              } 
+                            });
+
+                            // calc fee
+                            let baseSize = 41 * (inputsP2TR + inputsP2WPKH);
+                            let totalSize = 41 * (inputsP2TR + inputsP2WPKH);
+                            totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH;
+                            vbyteSize = 97 + Math.ceil((3 * baseSize + totalSize) / 4);
+                            fee = vbyteSize * feeRate;
+                            change = Math.floor(-amountToAllocate);
+
+                            if (change < 1000) {
+                              // peerswap spends dust change as extra fee
+                              if (change < 0) {
+                                document.getElementById('result').innerText = "Insufficient BTC balance to cover expected fee of " + formatWithThousandSeparators(fee) + " sats";
+                                document.getElementById('result').title = '';
+                                document.getElementById('resultLabel').title = '';
+                                return;
+                              }
+                              fee += change;
+                            }
                           } else {
-                            // Liquid
-                            document.getElementById("mempoolFeeRate").textContent = "{{.MempoolFeeRate}} sats/vB"
-                          }   
+                            // Initialize total UTXO amount and UTXO counters
+                            let totalUtxoAmount = 0;
+                            let inputs = 0; // Number of inputs
+                            
+                            // Get all table rows and convert NodeList to an array
+                            let tableArray = Array.from(document.querySelectorAll("#utxoTableLBTC tr"));  
 
-                          // amount cannot be blank
-                          if (swapAmount < 100000) {
-                            document.getElementById('result').innerText = "Minimum Swap Amount is 100,000 sats";
-                            document.getElementById('result').title = '';
-                            document.getElementById('resultLabel').title = '';
-                            return;
-                          }
+                            // Sort the array of table rows based on UTXO amount from high to low
+                            tableArray.sort((a, b) => {
+                                let amountA = parseFloat(a.querySelector("#utxoAmountLBTC").textContent);
+                                let amountB = parseFloat(b.querySelector("#utxoAmountLBTC").textContent);
+                                return amountB - amountA;
+                            });
 
-                          // check max amount
-                          const maxAmount = swapMaxAmount();
-                          if (swapAmount > maxAmount) {
-                            document.getElementById('result').innerText = "Maximum Swap Amount is " + formatWithThousandSeparators(maxAmount) + " sats";
-                            document.getElementById('result').title = '';
-                            document.getElementById('resultLabel').title = '';
-                            return;
-                          }
-
-                          const isSwapIn = document.getElementById("from").value != "ln";
-                          if (isSwapIn) {
-                            title = "Assumed UTXOs:\n";
-                            if (asset == "btc") {
-                              // Initialize total UTXO amount and UTXO counters
-                              let totalUtxoAmount = 0;
-                              let inputsP2TR = 0; // Number of P2TR inputs
-                              let inputsP2WPKH = 0; // Number of P2WPKH inputs
-                              
-                              // Get all table rows and convert NodeList to an array
-                              let tableArray = Array.from(document.querySelectorAll("#utxoTableBTC tr"));  
-
-                              // Sort the array of table rows based on UTXO amount from high to low
-                              tableArray.sort((a, b) => {
-                                  let amountA = parseFloat(a.querySelector("#utxoAmountBTC").textContent);
-                                  let amountB = parseFloat(b.querySelector("#utxoAmountBTC").textContent);
-                                  return amountB - amountA;
-                              });
-
-                              // total amount to allocate among UTXOs 
-                              let amountToAllocate = swapAmount;
-                              
-                              // Iterate through table rows
-                              tableArray.forEach(function(row) {
-                                // Check if allocation is not finished
-                                if (amountToAllocate >= 0) {
+                            // total amount to allocate among UTXOs, including reserve
+                            let amountToAllocate = swapAmount + {{.LiquidReserve}};
+                            
+                            // Iterate through table rows
+                            tableArray.forEach(function(row) {
+                              // Check if allocation is not finished
+                              if (amountToAllocate >= 0) {
                                   // Reduce unallocated amount by UTXO size
-                                  const utxoAmount = parseFloat(row.querySelector("#utxoAmountBTC").textContent);
+                                  const utxoAmount = Math.round(parseFloat(row.querySelector("#utxoAmountLBTC").textContent)*100000000, 0);
                                   amountToAllocate -= utxoAmount;
 
                                   // each used UTXO increases total fee, which may need more UTXOs
-                                  amountToAllocate += 84 * feeRate;
+                                  {{if .HasDiscountedvSize}}
+                                    amountToAllocate += 69 * feeRate;
+                                  {{else}}
+                                    amountToAllocate += 84 * feeRate;
+                                  {{end}}
 
-                                  // identify P2TR vs P2WPKH address
-                                  const address = row.querySelector("#utxoAddressBTC").textContent
-                                  if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
-                                    // Increment P2TR UTXO count
-                                    inputsP2TR++;
-                                  } else {
-                                    // Increment P2WPKH UTXO count
-                                    inputsP2WPKH++;
-                                  }
-                                  title += "#" + formatWithThousandSeparators(inputsP2WPKH+inputsP2TR) + ": " + formatWithThousandSeparators(utxoAmount) + "\n";
-                                } 
-                              });
-
-                              // calc fee
-                              let baseSize = 41 * (inputsP2TR + inputsP2WPKH);
-                              let totalSize = 41 * (inputsP2TR + inputsP2WPKH);
-                              totalSize += 64 * inputsP2TR + 104 * inputsP2WPKH;
-                              vbyteSize = 97 + Math.ceil((3 * baseSize + totalSize) / 4);
-                              fee = vbyteSize * feeRate;
-                              change = Math.floor(-amountToAllocate);
-
-                              if (change < 1000) {
-                                // peerswap spends dust change as extra fee
-                                if (change < 0) {
-                                  document.getElementById('result').innerText = "Insufficient BTC balance to cover expected fee of " + formatWithThousandSeparators(fee) + " sats";
-                                  document.getElementById('result').title = '';
-                                  document.getElementById('resultLabel').title = '';
-                                  return;
-                                }
-                                fee += change;
+                                  // increment inputs
+                                  inputs++;
+                                  title += "#" + formatWithThousandSeparators(inputs) + ": " + formatWithThousandSeparators(utxoAmount) + "\n";
                               }
-                            } else {
-                              // Initialize total UTXO amount and UTXO counters
-                              let totalUtxoAmount = 0;
-                              let inputs = 0; // Number of inputs
-                              
-                              // Get all table rows and convert NodeList to an array
-                              let tableArray = Array.from(document.querySelectorAll("#utxoTableLBTC tr"));  
+                            });
+                            
+                            // Calculate tx size assuming always two outputs
+                            vbyteSize = 2420 + inputs * 84;
+                            
+                            {{if .HasDiscountedvSize}}
+                              // empirical discountvsize:
+                              // 1->2 269
+                              // 2->2 338 (= 1->2 + 69)
+                              // 3->2 406 (= 2->2 + 68)
+                              vbyteSize = 200 + inputs * 69;
+                              discount =" discounted";
+                            {{end}}
 
-                              // Sort the array of table rows based on UTXO amount from high to low
-                              tableArray.sort((a, b) => {
-                                  let amountA = parseFloat(a.querySelector("#utxoAmountLBTC").textContent);
-                                  let amountB = parseFloat(b.querySelector("#utxoAmountLBTC").textContent);
-                                  return amountB - amountA;
-                              });
-
-                              // total amount to allocate among UTXOs, including reserve
-                              let amountToAllocate = swapAmount + {{.LiquidReserve}};
-                              
-                              // Iterate through table rows
-                              tableArray.forEach(function(row) {
-                                // Check if allocation is not finished
-                                if (amountToAllocate >= 0) {
-                                    // Reduce unallocated amount by UTXO size
-                                    const utxoAmount = Math.round(parseFloat(row.querySelector("#utxoAmountLBTC").textContent)*100000000, 0);
-                                    amountToAllocate -= utxoAmount;
-
-                                    // each used UTXO increases total fee, which may need more UTXOs
-                                    {{if .HasDiscountedvSize}}
-                                      amountToAllocate += 69 * feeRate;
-                                    {{else}}
-                                      amountToAllocate += 84 * feeRate;
-                                    {{end}}
-
-                                    // increment inputs
-                                    inputs++;
-                                    title += "#" + formatWithThousandSeparators(inputs) + ": " + formatWithThousandSeparators(utxoAmount) + "\n";
-                                }
-                              });
-                              
-                              // Calculate tx size assuming always two outputs
-                              vbyteSize = 2420 + inputs * 84;
-                              
-                              {{if .HasDiscountedvSize}}
-                                // empirical discountvsize:
-                                // 1->2 269
-                                // 2->2 338 (= 1->2 + 69)
-                                // 3->2 406 (= 2->2 + 68)
-                                vbyteSize = 200 + inputs * 69;
-                                discount =" discounted";
-                              {{end}}
-
-                              fee = Math.ceil(vbyteSize * feeRate);
-                              change = Math.floor(-amountToAllocate);
-                            } 
+                            fee = Math.ceil(vbyteSize * feeRate);
+                            change = Math.floor(-amountToAllocate);
+                          } 
+                        } else {
+                          let claimSize = 149; // BTC
+                          let claimPadding = 0; // sats 
+                          if (asset == "btc") {
+                            claimPadding = 200; // BTC padding hardcoded here: 
+                            // https://github.com/ElementsProject/peerswap/blob/89d79f7bf2ea0d5bec61933a2f8438947250db70/onchain/bitcoin.go#L224
+                            vbyteSize = 350; // onchain.EstimatedOpeningTxSize
+                            title = "Assumed opening transaction size 350 vB";
                           } else {
-                            let claimSize = 149; // BTC
-                            let claimPadding = 0; // sats 
-                            if (asset == "btc") {
-                              claimPadding = 200; // BTC padding hardcoded here: 
-                              // https://github.com/ElementsProject/peerswap/blob/89d79f7bf2ea0d5bec61933a2f8438947250db70/onchain/bitcoin.go#L224
-                              vbyteSize = 350; // onchain.EstimatedOpeningTxSize
-                              title = "Assumed opening transaction size 350 vB";
-                            } else {
-                              {{if .HasDiscountedvSize}}
-                                claimSize = 330;
-                                vbyteSize = 750; // prepaid
-                                title = "Assumed opening transaction size: 750 discounded vB";
-                                discount =" discount";
-                              {{else}}
-                                claimSize = 1350;
-                                vbyteSize = 3000; // prepaid
-                                title = "Assumed opening transaction size: 3000 vB";
-                              {{end}}
-                            }
-
-                            const rebate = Math.ceil(vbyteSize * feeRate);
-                            const claim = Math.ceil(claimSize * feeRate) + claimPadding;
-                            fee = rebate + claim;
-                            rebateText = "Rebate to opener: " + formatWithThousandSeparators(rebate) + " sats\n";
-                            claimText = "Claim tx fee: " + formatWithThousandSeparators(claim) + " sats\n";
-                          } 
-                      
-                          let text = "Opening tx size: " + vbyteSize + discount + " vBytes\n";
-                          text += "Opening tx fee: " + formatWithThousandSeparators(fee) + " sats\n";
-
-                          if (rebateText != "") {
-                            text = rebateText;
+                            {{if .HasDiscountedvSize}}
+                              claimSize = 330;
+                              vbyteSize = 750; // prepaid
+                              title = "Assumed opening transaction size: 750 discounded vB";
+                              discount =" discount";
+                            {{else}}
+                              claimSize = 1350;
+                              vbyteSize = 3000; // prepaid
+                              title = "Assumed opening transaction size: 3000 vB";
+                            {{end}}
                           }
 
-                          text += claimText;      
-                          text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
-                          text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
-                          
-                          if (isSwapIn && asset == "btc" && change < {{.AnchorReserve}}) {
-                            text += "\nWARNING: No reserve is left for anchor fee bumping!";
-                          } 
+                          const rebate = Math.ceil(vbyteSize * feeRate);
+                          const claim = Math.ceil(claimSize * feeRate) + claimPadding;
+                          fee = rebate + claim;
+                          rebateText = "Rebate to opener: " + formatWithThousandSeparators(rebate) + " sats\n";
+                          claimText = "Claim tx fee: " + formatWithThousandSeparators(claim) + " sats\n";
+                        } 
+                    
+                        let text = "Opening tx size: " + vbyteSize + discount + " vBytes\n";
+                        text += "Opening tx fee: " + formatWithThousandSeparators(fee) + " sats\n";
 
-                          document.getElementById('result').title = title;
-                          document.getElementById('resultLabel').title = title;
-                          document.getElementById('result').innerText = text;
-                          document.getElementById("totalFee").value = Number(fee);
+                        if (rebateText != "") {
+                          text = rebateText;
                         }
 
-                        let timerId;
-                        // Function to execute after a delay
-                        function delayedCalculateTransactionFee() {
-                            // Clear previous timer if it exists
-                            clearTimeout(timerId);
+                        text += claimText;      
+                        text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
+                        text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
+                        
+                        if (isSwapIn && asset == "btc" && change < {{.AnchorReserve}}) {
+                          text += "\nWARNING: No reserve is left for anchor fee bumping!";
+                        } 
 
-                            // Set a new timer to execute after 300 milliseconds
-                            timerId = setTimeout(calculateTransactionFee, 300);
-                        }
+                        document.getElementById('result').title = title;
+                        document.getElementById('resultLabel').title = title;
+                        document.getElementById('result').innerText = text;
+                        document.getElementById("totalFee").value = Number(fee);
+                      }
 
-                        // warning message if swap too expensive
-                        function confirmSubmit() {
-                          const fee = Number(document.getElementById("totalFee").value);
-                          const amount = Number(document.getElementById("swapAmount").value);
+                      let timerId;
+                      // Function to execute after a delay
+                      function delayedCalculateTransactionFee() {
+                          // Clear previous timer if it exists
+                          clearTimeout(timerId);
 
-                          if (fee > amount / 1000) {
-                            // Display confirmation dialog
-                            var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
-                            if (!confirmed) {
-                              // user cancels, prevent form submission
-                              return false;
-                            }
+                          // Set a new timer to execute after 300 milliseconds
+                          timerId = setTimeout(calculateTransactionFee, 300);
+                      }
+
+                      // warning message if swap too expensive
+                      function confirmSubmit() {
+                        const fee = Number(document.getElementById("totalFee").value);
+                        const amount = Number(document.getElementById("swapAmount").value);
+
+                        if (fee > amount / 1000) {
+                          // Display confirmation dialog
+                          var confirmed = confirm("Cost exceeds 1000 PPM. Are you sure?");
+                          if (!confirmed) {
+                            // user cancels, prevent form submission
+                            return false;
                           }
                         }
+                      }
 
-                        // on load
-                        fromChanged();
-                      </script>
-                    {{end}}
+                      // on load
+                      fromChanged();
+                    </script>
                   {{end}}
                 {{end}}
-              {{else}}
-                <h4 class="title is-4">Invitation to PeerSwap</h4> 
-                <form action="/submit" method="post">
-                  <div class="field is-horizontal">
-                    <div class="field-body">
-                      <div class="field">
-                        <textarea name="keysendMessage" class="textarea" rows="13">
+              {{end}}
+            {{else}}
+              <h4 class="title is-4">Invitation to PeerSwap</h4> 
+              <form action="/submit" method="post">
+                <div class="field is-horizontal">
+                  <div class="field-body">
+                    <div class="field">
+                      <textarea name="keysendMessage" class="textarea" rows="13">
 Dear {{.PeerAlias}}, 
 
 We are direct peers and could be using Liquid PeerSwap to rebalance our lightning channel. Recently, Liquid introduced discounted fee rates for confidential transactions on mainnet. Now I can rebalance any amount for a flat fee of ~40 sats (swap in) or ~110 sats (swap out). Compare that to your circular rebalancing costs.
@@ -442,248 +442,248 @@ Feel free to ping me if you have any questions!
 
 Sincerely,
 {{.MyAlias}}</textarea>
-                      </div>
                     </div>
                   </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Keysend Sats</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
-                    </div>
-                  </div> 
-                  <br>
-                  <center>
-                    <input type="hidden" name="action" value="keySend">
-                    <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                    <input class="button is-large" type="submit" value="Send Message">
-                  </center>
-                </form>
-              {{end}}
-            {{else}}
-              <h4 class="title is-4">🚫 No active channels</h4>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label">Keysend Sats</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="keysendAmount" required min="1" value= "{{.KeysendSats}}" placeholder="⚡ Keysend Amount (sats)">
+                  </div>
+                </div> 
+                <br>
+                <center>
+                  <input type="hidden" name="action" value="keySend">
+                  <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                  <input class="button is-large" type="submit" value="Send Message">
+                </center>
+              </form>
             {{end}}
-          </div>
+          {{else}}
+            <h4 class="title is-4">🚫 No active channels</h4>
+          {{end}}
         </div>
-        <div class="column">
-          <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
-              <div style="text-align: left;">
-                <h4 class="title is-4" style="white-space: nowrap"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                {{if .PeerSwapPeer}}
-                  <h4 style="transform: scale(1.5)"><a title="Display swaps history with this peer" href="/?id={{.Peer.NodeId}}">🔍</a></h4>
-                {{end}}
-              </div>
+      </div>
+      <div class="column">
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+            <div style="text-align: left;">
+              <h4 class="title is-4" style="white-space: nowrap"><a href="{{.NodeUrl}}/{{.Peer.NodeId}}" target="_blank">{{.PeerAlias}}</a></h4>  
             </div>
-            {{if .PeerSwapPeer}}
-              <table style="width:100%; table-layout:fixed;">
-                <tr>
-                  {{if .PeerBitcoinBalance}}
-                    <td style="text-align: center;">
-                      <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{.PeerBitcoinBalance}}</p>
-                    </td>
-                  {{end}}
-                  {{if .PeerLiquidBalance}}
-                    <td style="text-align: center;">
-                      <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{.PeerLiquidBalance}}</p>
-                    </td>
-                  {{end}}
-                </tr> 
-              </table>
-              <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
-                <tr>
-                  <th style="text-align: center">Swaps</th>
-                  <th style="text-align: center">⇨ ⚡</th>
-                  <th style="text-align: center">Cost</th>   
-                  <th style="text-align: center">⚡ ⇨</th>
-                  <th style="text-align: center">Cost</th>
-                </tr>
-                <tr style="border: 1px dotted">
-                  <td style="text-align: center">Sent
-                  <td title="Initiated {{fmt .Peer.AsSender.SwapsIn}} swap-ins for {{fmt .Peer.AsSender.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
-                  <td title="Opening fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
-                  <td title="Initiated {{fmt .Peer.AsSender.SwapsOut}} swap-outs for {{fmt .Peer.AsSender.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                  <td title="Rebates paid + claim fees, Sats (PPM)" style="text-align: center">{{fs .SenderOutFee}}{{if .SenderOutFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
-                </tr>
-                <tr style="border: 1px dotted">
-                  <td style="text-align: center">Rcvd
-                  <td title="Received {{fmt .Peer.AsReceiver.SwapsOut}} swap-outs for {{fmt .Peer.AsReceiver.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
-                  <td title="Opening fees less rebates received, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
-                  <td title="Received {{fmt .Peer.AsReceiver.SwapsIn}} swap-ins for {{fmt .Peer.AsReceiver.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
-                  <td title="Claim fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
-                </tr>
-              </table>  
-            {{end}}
+            <div style="display: flex; justify-content: flex-end;">
+              {{if .PeerSwapPeer}}
+                <h4 style="transform: scale(1.5)"><a title="Display swaps history with this peer" href="/?id={{.Peer.NodeId}}">🔍</a></h4>
+              {{end}}
+            </div>
+          </div>
+          {{if .PeerSwapPeer}}
+            <table style="width:100%; table-layout:fixed;">
+              <tr>
+                {{if .PeerBitcoinBalance}}
+                  <td style="text-align: center;">
+                    <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{.PeerBitcoinBalance}}</p>
+                  </td>
+                {{end}}
+                {{if .PeerLiquidBalance}}
+                  <td style="text-align: center;">
+                    <p title="Peer's L-BTC balance" style="white-space: nowrap">🌊&nbsp{{.PeerLiquidBalance}}</p>
+                  </td>
+                {{end}}
+              </tr> 
+            </table>
             <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
               <tr>
-                <th style="text-align: center">Forwards</th>
-                <th title="Sats routed out" style="text-align: center">Out</th>
-                <th title="Routing revenue in Sats and (PPM)" style="text-align: center">Revenue</th>
-                <th title="Sats routed in" style="text-align: center">In</th>
-                <th title="Assisted revenue in Sats and (PPM)" style="text-align: center">Assisted</th>
+                <th style="text-align: center">Swaps</th>
+                <th style="text-align: center">⇨ ⚡</th>
+                <th style="text-align: center">Cost</th>   
+                <th style="text-align: center">⚡ ⇨</th>
+                <th style="text-align: center">Cost</th>
               </tr>
-              {{range .Stats}}
-                <tr style="border: 1px dotted">
-                  <td style="text-align: center">7d
-                  <td title="{{fmt .AmountOut7d}}" style="text-align: center">{{m .AmountOut7d}}</td>
-                  <td style="text-align: center"><span title="Sats">{{fmt .FeeSat7d}}</span>{{if gt .FeeSat7d 0}} <span title="PPM">({{fmt .FeePPM7d}})</span>{{end}}</td>
-                  <td title="{{fmt .AmountIn7d}}" style="text-align: center">{{m .AmountIn7d}}</td>
-                  <td style="text-align: center"><span title="Sats">{{fmt .AssistedFeeSat7d}}</span>{{if gt .AssistedFeeSat7d 0}} <span title="PPM">({{fmt .AssistedPPM7d}})</span>{{end}}</td>
-                </tr>
-                <tr style="border: 1px dotted">
-                  <td style="text-align: center">30d
-                  <td title="{{fmt .AmountOut30d}}" style="text-align: center">{{m .AmountOut30d}}</td>
-                  <td style="text-align: center"><span title="Sats">{{fmt .FeeSat30d}}</span>{{if gt .FeeSat30d 0}} <span title="PPM">({{fmt .FeePPM30d}})</span>{{end}}</td>
-                  <td title="{{fmt .AmountIn30d}}" style="text-align: center">{{m .AmountIn30d}}</td>
-                  <td style="text-align: center"><span title="Sats">{{fmt .AssistedFeeSat30d}}</span>{{if gt .AssistedFeeSat30d 0}} <span title="PPM">({{fmt .AssistedPPM30d}})</span>{{end}}</td>
-                </tr>
-                <tr style="border: 1px dotted">
-                  <td style="text-align: center">6m
-                  <td title="{{fmt .AmountOut6m}}" style="text-align: center">{{m .AmountOut6m}}</td>
-                  <td style="text-align: center"><span title="Sats">{{fmt .FeeSat6m}}</span>{{if gt .FeeSat6m 0}} <span title="PPM">({{fmt .FeePPM6m}})</span>{{end}}</td>
-                  <td title="{{fmt .AmountIn6m}}" style="text-align: center">{{m .AmountIn6m}}</td>
-                  <td style="text-align: center"><span title="Sats">{{fmt .AssistedFeeSat6m}}</span>{{if gt .AssistedFeeSat6m 0}} <span title="PPM">({{fmt .AssistedPPM6m}})</span>{{end}}</td>
-                </tr>
-              {{end}}
+              <tr style="border: 1px dotted">
+                <td style="text-align: center">Sent
+                <td title="Initiated {{fmt .Peer.AsSender.SwapsIn}} swap-ins for {{fmt .Peer.AsSender.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
+                <td title="Opening fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
+                <td title="Initiated {{fmt .Peer.AsSender.SwapsOut}} swap-outs for {{fmt .Peer.AsSender.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
+                <td title="Rebates paid + claim fees, Sats (PPM)" style="text-align: center">{{fs .SenderOutFee}}{{if .SenderOutFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="text-align: center">Rcvd
+                <td title="Received {{fmt .Peer.AsReceiver.SwapsOut}} swap-outs for {{fmt .Peer.AsReceiver.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
+                <td title="Opening fees less rebates received, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
+                <td title="Received {{fmt .Peer.AsReceiver.SwapsIn}} swap-ins for {{fmt .Peer.AsReceiver.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
+                <td title="Claim fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
+              </tr>
             </table>  
-            <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
-              <tr>
-                <th title="Channel capacity" style="text-align: center">Capacity</th>
-                <th title="Local balance as % of capacity" style="text-align: center">Local</th>
-                <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
-                <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
-                <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
-                <th title="Inbound Fee Base mSats" style="text-align: center">Inbound Base</th>
+          {{end}}
+          <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
+            <tr>
+              <th style="text-align: center">Forwards</th>
+              <th title="Sats routed out" style="text-align: center">Out</th>
+              <th title="Routing revenue in Sats and (PPM)" style="text-align: center">Revenue</th>
+              <th title="Sats routed in" style="text-align: center">In</th>
+              <th title="Assisted revenue in Sats and (PPM)" style="text-align: center">Assisted</th>
+            </tr>
+            {{range .Stats}}
+              <tr style="border: 1px dotted">
+                <td style="text-align: center">7d
+                <td title="{{fmt .AmountOut7d}}" style="text-align: center">{{m .AmountOut7d}}</td>
+                <td style="text-align: center"><span title="Sats">{{fmt .FeeSat7d}}</span>{{if gt .FeeSat7d 0}} <span title="PPM">({{fmt .FeePPM7d}})</span>{{end}}</td>
+                <td title="{{fmt .AmountIn7d}}" style="text-align: center">{{m .AmountIn7d}}</td>
+                <td style="text-align: center"><span title="Sats">{{fmt .AssistedFeeSat7d}}</span>{{if gt .AssistedFeeSat7d 0}} <span title="PPM">({{fmt .AssistedPPM7d}})</span>{{end}}</td>
               </tr>
-              {{range .ChannelInfo}}
-                <tr style="border: 1px dotted">
-                  <td style="padding: 0px; text-align: center; {{if not .Active}}
-                      color:{{$.RedColor}};" title="Channel is inactive"
-                    {{else}}" title="Channel Id: {{.ChannelId}}
+              <tr style="border: 1px dotted">
+                <td style="text-align: center">30d
+                <td title="{{fmt .AmountOut30d}}" style="text-align: center">{{m .AmountOut30d}}</td>
+                <td style="text-align: center"><span title="Sats">{{fmt .FeeSat30d}}</span>{{if gt .FeeSat30d 0}} <span title="PPM">({{fmt .FeePPM30d}})</span>{{end}}</td>
+                <td title="{{fmt .AmountIn30d}}" style="text-align: center">{{m .AmountIn30d}}</td>
+                <td style="text-align: center"><span title="Sats">{{fmt .AssistedFeeSat30d}}</span>{{if gt .AssistedFeeSat30d 0}} <span title="PPM">({{fmt .AssistedPPM30d}})</span>{{end}}</td>
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="text-align: center">6m
+                <td title="{{fmt .AmountOut6m}}" style="text-align: center">{{m .AmountOut6m}}</td>
+                <td style="text-align: center"><span title="Sats">{{fmt .FeeSat6m}}</span>{{if gt .FeeSat6m 0}} <span title="PPM">({{fmt .FeePPM6m}})</span>{{end}}</td>
+                <td title="{{fmt .AmountIn6m}}" style="text-align: center">{{m .AmountIn6m}}</td>
+                <td style="text-align: center"><span title="Sats">{{fmt .AssistedFeeSat6m}}</span>{{if gt .AssistedFeeSat6m 0}} <span title="PPM">({{fmt .AssistedPPM6m}})</span>{{end}}</td>
+              </tr>
+            {{end}}
+          </table>  
+          <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
+            <tr>
+              <th title="Channel capacity" style="text-align: center">Capacity</th>
+              <th title="Local balance as % of capacity" style="text-align: center">Local</th>
+              <th title="Outbound Fee Rate PPM" style="text-align: center">Fee Rate</th>
+              <th title="Outbound Fee Base mSats" style="text-align: center">Fee Base</th>
+              <th title="Inbound Fee Rate PPM" style="text-align: center">Inbound Rate</th>
+              <th title="Inbound Fee Base mSats" style="text-align: center">Inbound Base</th>
+            </tr>
+            {{range .ChannelInfo}}
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center; {{if not .Active}}
+                    color:{{$.RedColor}};" title="Channel is inactive"
+                  {{else}}" title="Channel Id: {{.ChannelId}}
 Capacity: {{fmt .Capacity}}"
-                    {{end}}>{{m .Capacity}}</td>
+                  {{end}}>{{m .Capacity}}</td>
 <td title="Local: {{fmt .LocalBalance}}
 Remote: {{fmt .RemoteBalance}}" style="padding: 0px; text-align: center">{{.LocalPct}}%</td>
-                  <td style="padding: 0px; text-align: center">
-                    <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
-                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                      <input type="hidden" name="action" value="setFee">
-                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                      <input type="hidden" name="direction" value="outbound">
-                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
-                    </form>
-                  </td>
-                  <td style="padding: 0px; text-align: center">
-                    <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
-                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                      <input type="hidden" name="action" value="setBase">
-                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                      <input type="hidden" name="direction" value="outbound">
-                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
-                    </form>
-                  </td>
-                  <td style="padding: 0px; text-align: center">
-                    <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
-                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                      <input type="hidden" name="action" value="setFee">
-                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                      <input type="hidden" name="direction" value="inbound">
-                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
-                    </form>
-                  </td>
-                  <td style="padding: 0px; text-align: center">
-                    <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
-                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                      <input type="hidden" name="action" value="setBase">
-                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
-                      <input type="hidden" name="direction" value="inbound">
-                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
-                    </form>
-                  </td>
+                <td style="padding: 0px; text-align: center">
+                  <form id="{{.ChannelId}}_outbound" autocomplete="off" action="/submit" method="post">
+                    <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                    <input type="hidden" name="action" value="setFee">
+                    <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                    <input type="hidden" name="direction" value="outbound">
+                    <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                    <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" value="{{.FeeRate}}" onchange="submitForm('{{.ChannelId}}_outbound')">
+                  </form>
+                </td>
+                <td style="padding: 0px; text-align: center">
+                  <form id="{{.ChannelId}}_outboundbase" autocomplete="off" action="/submit" method="post">
+                    <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                    <input type="hidden" name="action" value="setBase">
+                    <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                    <input type="hidden" name="direction" value="outbound">
+                    <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                    <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.FeeBase}}" onchange="submitForm('{{.ChannelId}}_outboundbase')">
+                  </form>
+                </td>
+                <td style="padding: 0px; text-align: center">
+                  <form id="{{.ChannelId}}_inbound" autocomplete="off" action="/submit" method="post">
+                    <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                    <input type="hidden" name="action" value="setFee">
+                    <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                    <input type="hidden" name="direction" value="inbound">
+                    <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                    <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeRate" max="0" value="{{.InboundFeeRate}}" onchange="submitForm('{{.ChannelId}}_inbound')"{{if not $.HasInboundFees}} disabled{{end}}>
+                  </form>
+                </td>
+                <td style="padding: 0px; text-align: center">
+                  <form id="{{.ChannelId}}_inboundbase" autocomplete="off" action="/submit" method="post">
+                    <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                    <input type="hidden" name="action" value="setBase">
+                    <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                    <input type="hidden" name="direction" value="inbound">
+                    <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                    <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="feeBase" value="{{.InboundFeeBase}}" max="0" onchange="submitForm('{{.ChannelId}}_inboundbase')"{{if not $.HasInboundFees}} disabled{{end}}>
+                  </form>
+                </td>
+                <tr style="border: 1px dotted">
+                    <td colspan="2" style="text-align: right; padding: 0px;">
+                      Peer Fees:
+                    </td>
+                    <td style="text-align: center; padding: 0px;">
+                      {{.PeerFeeRate}}
+                    </td>
+                    <td style="text-align: center; padding: 0px;">
+                      {{.PeerFeeBase}}
+                    </td>
+                    <td style="text-align: center; padding: 0px;">
+                      {{.PeerInboundFeeRate}}
+                    </td>
+                    <td style="text-align: center; padding: 0px;">
+                      {{.PeerInboundFeeBase}}
+                    </td>
+                  </tr>
+                {{if ne .AutoFeeLog ""}}
                   <tr style="border: 1px dotted">
-                      <td colspan="2" style="text-align: right; padding: 0px;">
-                        Peer Fees:
-                      </td>
-                      <td style="text-align: center; padding: 0px;">
-                        {{.PeerFeeRate}}
-                      </td>
-                      <td style="text-align: center; padding: 0px;">
-                        {{.PeerFeeBase}}
-                      </td>
-                      <td style="text-align: center; padding: 0px;">
-                        {{.PeerInboundFeeRate}}
-                      </td>
-                      <td style="text-align: center; padding: 0px;">
-                        {{.PeerInboundFeeBase}}
-                      </td>
-                    </tr>
-                  {{if ne .AutoFeeLog ""}}
-                    <tr style="border: 1px dotted">
-                      <td colspan="6" style="text-align: center; padding: 0px;">
-                        {{.AutoFeeLog}}
-                      </td>
-                    </tr>
-                  {{end}}
-                </tr>
-              {{end}}
-            </table>
-            <script>
-              function submitForm(formId) {
-                document.getElementById(formId).submit();
-              }
-            </script>
-            {{if .PeerSwapPeer}}
-              <div class="columns">
-                <div class="column">
-                  <center>            
-                    {{if .Suspicious}}
-                      <p title="Click to remove the peer from Suspicious List to allow receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('unsuspectPeer')">🕵 This peer is suspicious</p>
-                      <form id="unsuspectPeer" action="/submit" method="post">
-                        <input type="hidden" name="action" value="unsuspectPeer">
-                        <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                      </form>
-                    {{else}}
-                      <p title="Click to add the peer to Suspicious List to deny receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('suspectPeer')">✅ This peer is not suspicious</p>
-                      <form id="suspectPeer" action="/submit" method="post">
-                        <input type="hidden" name="action" value="suspectPeer">
-                        <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                      </form>
-                    {{end}}
-                  </center>
-                </div>
-                <div class="column">
-                  <center>
-                    {{if .Allowed}}
-                      <p title="Click to remove the peer from Allow List to deny receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('removePeer')">✅ This peer is whitelisted</p>
-                      <form id="removePeer" action="/submit" method="post">
-                        <input type="hidden" name="action" value="removePeer">
-                        <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                      </form>
-                    {{else}}
-                      <p title="Click to add the peer to Allow List to enable receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is not whitelisted</p>
-                      <form id="addPeer" action="/submit" method="post">
-                        <input type="hidden" name="action" value="addPeer">
-                        <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
-                      </form>
-                    {{end}}
-                  </center>
-                </div>
-              </div>
+                    <td colspan="6" style="text-align: center; padding: 0px;">
+                      {{.AutoFeeLog}}
+                    </td>
+                  </tr>
+                {{end}}
+              </tr>
             {{end}}
-          </div>
+          </table>
+          <script>
+            function submitForm(formId) {
+              document.getElementById(formId).submit();
+            }
+          </script>
+          {{if .PeerSwapPeer}}
+            <div class="columns">
+              <div class="column">
+                <center>            
+                  {{if .Suspicious}}
+                    <p title="Click to remove the peer from Suspicious List to allow receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('unsuspectPeer')">🕵 This peer is suspicious</p>
+                    <form id="unsuspectPeer" action="/submit" method="post">
+                      <input type="hidden" name="action" value="unsuspectPeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                    </form>
+                  {{else}}
+                    <p title="Click to add the peer to Suspicious List to deny receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('suspectPeer')">✅ This peer is not suspicious</p>
+                    <form id="suspectPeer" action="/submit" method="post">
+                      <input type="hidden" name="action" value="suspectPeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                    </form>
+                  {{end}}
+                </center>
+              </div>
+              <div class="column">
+                <center>
+                  {{if .Allowed}}
+                    <p title="Click to remove the peer from Allow List to deny receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('removePeer')">✅ This peer is whitelisted</p>
+                    <form id="removePeer" action="/submit" method="post">
+                      <input type="hidden" name="action" value="removePeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                    </form>
+                  {{else}}
+                    <p title="Click to add the peer to Allow List to enable receiving swaps" style="margin-bottom:0.5em; cursor: pointer;" style="white-space: nowrap" onclick="submitForm('addPeer')">⛔ This peer is not whitelisted</p>
+                    <form id="addPeer" action="/submit" method="post">
+                      <input type="hidden" name="action" value="addPeer">
+                      <input type="hidden" name="nodeId" value="{{.Peer.NodeId}}">
+                    </form>
+                  {{end}}
+                </center>
+              </div>
+            </div>
+          {{end}}
         </div>
       </div>
     </div>
+  </div>
   {{template "footer" .}}
 {{end}}

@@ -1,254 +1,254 @@
 {{define "liquid"}}
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto;">
-              <div style="text-align: left;">
-                <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}&nbsp<a title="Download Elements wallet backup" href = '/backup'>💾</a></h4>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <form id="toggleForm_0" action="/submit" method="post">
-                  <input type="hidden" name="action" value="advertiseLiquidBalance">
-                  <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
+  <div class="container">
+    <div class="columns">
+      <div class="column">
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto;">
+            <div style="text-align: left;">
+              <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}&nbsp<a title="Download Elements wallet backup" href = '/backup'>💾</a></h4>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <form id="toggleForm_0" action="/submit" method="post">
+                <input type="hidden" name="action" value="advertiseLiquidBalance">
+                <label class="checkbox is-large" style="padding-top: .5em;">
+                  <input title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
 Amount is capped at remote channel balance to mimic brute force discovery" id="advertiseEnabled" type="checkbox" name="enabled" {{if .AdvertiseEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
-                    {{if .AdvertiseEnabled}}
-                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
+                  {{if .AdvertiseEnabled}}
+                    <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers
 Amount is capped at remote channel balance to mimic brute force discovery" for="advertiseEnabled" style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                        📡 ON
-                      </label>
-                    {{else}}
-                      <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
-                        📡 OFF
-                      </label>
-                    {{end}}
-                  </label>
-                </form>
-              </div>
-            </div>
-          </div>       
-          <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: .5em;">
-              <div style="text-align: left;">
-                <h4 class="title is-4">Liquid Auto Swap</h4>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                {{if .AutoSwapEnabled}}
-                  <p style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                    🤖 ON
-                  </p>
-                {{else}}
-                  <p style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
-                    🤖 OFF
-                  </p>
-                {{end}}
-              </div>
-            </div>
-            <form autocomplete="off" action="/submit" method="post">
-              <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Wait for the accumulated Liquid balance to reach this amount" class="label">Threshold Amount</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="thresholdAmount" min="100000" value={{.AutoSwapThresholdAmount}} required placeholder="🌊 Liquid Amount (sats)">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Maximum swap amount per peer" class="label">Max Swap Amount</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="maxAmount" min="100000" value={{.AutoSwapMaxAmount}} required placeholder="🌊 Liquid Amount (sats)">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Minimum required channel's historic revenue PPM" class="label">Threshold PPM</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="thresholdPPM" min="0" value={{.AutoSwapThresholdPPM}} required placeholder="Historic PPM Revenue (sats)">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label title="Target local balance as % of capacity" class="label">Target Balance Pct</label>
-                </div>
-                <div class="field-body">
-                  <input class="input is-medium" type="number" name="targetPct" min="1" max="99" step="1" value={{.AutoSwapTargetPct}} required placeholder="50 percent">
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                  <label class="label">Current Best Candidate</label>
-                </div>
-                <div class="field-body">
-                  <label class="label">
-                    <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">{{.AutoSwapCandidate.PeerAlias}}</p>
-                    <p title="Swap-in amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
-                    <p title="Channel's realized PPM from the previous swap or the last 6 months">Recent PPM: {{fmt .AutoSwapCandidate.PPM}}</p>
-                  </label>
-                </div>
-              </div>
-              <div class="field is-horizontal">
-                <div class="field-label is-normal">
-                </div>
-                <div class="field-body">
-                  <div class="control">
-                    <label class="checkbox is-large">
-                      <input type="checkbox" name="autoSwapEnabled" {{if .AutoSwapEnabled}}checked{{end}}>
-                      <strong>&nbsp&nbspEnable Liquid Auto Swap 🌊 ⇨ ⚡</strong>
+                      📡 ON
                     </label>
-                  </div>
+                  {{else}}
+                    <label title="Enable/Disable broadcasting L-BTC balance to direct PeerSwap Web UI peers" for="advertiseEnabled" style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      📡 OFF
+                    </label>
+                  {{end}}
+                </label>
+              </form>
+            </div>
+          </div>
+        </div>       
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto; padding-bottom: .5em;">
+            <div style="text-align: left;">
+              <h4 class="title is-4">Liquid Auto Swap</h4>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              {{if .AutoSwapEnabled}}
+                <p style="text-align: center; max-width: 8ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                  🤖 ON
+                </p>
+              {{else}}
+                <p style="text-align: center; max-width: 10ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                  🤖 OFF
+                </p>
+              {{end}}
+            </div>
+          </div>
+          <form autocomplete="off" action="/submit" method="post">
+            <input autocomplete="false" name="hidden" type="text" style="display:none;">
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
+                <label title="Wait for the accumulated Liquid balance to reach this amount" class="label">Threshold Amount</label>
+              </div>
+              <div class="field-body">
+                <input class="input is-medium" type="number" name="thresholdAmount" min="100000" value={{.AutoSwapThresholdAmount}} required placeholder="🌊 Liquid Amount (sats)">
+              </div>
+            </div>
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
+                <label title="Maximum swap amount per peer" class="label">Max Swap Amount</label>
+              </div>
+              <div class="field-body">
+                <input class="input is-medium" type="number" name="maxAmount" min="100000" value={{.AutoSwapMaxAmount}} required placeholder="🌊 Liquid Amount (sats)">
+              </div>
+            </div>
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
+                <label title="Minimum required channel's historic revenue PPM" class="label">Threshold PPM</label>
+              </div>
+              <div class="field-body">
+                <input class="input is-medium" type="number" name="thresholdPPM" min="0" value={{.AutoSwapThresholdPPM}} required placeholder="Historic PPM Revenue (sats)">
+              </div>
+            </div>
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
+                <label title="Target local balance as % of capacity" class="label">Target Balance Pct</label>
+              </div>
+              <div class="field-body">
+                <input class="input is-medium" type="number" name="targetPct" min="1" max="99" step="1" value={{.AutoSwapTargetPct}} required placeholder="50 percent">
+              </div>
+            </div>
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
+                <label class="label">Current Best Candidate</label>
+              </div>
+              <div class="field-body">
+                <label class="label">
+                  <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">{{.AutoSwapCandidate.PeerAlias}}</p>
+                  <p title="Swap-in amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
+                  <p title="Channel's realized PPM from the previous swap or the last 6 months">Recent PPM: {{fmt .AutoSwapCandidate.PPM}}</p>
+                </label>
+              </div>
+            </div>
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
+              </div>
+              <div class="field-body">
+                <div class="control">
+                  <label class="checkbox is-large">
+                    <input type="checkbox" name="autoSwapEnabled" {{if .AutoSwapEnabled}}checked{{end}}>
+                    <strong>&nbsp&nbspEnable Liquid Auto Swap 🌊 ⇨ ⚡</strong>
+                  </label>
                 </div>
               </div>
-              <center>
-                <input type="hidden" name="action" value="setAutoSwap">
-                <input class="button is-large" type="submit" value="Confirm">
-              </center>
-            </form>
-          </div>
+            </div>
+            <center>
+              <input type="hidden" name="action" value="setAutoSwap">
+              <input class="button is-large" type="submit" value="Confirm">
+            </center>
+          </form>
         </div>
-        <div class="column">
-          {{if eq .LiquidAddress ""}}
-            {{if eq .TxId ""}}
-              <div class="box has-text-left">
-                <h4 class="title is-4">Send Liquid</h4> 
-                <form autocomplete="off" action="/submit" method="post">
-                  <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label">Address</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
-                    </div>
-                  </div>
-                  <div title="Amount in sats" class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                      <label title="Internal comment" class="label">Comment</label>
-                    </div>
-                    <div class="field-body">
-                      <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                    </div>
-                    <div class="field-body">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" id="subtractfee" name="subtractfee">
-                          <strong>&nbsp&nbspSubtract Fee From Amount</strong>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                    </div>
-                    <div class="field-body">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
-                          <strong>&nbsp&nbspIgnore Blind Fail</strong>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <center>
-                    <input type="hidden" name="action" value="sendLiquid">
-                    <input class="button is-large" type="submit" value="Send Liquid">
-                  </center>
-                </form>
-                <script>
-                  function setMax() {
-                    document.getElementById("sendAmount").value = {{.LiquidBalance}};
-                    document.getElementById("subtractfee").checked = true;
-                  }
-                  // submits enable/disable toggle 
-                  function submitForm(formId) {
-                    document.getElementById(formId).submit();
-                  }
-                </script>
-              </div>     
-            {{else}}
-              <div class="box has-text-left">
-                <h4 class="title is-4">Payment Sent</h4> 
-                <table style="table-layout:fixed; width: 100%;">
-                  <tr><td style="overflow-wrap: break-word;">
-                    <center>
-                      <p>TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a></p>
-                      <br>
-                      <button title="Return to main page" class="button is-large" onclick="window.location.href='/';">OK</button>
-                    </center>
-                  </td></tr>
-                </table>
-              </div>
-            {{end}}
-          {{end}}
-          <div class="box has-text-left">
-            <h4 class="title is-4">Receive Liquid</h4> 
-            {{if eq .LiquidAddress ""}}
+      </div>
+      <div class="column">
+        {{if eq .LiquidAddress ""}}
+          {{if eq .TxId ""}}
+            <div class="box has-text-left">
+              <h4 class="title is-4">Send Liquid</h4> 
               <form autocomplete="off" action="/submit" method="post">
                 <input autocomplete="false" name="hidden" type="text" style="display:none;">
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Label</label>
+                    <label class="label">Address</label>
                   </div>
                   <div class="field-body">
-                    <input class="input is-medium" type="text" name="addressLabel" placeholder="Address Label">
+                    <input class="input is-medium" type="text" name="sendAddress" placeholder="🌊 Liquid Address" required>
                   </div>
                 </div>
-                {{if .DescriptorsWallet}}
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                    </div>
-                    <div class="field-body">
-                      <div class="control">
-                        <label class="checkbox is-large">
-                          <input type="checkbox" name="bech32m" checked>
-                          <strong>&nbsp&nbspTaproot (bech32m) address</strong>
-                        </label>
-                      </div>
+                <div title="Amount in sats" class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label"><a href="javascript:void(0);" onclick="setMax()">Max</a> Amount</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" id="sendAmount" name="sendAmount" min="300" required placeholder="🌊 Liquid Amount (sats)">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label title="Internal comment" class="label">Comment</label>
+                  </div>
+                  <div class="field-body">
+                    <input class="input is-medium" type="text" name="comment" placeholder="Internal comment">
+                  </div>
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                  </div>
+                  <div class="field-body">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" id="subtractfee" name="subtractfee">
+                        <strong>&nbsp&nbspSubtract Fee From Amount</strong>
+                      </label>
                     </div>
                   </div>
-                {{else}}
-                  <input type="hidden" name="bech32m" value="off">
-                {{end}}
+                </div>
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                  </div>
+                  <div class="field-body">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" id="ignoreblindfail" name="ignoreblindfail">
+                        <strong>&nbsp&nbspIgnore Blind Fail</strong>
+                      </label>
+                    </div>
+                  </div>
+                </div>
                 <center>
-                  <input type="hidden" name="action" value="newAddress">
-                  <input class="button is-large" type="submit" value="Get New Address">
+                  <input type="hidden" name="action" value="sendLiquid">
+                  <input class="button is-large" type="submit" value="Send Liquid">
                 </center>
               </form>
-            {{else}}
-              <input class="input is-medium" type="text" onclick="copyToClipboard('liquidAddress')" id="liquidAddress" value="{{.LiquidAddress}}" readonly>
-              <br>
-              <br>
-              <div id="qrcode-container">
-                  <div id="qrcode"></div>
-              </div>
-              <br>
-              <center>
-                <input class="button is-large" onclick="window.location.href='/liquid';" value="OK">
-              </center>
               <script>
-                displayQR("liquidAddress");
+                function setMax() {
+                  document.getElementById("sendAmount").value = {{.LiquidBalance}};
+                  document.getElementById("subtractfee").checked = true;
+                }
+                // submits enable/disable toggle 
+                function submitForm(formId) {
+                  document.getElementById(formId).submit();
+                }
               </script>
-            {{end}}
-          </div>
+            </div>     
+          {{else}}
+            <div class="box has-text-left">
+              <h4 class="title is-4">Payment Sent</h4> 
+              <table style="table-layout:fixed; width: 100%;">
+                <tr><td style="overflow-wrap: break-word;">
+                  <center>
+                    <p>TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a></p>
+                    <br>
+                    <button title="Return to main page" class="button is-large" onclick="window.location.href='/';">OK</button>
+                  </center>
+                </td></tr>
+              </table>
+            </div>
+          {{end}}
+        {{end}}
+        <div class="box has-text-left">
+          <h4 class="title is-4">Receive Liquid</h4> 
+          {{if eq .LiquidAddress ""}}
+            <form autocomplete="off" action="/submit" method="post">
+              <input autocomplete="false" name="hidden" type="text" style="display:none;">
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Label</label>
+                </div>
+                <div class="field-body">
+                  <input class="input is-medium" type="text" name="addressLabel" placeholder="Address Label">
+                </div>
+              </div>
+              {{if .DescriptorsWallet}}
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                  </div>
+                  <div class="field-body">
+                    <div class="control">
+                      <label class="checkbox is-large">
+                        <input type="checkbox" name="bech32m" checked>
+                        <strong>&nbsp&nbspTaproot (bech32m) address</strong>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              {{else}}
+                <input type="hidden" name="bech32m" value="off">
+              {{end}}
+              <center>
+                <input type="hidden" name="action" value="newAddress">
+                <input class="button is-large" type="submit" value="Get New Address">
+              </center>
+            </form>
+          {{else}}
+            <input class="input is-medium" type="text" onclick="copyToClipboard('liquidAddress')" id="liquidAddress" value="{{.LiquidAddress}}" readonly>
+            <br>
+            <br>
+            <div id="qrcode-container">
+                <div id="qrcode"></div>
+            </div>
+            <br>
+            <center>
+              <input class="button is-large" onclick="window.location.href='/liquid';" value="OK">
+            </center>
+            <script>
+              displayQR("liquidAddress");
+            </script>
+          {{end}}
         </div>
       </div>
     </div>
+  </div>
   {{template "footer" .}}
 {{end}}
