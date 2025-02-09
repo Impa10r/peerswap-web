@@ -176,8 +176,8 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                   </td>
                   <td>
                     {{if eq .Confirmations -1}}
-                      Transaction not found in local mempool!
-                      {{if .IsPegin}}<br><br>Provide another TxId or cancel the peg-in.
+                      Transaction not found in mempool! Refresh this page to search again.
+                      {{if .IsPegin}}<br><br>If you fee bumped an external funding, TxId may have changed.
                         <br>
                         <br>
                         <form autocomplete="off" action="/submit" method="post">
@@ -188,7 +188,6 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                           <center>
                             <input type="hidden" name="action" value="externalPeginTxId">
                             <input class="button is-large" type="submit" name="externalPeginTxId" value="Provide TxId">
-                            <input class="button is-large" type="submit" name="externalPeginCancel" value="Cancel Pegin">
                           </center>
                         </form>
                       {{end}}

@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.8
+
+-
+
 ## 1.7.7
 
 - Fix Auto Fee not working for channels with no outbound forwards
