@@ -1580,3 +1580,41 @@ func SendCustomMessage(peerId string, message *Message) error {
 
 	return nil
 }
+
+type ListPeerChannelsResponse struct {
+	Channels []PeerChannel `json:"channels"`
+}
+
+type PeerChannel struct {
+	PeerId           string            `json:"peer_id"`
+	PeerConnected    bool              `json:"peer_connected"`
+	State            string            `json:"state"`
+	ShortChannelId   string            `json:"short_channel_id,omitempty"`
+	TotalMsat        glightning.Amount `json:"total_msat,omitempty"`
+	ToUsMsat         glightning.Amount `json:"to_us_msat,omitempty"`
+	ReceivableMsat   glightning.Amount `json:"receivable_msat,omitempty"`
+	SpendableMsat    glightning.Amount `json:"spendable_msat,omitempty"`
+	TheirReserveMsat glightning.Amount `json:"their_reserve_msat,omitempty"`
+	OurReserveMsat   glightning.Amount `json:"our_reserve_msat,omitempty"`
+}
+
+// spendable, receivable, mapped by channelId
+func FetchChannelLimits(client *glightning.Lightning) (spendable map[uint64]uint64, receivable map[uint64]uint64, err error) {
+	var response ListPeerChannelsResponse
+	err = client.Request(&ListPeerChannelsRequest{}, &response)
+	if err != nil {
+		return
+	}
+
+	spendable = make(map[uint64]uint64)
+	receivable = make(map[uint64]uint64)
+
+	// Iterate over channels to map channel ids
+	for _, ch := range response.Channels {
+		id := ConvertClnToLndChannelId(ch.ShortChannelId)
+		spendable[id] = ch.SpendableMsat.MSat() / 1000
+		receivable[id] = ch.ReceivableMsat.MSat() / 1000
+	}
+
+	return
+}

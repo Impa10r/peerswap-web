@@ -35,8 +35,6 @@ import (
 const (
 	// App VERSION tag
 	VERSION = "v1.7.8"
-	// Reserve to deduct from channel balance
-	SWAP_CHANNEL_RESERVE = 100_001
 	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
 	SWAP_LBTC_RESERVE = 1_200
 	// Unusable BTC balance
@@ -1808,12 +1806,14 @@ func advertiseBalances() {
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
 
+	_, receivable, err := ln.FetchChannelLimits(cl)
+
 	for _, peer := range res3.GetPeers() {
 		// find the largest remote balance
 		maxBalance := uint64(0)
 		if ln.AdvertiseBitcoinBalance || ln.AdvertiseLiquidBalance {
 			for _, ch := range peer.Channels {
-				maxBalance = max(maxBalance, ch.RemoteBalance-SWAP_CHANNEL_RESERVE)
+				maxBalance = max(maxBalance, receivable[ch.ChannelId])
 			}
 		}
 

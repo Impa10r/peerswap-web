@@ -2340,3 +2340,27 @@ try_to_connect:
 
 	return false
 }
+
+// spendable, receivable, mapped by channelId
+func FetchChannelLimits(client lnrpc.LightningClient) (spendable map[uint64]uint64, receivable map[uint64]uint64, err error) {
+	res, err := client.ListChannels(context.Background(), &lnrpc.ListChannelsRequest{
+		ActiveOnly:   false,
+		InactiveOnly: false,
+		PublicOnly:   false,
+		PrivateOnly:  false,
+	})
+
+	if err != nil {
+		return
+	}
+
+	spendable = make(map[uint64]uint64)
+	receivable = make(map[uint64]uint64)
+
+	for _, ch := range res.Channels {
+		spendable[ch.ChanId] = min(uint64(ch.GetLocalBalance()-int64(ch.GetLocalConstraints().GetChanReserveSat())), ch.GetLocalConstraints().GetMaxPendingAmtMsat()/1000)
+		receivable[ch.ChanId] = min(uint64(ch.GetRemoteBalance()-int64(ch.GetRemoteConstraints().GetChanReserveSat())), ch.GetRemoteConstraints().GetMaxPendingAmtMsat()/1000)
+	}
+
+	return
+}
