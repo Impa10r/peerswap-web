@@ -72,19 +72,39 @@
                     });
                 }
                 
-                function copyToClipboard(inputName) {
-                    // Get the text to copy
-                    var copyText = document.getElementById(inputName);
+                function copyToClipboard(elementId) {
+                    var element = document.getElementById(elementId);
 
-                    // Select the text
-                    copyText.select();
-                    copyText.setSelectionRange(0, 99999); // For mobile devices
+                    if (!element) {
+                        console.error("Element not found:", elementId);
+                        return;
+                    }
 
-                    // Copy the selected text
+                    var textToCopy = "";
+
+                    // If the element is an <a> tag, get its href
+                    if (element.tagName === "A") {
+                        textToCopy = element.href;
+                    } 
+                    // If it's an input or textarea, get its value
+                    else if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
+                        textToCopy = element.value;
+                    } 
+                    // Otherwise, get the inner text
+                    else {
+                        textToCopy = element.innerText;
+                    }
+
+                    // Copy the text to clipboard
+                    var tempTextArea = document.createElement("textarea");
+                    tempTextArea.value = textToCopy;
+                    document.body.appendChild(tempTextArea);
+                    tempTextArea.select();
                     document.execCommand("copy");
+                    document.body.removeChild(tempTextArea);
 
                     // Alert the user that the text has been copied
-                    displayTemporaryMessage("Copied the address to clipboard");
+                    displayTemporaryMessage("Copied to clipboard");
                 }
                 
                 function displayTemporaryMessage(msg) {

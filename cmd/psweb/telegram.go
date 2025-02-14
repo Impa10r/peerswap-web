@@ -101,23 +101,23 @@ func telegramStart() {
 							if ln.ClaimBlockHeight == 0 {
 								duration = time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 							}
-							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+							eta := time.Now().Add(duration).Format("3:04 PM")
 							if duration < 0 {
-								formattedDuration = "Past due"
+								eta = "Past due"
 							}
 							t = "🧬 " + ln.ClaimStatus
 							if ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
-								t += ". Time left to apply: " + formattedDuration
+								t += ". Time limit to apply: " + eta
 							} else if confs > 0 {
-								t += ". Claim ETA: " + formattedDuration
+								t += ". ETA: " + eta
 							}
 						} else {
 							// solo peg-in
 							duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
-							formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+							eta := time.Now().Add(duration).Format("3:04 PM")
 							t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
 							if config.Config.PeginClaimScript != "" {
-								t += "/102, Time left: " + formattedDuration
+								t += "/102, ETA: " + eta
 							}
 							t += ". TxId: `" + config.Config.PeginTxId + "`"
 						}

@@ -138,7 +138,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
             </div>
             {{if .IsExternal}}
               <p>1. Please fund this mainchain Bitcoin address externally:</p>
-              <input class="input is-medium" type="text" onclick="copyToClipboard('peginAddress')" id="peginAddress" value="{{.PeginAddress}}" readonly>
+              <input class="input is-medium" type="text" style="cursor: pointer" title="Copy to clipboard" onclick="copyToClipboard('peginAddress')" id="peginAddress" value="{{.PeginAddress}}" readonly>
               <br>
               <br>
               <div id="qrcode-container">
@@ -202,7 +202,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                             ETA: 
                           </td>
                           <td>
-                            {{.Duration}}
+                            {{.ETA}}
                       {{end}}
                     {{end}}
                   </td>
@@ -212,7 +212,12 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                     TxId: 
                   </td>
                   <td style="overflow-wrap: break-word;">
-                    <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank">{{.PeginTxId}}</a>
+                    <a href="{{.BitcoinApi}}/tx/{{.PeginTxId}}" target="_blank" id="txid" title="Open in explorer">{{.PeginTxId}}</a> 
+                    <span style="cursor: pointer; font-size: .875em; margin-right: .125em; position: relative; top: -.25em; left: -.125em"
+                      title="Copy to clipboard"
+                      onclick="copyToClipboard('txid')">
+                      📄<span style="position: absolute; top: .25em; left: .25em">📄</span>
+                    </span>
                   </td>
                 </tr>
                 {{if .IsClaimJoin}}
@@ -735,10 +740,10 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                 let hours = "17 hours";
                 {{if .CanClaimJoin}}
                     if (document.getElementById("claimJoin").checked) {
-                      hours = "17-{{.ClaimJoinETA}} hours";
+                      hours = "17-{{.ClaimJoinHours}} hours";
                     }
                 {{end}}
-                text += "\nClaim ETA: " + hours;
+                text += "\nDuration: " + hours;
               }
 
               if ({{.BitcoinBalance}} - peginAmount < 25000) {
@@ -767,7 +772,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
               </center>
             </form>
           {{else}}
-            <input class="input is-medium" type="text" onclick="copyToClipboard('bitcoinAddress')" id="bitcoinAddress" value="{{.BitcoinAddress}}" readonly>
+            <input class="input is-medium" type="text" style="cursor: pointer" title="Copy to clipboard" onclick="copyToClipboard('bitcoinAddress')" id="bitcoinAddress" value="{{.BitcoinAddress}}" readonly>
             <br>
             <br>
             <div id="qrcode-container">

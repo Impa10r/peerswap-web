@@ -2,7 +2,8 @@
 
 ## 1.7.8
 
--
+- Increase channel balance reserve to 100,001 sats
+- Show peg-in ETA as time and not remaining duration
 
 ## 1.7.7
 

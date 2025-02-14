@@ -35,8 +35,8 @@ import (
 const (
 	// App VERSION tag
 	VERSION = "v1.7.8"
-	// Swap Out reserve to deduct from channel local balance
-	SWAP_OUT_CHANNEL_RESERVE = 10_000
+	// Reserve to deduct from channel balance
+	SWAP_CHANNEL_RESERVE = 100_001
 	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
 	SWAP_LBTC_RESERVE = 1_200
 	// Unusable BTC balance
@@ -707,7 +707,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if btcBalance >= 100_000 {
 					flooredBalance = toMil(btcBalance)
-					bal = formatWithThousandSeparators(btcBalance)
+					bal = "≥" + formatWithThousandSeparators(btcBalance)
 				}
 				peerTable += "<span title=\"Peer's BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -723,7 +723,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if lbtcBalance >= 100_000 {
 					flooredBalance = toMil(lbtcBalance)
-					bal = formatWithThousandSeparators(lbtcBalance)
+					bal = "≥" + formatWithThousandSeparators(lbtcBalance)
 				}
 				peerTable += "<span title=\"Peer's L-BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -1813,7 +1813,7 @@ func advertiseBalances() {
 		maxBalance := uint64(0)
 		if ln.AdvertiseBitcoinBalance || ln.AdvertiseLiquidBalance {
 			for _, ch := range peer.Channels {
-				maxBalance = max(maxBalance, ch.RemoteBalance-SWAP_OUT_CHANNEL_RESERVE)
+				maxBalance = max(maxBalance, ch.RemoteBalance-SWAP_CHANNEL_RESERVE)
 			}
 		}
 

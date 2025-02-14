@@ -438,7 +438,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
 	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(maxRemoteBalance)-10000)
+	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(maxRemoteBalance)-SWAP_CHANNEL_RESERVE)
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -452,11 +452,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		if ptr.Amount < 100_000 {
 			peerLiquidBalance = "<100k"
 		} else {
-			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
+			peerLiquidBalance = "≥" + formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_CHANNEL_RESERVE, int64(ptr.Amount))))
 	} else {
-		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
+		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_CHANNEL_RESERVE))
 	}
 
 	if maxLiquidSwapOut >= 100_000 {
@@ -472,11 +472,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		if ptr.Amount < 100_000 {
 			peerBitcoinBalance = "<100k"
 		} else {
-			peerBitcoinBalance = formatWithThousandSeparators(ptr.Amount)
+			peerBitcoinBalance = "≥" + formatWithThousandSeparators(ptr.Amount)
 		}
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveBTC))))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveBTC))))
 	} else {
-		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
+		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_CHANNEL_RESERVE))
 	}
 
 	if maxBitcoinSwapOut >= 100_000 {
@@ -487,7 +487,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// arbitrary haircuts to avoid 'no matching outgoing channel available'
-	maxBitcoinSwapIn := min(btcBalance-int64(swapFeeReserveBTC), int64(maxRemoteBalance)-10000)
+	maxBitcoinSwapIn := min(btcBalance-int64(swapFeeReserveBTC), int64(maxRemoteBalance)-SWAP_CHANNEL_RESERVE)
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
 	}
@@ -705,7 +705,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations       int32
 		TargetConfirmations int32
 		Progress            int32
-		Duration            string
+		ETA                 string
 		FeeRate             float64
 		LiquidFeeRate       float64
 		MempoolFeeRate      float64
@@ -722,7 +722,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		IsClaimJoin         bool
 		ClaimJoinStatus     string
 		HasClaimJoinPending bool
-		ClaimJoinETA        int
+		ClaimJoinHours      int
 		ClaimJointTimeLimit string
 	}
 
@@ -761,7 +761,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 	maxConfs := int32(peginBlocks)
-	cjETA := 34
+	cjHours := 34
 	cjTimeLimit := ""
 
 	currentBlockHeight := int32(ln.GetBlockHeight())
@@ -770,15 +770,15 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		maxConfs = target - currentBlockHeight + confs
 		duration = time.Duration(10*(target-currentBlockHeight)) * time.Minute
 	} else if ln.ClaimJoinHandler != "" {
-		cjETA = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
+		cjHours = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
 		cjTimeLimit = time.Now().Add(time.Duration(10*(ln.JoinBlockHeight-uint32(currentBlockHeight))) * time.Minute).Format("3:04 PM")
 	}
 
 	progress := confs * 100 / int32(maxConfs)
 
-	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+	eta := time.Now().Add(duration).Format("3:04 PM")
 	if duration < 0 {
-		formattedDuration = "Past due"
+		eta = "Past due"
 	}
 
 	data := Page{
@@ -797,7 +797,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations:       confs,
 		TargetConfirmations: maxConfs,
 		Progress:            progress,
-		Duration:            formattedDuration,
+		ETA:                 eta,
 		FeeRate:             config.Config.PeginFeeRate,
 		MempoolFeeRate:      mempoolFeeRate,
 		LiquidFeeRate:       liquid.EstimateFee(),
@@ -814,7 +814,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
 		ClaimJointTimeLimit: cjTimeLimit,
-		ClaimJoinETA:        cjETA,
+		ClaimJoinHours:      cjHours,
 	}
 
 	// executing template named "bitcoin"
@@ -1880,11 +1880,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 				config.Config.PeginTxId = txid
 				config.Config.PeginFeeRate = 0
+				ln.ClaimStatus = "Awaiting funding tx to confirm"
 
 				log.Println("External Funding TxId:", txid)
 				duration := time.Duration(10*(int32(peginBlocks)-tx.Confirmations)) * time.Minute
-				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
+				eta := time.Now().Add(duration).Format("3:04 PM")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. ETA: " + eta + ". TxId: `" + txid + "`")
 			}
 
 			config.Save()
