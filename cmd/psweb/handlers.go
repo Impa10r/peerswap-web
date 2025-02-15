@@ -434,8 +434,13 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// this is what peerswap will use
 	bitcoinFeeRate := ln.EstimateFee()
-	// should match peerswap estimation
-	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
+
+	// should match peerswap estimations
+	swapFeeReserveBTC := int64(math.Ceil(bitcoinFeeRate * OPENING_TX_SIZE_BTC))
+	swapFeeReserveLBTC := int64(math.Ceil(feeRate * OPENING_TX_SIZE_BTC))
+	if hasDiscountedvSize {
+		swapFeeReserveLBTC = int64(math.Ceil(feeRate * OPENING_TX_SIZE_LBTC_DISCOUNTED))
+	}
 
 	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
 
@@ -447,7 +452,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// arbitrary haircut to avoid 'no matching outgoing channel available'
+	// haircut to avoid 'no matching outgoing channel available'
 	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(receivable[selectedChannel]))
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
@@ -463,9 +468,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerLiquidBalance = "≥" + formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(spendable[selectedChannel]), int64(ptr.Amount))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(spendable[selectedChannel]), int64(ptr.Amount))-swapFeeReserveLBTC))
 	} else {
-		maxLiquidSwapOut = uint64(max(0, int64(spendable[selectedChannel])))
+		maxLiquidSwapOut = uint64(max(0, int64(spendable[selectedChannel])-swapFeeReserveLBTC))
 	}
 
 	if maxLiquidSwapOut >= 100_000 {
@@ -483,9 +488,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			peerBitcoinBalance = "≥" + formatWithThousandSeparators(ptr.Amount)
 		}
-		maxBitcoinSwapOut = uint64(max(0, min(int64(spendable[selectedChannel]), int64(ptr.Amount)-int64(swapFeeReserveBTC))))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(spendable[selectedChannel]), int64(ptr.Amount))-swapFeeReserveBTC))
 	} else {
-		maxBitcoinSwapOut = uint64(max(0, int64(spendable[selectedChannel])))
+		maxBitcoinSwapOut = uint64(max(0, int64(spendable[selectedChannel])-swapFeeReserveBTC))
 	}
 
 	if maxBitcoinSwapOut >= 100_000 {
@@ -495,8 +500,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		maxBitcoinSwapOut = 0
 	}
 
-	// arbitrary haircuts to avoid 'no matching outgoing channel available'
-	maxBitcoinSwapIn := min(btcBalance-int64(swapFeeReserveBTC), int64(receivable[selectedChannel]))
+	// haircuts to avoid 'no matching outgoing channel available'
+	maxBitcoinSwapIn := min(btcBalance-swapFeeReserveBTC, int64(receivable[selectedChannel]))
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
 	}
@@ -557,55 +562,58 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Authenticated           bool
-		ErrorMessage            string
-		PopUpMessage            string
-		MempoolFeeRate          float64
-		BtcFeeRate              float64
-		ColorScheme             string
-		Peer                    *peerswaprpc.PeerSwapPeer
-		PeerAlias               string
-		NodeUrl                 string
-		Allowed                 bool
-		Suspicious              bool
-		LBTC                    bool
-		BTC                     bool
-		LiquidBalance           uint64
-		BitcoinBalance          uint64
-		ActiveSwaps             string
-		DirectionIn             bool
-		Stats                   []*ln.ForwardingStats
-		ChannelInfo             []*ln.ChanneInfo
-		PeerSwapPeer            bool
-		MyAlias                 string
-		SenderOutFee            int64
-		SenderOutFeePPM         int64
-		SenderInFee             int64
-		ReceiverInFee           int64
-		ReceiverOutFee          int64
-		SenderInFeePPM          int64
-		ReceiverInFeePPM        int64
-		ReceiverOutFeePPM       int64
-		KeysendSats             uint64
-		OutputsBTC              *[]ln.UTXO
-		OutputsLBTC             *[]liquid.UTXO
-		HasInboundFees          bool
-		PeerBitcoinBalance      string // "" means no data
-		MaxBitcoinSwapOut       uint64
-		RecommendBitcoinSwapOut uint64
-		MaxBitcoinSwapIn        int64
-		RecommendBitcoinSwapIn  int64
-		PeerLiquidBalance       string // "" means no data
-		MaxLiquidSwapOut        uint64
-		RecommendLiquidSwapOut  uint64
-		MaxLiquidSwapIn         int64
-		RecommendLiquidSwapIn   int64
-		SelectedChannel         uint64
-		HasDiscountedvSize      bool
-		RedColor                string
-		IsOnline                bool
-		AnchorReserve           uint64
-		LiquidReserve           uint64
+		Authenticated                   bool
+		ErrorMessage                    string
+		PopUpMessage                    string
+		MempoolFeeRate                  float64
+		BtcFeeRate                      float64
+		ColorScheme                     string
+		Peer                            *peerswaprpc.PeerSwapPeer
+		PeerAlias                       string
+		NodeUrl                         string
+		Allowed                         bool
+		Suspicious                      bool
+		LBTC                            bool
+		BTC                             bool
+		LiquidBalance                   uint64
+		BitcoinBalance                  uint64
+		ActiveSwaps                     string
+		DirectionIn                     bool
+		Stats                           []*ln.ForwardingStats
+		ChannelInfo                     []*ln.ChanneInfo
+		PeerSwapPeer                    bool
+		MyAlias                         string
+		SenderOutFee                    int64
+		SenderOutFeePPM                 int64
+		SenderInFee                     int64
+		ReceiverInFee                   int64
+		ReceiverOutFee                  int64
+		SenderInFeePPM                  int64
+		ReceiverInFeePPM                int64
+		ReceiverOutFeePPM               int64
+		KeysendSats                     uint64
+		OutputsBTC                      *[]ln.UTXO
+		OutputsLBTC                     *[]liquid.UTXO
+		HasInboundFees                  bool
+		PeerBitcoinBalance              string // "" means no data
+		MaxBitcoinSwapOut               uint64
+		RecommendBitcoinSwapOut         uint64
+		MaxBitcoinSwapIn                int64
+		RecommendBitcoinSwapIn          int64
+		PeerLiquidBalance               string // "" means no data
+		MaxLiquidSwapOut                uint64
+		RecommendLiquidSwapOut          uint64
+		MaxLiquidSwapIn                 int64
+		RecommendLiquidSwapIn           int64
+		SelectedChannel                 uint64
+		HasDiscountedvSize              bool
+		RedColor                        string
+		IsOnline                        bool
+		AnchorReserve                   uint64
+		LiquidReserve                   uint64
+		OPENING_TX_SIZE_BTC             int64
+		OPENING_TX_SIZE_LBTC            int64
+		OPENING_TX_SIZE_LBTC_DISCOUNTED int64
 	}
 
 	redColor := "red"
@@ -614,55 +622,58 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:            errorMessage,
-		PopUpMessage:            popupMessage,
-		BtcFeeRate:              bitcoinFeeRate,
-		MempoolFeeRate:          feeRate,
-		ColorScheme:             config.Config.ColorScheme,
-		Peer:                    peer,
-		PeerAlias:               getNodeAlias(peer.NodeId),
-		NodeUrl:                 config.Config.NodeApi,
-		Allowed:                 stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:              stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:                     stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:                    stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance:           satAmount,
-		BitcoinBalance:          uint64(btcBalance),
-		ActiveSwaps:             convertSwapsToHTMLTable(activeSwaps, "", "", ""),
-		DirectionIn:             directionIn,
-		Stats:                   stats,
-		ChannelInfo:             channelInfo,
-		PeerSwapPeer:            psPeer,
-		MyAlias:                 ln.MyNodeAlias,
-		SenderOutFee:            senderOutFee,
-		SenderOutFeePPM:         senderOutFeePPM,
-		SenderInFee:             senderInFee,
-		ReceiverInFee:           receiverInFee,
-		ReceiverOutFee:          receiverOutFee,
-		SenderInFeePPM:          senderInFeePPM,
-		ReceiverInFeePPM:        receiverInFeePPM,
-		ReceiverOutFeePPM:       receiverOutFeePPM,
-		KeysendSats:             keysendSats,
-		OutputsBTC:              &utxosBTC,
-		OutputsLBTC:             &utxosLBTC,
-		HasInboundFees:          ln.HasInboundFees(),
-		PeerBitcoinBalance:      peerBitcoinBalance,
-		MaxBitcoinSwapOut:       maxBitcoinSwapOut,
-		RecommendBitcoinSwapOut: recommendBitcoinSwapOut,
-		MaxBitcoinSwapIn:        maxBitcoinSwapIn,
-		RecommendBitcoinSwapIn:  recommendBitcoinSwapIn,
-		PeerLiquidBalance:       peerLiquidBalance,
-		MaxLiquidSwapOut:        maxLiquidSwapOut,
-		RecommendLiquidSwapOut:  recommendLiquidSwapOut,
-		MaxLiquidSwapIn:         maxLiquidSwapIn,
-		RecommendLiquidSwapIn:   recommendLiquidSwapIn,
-		SelectedChannel:         selectedChannel,
-		HasDiscountedvSize:      hasDiscountedvSize,
-		RedColor:                redColor,
-		IsOnline:                isOnline,
-		AnchorReserve:           ANCHOR_RESERVE,
-		LiquidReserve:           SWAP_LBTC_RESERVE,
+		Authenticated:                   config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:                    errorMessage,
+		PopUpMessage:                    popupMessage,
+		BtcFeeRate:                      bitcoinFeeRate,
+		MempoolFeeRate:                  feeRate,
+		ColorScheme:                     config.Config.ColorScheme,
+		Peer:                            peer,
+		PeerAlias:                       getNodeAlias(peer.NodeId),
+		NodeUrl:                         config.Config.NodeApi,
+		Allowed:                         stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:                      stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:                             stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:                            stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance:                   satAmount,
+		BitcoinBalance:                  uint64(btcBalance),
+		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		DirectionIn:                     directionIn,
+		Stats:                           stats,
+		ChannelInfo:                     channelInfo,
+		PeerSwapPeer:                    psPeer,
+		MyAlias:                         ln.MyNodeAlias,
+		SenderOutFee:                    senderOutFee,
+		SenderOutFeePPM:                 senderOutFeePPM,
+		SenderInFee:                     senderInFee,
+		ReceiverInFee:                   receiverInFee,
+		ReceiverOutFee:                  receiverOutFee,
+		SenderInFeePPM:                  senderInFeePPM,
+		ReceiverInFeePPM:                receiverInFeePPM,
+		ReceiverOutFeePPM:               receiverOutFeePPM,
+		KeysendSats:                     keysendSats,
+		OutputsBTC:                      &utxosBTC,
+		OutputsLBTC:                     &utxosLBTC,
+		HasInboundFees:                  ln.HasInboundFees(),
+		PeerBitcoinBalance:              peerBitcoinBalance,
+		MaxBitcoinSwapOut:               maxBitcoinSwapOut,
+		RecommendBitcoinSwapOut:         recommendBitcoinSwapOut,
+		MaxBitcoinSwapIn:                maxBitcoinSwapIn,
+		RecommendBitcoinSwapIn:          recommendBitcoinSwapIn,
+		PeerLiquidBalance:               peerLiquidBalance,
+		MaxLiquidSwapOut:                maxLiquidSwapOut,
+		RecommendLiquidSwapOut:          recommendLiquidSwapOut,
+		MaxLiquidSwapIn:                 maxLiquidSwapIn,
+		RecommendLiquidSwapIn:           recommendLiquidSwapIn,
+		SelectedChannel:                 selectedChannel,
+		HasDiscountedvSize:              hasDiscountedvSize,
+		RedColor:                        redColor,
+		IsOnline:                        isOnline,
+		AnchorReserve:                   ANCHOR_RESERVE,
+		LiquidReserve:                   SWAP_LBTC_RESERVE,
+		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
+		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
+		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,
 	}
 
 	// executing template named "peer"

@@ -35,12 +35,16 @@ import (
 const (
 	// App VERSION tag
 	VERSION = "v1.7.8"
-	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
-	SWAP_LBTC_RESERVE = 1_200
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
+	// opening tx sizes for fee estimates
+	OPENING_TX_SIZE_BTC             = 350
+	OPENING_TX_SIZE_LBTC            = 3000
+	OPENING_TX_SIZE_LBTC_DISCOUNTED = 750
+	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
+	SWAP_LBTC_RESERVE = 1_200
 )
 
 type SwapParams struct {

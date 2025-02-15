@@ -351,18 +351,18 @@
                           if (asset == "btc") {
                             claimPadding = 200; // BTC padding hardcoded here: 
                             // https://github.com/ElementsProject/peerswap/blob/89d79f7bf2ea0d5bec61933a2f8438947250db70/onchain/bitcoin.go#L224
-                            vbyteSize = 350; // onchain.EstimatedOpeningTxSize
-                            title = "Assumed opening transaction size 350 vB";
+                            vbyteSize = {{.OPENING_TX_SIZE_BTC}}; // onchain.EstimatedOpeningTxSize
+                            title = "Assumed opening transaction size {{.OPENING_TX_SIZE_BTC}} vB";
                           } else {
                             {{if .HasDiscountedvSize}}
                               claimSize = 330;
-                              vbyteSize = 750; // prepaid
-                              title = "Assumed opening transaction size: 750 discounded vB";
+                              vbyteSize = {{.OPENING_TX_SIZE_LBTC_DISCOUNTED}}; // prepaid
+                              title = "Assumed opening transaction size: {{.OPENING_TX_SIZE_LBTC_DISCOUNTED}} discounted vB";
                               discount =" discount";
                             {{else}}
                               claimSize = 1350;
-                              vbyteSize = 3000; // prepaid
-                              title = "Assumed opening transaction size: 3000 vB";
+                              vbyteSize = {{.OPENING_TX_SIZE_LBTC}}; // prepaid
+                              title = "Assumed opening transaction size: {{.OPENING_TX_SIZE_LBTC}} vB";
                             {{end}}
                           }
 
