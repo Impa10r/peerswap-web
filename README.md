@@ -12,7 +12,7 @@ This source code is free speech. The contributors do not solicit its use for any
 
 ## Install dependencies
 
-PeerSwap requires Bitcoin Core installed and synced, Elements Core installed and synced, LND or Core Lightning installed.
+PeerSwap requires Bitcoin Core, Elements Core, LND or Core Lightning installed and synced.
 
 ## Docker (LND only)
 
@@ -55,7 +55,7 @@ git clone https://github.com/Impa10r/peerswap-web && \
 cd peerswap-web && \
 make -j$(nproc) install-cln
 ```
-PeerSwap Web UI is a now in your GOPATH (~/go/bin). To launch it as a CLN plugin, add ```plugin=/home/USER/go/bin/psweb``` to your ```~/.lightning/config``` file and restart ```lightningd``` (replace USER with your username).
+PeerSwap Web UI is now in your GOPATH (~/go/bin). To launch it as a CLN plugin, add ```plugin=/home/USER/go/bin/psweb``` to your ```~/.lightning/config``` file and restart ```lightningd``` (replace USER with your username).
 
 ### LND Install:
 
