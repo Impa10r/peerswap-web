@@ -497,7 +497,7 @@ func convertPeersToHTMLTable(
 
 	for _, swap := range swaps {
 		ts, ok := swapTimestamps.Read(swap.LndChanId)
-		if simplifySwapState(swap.State) == "success" && ok && ts < swap.CreatedAt {
+		if simplifySwapState(swap.State) == "success" && (!ok || ts < swap.CreatedAt) {
 			swapTimestamps.Write(swap.LndChanId, swap.CreatedAt)
 		}
 	}
