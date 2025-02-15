@@ -4,6 +4,7 @@
 
 - Respect spendable and receivable limits for max swap calculation 
 - Show peg-in ETA as time and not remaining duration
+- Wait for broadcasted CaimJoin tx to appear in local mempool
 
 ## 1.7.7
 
