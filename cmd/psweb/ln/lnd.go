@@ -1599,23 +1599,23 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 			e := inv[i]
 			if uint64(e.AcceptTime) > timeStamp {
 				// check if it is related to a circular rebalancing
+				found := false
 				htcls, ok := rebalanceInHtlcs.Read(channelId)
 				if ok {
-					found := false
 					for _, r := range htcls {
 						if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
 							found = true
 							break
 						}
 					}
-					if found {
-						// remove invoice to avoid double counting
-						inv = append(inv[:i], inv[i+1:]...)
-						invoiceHtlcs.Write(channelId, inv)
-						i--
-					} else {
-						invoicedMsat += e.AmtMsat
-					}
+				}
+				if found {
+					// remove invoice to avoid double counting
+					inv = append(inv[:i], inv[i+1:]...)
+					invoiceHtlcs.Write(channelId, inv)
+					i--
+				} else {
+					invoicedMsat += e.AmtMsat
 				}
 			}
 		}
