@@ -286,10 +286,10 @@
                   <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
                   <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
                   <td title="{{fmt .Amount}} sats" style="text-align: right;
-                    {{if eq .PeerName .AliasIn}}
+                    {{if eq $.PeerName .AliasIn}}
                       background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
                     {{end}}
-                    {{if gt .PeerName .AliasOut}}
+                    {{if gt $.PeerName .AliasOut}}
                       background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
                     {{end}}">">{{m .Amount}}</td>
                   <td title="Fee: {{ff .Fee}}" style="text-align: right;">{{fmt .PPM}}</td>
