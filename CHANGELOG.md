@@ -7,6 +7,7 @@
 - Wait for broadcasted CaimJoin tx to appear in local mempool
 - Fix channel stats not resetting after a successful swap
 - Fix invoiced stats not calculating without circular rebalancing
+- AutoFee: confirm 'Update All' button click 
 
 ## 1.7.7
 

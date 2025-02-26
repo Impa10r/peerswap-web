@@ -75,7 +75,7 @@
                     style="color:{{.RedColor}}"
                   {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
           {{end}}   
-          <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
+          <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit(event)">
             <input autocomplete="false" name="hidden" type="text" style="display:none;">
             <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
               <tr>
@@ -419,7 +419,16 @@
         document.getElementById(formId).submit();
       }
       // warning message if Max HTLC % > 0 
-      function confirmSubmit() {
+      function confirmSubmit(event) {
+        // Detect the clicked button
+        const clickedButton = event.submitter; // Modern browsers support this
+        if (clickedButton.name == 'update_all') {
+          var confirmed = confirm("This will update fee rules with highlighted values for all the channels. Are you sure?");
+          if (!confirmed) {
+            // user cancels, prevent form submission
+            return false;
+          }
+        } 
         if (Number(document.getElementById("maxHtlcPct").value)>0) {
           var confirmed = confirm("Setting Max HTLC size to a % of Local Balance will only take effect when Local Balance exceeds 50% of Capacity. Still, reducing Max HTLC can prevent receiving certain large swaps and inbound payments. A better way to avoid failed HTLCs is to bump channel's fee rate upon every fail. Please confirm if you still want to set Max HTLC % > 0.");
           if (!confirmed) {
