@@ -1305,6 +1305,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	for i, f := range *forwardsLog {
 		(*forwardsLog)[i].AliasIn = getNodeAlias(peerNodeId[f.ChanIdIn])
 		(*forwardsLog)[i].AliasOut = getNodeAlias(peerNodeId[f.ChanIdOut])
+		(*forwardsLog)[i].Inbound = (*forwardsLog)[i].AliasIn == peerName
+		(*forwardsLog)[i].Outbound = (*forwardsLog)[i].AliasOut == peerName
 		(*forwardsLog)[i].TimeAgo = timePassedAgo(time.Unix(int64(f.TS), 0))
 		(*forwardsLog)[i].TimeUTC = time.Unix(int64(f.TS), 0).UTC().Format(time.RFC1123)
 	}
