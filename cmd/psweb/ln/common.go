@@ -212,6 +212,8 @@ type DataPoint struct {
 	ChanIdOut uint64
 	AliasIn   string
 	AliasOut  string
+	Inbound   bool
+	Outbound  bool
 	TimeAgo   string
 	TimeUTC   string
 }

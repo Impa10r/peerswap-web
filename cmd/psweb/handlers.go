@@ -434,29 +434,43 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	// this is what peerswap will use
 	bitcoinFeeRate := ln.EstimateFee()
-	// should match peerswap estimation
-	swapFeeReserveBTC := uint64(math.Ceil(bitcoinFeeRate * 350))
 
-	// arbitrary haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(maxRemoteBalance)-10000)
+	// should match peerswap estimations
+	swapFeeReserveBTC := int64(math.Ceil(bitcoinFeeRate * OPENING_TX_SIZE_BTC))
+	swapFeeReserveLBTC := int64(math.Ceil(feeRate * OPENING_TX_SIZE_BTC))
+	if hasDiscountedvSize {
+		swapFeeReserveLBTC = int64(math.Ceil(feeRate * OPENING_TX_SIZE_LBTC_DISCOUNTED))
+	}
+
+	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
+
+	spendable, receivable, err := ln.FetchChannelLimits(cl)
+
+	if err != nil {
+		log.Printf("error fetching channel reserves: %v", err)
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+
+	// haircut to avoid 'no matching outgoing channel available'
+	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(receivable[selectedChannel]))
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
 
 	peerLiquidBalance := ""
 	maxLiquidSwapOut := uint64(0)
-	selectedChannel := peer.Channels[maxRemoteBalanceIndex].ChannelId
 	channelCapacity := peer.Channels[maxRemoteBalanceIndex].RemoteBalance + peer.Channels[maxRemoteBalanceIndex].LocalBalance
 
 	if ptr := ln.LiquidBalances[peer.NodeId]; ptr != nil {
 		if ptr.Amount < 100_000 {
 			peerLiquidBalance = "<100k"
 		} else {
-			peerLiquidBalance = formatWithThousandSeparators(ptr.Amount)
+			peerLiquidBalance = "≥" + formatWithThousandSeparators(ptr.Amount)
 		}
-		maxLiquidSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount))))
+		maxLiquidSwapOut = uint64(max(0, min(int64(spendable[selectedChannel]), int64(ptr.Amount))-swapFeeReserveLBTC))
 	} else {
-		maxLiquidSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
+		maxLiquidSwapOut = uint64(max(0, int64(spendable[selectedChannel])-swapFeeReserveLBTC))
 	}
 
 	if maxLiquidSwapOut >= 100_000 {
@@ -472,11 +486,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		if ptr.Amount < 100_000 {
 			peerBitcoinBalance = "<100k"
 		} else {
-			peerBitcoinBalance = formatWithThousandSeparators(ptr.Amount)
+			peerBitcoinBalance = "≥" + formatWithThousandSeparators(ptr.Amount)
 		}
-		maxBitcoinSwapOut = uint64(max(0, min(int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE, int64(ptr.Amount)-int64(swapFeeReserveBTC))))
+		maxBitcoinSwapOut = uint64(max(0, min(int64(spendable[selectedChannel]), int64(ptr.Amount))-swapFeeReserveBTC))
 	} else {
-		maxBitcoinSwapOut = uint64(max(0, int64(maxLocalBalance)-SWAP_OUT_CHANNEL_RESERVE))
+		maxBitcoinSwapOut = uint64(max(0, int64(spendable[selectedChannel])-swapFeeReserveBTC))
 	}
 
 	if maxBitcoinSwapOut >= 100_000 {
@@ -486,8 +500,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		maxBitcoinSwapOut = 0
 	}
 
-	// arbitrary haircuts to avoid 'no matching outgoing channel available'
-	maxBitcoinSwapIn := min(btcBalance-int64(swapFeeReserveBTC), int64(maxRemoteBalance)-10000)
+	// haircuts to avoid 'no matching outgoing channel available'
+	maxBitcoinSwapIn := min(btcBalance-swapFeeReserveBTC, int64(receivable[selectedChannel]))
 	if maxBitcoinSwapIn < 100_000 {
 		maxBitcoinSwapIn = 0
 	}
@@ -548,55 +562,58 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Page struct {
-		Authenticated           bool
-		ErrorMessage            string
-		PopUpMessage            string
-		MempoolFeeRate          float64
-		BtcFeeRate              float64
-		ColorScheme             string
-		Peer                    *peerswaprpc.PeerSwapPeer
-		PeerAlias               string
-		NodeUrl                 string
-		Allowed                 bool
-		Suspicious              bool
-		LBTC                    bool
-		BTC                     bool
-		LiquidBalance           uint64
-		BitcoinBalance          uint64
-		ActiveSwaps             string
-		DirectionIn             bool
-		Stats                   []*ln.ForwardingStats
-		ChannelInfo             []*ln.ChanneInfo
-		PeerSwapPeer            bool
-		MyAlias                 string
-		SenderOutFee            int64
-		SenderOutFeePPM         int64
-		SenderInFee             int64
-		ReceiverInFee           int64
-		ReceiverOutFee          int64
-		SenderInFeePPM          int64
-		ReceiverInFeePPM        int64
-		ReceiverOutFeePPM       int64
-		KeysendSats             uint64
-		OutputsBTC              *[]ln.UTXO
-		OutputsLBTC             *[]liquid.UTXO
-		HasInboundFees          bool
-		PeerBitcoinBalance      string // "" means no data
-		MaxBitcoinSwapOut       uint64
-		RecommendBitcoinSwapOut uint64
-		MaxBitcoinSwapIn        int64
-		RecommendBitcoinSwapIn  int64
-		PeerLiquidBalance       string // "" means no data
-		MaxLiquidSwapOut        uint64
-		RecommendLiquidSwapOut  uint64
-		MaxLiquidSwapIn         int64
-		RecommendLiquidSwapIn   int64
-		SelectedChannel         uint64
-		HasDiscountedvSize      bool
-		RedColor                string
-		IsOnline                bool
-		AnchorReserve           uint64
-		LiquidReserve           uint64
+		Authenticated                   bool
+		ErrorMessage                    string
+		PopUpMessage                    string
+		MempoolFeeRate                  float64
+		BtcFeeRate                      float64
+		ColorScheme                     string
+		Peer                            *peerswaprpc.PeerSwapPeer
+		PeerAlias                       string
+		NodeUrl                         string
+		Allowed                         bool
+		Suspicious                      bool
+		LBTC                            bool
+		BTC                             bool
+		LiquidBalance                   uint64
+		BitcoinBalance                  uint64
+		ActiveSwaps                     string
+		DirectionIn                     bool
+		Stats                           []*ln.ForwardingStats
+		ChannelInfo                     []*ln.ChanneInfo
+		PeerSwapPeer                    bool
+		MyAlias                         string
+		SenderOutFee                    int64
+		SenderOutFeePPM                 int64
+		SenderInFee                     int64
+		ReceiverInFee                   int64
+		ReceiverOutFee                  int64
+		SenderInFeePPM                  int64
+		ReceiverInFeePPM                int64
+		ReceiverOutFeePPM               int64
+		KeysendSats                     uint64
+		OutputsBTC                      *[]ln.UTXO
+		OutputsLBTC                     *[]liquid.UTXO
+		HasInboundFees                  bool
+		PeerBitcoinBalance              string // "" means no data
+		MaxBitcoinSwapOut               uint64
+		RecommendBitcoinSwapOut         uint64
+		MaxBitcoinSwapIn                int64
+		RecommendBitcoinSwapIn          int64
+		PeerLiquidBalance               string // "" means no data
+		MaxLiquidSwapOut                uint64
+		RecommendLiquidSwapOut          uint64
+		MaxLiquidSwapIn                 int64
+		RecommendLiquidSwapIn           int64
+		SelectedChannel                 uint64
+		HasDiscountedvSize              bool
+		RedColor                        string
+		IsOnline                        bool
+		AnchorReserve                   uint64
+		LiquidReserve                   uint64
+		OPENING_TX_SIZE_BTC             int64
+		OPENING_TX_SIZE_LBTC            int64
+		OPENING_TX_SIZE_LBTC_DISCOUNTED int64
 	}
 
 	redColor := "red"
@@ -605,55 +622,58 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := Page{
-		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
-		ErrorMessage:            errorMessage,
-		PopUpMessage:            popupMessage,
-		BtcFeeRate:              bitcoinFeeRate,
-		MempoolFeeRate:          feeRate,
-		ColorScheme:             config.Config.ColorScheme,
-		Peer:                    peer,
-		PeerAlias:               getNodeAlias(peer.NodeId),
-		NodeUrl:                 config.Config.NodeApi,
-		Allowed:                 stringIsInSlice(peer.NodeId, allowlistedPeers),
-		Suspicious:              stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:                     stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:                    stringIsInSlice("lbtc", peer.SupportedAssets),
-		LiquidBalance:           satAmount,
-		BitcoinBalance:          uint64(btcBalance),
-		ActiveSwaps:             convertSwapsToHTMLTable(activeSwaps, "", "", ""),
-		DirectionIn:             directionIn,
-		Stats:                   stats,
-		ChannelInfo:             channelInfo,
-		PeerSwapPeer:            psPeer,
-		MyAlias:                 ln.MyNodeAlias,
-		SenderOutFee:            senderOutFee,
-		SenderOutFeePPM:         senderOutFeePPM,
-		SenderInFee:             senderInFee,
-		ReceiverInFee:           receiverInFee,
-		ReceiverOutFee:          receiverOutFee,
-		SenderInFeePPM:          senderInFeePPM,
-		ReceiverInFeePPM:        receiverInFeePPM,
-		ReceiverOutFeePPM:       receiverOutFeePPM,
-		KeysendSats:             keysendSats,
-		OutputsBTC:              &utxosBTC,
-		OutputsLBTC:             &utxosLBTC,
-		HasInboundFees:          ln.HasInboundFees(),
-		PeerBitcoinBalance:      peerBitcoinBalance,
-		MaxBitcoinSwapOut:       maxBitcoinSwapOut,
-		RecommendBitcoinSwapOut: recommendBitcoinSwapOut,
-		MaxBitcoinSwapIn:        maxBitcoinSwapIn,
-		RecommendBitcoinSwapIn:  recommendBitcoinSwapIn,
-		PeerLiquidBalance:       peerLiquidBalance,
-		MaxLiquidSwapOut:        maxLiquidSwapOut,
-		RecommendLiquidSwapOut:  recommendLiquidSwapOut,
-		MaxLiquidSwapIn:         maxLiquidSwapIn,
-		RecommendLiquidSwapIn:   recommendLiquidSwapIn,
-		SelectedChannel:         selectedChannel,
-		HasDiscountedvSize:      hasDiscountedvSize,
-		RedColor:                redColor,
-		IsOnline:                isOnline,
-		AnchorReserve:           ANCHOR_RESERVE,
-		LiquidReserve:           SWAP_LBTC_RESERVE,
+		Authenticated:                   config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:                    errorMessage,
+		PopUpMessage:                    popupMessage,
+		BtcFeeRate:                      bitcoinFeeRate,
+		MempoolFeeRate:                  feeRate,
+		ColorScheme:                     config.Config.ColorScheme,
+		Peer:                            peer,
+		PeerAlias:                       getNodeAlias(peer.NodeId),
+		NodeUrl:                         config.Config.NodeApi,
+		Allowed:                         stringIsInSlice(peer.NodeId, allowlistedPeers),
+		Suspicious:                      stringIsInSlice(peer.NodeId, suspiciousPeers),
+		BTC:                             stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:                            stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidBalance:                   satAmount,
+		BitcoinBalance:                  uint64(btcBalance),
+		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		DirectionIn:                     directionIn,
+		Stats:                           stats,
+		ChannelInfo:                     channelInfo,
+		PeerSwapPeer:                    psPeer,
+		MyAlias:                         ln.MyNodeAlias,
+		SenderOutFee:                    senderOutFee,
+		SenderOutFeePPM:                 senderOutFeePPM,
+		SenderInFee:                     senderInFee,
+		ReceiverInFee:                   receiverInFee,
+		ReceiverOutFee:                  receiverOutFee,
+		SenderInFeePPM:                  senderInFeePPM,
+		ReceiverInFeePPM:                receiverInFeePPM,
+		ReceiverOutFeePPM:               receiverOutFeePPM,
+		KeysendSats:                     keysendSats,
+		OutputsBTC:                      &utxosBTC,
+		OutputsLBTC:                     &utxosLBTC,
+		HasInboundFees:                  ln.HasInboundFees(),
+		PeerBitcoinBalance:              peerBitcoinBalance,
+		MaxBitcoinSwapOut:               maxBitcoinSwapOut,
+		RecommendBitcoinSwapOut:         recommendBitcoinSwapOut,
+		MaxBitcoinSwapIn:                maxBitcoinSwapIn,
+		RecommendBitcoinSwapIn:          recommendBitcoinSwapIn,
+		PeerLiquidBalance:               peerLiquidBalance,
+		MaxLiquidSwapOut:                maxLiquidSwapOut,
+		RecommendLiquidSwapOut:          recommendLiquidSwapOut,
+		MaxLiquidSwapIn:                 maxLiquidSwapIn,
+		RecommendLiquidSwapIn:           recommendLiquidSwapIn,
+		SelectedChannel:                 selectedChannel,
+		HasDiscountedvSize:              hasDiscountedvSize,
+		RedColor:                        redColor,
+		IsOnline:                        isOnline,
+		AnchorReserve:                   ANCHOR_RESERVE,
+		LiquidReserve:                   SWAP_LBTC_RESERVE,
+		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
+		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
+		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,
 	}
 
 	// executing template named "peer"
@@ -705,7 +725,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations       int32
 		TargetConfirmations int32
 		Progress            int32
-		Duration            string
+		ETA                 string
 		FeeRate             float64
 		LiquidFeeRate       float64
 		MempoolFeeRate      float64
@@ -722,7 +742,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		IsClaimJoin         bool
 		ClaimJoinStatus     string
 		HasClaimJoinPending bool
-		ClaimJoinETA        int
+		ClaimJoinHours      int
 		ClaimJointTimeLimit string
 	}
 
@@ -761,7 +781,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 	maxConfs := int32(peginBlocks)
-	cjETA := 34
+	cjHours := 34
 	cjTimeLimit := ""
 
 	currentBlockHeight := int32(ln.GetBlockHeight())
@@ -770,15 +790,15 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		maxConfs = target - currentBlockHeight + confs
 		duration = time.Duration(10*(target-currentBlockHeight)) * time.Minute
 	} else if ln.ClaimJoinHandler != "" {
-		cjETA = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
+		cjHours = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
 		cjTimeLimit = time.Now().Add(time.Duration(10*(ln.JoinBlockHeight-uint32(currentBlockHeight))) * time.Minute).Format("3:04 PM")
 	}
 
 	progress := confs * 100 / int32(maxConfs)
 
-	formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
+	eta := time.Now().Add(duration).Format("3:04 PM")
 	if duration < 0 {
-		formattedDuration = "Past due"
+		eta = "Past due"
 	}
 
 	data := Page{
@@ -797,7 +817,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		Confirmations:       confs,
 		TargetConfirmations: maxConfs,
 		Progress:            progress,
-		Duration:            formattedDuration,
+		ETA:                 eta,
 		FeeRate:             config.Config.PeginFeeRate,
 		MempoolFeeRate:      mempoolFeeRate,
 		LiquidFeeRate:       liquid.EstimateFee(),
@@ -814,7 +834,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
 		ClaimJointTimeLimit: cjTimeLimit,
-		ClaimJoinETA:        cjETA,
+		ClaimJoinHours:      cjHours,
 	}
 
 	// executing template named "bitcoin"
@@ -1285,6 +1305,8 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 	for i, f := range *forwardsLog {
 		(*forwardsLog)[i].AliasIn = getNodeAlias(peerNodeId[f.ChanIdIn])
 		(*forwardsLog)[i].AliasOut = getNodeAlias(peerNodeId[f.ChanIdOut])
+		(*forwardsLog)[i].Inbound = (*forwardsLog)[i].AliasIn == peerName
+		(*forwardsLog)[i].Outbound = (*forwardsLog)[i].AliasOut == peerName
 		(*forwardsLog)[i].TimeAgo = timePassedAgo(time.Unix(int64(f.TS), 0))
 		(*forwardsLog)[i].TimeUTC = time.Unix(int64(f.TS), 0).UTC().Format(time.RFC1123)
 	}
@@ -1880,11 +1902,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 				config.Config.PeginTxId = txid
 				config.Config.PeginFeeRate = 0
+				ln.ClaimStatus = "Awaiting funding tx to confirm"
 
 				log.Println("External Funding TxId:", txid)
 				duration := time.Duration(10*(int32(peginBlocks)-tx.Confirmations)) * time.Minute
-				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. Time left: " + formattedDuration + ". TxId: `" + txid + "`")
+				eta := time.Now().Add(duration).Format("3:04 PM")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. ETA: " + eta + ". TxId: `" + txid + "`")
 			}
 
 			config.Save()

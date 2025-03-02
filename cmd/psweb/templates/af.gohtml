@@ -75,7 +75,7 @@
                     style="color:{{.RedColor}}"
                   {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
           {{end}}   
-          <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
+          <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit(event)">
             <input autocomplete="false" name="hidden" type="text" style="display:none;">
             <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
               <tr>
@@ -275,7 +275,7 @@
                 <th style="width: 13ch;">Time</th>
                 <th>In</th>
                 <th>Out</th>
-                <th style="width: 5ch; text-align: right;">Amt</th>
+                <th style="width: 7ch; text-align: right;">Amount</th>
                 <th style="width: 7ch; text-align: right;">PPM</th>
               </tr>
             </thead>
@@ -285,7 +285,13 @@
                   <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
                   <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
                   <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
-                  <td title="{{fmt .Amount}} sats" style="text-align: right;">{{m .Amount}}</td>
+                  <td title="{{fmt .Amount}} sats" style="text-align: right;
+                    {{if .Outbound}}
+                      background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
+                    {{end}}
+                    {{if .Inbound}}
+                      background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
+                    {{end}}">{{m .Amount}}</td>
                   <td title="Fee: {{ff .Fee}}" style="text-align: right;">{{fmt .PPM}}</td>
                 </tr>
               {{end}}
@@ -413,7 +419,16 @@
         document.getElementById(formId).submit();
       }
       // warning message if Max HTLC % > 0 
-      function confirmSubmit() {
+      function confirmSubmit(event) {
+        // Detect the clicked button
+        const clickedButton = event.submitter; // Modern browsers support this
+        if (clickedButton.name == 'update_all') {
+          var confirmed = confirm("This will update highlighted values for all custom rules. Are you sure?");
+          if (!confirmed) {
+            // user cancels, prevent form submission
+            return false;
+          }
+        } 
         if (Number(document.getElementById("maxHtlcPct").value)>0) {
           var confirmed = confirm("Setting Max HTLC size to a % of Local Balance will only take effect when Local Balance exceeds 50% of Capacity. Still, reducing Max HTLC can prevent receiving certain large swaps and inbound payments. A better way to avoid failed HTLCs is to bump channel's fee rate upon every fail. Please confirm if you still want to set Max HTLC % > 0.");
           if (!confirmed) {

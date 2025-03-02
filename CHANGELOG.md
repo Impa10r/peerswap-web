@@ -1,5 +1,14 @@
 # Versions
 
+## 1.7.8
+
+- Respect spendable and receivable limits for max swap calculation 
+- Show peg-in ETA as time and not remaining duration
+- Wait for broadcasted CaimJoin tx to appear in local mempool
+- Fix channel stats not resetting after a successful swap
+- Fix invoiced stats not calculating without circular rebalancing
+- AutoFee: confirm 'Update All' button click 
+
 ## 1.7.7
 
 - Fix Auto Fee not working for channels with no outbound forwards

@@ -1599,23 +1599,23 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 			e := inv[i]
 			if uint64(e.AcceptTime) > timeStamp {
 				// check if it is related to a circular rebalancing
+				found := false
 				htcls, ok := rebalanceInHtlcs.Read(channelId)
 				if ok {
-					found := false
 					for _, r := range htcls {
 						if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
 							found = true
 							break
 						}
 					}
-					if found {
-						// remove invoice to avoid double counting
-						inv = append(inv[:i], inv[i+1:]...)
-						invoiceHtlcs.Write(channelId, inv)
-						i--
-					} else {
-						invoicedMsat += e.AmtMsat
-					}
+				}
+				if found {
+					// remove invoice to avoid double counting
+					inv = append(inv[:i], inv[i+1:]...)
+					invoiceHtlcs.Write(channelId, inv)
+					i--
+				} else {
+					invoicedMsat += e.AmtMsat
 				}
 			}
 		}
@@ -2339,4 +2339,28 @@ try_to_connect:
 	}
 
 	return false
+}
+
+// spendable, receivable, mapped by channelId
+func FetchChannelLimits(client lnrpc.LightningClient) (spendable map[uint64]uint64, receivable map[uint64]uint64, err error) {
+	res, err := client.ListChannels(context.Background(), &lnrpc.ListChannelsRequest{
+		ActiveOnly:   false,
+		InactiveOnly: false,
+		PublicOnly:   false,
+		PrivateOnly:  false,
+	})
+
+	if err != nil {
+		return
+	}
+
+	spendable = make(map[uint64]uint64)
+	receivable = make(map[uint64]uint64)
+
+	for _, ch := range res.Channels {
+		spendable[ch.ChanId] = min(uint64(ch.GetLocalBalance()-int64(ch.GetLocalConstraints().GetChanReserveSat())), ch.GetLocalConstraints().GetMaxPendingAmtMsat()/1000)
+		receivable[ch.ChanId] = min(uint64(ch.GetRemoteBalance()-int64(ch.GetRemoteConstraints().GetChanReserveSat())), ch.GetRemoteConstraints().GetMaxPendingAmtMsat()/1000)
+	}
+
+	return
 }

@@ -34,15 +34,17 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.7"
-	// Swap Out reserve to deduct from channel local balance
-	SWAP_OUT_CHANNEL_RESERVE = 10_000
-	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
-	SWAP_LBTC_RESERVE = 1_200
+	VERSION = "v1.7.8"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
+	// opening tx sizes for fee estimates
+	OPENING_TX_SIZE_BTC             = 350
+	OPENING_TX_SIZE_LBTC            = 3000
+	OPENING_TX_SIZE_LBTC_DISCOUNTED = 750
+	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
+	SWAP_LBTC_RESERVE = 1_200
 )
 
 type SwapParams struct {
@@ -495,7 +497,7 @@ func convertPeersToHTMLTable(
 
 	for _, swap := range swaps {
 		ts, ok := swapTimestamps.Read(swap.LndChanId)
-		if simplifySwapState(swap.State) == "success" && ok && ts < swap.CreatedAt {
+		if simplifySwapState(swap.State) == "success" && (!ok || ts < swap.CreatedAt) {
 			swapTimestamps.Write(swap.LndChanId, swap.CreatedAt)
 		}
 	}
@@ -707,7 +709,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if btcBalance >= 100_000 {
 					flooredBalance = toMil(btcBalance)
-					bal = formatWithThousandSeparators(btcBalance)
+					bal = "≥" + formatWithThousandSeparators(btcBalance)
 				}
 				peerTable += "<span title=\"Peer's BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -723,7 +725,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if lbtcBalance >= 100_000 {
 					flooredBalance = toMil(lbtcBalance)
-					bal = formatWithThousandSeparators(lbtcBalance)
+					bal = "≥" + formatWithThousandSeparators(lbtcBalance)
 				}
 				peerTable += "<span title=\"Peer's L-BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -1808,12 +1810,14 @@ func advertiseBalances() {
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
 
+	_, receivable, err := ln.FetchChannelLimits(cl)
+
 	for _, peer := range res3.GetPeers() {
 		// find the largest remote balance
 		maxBalance := uint64(0)
 		if ln.AdvertiseBitcoinBalance || ln.AdvertiseLiquidBalance {
 			for _, ch := range peer.Channels {
-				maxBalance = max(maxBalance, ch.RemoteBalance-SWAP_OUT_CHANNEL_RESERVE)
+				maxBalance = max(maxBalance, receivable[ch.ChannelId])
 			}
 		}
 

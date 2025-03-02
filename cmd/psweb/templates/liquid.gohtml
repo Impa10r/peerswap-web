@@ -188,7 +188,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
               <table style="table-layout:fixed; width: 100%;">
                 <tr><td style="overflow-wrap: break-word;">
                   <center>
-                    <p>TxId: <a href="{{.LiquidUrl}}" target="_blank">{{.TxId}}</a></p>
+                    <p>TxId: <a href="{{.LiquidUrl}}" target="_blank" title="Open in explorer">{{.TxId}}</a></p>
                     <br>
                     <button title="Return to main page" class="button is-large" onclick="window.location.href='/';">OK</button>
                   </center>
@@ -232,7 +232,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
               </center>
             </form>
           {{else}}
-            <input class="input is-medium" type="text" onclick="copyToClipboard('liquidAddress')" id="liquidAddress" value="{{.LiquidAddress}}" readonly>
+            <input class="input is-medium" type="text" style="cursor: pointer" title="Copy to clipboard" onclick="copyToClipboard('liquidAddress')" id="liquidAddress" value="{{.LiquidAddress}}" readonly>
             <br>
             <br>
             <div id="qrcode-container">
