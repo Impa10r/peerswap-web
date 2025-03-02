@@ -423,7 +423,7 @@
         // Detect the clicked button
         const clickedButton = event.submitter; // Modern browsers support this
         if (clickedButton.name == 'update_all') {
-          var confirmed = confirm("This will update fee rules with highlighted values for all the channels. Are you sure?");
+          var confirmed = confirm("This will update highlighted values for all custom rules. Are you sure?");
           if (!confirmed) {
             // user cancels, prevent form submission
             return false;
