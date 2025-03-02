@@ -1,5 +1,9 @@
 # Versions
 
+## 1.7.9
+
+- 
+
 ## 1.7.8
 
 - Respect spendable and receivable limits for max swap calculation 

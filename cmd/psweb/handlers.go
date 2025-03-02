@@ -1033,8 +1033,8 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			if isPegin {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 				duration := time.Duration(10*peginBlocks) * time.Minute
-				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+				eta := time.Now().Add(duration).Format("3:04 PM")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. ETA: " + eta + ". TxId: `" + res.TxId + "`")
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
 				telegramSendMessage("⛓️ BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
