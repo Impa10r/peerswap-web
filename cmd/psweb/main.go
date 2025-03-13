@@ -1165,6 +1165,8 @@ func checkPegin() {
 		if config.Config.PeginClaimScript == "done" {
 			// finish by sending telegram message
 			telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			peginInvite = ""
+			ln.ClaimJoinHandler = ""
 			config.Config.PeginClaimScript = ""
 			config.Config.PeginTxId = ""
 			config.Config.PeginClaimJoin = false
