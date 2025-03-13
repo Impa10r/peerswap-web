@@ -142,6 +142,7 @@ input[type="number"] {
     text-align: center;
     font-size: 1em; /* Font size */
     width: 100%; /* Make input take full width of the cell */
+    height: 100%; /* Make input take full height of the cell */
     box-sizing: border-box; /* Ensure padding is included in the width calculation */
 }
 

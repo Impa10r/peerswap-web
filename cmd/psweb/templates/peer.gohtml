@@ -8,7 +8,7 @@
             <table style="width:100%; table-layout:fixed;">
               <tr>
                 <td style="padding: 0px; text-align: left;">
-                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
+                  <h4 class="title is-4" style="white-space: nowrap">{{template "bitcoin_icon"}}&nbsp{{fmt .BitcoinBalance}}</h4>
                 </td>
                 <td style="padding: 0px; text-align: left;">
                   <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
@@ -99,7 +99,6 @@
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
                           <label id="resultLabel" class="label">Cost Estimate</label>
-                          <input type="number" id="totalFee" style="display: none;" value=0>
                         </div>
                         <div class="field-body">
                           <label id="result" class="label">Please enter the Swap Amount</label>
@@ -390,7 +389,7 @@
 
                         text += claimText;   
 
-                        const premium = document.getElementById('premiumLimit').value * swapAmount / 1000000;
+                        const premium = Math.floor(document.getElementById('premiumLimit').value * swapAmount / 1000000);
                         fee += premium;
                         
                         text += "Max premium: " + formatWithThousandSeparators(premium) + " sats\n";  
@@ -404,7 +403,7 @@
                         document.getElementById('result').title = title;
                         document.getElementById('resultLabel').title = title;
                         document.getElementById('result').innerText = text;
-                        document.getElementById("totalFee").value = Number(fee);
+                        return fee;
                       }
 
                       let timerId;
@@ -419,7 +418,7 @@
 
                       // warning message if swap too expensive
                       function confirmSubmit() {
-                        const fee = Number(document.getElementById("totalFee").value);
+                        const fee = calculateTransactionFee();
                         const amount = Number(document.getElementById("swapAmount").value);
 
                         if (fee > amount / 1000) {
@@ -496,7 +495,7 @@ Sincerely,
               <tr>
                 {{if .PeerBitcoinBalance}}
                   <td style="text-align: center;">
-                    <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{.PeerBitcoinBalance}}</p>
+                    <p title="Peer's BTC balance"" style="white-space: nowrap">{{template "bitcoin_icon"}}&nbsp{{.PeerBitcoinBalance}}</p>
                   </td>
                 {{end}}
                 {{if .PeerLiquidBalance}}
@@ -529,6 +528,53 @@ Sincerely,
                 <td title="Claim fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
               </tr>
             </table>  
+            <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
+              <tr>
+                <th style="text-align: center">Premiums</th>
+                <th style="text-align: center">{{template "bitcoin_icon"}} ⇨⚡</th>
+                <th style="text-align: center">⚡⇨ {{template "bitcoin_icon"}}</th>
+                <th style="text-align: center">🌊⇨⚡</th>   
+                <th style="text-align: center">⚡⇨🌊</th>
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center">Default</td>
+                {{range $i, $rate := .DefaultPremium}}
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{$i}}_default_premium" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setPremium">
+                      <input type="hidden" name="peerNodeId" value="">
+                      <input type="hidden" name="asset" value="{{ $rate.Asset }}">
+                      <input type="hidden" name="operation" value="{{ $rate.Operation }}">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="premium" value="{{ $rate.PremiumRatePpm }}" onchange="submitForm('{{$i}}_default_premium')">
+                    </form>
+                  </td>
+                {{end}}
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center">To Peer</td>
+                {{range $i, $rate := .PeerPremium}}
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{$i}}_peer_premium" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setPremium">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="asset" value="{{ $rate.Asset }}">
+                      <input type="hidden" name="operation" value="{{ $rate.Operation }}">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="premium" value="{{ $rate.PremiumRatePpm }}" onchange="submitForm('{{$i}}_peer_premium')">
+                    </form>
+                  </td>
+                {{end}}
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center">By Peer</td>
+                {{range $i, $rate := .Peer.PeerPremium.Rates}}
+                    <td title="Premium Rate, PPM" style="padding: 0px; text-align: center">{{ fs $rate.PremiumRatePpm }}</td>
+                {{end}}
+              </tr>
+            </table> 
           {{end}}
           <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
             <tr>

@@ -2,7 +2,7 @@
 
 ## 1.7.9
 
-- Add swap premium limit input field
+- Add premium PPM limit for new swaps
 
 ## 1.7.8
 

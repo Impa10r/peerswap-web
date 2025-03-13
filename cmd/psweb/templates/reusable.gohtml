@@ -33,7 +33,7 @@
                                 <a href="/" class="dropdown-item"> Peer List </a>
                                 <a href="/bitcoin" class="dropdown-item"> Bitcoin Wallet </a>
                                 <a href="/liquid" class="dropdown-item"> Liquid Wallet </a>
-                                <a href="/af" class="dropdown-item"> Channel Auto Fees </a>
+                                <a href="/af" class="dropdown-item"> Lightning Auto Fees </a>
                                 <hr class="dropdown-divider" />
                                 <a href="/config" class="dropdown-item"> Configuration </a>
                                 <a href="/log?log=psweb.log" class="dropdown-item"> Logs </a>
@@ -237,4 +237,8 @@
         const timer2 = setInterval(fetchData, 1000);
         fetchData();
     </script>
+{{end}}
+
+{{define "bitcoin_icon"}}
+    <span style="color: #FF9900; font-weight: bold;">₿</span>
 {{end}}

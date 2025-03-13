@@ -8,7 +8,7 @@
             <tr>
               <td style="padding: 0px; text-align: left;">
                 <h4 class="title is-4" style="white-space: nowrap">
-                  <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
+                  {{template "bitcoin_icon"}}&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
                   {{if and .AllowSwapRequests .BitcoinSwaps}} 
                     {{if .AdvertiseBitcoin}}
                       <a href="/bitcoin" title="Broadcasting BTC balance to peers">📡</a>

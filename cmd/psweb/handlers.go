@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -207,6 +208,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	executeTemplate(w, "homepage", data)
 }
 
+type Premium struct {
+	Asset          int32
+	Operation      int32
+	PremiumRatePpm int64
+}
+
 func peerHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
@@ -319,6 +326,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 
+	var defaultPremium, peerPremium []Premium
+
 	psPeer := true
 	if peer == nil {
 		// Search amoung all Lightning peers
@@ -341,6 +350,33 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if peer.AsReceiver.SatsIn > 0 {
 			receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
+		}
+
+		ctx := context.Background()
+
+		for _, asset := range []peerswaprpc.AssetType{peerswaprpc.AssetType_BTC, peerswaprpc.AssetType_LBTC} {
+			for _, operation := range []peerswaprpc.OperationType{peerswaprpc.OperationType_SWAP_IN, peerswaprpc.OperationType_SWAP_OUT} {
+				defaultRate, _ := client.GetDefaultPremiumRate(ctx, &peerswaprpc.GetDefaultPremiumRateRequest{
+					Asset:     asset,
+					Operation: operation,
+				})
+				defaultPremium = append(defaultPremium, Premium{
+					Asset:          int32(asset.Number()),
+					Operation:      int32(operation.Number()),
+					PremiumRatePpm: defaultRate.PremiumRatePpm,
+				})
+
+				peerRate, _ := client.GetPremiumRate(ctx, &peerswaprpc.GetPremiumRateRequest{
+					NodeId:    peer.NodeId,
+					Asset:     asset,
+					Operation: operation,
+				})
+				peerPremium = append(peerPremium, Premium{
+					Asset:          int32(asset.Number()),
+					Operation:      int32(operation.Number()),
+					PremiumRatePpm: peerRate.PremiumRatePpm,
+				})
+			}
 		}
 	}
 
@@ -614,6 +650,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC             int64
 		OPENING_TX_SIZE_LBTC            int64
 		OPENING_TX_SIZE_LBTC_DISCOUNTED int64
+		DefaultPremium                  []Premium
+		PeerPremium                     []Premium
 	}
 
 	redColor := "red"
@@ -674,6 +712,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
 		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
 		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,
+		DefaultPremium:                  defaultPremium,
+		PeerPremium:                     peerPremium,
 	}
 
 	// executing template named "peer"
@@ -1870,6 +1910,61 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "setPremium":
+			nextPage := r.FormValue("nextPage")
+
+			premiumRatePpm, err := strconv.ParseInt(r.FormValue("premium"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			asset, err := strconv.ParseInt(r.FormValue("asset"), 10, 32)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			operation, err := strconv.ParseInt(r.FormValue("operation"), 10, 32)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			nodeId := r.FormValue("peerNodeId")
+			which := "Default"
+			var result *peerswaprpc.PremiumRate
+
+			if nodeId == "" {
+				result, err = client.UpdateDefaultPremiumRate(context.Background(), &peerswaprpc.UpdateDefaultPremiumRateRequest{
+					Rate: &peerswaprpc.PremiumRate{
+						Asset:          peerswaprpc.AssetType(asset),
+						Operation:      peerswaprpc.OperationType(operation),
+						PremiumRatePpm: premiumRatePpm,
+					},
+				})
+			} else {
+				which = "Peer"
+				result, err = client.UpdatePremiumRate(context.Background(), &peerswaprpc.UpdatePremiumRateRequest{
+					NodeId: nodeId,
+					Rate: &peerswaprpc.PremiumRate{
+						Asset:          peerswaprpc.AssetType(asset),
+						Operation:      peerswaprpc.OperationType(operation),
+						PremiumRatePpm: premiumRatePpm,
+					},
+				})
+			}
+
+			if err != nil || result == nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			// all good, display confirmation
+			msg := fmt.Sprintf("%s %s %s premium rate updated to %d", which, result.Asset.String(), result.Operation.String(), result.GetPremiumRatePpm())
+			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
+			return
+
 		case "externalPeginTxId":
 			if r.FormValue("externalPeginCancel") != "" {
 				config.Config.PeginTxId = ""
