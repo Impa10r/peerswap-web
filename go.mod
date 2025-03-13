@@ -19,7 +19,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.5
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.8
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
-	github.com/elementsproject/glightning v0.0.0-20241218232330-5d69c660a74c
+	github.com/elementsproject/glightning v0.0.0-20250204171900-f3064a110c6b
 	github.com/elementsproject/peerswap v0.2.98-0.20240802020201-5935fb465630
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
