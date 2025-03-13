@@ -41,7 +41,7 @@
                                     <hr class="dropdown-divider" />
                                     <a href="/logout" class="dropdown-item"> Logout </a>   
                                 {{end}}
-                                <a href="https://swapmarket.github.io" target="_blank" class="dropdown-item"> Swap Market ☍ </a>
+                                <a href="https://swapmarket.github.io" target="_blank" class="dropdown-item"> Swap Market ↗︎ </a>
                             </div>
                         </div>
                     </div>
@@ -72,19 +72,39 @@
                     });
                 }
                 
-                function copyToClipboard(inputName) {
-                    // Get the text to copy
-                    var copyText = document.getElementById(inputName);
+                function copyToClipboard(elementId) {
+                    var element = document.getElementById(elementId);
 
-                    // Select the text
-                    copyText.select();
-                    copyText.setSelectionRange(0, 99999); // For mobile devices
+                    if (!element) {
+                        console.error("Element not found:", elementId);
+                        return;
+                    }
 
-                    // Copy the selected text
+                    var textToCopy = "";
+
+                    // If the element is an <a> tag, get its href
+                    if (element.tagName === "A") {
+                        textToCopy = element.href;
+                    } 
+                    // If it's an input or textarea, get its value
+                    else if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
+                        textToCopy = element.value;
+                    } 
+                    // Otherwise, get the inner text
+                    else {
+                        textToCopy = element.innerText;
+                    }
+
+                    // Copy the text to clipboard
+                    var tempTextArea = document.createElement("textarea");
+                    tempTextArea.value = textToCopy;
+                    document.body.appendChild(tempTextArea);
+                    tempTextArea.select();
                     document.execCommand("copy");
+                    document.body.removeChild(tempTextArea);
 
                     // Alert the user that the text has been copied
-                    displayTemporaryMessage("Copied the address to clipboard");
+                    displayTemporaryMessage("Copied to clipboard");
                 }
                 
                 function displayTemporaryMessage(msg) {
@@ -165,7 +185,7 @@
                     <td style="width: 100px;">
                         <div class="content has-text-centered">
                             <p>
-                                <strong>PeerSwap Web UI</strong> by <a href="https://github.com/Impa10r/peerswap-web" target="_blank">Impalor</a>
+                                <strong>PeerSwap Web UI by <a href="https://github.com/Impa10r/peerswap-web" target="_blank">Impalor</a></strong>
                             </p>
                         </div>
                     </td>

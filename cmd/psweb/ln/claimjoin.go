@@ -484,19 +484,37 @@ func Broadcast(fromNodeId string, message *Message) bool {
 		if ClaimJoinHandler == message.Sender {
 			txId := string(message.Payload)
 			if MyRole == "joiner" && txId != "" && config.Config.PeginClaimScript != "done" && len(ClaimParties) == 1 {
-				// verify that my address was funded
 				var decoded liquid.Transaction
-				_, err := liquid.GetRawTransaction(txId, &decoded)
-				if err != nil {
-					ClaimStatus = "Error decoding posted transaction"
-					return false
+				var err error
+
+				// wait 60 seconds for the posted tx to appear in our local mempool
+				timeout := time.After(60 * time.Second)
+				ticker := time.NewTicker(5 * time.Second) // Check every 5 seconds
+
+				for {
+					select {
+					case <-timeout:
+						ClaimStatus = "Transaction did not appear in mempool within 60 seconds"
+						log.Println("Transaction did not appear in mempool within 60 seconds:", err)
+						ticker.Stop()
+						return false
+					case <-ticker.C:
+						_, err = liquid.GetRawTransaction(txId, &decoded)
+						if err == nil {
+							// Transaction found, proceed
+							ticker.Stop()
+							goto FoundTransaction
+						}
+					}
 				}
 
+			FoundTransaction:
 				addressInfo, err := liquid.GetAddressInfo(ClaimParties[0].Address)
 				if err != nil {
 					return false
 				}
 
+				// verify that my address was funded
 				ok := false
 				for _, output := range decoded.Vout {
 					if output.ScriptPubKey.Address == addressInfo.Unconfidential {
@@ -1334,7 +1352,7 @@ func createClaimPSET(totalFee int) (string, error) {
 	if len(ClaimParties) > 1 {
 		// add op_return
 		outputs = append(outputs, map[string]interface{}{
-			"data": "6a0f506565725377617020576562205549",
+			"data": "506565725377617020576562205549",
 		})
 	}
 

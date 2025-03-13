@@ -1,380 +1,385 @@
 {{define "af"}}
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto;">
-              <div style="text-align: left;">
-                <h4 class="title is-4">Automatic Fees</h4>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <form id="toggleForm_0" action="/submit" method="post">
+  <div class="container">
+    <div class="columns">
+      <div class="column">
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto;">
+            <div style="text-align: left;">
+              <h4 class="title is-4">Automatic Fees</h4>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <form id="toggleForm_0" action="/submit" method="post">
+                <input type="hidden" name="action" value="toggleAutoFee">
+                <input type="hidden" name="channelId" value="0">
+                <input type="hidden" name="nextId" value="{{.ChannelId}}">
+                <label class="checkbox is-large" style="padding-top: .5em;">
+                  <input title="Global Enable/Disable switch" type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
+                  {{if .GlobalEnabled}}
+                    <label title="Global Enable/Disable switch" for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      ON
+                    </label>
+                  {{else}}
+                    <label title="Global Enable/Disable switch" for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      OFF
+                    </label>
+                  {{end}}
+                </label>
+              </form>
+            </div>
+          </div>
+        </div>         
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+            <div style="text-align: left;">
+              <h4 class="title is-4">
+                {{if .ChannelId}}<a href="/peer?id={{.PeerId}}">{{end}}
+                {{.PeerName}}
+                {{if .ChannelId}}</a>{{end}}
+                {{if .ChannelId}}
+                  {{if .CustomRule}}
+                    (custom)
+                  {{else}}
+                    (<a href="/af">default</a>)
+                  {{end}}
+                {{end}}
+              </h4>    
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              {{if .ChannelId}}
+                <form id="toggleForm_{{.ChannelId}}" action="/submit" method="post">
                   <input type="hidden" name="action" value="toggleAutoFee">
-                  <input type="hidden" name="channelId" value="0">
+                  <input type="hidden" name="channelId" value="{{.ChannelId}}">
                   <input type="hidden" name="nextId" value="{{.ChannelId}}">
                   <label class="checkbox is-large" style="padding-top: .5em;">
-                    <input title="Global Enable/Disable switch" type="checkbox" id="globalEnabled" name="enabled" {{if .GlobalEnabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_0')">
-                    {{if .GlobalEnabled}}
-                      <label title="Global Enable/Disable switch" for="globalEnabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
+                    <input title="Per-channel Enable/Disable switch" type="checkbox" id="enabled" name="enabled" {{if .Enabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_{{.ChannelId}}')">
+                    {{if .Enabled}}
+                      <label title="Per-channel Enable/Disable switch" for="enabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
                         ON
                       </label>
                     {{else}}
-                      <label title="Global Enable/Disable switch" for="globalEnabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
+                      <label title="Per-channel Enable/Disable switch" for="enabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
                         OFF
                       </label>
                     {{end}}
                   </label>
                 </form>
-              </div>
+              {{end}}
             </div>
-          </div>         
-          <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
-              <div style="text-align: left;">
-                <h4 class="title is-4">
-                  {{if .ChannelId}}<a href="/peer?id={{.PeerId}}">{{end}}
-                  {{.PeerName}}
-                  {{if .ChannelId}}</a>{{end}}
-                  {{if .ChannelId}}
-                    {{if .CustomRule}}
-                      (custom)
-                    {{else}}
-                      (<a href="/af">default</a>)
-                    {{end}}
-                  {{end}}
-                </h4>    
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                {{if .ChannelId}}
-                  <form id="toggleForm_{{.ChannelId}}" action="/submit" method="post">
-                    <input type="hidden" name="action" value="toggleAutoFee">
-                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                    <input type="hidden" name="nextId" value="{{.ChannelId}}">
-                    <label class="checkbox is-large" style="padding-top: .5em;">
-                      <input title="Per-channel Enable/Disable switch" type="checkbox" id="enabled" name="enabled" {{if .Enabled}} checked="checked"{{end}} onchange="submitForm('toggleForm_{{.ChannelId}}')">
-                      {{if .Enabled}}
-                        <label title="Per-channel Enable/Disable switch" for="enabled" style="text-align: center; max-width: 5ch; color: white; background-color: green; font-weight: bold; padding: 3px; border-radius: 5px;">
-                          ON
-                        </label>
-                      {{else}}
-                        <label title="Per-channel Enable/Disable switch" for="enabled" style="text-align: center; max-width: 7ch; font-weight: bold; padding: 3px; border-radius: 5px;">
-                          OFF
-                        </label>
-                      {{end}}
-                    </label>
-                  </form>
-                {{end}}
-              </div>
-            </div>
-            {{if .ChannelId}}
-              <p style="text-align: left;">Capacity: {{m .Capacity}}, <span {{if gt .LocalPct .Params.ExcessPct}}
-                      style="color:{{.GreenColor}}"
-                    {{end}}
-                    {{if gt .Params.LowLiqPct .LocalPct}}
-                      style="color:{{.RedColor}}"
-                    {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
-            {{end}}   
-            <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit()">
-              <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
-                <tr>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is high" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: green; text-decoration-color: green;"{{end}}>
-                        High Liq Rate
-                      </label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" id="excessRate" name="excessRate" min="0" required value="{{.Params.ExcessRate}}" onchange="updateChart()">
-                    </div>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <div class="field-label is-normal">
-                      <label title="High local balance threshold" class="label">High Liq %</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: blue; text-decoration-color: blue;"{{end}}>Normal Rate</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" id="normalRate" name="normalRate" min="0" required required value="{{.Params.NormalRate}}" onchange="updateChart()">
-                    </div>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <div class="field-label is-normal">
-                      <label title="Low local balance threshold below which fee rates will not auto decrease" class="label">Low Liq %</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: red; text-decoration-color: red;"{{end}}>Low Liq Rate</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" id="lowLiqRate" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}" onchange="updateChart()">
-                    </div>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <div class="field-label is-normal">
-                      <label title="Inbound fee discount when liquidity is below Low Liq % (use negative value)" class="label">Low Liq Discount</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="lowLiqDiscount" max="0" required value="{{.Params.LowLiqDiscount}}" {{if not .HasInboundFees}}disabled{{end}}>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure below Low Liq threshold" class="label">Fail Bump</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
-                    </div>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <div class="field-label is-normal">
-                      <label title="Move Low Liq % theshold higher after each 'Insufficient Balance' HTLC failure above it" class="label">Fail % Move</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="failedMoveThreshold" min="0" required value="{{.Params.FailedMoveThreshold}}">
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="Days of outbound inactivity to start lowering rates" class="label">Inactivity Days</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="inactivityDays" min="0" required value="{{.Params.InactivityDays}}">
-                    </div>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <div class="field-label is-normal">
-                      <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="inactivityDropPPM" min="0" required value="{{.Params.InactivityDropPPM}}">
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div class="field-label is-normal">
-                      <label title="...and then also by a percentage" class="label">Inactivity Drop %</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
-                    </div>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <div class="field-label is-normal">
-                      <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="field-body">
-                      <input class="input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
-                    </div>
-                  </td>
-                </tr>
-              </table>
-              <div style="text-align: center;">
-                <input type="hidden" name="action" value="saveAutoFee">
-                <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                <input class="button is-large" type="submit" name="update_button" value="{{if .ChannelId}}{{if .CustomRule}}Update{{else}}Add{{end}} Custom{{else}}Update Default{{end}} Rule">
-                {{if and .CustomRule .ChannelId}}
-                  <input title="Apply specific changed value(s) to all custom rules" class="button is-large" type="submit" name="update_all" value="Update All">
-                  <input title="Delete custom rule for this channel and reset to default" class="button is-large" type="submit" name="delete_button" value="Reset">
-                {{end}}
-              </div>
-            </form>
           </div>
           {{if .ChannelId}}
-            <div class="box has-text-left">
-              <h4 title="Last 6 months history" class="title is-4">Realized Routing PPM<h4>
-              <div style="width: 100%; margin: auto;">
-                <canvas id="myScatterChart"></canvas>
-                <div id="tooltip"></div>
-              </div>
-            </div>
-          {{end}}
-          <div class="box has-text-left">
-            <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Fee Log<h4>
-            <table class="table" style="width:100%; table-layout:fixed;">
-              <thead>
-                <tr>
-                  <th style="width: 13ch;">Time</th>
-                  <th>Peer</th>
-                  <th style="width: 7ch; text-align: right;">Old</th>
-                  <th style="width: 7ch; text-align: right;">New</th>
-                  <th title="Direction: Inbound or outbound" style="width: 1ch; text-align: right;">D</th>
-                  <th title="Set by: Auto or manual" style="width: 1ch; text-align: right;">S</th>
-                </tr>
-              </thead>
-              <tbody>
-                {{range .FeeLog}}
-                  <tr>
-                    <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
-                    <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
-                    <td style="text-align: right;">{{fs .OldRate}}</td>
-                    <td style="text-align: right; 
-                      {{if gt .NewRate .OldRate}}
-                        background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
-                      {{end}}
-                      {{if gt .OldRate .NewRate}}
-                        background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
-                      {{end}}">
-                      {{fs .NewRate}}</td>
-                    <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
-                    <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
-                  </tr>
-                {{end}}
-              </tbody>
+            <p style="text-align: left;">Capacity: {{m .Capacity}}, <span {{if gt .LocalPct .Params.ExcessPct}}
+                    style="color:{{.GreenColor}}"
+                  {{end}}
+                  {{if gt .Params.LowLiqPct .LocalPct}}
+                    style="color:{{.RedColor}}"
+                  {{end}}>{{.LocalPct}}% local</span>, <span style="border-bottom: 2px dashed grey;">Current fee rate: {{fs .FeeRate}}</span>{{if .HasInboundFees}}, Inbound rate: {{.InboundRate}}{{end}}</p>
+          {{end}}   
+          <form id="myForm" autocomplete="off" action="/submit" method="post" onsubmit="return confirmSubmit(event)">
+            <input autocomplete="false" name="hidden" type="text" style="display:none;">
+            <table style="width:100%; table-layout:fixed; margin-bottom: 0.5em">
+              <tr>
+                <td>
+                  <div class="field-label is-normal">
+                    <label title="Fee rate PPM floor when liquidity is high" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: green; text-decoration-color: green;"{{end}}>
+                      High Liq Rate
+                    </label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" id="excessRate" name="excessRate" min="0" required value="{{.Params.ExcessRate}}" onchange="updateChart()">
+                  </div>
+                </td>
+                <td style="padding-left: 10px;">
+                  <div class="field-label is-normal">
+                    <label title="High local balance threshold" class="label">High Liq %</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="excessPct" min="0" max="100" required required value="{{.Params.ExcessPct}}">
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field-label is-normal">
+                    <label title="Fee rate PPM floor between Low and High Liquidity thresholds" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: blue; text-decoration-color: blue;"{{end}}>Normal Rate</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" id="normalRate" name="normalRate" min="0" required required value="{{.Params.NormalRate}}" onchange="updateChart()">
+                  </div>
+                </td>
+                <td style="padding-left: 10px;">
+                  <div class="field-label is-normal">
+                    <label title="Low local balance threshold below which fee rates will not auto decrease" class="label">Low Liq %</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="lowLiqPct" min="0" max="100" required required value="{{.Params.LowLiqPct}}">
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field-label is-normal">
+                    <label title="Fee rate PPM floor when liquidity is below Low Liq %" class="label" {{if .ChannelId}}style="text-decoration: underline; -webkit-text-decoration-color: red; text-decoration-color: red;"{{end}}>Low Liq Rate</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" id="lowLiqRate" name="lowLiqRate" min="0" required value="{{.Params.LowLiqRate}}" onchange="updateChart()">
+                  </div>
+                </td>
+                <td style="padding-left: 10px;">
+                  <div class="field-label is-normal">
+                    <label title="Inbound fee discount when liquidity is below Low Liq % (use negative value)" class="label">Low Liq Discount</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="lowLiqDiscount" max="0" required value="{{.Params.LowLiqDiscount}}" {{if not .HasInboundFees}}disabled{{end}}>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field-label is-normal">
+                    <label title="Fee rate PPM increase after each 'Insufficient Balance' HTLC failure below Low Liq threshold" class="label">Fail Bump</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="failBump" min="0" required value="{{.Params.FailedBumpPPM}}">
+                  </div>
+                </td>
+                <td style="padding-left: 10px;">
+                  <div class="field-label is-normal">
+                    <label title="Move Low Liq % theshold higher after each 'Insufficient Balance' HTLC failure above it" class="label">Fail % Move</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="failedMoveThreshold" min="0" required value="{{.Params.FailedMoveThreshold}}">
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field-label is-normal">
+                    <label title="Days of outbound inactivity to start lowering rates" class="label">Inactivity Days</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="inactivityDays" min="0" required value="{{.Params.InactivityDays}}">
+                  </div>
+                </td>
+                <td style="padding-left: 10px;">
+                  <div class="field-label is-normal">
+                    <label title="Reduce PPM by absolute value..." class="label">Inactivity Drop</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="inactivityDropPPM" min="0" required value="{{.Params.InactivityDropPPM}}">
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="field-label is-normal">
+                    <label title="...and then also by a percentage" class="label">Inactivity Drop %</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="inactivityDropPct" min="0" max="100" required value="{{.Params.InactivityDropPct}}">
+                  </div>
+                </td>
+                <td style="padding-left: 10px;">
+                  <div class="field-label is-normal">
+                    <label title="Hours to wait before reducing the fee rate again" class="label">Cool Off Hours</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="field-body">
+                    <input class="input is-medium" type="number" name="coolOffHours" min="0" required value="{{.Params.CoolOffHours}}">
+                  </div>
+                </td>
+              </tr>
             </table>
-          </div>
-          <div class="box has-text-left">
-            <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Last Forwards<h4>
-            <table class="table" style="width:100%; table-layout:fixed;">
-              <thead>
-                <tr>
-                  <th style="width: 13ch;">Time</th>
-                  <th>In</th>
-                  <th>Out</th>
-                  <th style="width: 5ch; text-align: right;">Amt</th>
-                  <th style="width: 7ch; text-align: right;">PPM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {{range .ForwardsLog}}
-                  <tr>
-                    <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
-                    <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
-                    <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
-                    <td title="{{fmt .Amount}} sats" style="text-align: right;">{{m .Amount}}</td>
-                    <td title="Fee: {{ff .Fee}}" style="text-align: right;">{{fmt .PPM}}</td>
-                  </tr>
-                {{end}}
-              </tbody>
-            </table>
-          </div>
-        </div> 
-        <div class="column"> 
-          <div class="box has-text-left">
-            <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
-              <div style="text-align: left;">
-                <h4 class="title is-4">Channel List</h4>
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <div style="text-align: right;">
-                  <a href="javascript:void(0);" title="Disable for all individual channels" onclick="toggleAll(false)">
-                    {{if .AnyEnabled}}
-                      Disable All
-                    {{end}}
-                  </a>
-                </div>
-              </div>
-              <form id="toggleForm_all" action="/submit" method="post">
-                <input type="hidden" name="action" value="toggleAutoFee">
-                <input type="hidden" name="channelId" value="-1">
-                <input type="hidden" name="nextId" value="{{.ChannelId}}">
-                <input type="checkbox" id="enabledAll" name="enabled" style="display:none;">
-              </form>
+            <div style="text-align: center;">
+              <input type="hidden" name="action" value="saveAutoFee">
+              <input type="hidden" name="channelId" value="{{.ChannelId}}">
+              <input class="button is-large" type="submit" name="update_button" value="{{if .ChannelId}}{{if .CustomRule}}Update{{else}}Add{{end}} Custom{{else}}Update Default{{end}} Rule">
+              {{if and .CustomRule .ChannelId}}
+                <input title="Apply specific changed value(s) to all custom rules" class="button is-large" type="submit" name="update_all" value="Update All">
+                <input title="Delete custom rule for this channel and reset to default" class="button is-large" type="submit" name="delete_button" value="Reset">
+              {{end}}
             </div>
-            <table class="table" style="width:100%; table-layout:fixed;">
-              <thead>
+          </form>
+        </div>
+        {{if .ChannelId}}
+          <div class="box has-text-left">
+            <h4 title="Last 6 months history" class="title is-4">Realized Routing PPM<h4>
+            <div style="width: 100%; margin: auto;">
+              <canvas id="myScatterChart"></canvas>
+              <div id="tooltip"></div>
+            </div>
+          </div>
+        {{end}}
+        <div class="box has-text-left">
+          <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Fee Log<h4>
+          <table class="table" style="width:100%; table-layout:fixed;">
+            <thead>
+              <tr>
+                <th style="width: 13ch;">Time</th>
+                <th>Peer</th>
+                <th style="width: 7ch; text-align: right;">Old</th>
+                <th style="width: 7ch; text-align: right;">New</th>
+                <th title="Direction: Inbound or outbound" style="width: 1ch; text-align: right;">D</th>
+                <th title="Set by: Auto or manual" style="width: 1ch; text-align: right;">S</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .FeeLog}}
                 <tr>
-                  <th>Peer</th>
-                  <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
-                  <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
-                  <th title="Outbound Fee Rate" style="width: 5ch; text-align: right;">Out</th>
-                  <th title="Inbound Discount" style="width: 4ch; text-align: right;">In</th>
-                  <th title="Days from the last outbound flow" style="width: 4ch; text-align: right;">Flow</th>
-                  <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
-* indicates custom rule" style="text-align: center;">Rule</th>
-                  <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
-                </tr>
-              </thead>
-              <tbody>
-              {{range .ChannelList}}
-                <tr{{if .Enabled}} class="is-selected"{{end}}>
+                  <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
                   <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
-                  <td style="text-align: right; {{if not .Active}}
-                      color:{{$.RedColor}};" title="Channel is INACTIVE"
-                    {{else}}"
-                    {{end}}>{{m .Capacity}}</td>
-                  <td style="text-align: right; {{if .Enabled}}
-                    {{if gt .LocalPct .AutoFee.ExcessPct}}
-                      color:{{$.GreenColor}}
+                  <td style="text-align: right;">{{fs .OldRate}}</td>
+                  <td style="text-align: right; 
+                    {{if gt .NewRate .OldRate}}
+                      background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
                     {{end}}
-                    {{if gt .AutoFee.LowLiqPct .LocalPct}}
-                      color:{{$.RedColor}}
-                    {{end}}{{end}}">{{.LocalPct}}</td>
-                  <td style="text-align: right;">{{fs .FeeRate}}</td>
-                  <td style="text-align: right;">{{fs .InboundRate}}</td>
-                  <td style="text-align: right;
-                    {{if gt 7 .DaysNoFlow}}
-                      color:{{$.GreenColor}}
-                    {{end}}
-                    {{if gt .DaysNoFlow 14}}
-                      color:{{$.RedColor}}
-                    {{end}}">{{.DaysNoFlow}}</td>
-                  <td class="truncate" style="text-align: center;">
-                    {{if .Enabled}}
-                      {{if .Custom}}*{{end}}{{.Rule}}
-                    {{else}}
-                      -
-                    {{end}}</td>
-                  <td>
-                    <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">
-                      <input type="hidden" name="action" value="toggleAutoFee">
-                      <input type="hidden" name="channelId" value="{{.ChannelId}}">
-                      <input type="hidden" name="nextId" value="{{$.ChannelId}}">
-                      <input type="checkbox" style="text-align: left;" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
-                    </form>
-                  </td>
+                    {{if gt .OldRate .NewRate}}
+                      background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
+                    {{end}}">
+                    {{fs .NewRate}}</td>
+                  <td style="text-align: right; width: 1ch" {{if .IsInbound}} title="Inbound">I{{else}} title="Outbound">O{{end}}</td>
+                  <td style="text-align: right; width: 1ch" {{if .IsManual}} title="Manual">M{{else}} title="Auto">A{{end}}</td>
                 </tr>
               {{end}}
-              </tbody>
-            </table>
+            </tbody>
+          </table>
+        </div>
+        <div class="box has-text-left">
+          <h4 title="Last {{if .ChannelId}}30 days{{else}}24 hours{{end}} history" class="title is-4">Last Forwards<h4>
+          <table class="table" style="width:100%; table-layout:fixed;">
+            <thead>
+              <tr>
+                <th style="width: 13ch;">Time</th>
+                <th>In</th>
+                <th>Out</th>
+                <th style="width: 7ch; text-align: right;">Amount</th>
+                <th style="width: 7ch; text-align: right;">PPM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .ForwardsLog}}
+                <tr>
+                  <td title="{{.TimeUTC}}" class="truncate">{{.TimeAgo}}</td>
+                  <td title="Channel Id: {{.ChanIdIn}}" class="truncate"><a href="/af?id={{.ChanIdIn}}">{{.AliasIn}}</a></td>
+                  <td title="Channel Id: {{.ChanIdOut}}" class="truncate"><a href="/af?id={{.ChanIdOut}}">{{.AliasOut}}</a></td>
+                  <td title="{{fmt .Amount}} sats" style="text-align: right;
+                    {{if .Outbound}}
+                      background:{{if eq $.ColorScheme "dark"}}darkred;{{else}}pink;{{end}}
+                    {{end}}
+                    {{if .Inbound}}
+                      background:{{if eq $.ColorScheme "dark"}}darkgreen;{{else}}lightgreen;{{end}}
+                    {{end}}">{{m .Amount}}</td>
+                  <td title="Fee: {{ff .Fee}}" style="text-align: right;">{{fmt .PPM}}</td>
+                </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </div> 
+      <div class="column"> 
+        <div class="box has-text-left">
+          <div style="display: grid; grid-template-columns: auto auto; padding-bottom: 0.5em;">
+            <div style="text-align: left;">
+              <h4 class="title is-4">Channel List</h4>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <div style="text-align: right;">
+                <a href="javascript:void(0);" title="Disable for all individual channels" onclick="toggleAll(false)">
+                  {{if .AnyEnabled}}
+                    Disable All
+                  {{end}}
+                </a>
+              </div>
+            </div>
+            <form id="toggleForm_all" action="/submit" method="post">
+              <input type="hidden" name="action" value="toggleAutoFee">
+              <input type="hidden" name="channelId" value="-1">
+              <input type="hidden" name="nextId" value="{{.ChannelId}}">
+              <input type="checkbox" id="enabledAll" name="enabled" style="display:none;">
+            </form>
           </div>
+          <table class="table" style="width:100%; table-layout:fixed;">
+            <thead>
+              <tr>
+                <th>Peer</th>
+                <th title="Channel's capacity" style="width: 7ch; text-align: right;">Cap</th>
+                <th title="Local balance as % of capacity" style="width: 3ch; text-align: right;">%</th>
+                <th title="Outbound Fee Rate" style="width: 5ch; text-align: right;">Out</th>
+                <th title="Inbound Discount" style="width: 4ch; text-align: right;">In</th>
+                <th title="Days from the last outbound flow" style="width: 4ch; text-align: right;">Flow</th>
+                <th title="HighLiq/Normal/LowLiq{{if .HasInboundFees}}/Discount{{end}} PPM rates
+* indicates custom rule" style="text-align: center;">Rule</th>
+                <th style="width: 4ch; text-align: left; transform: scale(1.5)"><a title="Enable for all individual channels" href="javascript:void(0);" onclick="toggleAll(true)">☑</a></th>
+              </tr>
+            </thead>
+            <tbody>
+            {{range .ChannelList}}
+              <tr{{if .Enabled}} class="is-selected"{{end}}>
+                <td class="truncate"><a href="/af?id={{.ChannelId}}">{{.Alias}}</a></td>
+                <td style="text-align: right; {{if not .Active}}
+                    color:{{$.RedColor}};" title="Channel is INACTIVE"
+                  {{else}}"
+                  {{end}}>{{m .Capacity}}</td>
+                <td style="text-align: right; {{if .Enabled}}
+                  {{if gt .LocalPct .AutoFee.ExcessPct}}
+                    color:{{$.GreenColor}}
+                  {{end}}
+                  {{if gt .AutoFee.LowLiqPct .LocalPct}}
+                    color:{{$.RedColor}}
+                  {{end}}{{end}}">{{.LocalPct}}</td>
+                <td style="text-align: right;">{{fs .FeeRate}}</td>
+                <td style="text-align: right;">{{fs .InboundRate}}</td>
+                <td style="text-align: right;
+                  {{if gt 7 .DaysNoFlow}}
+                    color:{{$.GreenColor}}
+                  {{end}}
+                  {{if gt .DaysNoFlow 14}}
+                    color:{{$.RedColor}}
+                  {{end}}">{{.DaysNoFlow}}</td>
+                <td class="truncate" style="text-align: center;">
+                  {{if .Enabled}}
+                    {{if .Custom}}*{{end}}{{.Rule}}
+                  {{else}}
+                    -
+                  {{end}}</td>
+                <td>
+                  <form id="individualForm_{{.ChannelId}}" action="/submit" method="post">
+                    <input type="hidden" name="action" value="toggleAutoFee">
+                    <input type="hidden" name="channelId" value="{{.ChannelId}}">
+                    <input type="hidden" name="nextId" value="{{$.ChannelId}}">
+                    <input type="checkbox" style="text-align: left;" name="enabled" onchange="submitForm('individualForm_{{.ChannelId}}')"{{if .Enabled}} checked="checked"{{end}}>       
+                  </form>
+                </td>
+              </tr>
+            {{end}}
+            </tbody>
+          </table>
         </div>
       </div>
-    </form>
+    </div>
     <script>
       // highlight changed values as thay are typed
       document.addEventListener('DOMContentLoaded', function() {
@@ -403,7 +408,7 @@
           });
         }
       });
-  
+
       // toggles all individual enable/disable 
       function toggleAll(value) {
         document.getElementById("enabledAll").checked = value;
@@ -414,7 +419,16 @@
         document.getElementById(formId).submit();
       }
       // warning message if Max HTLC % > 0 
-      function confirmSubmit() {
+      function confirmSubmit(event) {
+        // Detect the clicked button
+        const clickedButton = event.submitter; // Modern browsers support this
+        if (clickedButton.name == 'update_all') {
+          var confirmed = confirm("This will update highlighted values for all custom rules. Are you sure?");
+          if (!confirmed) {
+            // user cancels, prevent form submission
+            return false;
+          }
+        } 
         if (Number(document.getElementById("maxHtlcPct").value)>0) {
           var confirmed = confirm("Setting Max HTLC size to a % of Local Balance will only take effect when Local Balance exceeds 50% of Capacity. Still, reducing Max HTLC can prevent receiving certain large swaps and inbound payments. A better way to avoid failed HTLCs is to bump channel's fee rate upon every fail. Please confirm if you still want to set Max HTLC % > 0.");
           if (!confirmed) {
@@ -550,6 +564,6 @@
         }
       {{end}}
     </script>
-    </div>
+  </div>
   {{template "footer" .}}
 {{end}}

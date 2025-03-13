@@ -1,24 +1,24 @@
 {{define "logpage"}}  
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          <div class="box has-text-left">
-            <div class="tabs is-medium is-boxed" style="margin-bottom: 0">
-              <ul>
-                {{if eq .Implementation "CLN"}}
-                  <li{{if eq .LogFile "cln.log"}} class="is-active"{{end}}><a href="/log?log=cln.log">lightningd</a></li>
-                {{else}}
-                  <li{{if eq .LogFile "lnd.log"}} class="is-active"{{end}}><a href="/log?log=lnd.log">lnd</a></li>
-                  <li{{if eq .LogFile "log"}} class="is-active"{{end}}><a href="/log">peerswapd</a></li>
-                {{end}} 
-                <li{{if eq .LogFile "psweb.log"}} class="is-active"{{end}}><a href="/log?log=psweb.log">psweb</a></li>
-              </ul>
-            </div>
-            {{template "log" .}} 
+  <div class="container">
+    <div class="columns">
+      <div class="column">
+        <div class="box has-text-left">
+          <div class="tabs is-medium is-boxed" style="margin-bottom: 0">
+            <ul>
+              {{if eq .Implementation "CLN"}}
+                <li{{if eq .LogFile "cln.log"}} class="is-active"{{end}}><a href="/log?log=cln.log">lightningd</a></li>
+              {{else}}
+                <li{{if eq .LogFile "lnd.log"}} class="is-active"{{end}}><a href="/log?log=lnd.log">lnd</a></li>
+                <li{{if eq .LogFile "log"}} class="is-active"{{end}}><a href="/log">peerswapd</a></li>
+              {{end}} 
+              <li{{if eq .LogFile "psweb.log"}} class="is-active"{{end}}><a href="/log?log=psweb.log">psweb</a></li>
+            </ul>
           </div>
+          {{template "log" .}} 
         </div>
       </div>
     </div>
+  </div>
   {{template "footer" .}}
 {{end}}

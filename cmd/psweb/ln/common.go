@@ -212,6 +212,8 @@ type DataPoint struct {
 	ChanIdOut uint64
 	AliasIn   string
 	AliasOut  string
+	Inbound   bool
+	Outbound  bool
 	TimeAgo   string
 	TimeUTC   string
 }
@@ -441,7 +443,7 @@ func calculateAutoFee(channelId uint64, params *AutoFeeParams, liqPct int, oldFe
 		// must be definitely above threshold and cool-off period passed
 		if liqPct > params.LowLiqPct && lastUpdate < time.Now().Add(-time.Duration(params.CoolOffHours)*time.Hour).Unix() {
 			// check the inactivity period
-			if ts, ok := LastForwardTS.Read(channelId); ok && ts < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
+			if ts, ok := LastForwardTS.Read(channelId); !ok || ok && ts < time.Now().AddDate(0, 0, -params.InactivityDays).Unix() {
 				// decrease the fee
 				newFee -= params.InactivityDropPPM
 				newFee = newFee * (100 - params.InactivityDropPct) / 100
@@ -569,7 +571,7 @@ func saveSwapRabate(swapId string, rebate int64) {
 func lastFeeIsTheSame(channelId uint64, newFee int, isInbound bool) bool {
 	lastFee := LastAutoFeeLog(channelId, isInbound)
 	if lastFee != nil {
-		if newFee == lastFee.NewRate {
+		if newFee == lastFee.NewRate && time.Now().Unix()-lastFee.TimeStamp < 86_400 { // only care about the last 24h
 			return true
 		}
 	}

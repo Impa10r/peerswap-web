@@ -34,11 +34,17 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.6"
-	// Swap Out reserve
-	SWAP_OUT_CHANNEL_RESERVE = 10000
-	// Elements v23.02.03 introduced vsize discount enabled on testnet as default
+	VERSION = "v1.7.9"
+	// Unusable BTC balance
+	ANCHOR_RESERVE = 25_000
+	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
+	// opening tx sizes for fee estimates
+	OPENING_TX_SIZE_BTC             = 350
+	OPENING_TX_SIZE_LBTC            = 3000
+	OPENING_TX_SIZE_LBTC_DISCOUNTED = 750
+	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
+	SWAP_LBTC_RESERVE = 1_200
 )
 
 type AutoSwapCandidate struct {
@@ -287,7 +293,7 @@ func startTimer() {
 	onTimer()
 
 	// then every minute
-	for range time.Tick(60 * time.Second) {
+	for range time.Tick(time.Minute) {
 		onTimer()
 	}
 }
@@ -462,7 +468,7 @@ func setLogging(logFileName string) (func(), error) {
 	}
 
 	// add new line after start up
-	log.Println("------------------START-----------------")
+	log.Printf("------------------START %s-----------------", VERSION)
 
 	return cleanup, nil
 }
@@ -496,7 +502,7 @@ func convertPeersToHTMLTable(
 
 	for _, swap := range swaps {
 		ts, ok := swapTimestamps.Read(swap.LndChanId)
-		if simplifySwapState(swap.State) == "success" && ok && ts < swap.CreatedAt {
+		if simplifySwapState(swap.State) == "success" && (!ok || ts < swap.CreatedAt) {
 			swapTimestamps.Write(swap.LndChanId, swap.CreatedAt)
 		}
 	}
@@ -708,7 +714,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if btcBalance >= 100_000 {
 					flooredBalance = toMil(btcBalance)
-					bal = formatWithThousandSeparators(btcBalance)
+					bal = "≥" + formatWithThousandSeparators(btcBalance)
 				}
 				peerTable += "<span title=\"Peer's BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -724,7 +730,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if lbtcBalance >= 100_000 {
 					flooredBalance = toMil(lbtcBalance)
-					bal = formatWithThousandSeparators(lbtcBalance)
+					bal = "≥" + formatWithThousandSeparators(lbtcBalance)
 				}
 				peerTable += "<span title=\"Peer's L-BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -1043,12 +1049,12 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		if cost != 0 {
 			totalCost += cost
 			ppm := cost * 1_000_000 / int64(swap.Amount)
-			table += " <span title=\"Swap +profit/-cost, sats. PPM: "
+			table += " <span title=\"Swap "
 
 			if cost < 0 {
-				table += formatSigned(-ppm) + "\">+"
+				table += "profit, sats. PPM: " + formatSigned(-ppm) + "\">+"
 			} else {
-				table += formatSigned(ppm) + "\">"
+				table += "cost, sats. PPM: " + formatSigned(ppm) + "\">"
 			}
 			table += formatSigned(-cost) + "</span>"
 		}
@@ -1134,7 +1140,6 @@ func checkPegin() {
 		// invitation expired
 		ln.ClaimStatus = "No ClaimJoin peg-in is pending"
 		log.Println("Invitation expired from", ln.ClaimJoinHandler)
-		telegramSendMessage("🧬 ClaimJoin Invitation expired")
 
 		ln.ClaimJoinHandler = ""
 		db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
@@ -1144,13 +1149,11 @@ func checkPegin() {
 	if config.Config.PeginTxId == "" {
 		// send telegram if received new ClaimJoin invitation
 		if peginInvite != ln.ClaimJoinHandler {
-			t := "🧬 There is a ClaimJoin peg-in pending"
-			if ln.ClaimJoinHandler == "" {
-				t = "🧬 ClaimJoin peg-in has ended"
-			} else {
+			t := "⌚ ClaimJoin invitation has expired"
+			if ln.ClaimJoinHandler != "" {
 				duration := time.Duration(10*(ln.JoinBlockHeight-currentBlockHeight)) * time.Minute
-				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				t += ", time limit to join: " + formattedDuration
+				timeLimit := time.Now().Add(duration).Format("3:04 PM")
+				t = "🧬 Invitation to join a confidential peg-in before " + timeLimit
 			}
 			if telegramSendMessage(t) {
 				peginInvite = ln.ClaimJoinHandler
@@ -1167,6 +1170,8 @@ func checkPegin() {
 		if config.Config.PeginClaimScript == "done" {
 			// finish by sending telegram message
 			telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			peginInvite = ""
+			ln.ClaimJoinHandler = ""
 			config.Config.PeginClaimScript = ""
 			config.Config.PeginTxId = ""
 			config.Config.PeginClaimJoin = false
@@ -1327,8 +1332,8 @@ func cacheAliases() bool {
 // Finds a candidate for an automatic swap-in
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
-func findSwapInCandidate(candidate *AutoSwapCandidate) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - swapFeeReserveLBTC(10) // assume 10 UTXOs
+func findSwapInCandidate(candidate *SwapParams) error {
+	minAmount := config.Config.AutoSwapThresholdAmount - SWAP_LBTC_RESERVE
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1509,7 +1514,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-swapFeeReserveLBTC(10)) // assume 10 UTXOs
+	amount = min(amount, satAmount-SWAP_LBTC_RESERVE)
 
 	// execute swap with 0 premium limit
 	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false, 0)
@@ -1831,24 +1836,26 @@ func advertiseBalances() {
 
 	bitcoinBalance := uint64(ln.ConfirmedWalletBalance(cl))
 	// haircut by anchor reserve
-	if bitcoinBalance >= 25000 {
-		bitcoinBalance -= 25000
+	if bitcoinBalance >= ANCHOR_RESERVE {
+		bitcoinBalance -= ANCHOR_RESERVE
 	}
 
 	liquidBalance := res2.GetSatAmount()
 	// Elements fee bug does not permit sending the whole balance, haircut it
-	if liquidBalance >= 2000 {
-		liquidBalance -= 2000
+	if liquidBalance >= SWAP_LBTC_RESERVE {
+		liquidBalance -= SWAP_LBTC_RESERVE
 	}
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
+
+	_, receivable, err := ln.FetchChannelLimits(cl)
 
 	for _, peer := range res3.GetPeers() {
 		// find the largest remote balance
 		maxBalance := uint64(0)
 		if ln.AdvertiseBitcoinBalance || ln.AdvertiseLiquidBalance {
 			for _, ch := range peer.Channels {
-				maxBalance = max(maxBalance, ch.RemoteBalance)
+				maxBalance = max(maxBalance, receivable[ch.ChannelId])
 			}
 		}
 
@@ -1967,16 +1974,4 @@ func pollBalances() {
 	if initalPollComplete {
 		log.Println("Polled peers for balances")
 	}
-}
-
-// depends on number of UTXOs
-func swapFeeReserveLBTC(numUTXOs int) uint64 {
-	if hasDiscountedvSize {
-		n := numUTXOs*7 + 20 // better estimate for lots of UTXOs
-		if n < 75 {
-			n = 75 // peerswap assumes 75 sats
-		}
-		return uint64(n)
-	}
-	return 300
 }

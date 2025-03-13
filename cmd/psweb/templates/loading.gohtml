@@ -1,50 +1,50 @@
 {{define "loading"}}  
   {{template "header" .}}
-    <div class="container">
-      <div class="columns">
-        <div class="column">
-          <div class="box has-text-left">
-            <h4 class="title is-4">Restarting {{if eq .LogFile "cln.log"}}
-                    lightningd
-                {{else}}
-                    peerswapd
-                {{end}}...</h4>
-            <div class="progress is-large">
-              <div class="current-progress">
-              </div>
+  <div class="container">
+    <div class="columns">
+      <div class="column">
+        <div class="box has-text-left">
+          <h4 class="title is-4">Restarting {{if eq .LogFile "cln.log"}}
+                  lightningd
+              {{else}}
+                  peerswapd
+              {{end}}...</h4>
+          <div class="progress is-large">
+            <div class="current-progress">
             </div>
-            <script>
-              let progressValue = 0;
-              const progressBar = document.querySelector(".current-progress");
-
-              progressBar.style.width = `${progressValue}%`;
-
-              const timer = setInterval(() => {
-                if (progressValue < 100) {
-                  progressValue += 0.01;
-                  progressBar.style.width = `${progressValue}%`;
-                
-                }
-                if (progressValue === 100) {
-                  clearInterval(timer);
-                }
-              }, 6); // 60 seconds wait
-            </script>
           </div>
-          <div class="box has-text-left">
-            <div class="tabs is-medium is-boxed" style="margin-bottom: 0">
-              <ul>
-                {{if eq .LogFile "cln.log"}}
-                  <li class="is-active"><a href="/log?log=cln.log">lightningd</a></li>
-                {{else}}
-                  <li class="is-active"><a href="/log">peerswapd</a></li>
-                {{end}}
-              </ul>
-            </div>
-            {{template "log" .}}
+          <script>
+            let progressValue = 0;
+            const progressBar = document.querySelector(".current-progress");
+
+            progressBar.style.width = `${progressValue}%`;
+
+            const timer = setInterval(() => {
+              if (progressValue < 100) {
+                progressValue += 0.01;
+                progressBar.style.width = `${progressValue}%`;
+              
+              }
+              if (progressValue === 100) {
+                clearInterval(timer);
+              }
+            }, 6); // 60 seconds wait
+          </script>
+        </div>
+        <div class="box has-text-left">
+          <div class="tabs is-medium is-boxed" style="margin-bottom: 0">
+            <ul>
+              {{if eq .LogFile "cln.log"}}
+                <li class="is-active"><a href="/log?log=cln.log">lightningd</a></li>
+              {{else}}
+                <li class="is-active"><a href="/log">peerswapd</a></li>
+              {{end}}
+            </ul>
           </div>
+          {{template "log" .}}
         </div>
       </div>
     </div>
+  </div>
   {{template "footer" .}}
 {{end}}

@@ -133,9 +133,11 @@ func lndConnection() (*grpc.ClientConn, error) {
 		grpc.WithPerRPCCredentials(macCred),
 	}
 
-	conn, err := grpc.Dial(host, opts...)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, host, opts...)
 	if err != nil {
-		fmt.Println("lndConnection dial:", err)
 		return nil, err
 	}
 
@@ -332,6 +334,7 @@ finalize:
 
 	decoded, err := bitcoin.DecodeRawTransaction(hex.EncodeToString(rawTx))
 	if err != nil {
+		//log.Println("Funded PSBT:", hex.EncodeToString(psbtBytes))
 		return nil, err
 	}
 
@@ -343,7 +346,7 @@ finalize:
 	requiredFee := int64(feeRate * float64(decoded.VSize))
 
 	if requiredFee != toSats(feePaid) {
-		if pass < 5 {
+		if pass < 3 || requiredFee > toSats(feePaid) {
 			log.Println("Trying to fix fee paid", toSats(feePaid), "vs required", requiredFee)
 
 			releaseOutputs(cl, utxos, &lockId)
@@ -1185,7 +1188,7 @@ func DownloadAll() bool {
 	ctx := context.Background()
 
 	if MyNodeId == "" {
-		res, err := client.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+		res, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 		if err != nil {
 			// lnd not ready
 			return false
@@ -1596,23 +1599,23 @@ func GetChannelStats(channelId uint64, timeStamp uint64) *ChannelStats {
 			e := inv[i]
 			if uint64(e.AcceptTime) > timeStamp {
 				// check if it is related to a circular rebalancing
+				found := false
 				htcls, ok := rebalanceInHtlcs.Read(channelId)
 				if ok {
-					found := false
 					for _, r := range htcls {
 						if e.AmtMsat == uint64(r.Route.TotalAmtMsat-r.Route.TotalFeesMsat) {
 							found = true
 							break
 						}
 					}
-					if found {
-						// remove invoice to avoid double counting
-						inv = append(inv[:i], inv[i+1:]...)
-						invoiceHtlcs.Write(channelId, inv)
-						i--
-					} else {
-						invoicedMsat += e.AmtMsat
-					}
+				}
+				if found {
+					// remove invoice to avoid double counting
+					inv = append(inv[:i], inv[i+1:]...)
+					invoiceHtlcs.Write(channelId, inv)
+					i--
+				} else {
+					invoicedMsat += e.AmtMsat
 				}
 			}
 		}
@@ -2336,4 +2339,28 @@ try_to_connect:
 	}
 
 	return false
+}
+
+// spendable, receivable, mapped by channelId
+func FetchChannelLimits(client lnrpc.LightningClient) (spendable map[uint64]uint64, receivable map[uint64]uint64, err error) {
+	res, err := client.ListChannels(context.Background(), &lnrpc.ListChannelsRequest{
+		ActiveOnly:   false,
+		InactiveOnly: false,
+		PublicOnly:   false,
+		PrivateOnly:  false,
+	})
+
+	if err != nil {
+		return
+	}
+
+	spendable = make(map[uint64]uint64)
+	receivable = make(map[uint64]uint64)
+
+	for _, ch := range res.Channels {
+		spendable[ch.ChanId] = min(uint64(ch.GetLocalBalance()-int64(ch.GetLocalConstraints().GetChanReserveSat())), ch.GetLocalConstraints().GetMaxPendingAmtMsat()/1000)
+		receivable[ch.ChanId] = min(uint64(ch.GetRemoteBalance()-int64(ch.GetRemoteConstraints().GetChanReserveSat())), ch.GetRemoteConstraints().GetMaxPendingAmtMsat()/1000)
+	}
+
+	return
 }

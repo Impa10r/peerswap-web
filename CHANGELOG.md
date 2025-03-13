@@ -1,12 +1,36 @@
 # Versions
 
+## 1.7.9
+
+- Add swap premium limit input field
+
+## 1.7.8
+
+- Respect spendable and receivable limits for max swap calculation 
+- Show peg-in ETA as time and not remaining duration
+- Wait for broadcasted CaimJoin tx to appear in local mempool
+- Fix channel stats not resetting after a successful swap
+- Fix invoiced stats not calculating without circular rebalancing
+- AutoFee: confirm 'Update All' button click 
+
+## 1.7.7
+
+- Fix Auto Fee not working for channels with no outbound forwards
+- Better indication when all channels with a peer are inactive
+- Catch Bitcoin Core and Elements Core RPC errors
+- Fix telegram bot panic on wrong token or chat id
+- Allow Bitcoin fee rates with 0.01 precision
+- Reserve 1200 sats of LBTC balance to save on Elements fees
+- Show confidential peg-in join time limit on peg-in form
+- Allow updating txid of externally funded peg-in when not found
+
 ## 1.7.6
 
 - Fix BTC to sats rounding bug preventing claim init or join
 - Fix external funding peg-in num of confirmations not registered
-- Add swap premium limit input field
-- CLN: Add support for wallet=sqlite3:// in CLN config
-- Don't advertise balances if swaps are disabled
+- Fix ClaimJoin OP_RETURN string
+- Add timout dialing lnd
+- Wait for lightning to sync before subscribing
 
 ## 1.7.5
 
