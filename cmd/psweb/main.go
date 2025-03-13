@@ -47,13 +47,12 @@ const (
 	SWAP_LBTC_RESERVE = 1_200
 )
 
-type AutoSwapCandidate struct {
-	PeerAlias    string
-	PeerId       string
-	ChannelId    uint64
-	Amount       uint64
-	PPM          uint64
-	PremiumLimit int64
+type SwapParams struct {
+	PeerAlias string
+	PeerId    string
+	ChannelId uint64
+	Amount    uint64
+	PPM       uint64
 }
 
 var (
@@ -1500,7 +1499,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	var candidate AutoSwapCandidate
+	var candidate SwapParams
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		// some error prevented candidate finding

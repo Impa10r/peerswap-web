@@ -134,7 +134,7 @@ func telegramStart() {
 					t += "\nMinimum PPM: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdPPM)
 					t += "\nTarget Pct: " + formatWithThousandSeparators(config.Config.AutoSwapTargetPct)
 
-					var candidate AutoSwapCandidate
+					var candidate SwapParams
 
 					if err := findSwapInCandidate(&candidate); err == nil {
 						if candidate.Amount > 0 {

@@ -263,11 +263,11 @@ func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset st
 	var res map[string]interface{}
 
 	err := client.Request(&clightning.SwapIn{
-		ShortChannelId: convertLndToClnChannelId(channelId),
-		SatAmt:         swapAmount,
-		Asset:          asset,
-		Force:          force,
-		PremiumLimit:   premiumLimit,
+		ShortChannelId:      convertLndToClnChannelId(channelId),
+		SatAmt:              swapAmount,
+		Asset:               asset,
+		Force:               force,
+		PremiumLimitRatePpm: premiumLimit,
 	}, &res)
 
 	if err != nil {
@@ -281,11 +281,11 @@ func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset s
 	var res map[string]interface{}
 
 	err := client.Request(&clightning.SwapOut{
-		ShortChannelId: convertLndToClnChannelId(channelId),
-		SatAmt:         swapAmount,
-		Asset:          asset,
-		Force:          force,
-		PremiumLimit:   premiumLimit,
+		ShortChannelId:      convertLndToClnChannelId(channelId),
+		SatAmt:              swapAmount,
+		Asset:               asset,
+		Force:               force,
+		PremiumLimitRatePpm: premiumLimit,
 	}, &res)
 
 	if err != nil {

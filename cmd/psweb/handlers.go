@@ -1792,7 +1792,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res2.GetSatAmount()
 
-	var candidate AutoSwapCandidate
+	var candidate SwapParams
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		log.Printf("unable findSwapInCandidate: %v", err)
@@ -1821,7 +1821,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdAmount uint64
 		AutoSwapMaxAmount       uint64
 		AutoSwapThresholdPPM    uint64
-		AutoSwapCandidate       *AutoSwapCandidate
+		AutoSwapCandidate       *SwapParams
 		AutoSwapTargetPct       uint64
 		AdvertiseEnabled        bool
 		DescriptorsWallet       bool
