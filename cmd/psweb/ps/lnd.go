@@ -164,3 +164,64 @@ func AllowSwapRequests(client peerswaprpc.PeerSwapClient, allowSwapRequests bool
 		Allow: allowSwapRequests,
 	})
 }
+
+func UpdateDefaultPremiumRate(
+	client peerswaprpc.PeerSwapClient,
+	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
+	return client.UpdateDefaultPremiumRate(
+		context.Background(),
+		&peerswaprpc.UpdateDefaultPremiumRateRequest{
+			Rate: rate,
+		})
+}
+
+func UpdatePremiumRate(
+	client peerswaprpc.PeerSwapClient,
+	nodeId string,
+	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
+	return client.UpdatePremiumRate(
+		context.Background(),
+		&peerswaprpc.UpdatePremiumRateRequest{
+			NodeId: nodeId,
+			Rate:   rate,
+		})
+}
+
+func DeletePremiumRate(
+	client peerswaprpc.PeerSwapClient,
+	nodeId string,
+	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
+	return client.DeletePremiumRate(
+		context.Background(),
+		&peerswaprpc.DeletePremiumRateRequest{
+			NodeId:    nodeId,
+			Asset:     rate.Asset,
+			Operation: rate.Operation,
+		})
+}
+
+func GetPremiumRate(
+	client peerswaprpc.PeerSwapClient,
+	nodeId string,
+	asset peerswaprpc.AssetType,
+	operation peerswaprpc.OperationType) (*peerswaprpc.PremiumRate, error) {
+	return client.GetPremiumRate(
+		context.Background(),
+		&peerswaprpc.GetPremiumRateRequest{
+			NodeId:    nodeId,
+			Asset:     asset,
+			Operation: operation,
+		})
+}
+
+func GetDefaultPremiumRate(
+	client peerswaprpc.PeerSwapClient,
+	asset peerswaprpc.AssetType,
+	operation peerswaprpc.OperationType) (*peerswaprpc.PremiumRate, error) {
+	return client.GetDefaultPremiumRate(
+		context.Background(),
+		&peerswaprpc.GetDefaultPremiumRateRequest{
+			Asset:     asset,
+			Operation: operation,
+		})
+}

@@ -121,6 +121,34 @@ func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, er
 			SatsIn:   uint64(asReceiver["total_sats_swapped_in"].(float64)),
 		}
 
+		premium := data["premium"].(map[string]interface{})
+		rates := []*peerswaprpc.PremiumRate{
+			&peerswaprpc.PremiumRate{
+				Asset:          peerswaprpc.AssetType_BTC,
+				Operation:      peerswaprpc.OperationType_SWAP_IN,
+				PremiumRatePpm: int64(premium["btc_swap_in_premium_rate_ppm"].(float64)),
+			},
+			&peerswaprpc.PremiumRate{
+				Asset:          peerswaprpc.AssetType_BTC,
+				Operation:      peerswaprpc.OperationType_SWAP_OUT,
+				PremiumRatePpm: int64(premium["btc_swap_out_premium_rate_ppm"].(float64)),
+			},
+			&peerswaprpc.PremiumRate{
+				Asset:          peerswaprpc.AssetType_LBTC,
+				Operation:      peerswaprpc.OperationType_SWAP_IN,
+				PremiumRatePpm: int64(premium["lbtc_swap_in_premium_rate_ppm"].(float64)),
+			},
+			&peerswaprpc.PremiumRate{
+				Asset:          peerswaprpc.AssetType_LBTC,
+				Operation:      peerswaprpc.OperationType_SWAP_OUT,
+				PremiumRatePpm: int64(premium["lbtc_swap_out_premium_rate_ppm"].(float64)),
+			},
+		}
+
+		peer.PeerPremium = &peerswaprpc.PeerPremium{
+			Rates: rates,
+		}
+
 		peers = append(peers, &peer)
 	}
 
@@ -267,7 +295,7 @@ func SwapIn(client *glightning.Lightning, swapAmount, channelId uint64, asset st
 		SatAmt:              swapAmount,
 		Asset:               asset,
 		Force:               force,
-		PremiumLimitRatePpm: premiumLimit,
+		PremiumLimitRatePPM: premiumLimit,
 	}, &res)
 
 	if err != nil {
@@ -285,7 +313,7 @@ func SwapOut(client *glightning.Lightning, swapAmount, channelId uint64, asset s
 		SatAmt:              swapAmount,
 		Asset:               asset,
 		Force:               force,
-		PremiumLimitRatePpm: premiumLimit,
+		PremiumLimitRatePPM: premiumLimit,
 	}, &res)
 
 	if err != nil {
@@ -345,4 +373,104 @@ func convertLndToClnChannelId(s uint64) string {
 	tx := strconv.FormatUint((s>>16)&0xFFFFFF, 10)
 	output := strconv.FormatUint(s&0xFFFF, 10)
 	return block + "x" + tx + "x" + output
+}
+
+func UpdateDefaultPremiumRate(
+	client *glightning.Lightning,
+	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
+
+	var res peerswaprpc.PremiumRate
+
+	err := client.Request(&clightning.SetDefaultPremiumRate{
+		Asset:          rate.Asset.String(),
+		Operation:      rate.Operation.String(),
+		PremiumRatePPM: rate.PremiumRatePpm,
+	}, &res)
+	if err != nil {
+		log.Println("UpdateDefaultPremiumRate:", err)
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func UpdatePremiumRate(
+	client *glightning.Lightning,
+	peerNodeId string,
+	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
+
+	var res peerswaprpc.PremiumRate
+
+	err := client.Request(&clightning.SetPremiumRate{
+		PeerID:         peerNodeId,
+		Asset:          rate.Asset.String(),
+		Operation:      rate.Operation.String(),
+		PremiumRatePPM: rate.PremiumRatePpm,
+	}, &res)
+	if err != nil {
+		log.Println("UpdatePremiumRate:", err)
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func GetDefaultPremiumRate(
+	client *glightning.Lightning,
+	asset peerswaprpc.AssetType,
+	operation peerswaprpc.OperationType) (*peerswaprpc.PremiumRate, error) {
+
+	var res peerswaprpc.PremiumRate
+
+	err := client.Request(&clightning.GetDefaultPremiumRate{
+		Asset:     asset.String(),
+		Operation: operation.String(),
+	}, &res)
+	if err != nil {
+		log.Println("GetDefaultPremiumRate:", err)
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func GetPremiumRate(
+	client *glightning.Lightning,
+	peerNodeId string,
+	asset peerswaprpc.AssetType,
+	operation peerswaprpc.OperationType) (*peerswaprpc.PremiumRate, error) {
+
+	var res peerswaprpc.PremiumRate
+
+	err := client.Request(&clightning.GetPremiumRate{
+		PeerID:    peerNodeId,
+		Asset:     asset.String(),
+		Operation: operation.String(),
+	}, &res)
+	if err != nil {
+		log.Println("GetPremiumRate:", err)
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+func DeletePremiumRate(
+	client *glightning.Lightning,
+	peerNodeId string,
+	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
+
+	var res peerswaprpc.PremiumRate
+
+	err := client.Request(&clightning.DeletePremiumRate{
+		PeerID:    peerNodeId,
+		Asset:     rate.Asset.String(),
+		Operation: rate.Operation.String(),
+	}, &res)
+	if err != nil {
+		log.Println("DeletePremiumRate:", err)
+		return nil, err
+	}
+
+	return &res, nil
 }

@@ -4,6 +4,8 @@
 
 - Add premium PPM limit for new swaps
 
+REPLACE peerswap in go.mod!
+
 ## 1.7.8
 
 - Respect spendable and receivable limits for max swap calculation 

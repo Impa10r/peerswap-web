@@ -1539,13 +1539,16 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 	breakdown := ""
 	newChanges := false
 
+	if swap.PremiumAmount < 0 {
+		fee = -swap.PremiumAmount
+		breakdown = fmt.Sprintf("premium paid: %s, ", formatSigned(-swap.PremiumAmount))
+	} else if swap.PremiumAmount > 0 {
+		fee = -swap.PremiumAmount
+		breakdown = fmt.Sprintf("premium received: %s, ", formatSigned(swap.PremiumAmount))
+	}
+
 	switch swap.Type + swap.Role {
 	case "swap-outsender":
-		if swap.PremiumAmount > 0 {
-			fee = swap.PremiumAmount
-			breakdown = fmt.Sprintf("premium paid: %s, ", formatSigned(swap.PremiumAmount))
-		}
-
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
 			breakdown += fmt.Sprintf("rebate paid: %s", formatSigned(rebate))
@@ -1558,11 +1561,6 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 			breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 		}
 	case "swap-insender":
-		if swap.PremiumAmount > 0 {
-			fee = swap.PremiumAmount
-			breakdown = fmt.Sprintf("premium paid: %s, ", formatSigned(swap.PremiumAmount))
-		}
-
 		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
 		fee += chainFee
@@ -1577,11 +1575,6 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 		}
 
 	case "swap-outreceiver":
-		if swap.PremiumAmount > 0 {
-			fee = -swap.PremiumAmount
-			breakdown = fmt.Sprintf("premium received: %s, ", formatSigned(swap.PremiumAmount))
-		}
-
 		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
 		fee += chainFee
@@ -1600,11 +1593,6 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 			breakdown += fmt.Sprintf(", rebate received: %s", formatSigned(rebate))
 		}
 	case "swap-inreceiver":
-		if swap.PremiumAmount > 0 {
-			fee = -swap.PremiumAmount
-			breakdown = fmt.Sprintf("premium received: %s, ", formatSigned(swap.PremiumAmount))
-		}
-
 		chainFee, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		newChanges = newChanges || new
 		fee += chainFee
