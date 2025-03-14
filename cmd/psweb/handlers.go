@@ -1932,7 +1932,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				})
 				what = fmt.Sprintf("updated to %d", result.GetPremiumRatePpm())
 			} else {
-				which = "Peer"
+				which = "Peer's"
 				if isDeleted {
 					result, err = ps.DeletePremiumRate(client, nodeId,
 						&peerswaprpc.PremiumRate{
