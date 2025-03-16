@@ -537,7 +537,7 @@ Sincerely,
                 <th style="text-align: center">⚡⇨🌊</th>
               </tr>
               <tr style="border: 1px dotted">
-                <td style="padding: 0px; text-align: center">Default</td>
+                <td style="padding: 0px; text-align: center">Global</td>
                 {{range $i, $rate := .DefaultPremium}}
                   <td style="padding: 0px; text-align: center">
                     <form id="{{$i}}_default_premium" autocomplete="off" action="/submit" method="post">
@@ -553,7 +553,7 @@ Sincerely,
                 {{end}}
               </tr>
               <tr style="border: 1px dotted">
-                <td style="padding: 0px; text-align: center">To Peer</td>
+                <td style="padding: 0px; text-align: center">For Peer</td>
                 {{range $i, $rate := .PeerPremium}}
                   <td style="padding: 0px; text-align: center">
                     <form id="{{$i}}_peer_premium" autocomplete="off" action="/submit" method="post">
