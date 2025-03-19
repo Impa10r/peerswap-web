@@ -165,12 +165,12 @@ func AllowSwapRequests(client peerswaprpc.PeerSwapClient, allowSwapRequests bool
 	})
 }
 
-func UpdateDefaultPremiumRate(
+func UpdateGlobalPremiumRate(
 	client peerswaprpc.PeerSwapClient,
 	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
-	return client.UpdateDefaultPremiumRate(
+	return client.UpdateGlobalPremiumRate(
 		context.Background(),
-		&peerswaprpc.UpdateDefaultPremiumRateRequest{
+		&peerswaprpc.UpdateGlobalPremiumRateRequest{
 			Rate: rate,
 		})
 }
@@ -214,13 +214,13 @@ func GetPremiumRate(
 		})
 }
 
-func GetDefaultPremiumRate(
+func GetGlobalPremiumRate(
 	client peerswaprpc.PeerSwapClient,
 	asset peerswaprpc.AssetType,
 	operation peerswaprpc.OperationType) (*peerswaprpc.PremiumRate, error) {
-	return client.GetDefaultPremiumRate(
+	return client.GetGlobalPremiumRate(
 		context.Background(),
-		&peerswaprpc.GetDefaultPremiumRateRequest{
+		&peerswaprpc.GetGlobalPremiumRateRequest{
 			Asset:     asset,
 			Operation: operation,
 		})

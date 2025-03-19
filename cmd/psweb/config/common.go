@@ -48,6 +48,7 @@ type Configuration struct {
 	AutoSwapMaxAmount       uint64
 	AutoSwapThresholdPPM    uint64
 	AutoSwapTargetPct       uint64
+	AutoSwapPremiumLimit    int64
 	SecureConnection        bool
 	ServerIPs               string
 	SecurePort              string

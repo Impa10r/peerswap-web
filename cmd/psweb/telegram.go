@@ -134,13 +134,13 @@ func telegramStart() {
 					t += "\nMinimum PPM: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdPPM)
 					t += "\nTarget Pct: " + formatWithThousandSeparators(config.Config.AutoSwapTargetPct)
 
-					var candidate SwapParams
+					var candidate AutoSwapParams
 
 					if err := findSwapInCandidate(&candidate); err == nil {
 						if candidate.Amount > 0 {
 							t += "\nCandidate: " + candidate.PeerAlias
 							t += "\nMax Amount: " + formatWithThousandSeparators(candidate.Amount)
-							t += "\nRecent PPM: " + formatWithThousandSeparators(candidate.PPM)
+							t += "\nRecent PPM: " + formatWithThousandSeparators(candidate.RoutingPpm)
 						} else {
 							t += "No swap candidates"
 						}

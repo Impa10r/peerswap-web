@@ -228,6 +228,7 @@
                         // check max amount
                         const maxAmount = swapMaxAmount();
                         if (swapAmount > maxAmount) {
+                          document.getElementById("swapAmount").value = maxAmount;
                           document.getElementById('result').innerText = "Maximum Swap Amount is " + formatWithThousandSeparators(maxAmount) + " sats";
                           document.getElementById('result').title = '';
                           document.getElementById('resultLabel').title = '';
@@ -538,7 +539,7 @@ Sincerely,
               </tr>
               <tr style="border: 1px dotted">
                 <td style="padding: 0px; text-align: center">Global</td>
-                {{range $i, $rate := .DefaultPremium}}
+                {{range $i, $rate := .GlobalPremium}}
                   <td style="padding: 0px; text-align: center">
                     <form id="{{$i}}_default_premium" autocomplete="off" action="/submit" method="post">
                       <input autocomplete="false" name="hidden" type="text" style="display:none;">

@@ -47,12 +47,13 @@ const (
 	SWAP_LBTC_RESERVE = 1_200
 )
 
-type SwapParams struct {
-	PeerAlias string
-	PeerId    string
-	ChannelId uint64
-	Amount    uint64
-	PPM       uint64
+type AutoSwapParams struct {
+	PeerAlias      string
+	PeerId         string
+	ChannelId      uint64
+	Amount         uint64
+	RoutingPpm     uint64
+	PremiumRatePpm int64
 }
 
 var (
@@ -1331,7 +1332,7 @@ func cacheAliases() bool {
 // Finds a candidate for an automatic swap-in
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
-func findSwapInCandidate(candidate *SwapParams) error {
+func findSwapInCandidate(candidate *AutoSwapParams) error {
 	minAmount := config.Config.AutoSwapThresholdAmount - SWAP_LBTC_RESERVE
 	minPPM := config.Config.AutoSwapThresholdPPM
 
@@ -1379,6 +1380,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 		if !peer.SwapsAllowed || !stringIsInSlice("lbtc", peer.SupportedAssets) {
 			continue
 		}
+		// ignore high LBTC swap-in premium
+		if peer.PeerPremium.Rates[2].PremiumRatePpm > config.Config.AutoSwapPremiumLimit {
+			continue
+		}
+
 		for _, channel := range peer.Channels {
 			// ignore if there was an opposite peerswap
 			if !channel.Active || lastWasSwapOut[channel.ChannelId] {
@@ -1430,7 +1436,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					candidate.PeerAlias = getNodeAlias(peer.NodeId)
 					// set maximum possible amount
 					candidate.Amount = swapAmount
-					candidate.PPM = ppm
+					candidate.RoutingPpm = ppm
 				}
 			}
 		}
@@ -1499,7 +1505,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	var candidate SwapParams
+	var candidate AutoSwapParams
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		// some error prevented candidate finding
@@ -1523,10 +1529,10 @@ func executeAutoSwap() {
 	}
 
 	// Log swap id
-	log.Println("Initiated Auto Swap-In, id: "+autoSwapId+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
+	log.Println("Initiated Auto Swap-In, id: "+autoSwapId+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.RoutingPpm))
 
 	// Send telegram
-	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
+	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.RoutingPpm))
 }
 
 // total cost, verbal breakdown, new changes to persist

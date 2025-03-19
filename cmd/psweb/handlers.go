@@ -325,7 +325,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 
-	var defaultPremium, peerPremium []Premium
+	var globalPremium, peerPremium []Premium
 
 	psPeer := true
 	if peer == nil {
@@ -353,11 +353,11 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 		for _, asset := range []peerswaprpc.AssetType{peerswaprpc.AssetType_BTC, peerswaprpc.AssetType_LBTC} {
 			for _, operation := range []peerswaprpc.OperationType{peerswaprpc.OperationType_SWAP_IN, peerswaprpc.OperationType_SWAP_OUT} {
-				defaultRate, _ := ps.GetDefaultPremiumRate(client, asset, operation)
-				defaultPremium = append(defaultPremium, Premium{
+				globalRate, _ := ps.GetGlobalPremiumRate(client, asset, operation)
+				globalPremium = append(globalPremium, Premium{
 					Asset:          int32(asset.Number()),
 					Operation:      int32(operation.Number()),
-					PremiumRatePpm: defaultRate.PremiumRatePpm,
+					PremiumRatePpm: globalRate.PremiumRatePpm,
 				})
 
 				peerRate, _ := ps.GetPremiumRate(client, peer.NodeId, asset, operation)
@@ -640,7 +640,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC             int64
 		OPENING_TX_SIZE_LBTC            int64
 		OPENING_TX_SIZE_LBTC_DISCOUNTED int64
-		DefaultPremium                  []Premium
+		GlobalPremium                   []Premium
 		PeerPremium                     []Premium
 	}
 
@@ -702,7 +702,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
 		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
 		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,
-		DefaultPremium:                  defaultPremium,
+		GlobalPremium:                   globalPremium,
 		PeerPremium:                     peerPremium,
 	}
 
@@ -1822,7 +1822,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res2.GetSatAmount()
 
-	var candidate SwapParams
+	var candidate AutoSwapParams
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		log.Printf("unable findSwapInCandidate: %v", err)
@@ -1851,8 +1851,9 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdAmount uint64
 		AutoSwapMaxAmount       uint64
 		AutoSwapThresholdPPM    uint64
-		AutoSwapCandidate       *SwapParams
+		AutoSwapCandidate       *AutoSwapParams
 		AutoSwapTargetPct       uint64
+		AutoSwapPremiumLimit    int64
 		AdvertiseEnabled        bool
 		DescriptorsWallet       bool
 	}
@@ -1873,6 +1874,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapMaxAmount:       config.Config.AutoSwapMaxAmount,
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
+		AutoSwapPremiumLimit:    config.Config.AutoSwapPremiumLimit,
 		AutoSwapCandidate:       &candidate,
 		AdvertiseEnabled:        ln.AdvertiseLiquidBalance,
 		DescriptorsWallet:       walletInfo.Descriptors,
@@ -1925,7 +1927,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			var result *peerswaprpc.PremiumRate
 
 			if nodeId == "" {
-				result, err = ps.UpdateDefaultPremiumRate(client, &peerswaprpc.PremiumRate{
+				result, err = ps.UpdateGlobalPremiumRate(client, &peerswaprpc.PremiumRate{
 					Asset:          peerswaprpc.AssetType(asset),
 					Operation:      peerswaprpc.OperationType(operation),
 					PremiumRatePpm: premiumRatePpm,
@@ -2388,34 +2390,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 			return
 
-		case "setHtlcSize":
-			nextPage := r.FormValue("nextPage")
-
-			size, err := strconv.ParseInt(r.FormValue("size"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			isMax := r.FormValue("minMax") == "max"
-
-			err = ln.SetHtlcSize(r.FormValue("peerNodeId"), channelId, size*1000, isMax)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			// all good, display confirmation
-			msg := strings.Title(r.FormValue("minMax")) + " HTLC size updated to " + formatSigned(size) + " sats"
-			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
-			return
-
 		case "enableHTTPS":
 			if err := config.GenerateServerCertificate(); err == nil {
 				// opt-in for a single password auth
@@ -2479,6 +2453,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			newPremiumLimit, err := strconv.ParseInt(r.FormValue("premiumLimit"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
 			nowEnabled := r.FormValue("autoSwapEnabled") == "on"
 			t := "Automatic swap-ins "
 			msg := ""
@@ -2488,7 +2468,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.AutoSwapThresholdAmount != newAmount ||
 				config.Config.AutoSwapMaxAmount != maxAmount ||
 				config.Config.AutoSwapThresholdPPM != newPPM ||
-				config.Config.AutoSwapTargetPct != newPct) {
+				config.Config.AutoSwapTargetPct != newPct ||
+				config.Config.AutoSwapPremiumLimit != newPremiumLimit) {
 				t += "Enabled"
 				msg = t
 				log.Println(t)
@@ -2505,6 +2486,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			config.Config.AutoSwapMaxAmount = maxAmount
 			config.Config.AutoSwapTargetPct = newPct
 			config.Config.AutoSwapEnabled = nowEnabled
+			config.Config.AutoSwapPremiumLimit = newPremiumLimit
 
 			// Save config
 			if err := config.Save(); err != nil {

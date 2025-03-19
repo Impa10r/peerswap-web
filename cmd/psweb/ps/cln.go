@@ -375,19 +375,19 @@ func convertLndToClnChannelId(s uint64) string {
 	return block + "x" + tx + "x" + output
 }
 
-func UpdateDefaultPremiumRate(
+func UpdateGlobalPremiumRate(
 	client *glightning.Lightning,
 	rate *peerswaprpc.PremiumRate) (*peerswaprpc.PremiumRate, error) {
 
 	var res peerswaprpc.PremiumRate
 
-	err := client.Request(&clightning.SetDefaultPremiumRate{
+	err := client.Request(&clightning.UpdateGlobalPremiumRate{
 		Asset:          rate.Asset.String(),
 		Operation:      rate.Operation.String(),
 		PremiumRatePPM: rate.PremiumRatePpm,
 	}, &res)
 	if err != nil {
-		log.Println("UpdateDefaultPremiumRate:", err)
+		log.Println("UpdateGlobalPremiumRate:", err)
 		return nil, err
 	}
 
@@ -401,7 +401,7 @@ func UpdatePremiumRate(
 
 	var res peerswaprpc.PremiumRate
 
-	err := client.Request(&clightning.SetPremiumRate{
+	err := client.Request(&clightning.UpdatePremiumRate{
 		PeerID:         peerNodeId,
 		Asset:          rate.Asset.String(),
 		Operation:      rate.Operation.String(),
@@ -415,19 +415,19 @@ func UpdatePremiumRate(
 	return &res, nil
 }
 
-func GetDefaultPremiumRate(
+func GetGlobalPremiumRate(
 	client *glightning.Lightning,
 	asset peerswaprpc.AssetType,
 	operation peerswaprpc.OperationType) (*peerswaprpc.PremiumRate, error) {
 
 	var res peerswaprpc.PremiumRate
 
-	err := client.Request(&clightning.GetDefaultPremiumRate{
+	err := client.Request(&clightning.GetGlobalPremiumRate{
 		Asset:     asset.String(),
 		Operation: operation.String(),
 	}, &res)
 	if err != nil {
-		log.Println("GetDefaultPremiumRate:", err)
+		log.Println("GetGlobalPremiumRate:", err)
 		return nil, err
 	}
 
