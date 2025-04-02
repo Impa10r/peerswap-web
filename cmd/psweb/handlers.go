@@ -30,6 +30,9 @@ import (
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 
+	start := time.Now()
+	log.Println("Main page requested")
+
 	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
 		return
@@ -51,6 +54,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res.GetSwaps()
 
+	log.Println("Got swaps in", time.Since(start))
+
 	res2, err := ps.LiquidGetBalance(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
@@ -58,6 +63,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	satAmount := res2.GetSatAmount()
+
+	log.Println("Got liquid balance at", time.Since(start))
 
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
@@ -68,6 +75,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
+
+	log.Println("Got btc balances at", time.Since(start))
 
 	//check for error message to display
 	errorMessage := ""
@@ -115,6 +124,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	allowlistedPeers := res3.GetAllowlistedPeers()
 	suspiciousPeers := res3.GetSuspiciousPeerList()
 
+	log.Println("Got policy at", time.Since(start))
+
 	res4, err := ps.ListPeers(client)
 	if err != nil {
 		redirectWithError(w, r, "/config?", err)
@@ -122,15 +133,21 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	peers = res4.GetPeers()
 
+	log.Println("Got peers at", time.Since(start))
+
 	// get fee rates for all channels
 	outboundFeeRates := make(map[uint64]int64)
 	inboundFeeRates := make(map[uint64]int64)
 
 	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
+	log.Println("Got fee report", time.Since(start))
+
 	_, showAll := r.URL.Query()["showall"]
 
 	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates, showAll)
+
+	log.Println("Built peer table at", time.Since(start))
 
 	//check whether to display non-PS channels or swaps
 	listSwaps := ""
@@ -160,6 +177,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
 	}
+
+	log.Println("Built swaps table at", time.Since(start))
 
 	type Page struct {
 		Authenticated     bool
@@ -205,6 +224,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	// executing template named "homepage" with retries
 	executeTemplate(w, "homepage", data)
+
+	log.Println("Showed page at", time.Since(start))
 }
 
 func peerHandler(w http.ResponseWriter, r *http.Request) {
