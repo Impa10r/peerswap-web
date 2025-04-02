@@ -1252,7 +1252,7 @@ func checkPegin() {
 					} else if currentBlockHeight <= ln.JoinBlockHeight {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
-							t := "Applied to claim"
+							t := "Applied to join confidential pegin"
 							log.Println(t + " " + ln.ClaimJoinHandler + " as " + ln.MyPublicKey())
 							telegramSendMessage("🧬 " + t)
 						} else {
