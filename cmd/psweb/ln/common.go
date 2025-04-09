@@ -526,11 +526,7 @@ func DecodeAndProcessInvoice(bolt11 string, valueMsat int64) bool {
 	}
 
 	// Decode the payment request
-	var harnessNetParams = &chaincfg.MainNetParams
-	if config.Config.Chain == "testnet" {
-		harnessNetParams = &chaincfg.TestNet3Params
-	}
-	invoice, err := zpay32.Decode(bolt11, harnessNetParams)
+	invoice, err := zpay32.Decode(bolt11, getHarnessNetParams())
 
 	if err == nil {
 		if invoice.Description != nil {
@@ -576,4 +572,22 @@ func lastFeeIsTheSame(channelId uint64, newFee int, isInbound bool) bool {
 		}
 	}
 	return false
+}
+
+func getHarnessNetParams() *chaincfg.Params {
+	switch config.Config.Chain {
+	case "regtest":
+		return &chaincfg.RegressionNetParams
+	case "testnet":
+		return &chaincfg.TestNet3Params
+	case "testnet4":
+		return &chaincfg.TestNet4Params
+	case "signet":
+		return &chaincfg.SigNetParams
+	case "mainnet":
+		return &chaincfg.MainNetParams
+	}
+
+	log.Panicf("Chain %s is not supported!")
+	return nil
 }

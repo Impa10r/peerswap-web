@@ -79,7 +79,7 @@ func Load(dataDir string, network string) {
 	Config.ElementsHost = "http://127.0.0.1"
 	Config.ElementsPort = "18884"
 
-	Config.Chain = "mainnet"
+	Config.Chain = network
 	Config.NodeApi = "https://amboss.space/node"
 	Config.BitcoinApi = "https://mempool.space"
 	Config.LiquidApi = "https://liquid.network"
@@ -90,10 +90,9 @@ func Load(dataDir string, network string) {
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 
-	if network == "testnet" {
-		Config.Chain = "testnet"
-		Config.NodeApi = "https://mempool.space/testnet/lightning/node"
-		Config.BitcoinApi = "https://mempool.space/testnet"
+	if network != "mainnet" {
+		Config.NodeApi = "https://mempool.space/" + network + "/lightning/node"
+		Config.BitcoinApi = "https://mempool.space/" + network
 		Config.LiquidApi = "https://liquid.network/testnet"
 		Config.ElementsPort = "7039"
 	}
@@ -116,7 +115,7 @@ func Load(dataDir string, network string) {
 	}
 
 	// different defaults for LND and CLN
-	loadDefaults(currentUser.HomeDir, dataDir)
+	loadDefaults(currentUser.HomeDir, dataDir, network)
 
 	// load config from peerswap.conf
 	LoadPS()

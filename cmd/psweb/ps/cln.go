@@ -32,28 +32,14 @@ func GetClient(dirRPC string) (*glightning.Lightning, func(), error) {
 }
 
 func ReloadPolicyFile(client *glightning.Lightning) (*peerswaprpc.Policy, error) {
-	var res map[string]interface{}
+	var res peerswaprpc.Policy
 
 	err := client.Request(&clightning.ReloadPolicyFile{}, &res)
 	if err != nil {
 		return nil, err
 	}
 
-	var allowed []string
-	var suspected []string
-
-	for _, p := range res["allowlisted_peers"].([]interface{}) {
-		allowed = append(allowed, p.(string))
-	}
-
-	for _, p := range res["suspicious_peers"].([]interface{}) {
-		suspected = append(suspected, p.(string))
-	}
-
-	return &peerswaprpc.Policy{
-		AllowlistedPeers:   allowed,
-		SuspiciousPeerList: suspected,
-	}, nil
+	return &res, nil
 }
 
 func Stop() {
@@ -69,94 +55,17 @@ func Stop() {
 }
 
 func ListPeers(client *glightning.Lightning) (*peerswaprpc.ListPeersResponse, error) {
-	var res []map[string]interface{}
+	var peers []*peerswaprpc.PeerSwapPeer
 
-	err := client.Request(&clightning.ListPeers{}, &res)
+	err := client.Request(&clightning.ListPeers{}, &peers)
 	if err != nil {
 		log.Println("ListPeers:", err)
 		return nil, err
 	}
 
-	var peers []*peerswaprpc.PeerSwapPeer
-
-	for _, data := range res {
-		peer := peerswaprpc.PeerSwapPeer{}
-		peer.NodeId = data["nodeid"].(string)
-		peer.SwapsAllowed = data["swaps_allowed"].(bool)
-
-		// Check if the "total_fee_paid" field exists
-		if totalFeePaid, ok := data["total_fee_paid"]; ok {
-			peer.PaidFee = uint64(totalFeePaid.(float64))
-		}
-
-		assets := data["supported_assets"].([]interface{})
-		for _, asset := range assets {
-			peer.SupportedAssets = append(peer.SupportedAssets, asset.(string))
-		}
-
-		channels := data["channels"].([]interface{})
-		for _, channel := range channels {
-			channelData := channel.(map[string]interface{})
-			peer.Channels = append(peer.Channels, &peerswaprpc.PeerSwapPeerChannel{
-				ChannelId:     convertClnToLndChannelId(channelData["short_channel_id"].(string)),
-				LocalBalance:  uint64(channelData["local_balance"].(float64)),
-				RemoteBalance: uint64(channelData["remote_balance"].(float64)),
-				Active:        channelData["state"].(string) == "CHANNELD_NORMAL",
-			})
-		}
-
-		asSender := data["sent"].(map[string]interface{})
-		peer.AsSender = &peerswaprpc.SwapStats{
-			SwapsOut: uint64(asSender["total_swaps_out"].(float64)),
-			SwapsIn:  uint64(asSender["total_swaps_in"].(float64)),
-			SatsOut:  uint64(asSender["total_sats_swapped_out"].(float64)),
-			SatsIn:   uint64(asSender["total_sats_swapped_in"].(float64)),
-		}
-
-		asReceiver := data["received"].(map[string]interface{})
-		peer.AsReceiver = &peerswaprpc.SwapStats{
-			SwapsOut: uint64(asReceiver["total_swaps_out"].(float64)),
-			SwapsIn:  uint64(asReceiver["total_swaps_in"].(float64)),
-			SatsOut:  uint64(asReceiver["total_sats_swapped_out"].(float64)),
-			SatsIn:   uint64(asReceiver["total_sats_swapped_in"].(float64)),
-		}
-
-		premium := data["premium"].(map[string]interface{})
-		rates := []*peerswaprpc.PremiumRate{
-			&peerswaprpc.PremiumRate{
-				Asset:          peerswaprpc.AssetType_BTC,
-				Operation:      peerswaprpc.OperationType_SWAP_IN,
-				PremiumRatePpm: int64(premium["btc_swap_in_premium_rate_ppm"].(float64)),
-			},
-			&peerswaprpc.PremiumRate{
-				Asset:          peerswaprpc.AssetType_BTC,
-				Operation:      peerswaprpc.OperationType_SWAP_OUT,
-				PremiumRatePpm: int64(premium["btc_swap_out_premium_rate_ppm"].(float64)),
-			},
-			&peerswaprpc.PremiumRate{
-				Asset:          peerswaprpc.AssetType_LBTC,
-				Operation:      peerswaprpc.OperationType_SWAP_IN,
-				PremiumRatePpm: int64(premium["lbtc_swap_in_premium_rate_ppm"].(float64)),
-			},
-			&peerswaprpc.PremiumRate{
-				Asset:          peerswaprpc.AssetType_LBTC,
-				Operation:      peerswaprpc.OperationType_SWAP_OUT,
-				PremiumRatePpm: int64(premium["lbtc_swap_out_premium_rate_ppm"].(float64)),
-			},
-		}
-
-		peer.PeerPremium = &peerswaprpc.PeerPremium{
-			Rates: rates,
-		}
-
-		peers = append(peers, &peer)
-	}
-
-	list := peerswaprpc.ListPeersResponse{
+	return &peerswaprpc.ListPeersResponse{
 		Peers: peers,
-	}
-
-	return &list, nil
+	}, nil
 }
 
 func ListSwaps(client *glightning.Lightning) (*peerswaprpc.ListSwapsResponse, error) {
@@ -172,7 +81,7 @@ func ListSwaps(client *glightning.Lightning) (*peerswaprpc.ListSwapsResponse, er
 }
 
 func LiquidGetBalance(client *glightning.Lightning) (*peerswaprpc.GetBalanceResponse, error) {
-	var res map[string]interface{}
+	var res peerswaprpc.GetBalanceResponse
 
 	err := client.Request(&clightning.LiquidGetBalance{}, &res)
 	if err != nil {
@@ -180,9 +89,7 @@ func LiquidGetBalance(client *glightning.Lightning) (*peerswaprpc.GetBalanceResp
 		return nil, err
 	}
 
-	return &peerswaprpc.GetBalanceResponse{
-		SatAmount: uint64(res["lbtc_balance_sat"].(float64)),
-	}, nil
+	return &res, nil
 }
 
 func ListActiveSwaps(client *glightning.Lightning) (*peerswaprpc.ListSwapsResponse, error) {
@@ -218,7 +125,7 @@ func GetSwap(client *glightning.Lightning, id string) (*peerswaprpc.SwapResponse
 }
 
 func LiquidGetAddress(client *glightning.Lightning) (*peerswaprpc.GetAddressResponse, error) {
-	var res map[string]interface{}
+	var res peerswaprpc.GetAddressResponse
 
 	err := client.Request(&clightning.LiquidGetAddress{}, &res)
 	if err != nil {
@@ -226,9 +133,7 @@ func LiquidGetAddress(client *glightning.Lightning) (*peerswaprpc.GetAddressResp
 		return nil, err
 	}
 
-	return &peerswaprpc.GetAddressResponse{
-		Address: res["lbtc_address"].(string),
-	}, nil
+	return &res, nil
 }
 
 func AddPeer(client *glightning.Lightning, nodeId string) (*peerswaprpc.Policy, error) {

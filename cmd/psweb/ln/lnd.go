@@ -29,7 +29,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 
@@ -538,12 +537,7 @@ func fundPsbtSpendAll(cl walletrpc.WalletKitClient, utxoStrings *[]string, addre
 		}
 	}
 
-	var harnessNetParams = &chaincfg.TestNet3Params
-	if config.Config.Chain == "mainnet" {
-		harnessNetParams = &chaincfg.MainNetParams
-	}
-
-	parsed, err := btcutil.DecodeAddress(address, harnessNetParams)
+	parsed, err := btcutil.DecodeAddress(address, getHarnessNetParams())
 	if err != nil {
 		log.Println("DecodeAddress:", err)
 		return nil, err

@@ -13,7 +13,7 @@ import (
 var DatabaseFile string
 
 // Config defaults for CLN
-func loadDefaults(home, dataDir string) {
+func loadDefaults(home, dataDir, network string) {
 	if dataDir == "" {
 		Config.LightningDir = filepath.Join(home, ".lightning")
 	} else {
@@ -21,11 +21,13 @@ func loadDefaults(home, dataDir string) {
 		Config.LightningDir = dataDir
 	}
 
-	Config.RpcHost = filepath.Join(Config.LightningDir, "bitcoin")
-	if Config.Chain == "testnet" {
-		Config.RpcHost = filepath.Join(Config.LightningDir, "testnet")
+	if network == "bitcoin" {
+		Config.Chain = "mainnet"
+	} else {
+		Config.Chain = network
 	}
 
+	Config.RpcHost = filepath.Join(Config.LightningDir, network)
 	Config.DataDir = filepath.Join(Config.RpcHost, "peerswap")
 
 	// only sqlite3 supported for now
