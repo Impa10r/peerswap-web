@@ -39,11 +39,11 @@ const (
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
+	ELEMENTS_REDUCED_DUST_VERSION     = 230207
 	// opening tx sizes for fee estimates
 	OPENING_TX_SIZE_BTC             = 350
 	OPENING_TX_SIZE_LBTC            = 3000
 	OPENING_TX_SIZE_LBTC_DISCOUNTED = 750
-	SWAP_LBTC_RESERVE               = 170 // dust reduced with Elements v23.2.7
 )
 
 type AutoSwapParams struct {
@@ -81,6 +81,7 @@ var (
 	// identifies if this version of Elements Core supports discounted vSize
 	hasDiscountedvSize        = false
 	discountedvSizeIdentified = false
+	SwapLbtcDustReserve       = 1_200
 	// asset id for L-BTC
 	elementsBitcoinId = ""
 	// required maturity for peg-in funding tx
@@ -319,12 +320,15 @@ func onTimer() {
 		// identify if Elements Core supports CT discounts
 		elementsVersion := liquid.GetVersion()
 		if elementsVersion > 0 {
+
+			log.Printf("Identified Elements Core v%d", elementsVersion)
+
 			hasDiscountedvSize = elementsVersion >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
 			discountedvSizeIdentified = true
-			if hasDiscountedvSize {
-				log.Println("Discounted vsize on Liquid is enabled")
-			} else {
-				log.Println("Discounted vsize on Liquid is disabled")
+
+			// identify dust reserve
+			if elementsVersion >= ELEMENTS_REDUCED_DUST_VERSION {
+				SwapLbtcDustReserve = 170
 			}
 
 			// find asset id for Bitcoin
@@ -1332,7 +1336,7 @@ func cacheAliases() bool {
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
 func findSwapInCandidate(candidate *AutoSwapParams) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - SWAP_LBTC_RESERVE
+	minAmount := config.Config.AutoSwapThresholdAmount - uint64(SwapLbtcDustReserve)
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1518,7 +1522,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-SWAP_LBTC_RESERVE)
+	amount = min(amount, satAmount-uint64(SwapLbtcDustReserve))
 
 	// execute swap with 0 premium limit
 	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false, 0)
@@ -1833,9 +1837,9 @@ func advertiseBalances() {
 	}
 
 	liquidBalance := res2.GetSatAmount()
-	// Elements fee bug does not permit sending the whole balance, haircut it
-	if liquidBalance >= SWAP_LBTC_RESERVE {
-		liquidBalance -= SWAP_LBTC_RESERVE
+	// Elements does not permit sending the whole balance, haircut it
+	if liquidBalance >= uint64(SwapLbtcDustReserve) {
+		liquidBalance -= uint64(SwapLbtcDustReserve)
 	}
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120

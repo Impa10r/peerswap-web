@@ -479,7 +479,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(receivable[selectedChannel]))
+	maxLiquidSwapIn := min(int64(satAmount)-int64(SwapLbtcDustReserve), int64(receivable[selectedChannel]))
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -698,7 +698,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		RedColor:                        redColor,
 		IsOnline:                        isOnline,
 		AnchorReserve:                   ANCHOR_RESERVE,
-		LiquidReserve:                   SWAP_LBTC_RESERVE,
+		LiquidReserve:                   uint64(SwapLbtcDustReserve),
 		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
 		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
 		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,

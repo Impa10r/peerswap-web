@@ -5,7 +5,7 @@
 - Enable setting premium rates and display those of peers
 - Add premium PPM limit for new swaps, blank by default
 - Remove words "Liquid balance" from telegram backups for privacy
-- Reduce L-BTC reserve to 170 sats for max swap calculation
+- Reduce L-BTC dust reserve to 170 sats for Elements v23.2.7+
 
 ## 1.7.8
 
