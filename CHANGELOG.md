@@ -3,8 +3,7 @@
 ## 1.7.9
 
 - Add premium PPM limit for new swaps
-
-REPLACE peerswap in go.mod!
+- Remove words "Liquid balance" from telegram backups for privacy
 
 ## 1.7.8
 

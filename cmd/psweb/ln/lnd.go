@@ -128,14 +128,10 @@ func lndConnection() (*grpc.ClientConn, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(tlsCreds),
-		grpc.WithBlock(),
 		grpc.WithPerRPCCredentials(macCred),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, host, opts...)
+	conn, err := grpc.NewClient(host, opts...)
 	if err != nil {
 		return nil, err
 	}

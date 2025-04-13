@@ -4,7 +4,7 @@ go 1.23.6
 
 toolchain go1.23.8
 
-replace github.com/elementsproject/peerswap => /home/vlad/go/src/peerswap
+// replace github.com/elementsproject/peerswap => /home/vlad/go/src/peerswap
 
 // peerswap uses go-elements v0.4.0 which is not compatible with lnd v0.18
 // until they upgrade, I link to a compatible version in my repository
@@ -22,7 +22,7 @@ require (
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/elementsproject/glightning v0.0.0-20250204171900-f3064a110c6b
-	github.com/elementsproject/peerswap v0.2.98-0.20240802020201-5935fb465630
+	github.com/elementsproject/peerswap v0.2.98-0.20250409200254-d99ec96f1b28
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.2.2
@@ -151,7 +151,7 @@ require (
 	github.com/prometheus/procfs v0.16.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/fastuuid v1.2.0 // indirect
-	github.com/samber/lo v1.49.1 // indirect
+	github.com/samber/lo v1.47.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
