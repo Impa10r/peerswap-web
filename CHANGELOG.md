@@ -1,6 +1,6 @@
 # Versions
 
-## 1.7.9
+## 1.8.0
 
 - Enable setting premium rates and display those of peers
 - Add premium PPM limit for new swaps, blank by default
