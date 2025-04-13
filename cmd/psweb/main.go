@@ -43,8 +43,7 @@ const (
 	OPENING_TX_SIZE_BTC             = 350
 	OPENING_TX_SIZE_LBTC            = 3000
 	OPENING_TX_SIZE_LBTC_DISCOUNTED = 750
-	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
-	SWAP_LBTC_RESERVE = 1_200
+	SWAP_LBTC_RESERVE               = 170 // dust reduced with Elements v23.2.7
 )
 
 type AutoSwapParams struct {
