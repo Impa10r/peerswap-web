@@ -2630,7 +2630,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			if err != nil {
 				e := err.Error()
-				if e == "Request timed out" || strings.HasPrefix(e, "rpc error: code = Unavailable desc = rpc timeout reached") {
+				if e == "Request timed out" || strings.Contains(e, "rpc timeout reached") {
 					// sometimes the swap is pending anyway
 					res, er := ps.ListActiveSwaps(client)
 					if er != nil {
