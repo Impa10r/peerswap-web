@@ -103,8 +103,8 @@ func start() {
 		store = sessions.NewCookieStore([]byte(cookie))
 	}
 
-	if config.Config.Chain == "testnet" {
-		// allow faster pegin on testnet4
+	if config.Config.Chain != "mainnet" {
+		// allow faster pegin on test chains
 		peginBlocks = 10
 	}
 
