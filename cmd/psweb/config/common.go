@@ -176,10 +176,10 @@ func Save() error {
 
 // fallback for Bitcoin Core API if local is unreachable
 func GetBlockIoHost() string {
-	if Config.Chain == "testnet" {
-		return "https://go.getblock.io/77cfc97c83e0454fb35557331188e7d6"
-	} else {
+	if Config.Chain == "mainnet" {
 		return "https://go.getblock.io/62af44fe83f540539ed0a1b52a80d41e"
+	} else {
+		return "https://go.getblock.io/77cfc97c83e0454fb35557331188e7d6"
 	}
 }
 
@@ -188,6 +188,7 @@ func GetHostname() string {
 	// Get the hostname of the machine
 	hostname, _ := os.Hostname()
 
+	// Env takes priority
 	if os.Getenv("HOSTNAME") != "" {
 		hostname = os.Getenv("HOSTNAME")
 	}

@@ -1008,14 +1008,22 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			_, err = bitcoin.GetTxOutProof(tx)
-			if err != nil {
+			if err != nil && config.Config.Chain != "signet" {
+				// save old settings
+				host := config.Config.BitcoinHost
+				user := config.Config.BitcoinUser
+				pass := config.Config.BitcoinPass
 				// automatic fallback to getblock.io
 				config.Config.BitcoinHost = config.GetBlockIoHost()
 				config.Config.BitcoinUser = ""
 				config.Config.BitcoinPass = ""
 				_, err = bitcoin.GetTxOutProof(tx)
 				if err != nil {
-					redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
+					// revert settings
+					config.Config.BitcoinHost = host
+					config.Config.BitcoinUser = user
+					config.Config.BitcoinPass = pass
+					redirectWithError(w, r, "/config?", errors.New("GetTxOutProof failed, check Bitcoin RPC credentials"))
 					return
 				} else {
 					// use getblock.io endpoint going forward
@@ -1064,10 +1072,10 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 				duration := time.Duration(10*peginBlocks) * time.Minute
 				eta := time.Now().Add(duration).Format("3:04 PM")
-				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. ETA: " + eta + ". TxId: `" + res.TxId + "`")
+				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, ETA: %s, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, eta, res.TxId))
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-				telegramSendMessage("⛓️ BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+				telegramSendMessage(fmt.Sprintf("⛓️ BTC withdrawal pending: %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, res.TxId))
 			}
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId

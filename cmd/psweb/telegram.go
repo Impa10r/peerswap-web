@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -115,7 +116,12 @@ func telegramStart() {
 							// solo peg-in
 							duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 							eta := time.Now().Add(duration).Format("3:04 PM")
-							t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+							t = "⏰ Peg-in pending:: "
+							if config.Config.PeginClaimScript == "" {
+								t = "⛓️ BTC withdrawal pending: "
+							}
+							t += formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+							t += fmt.Sprintf(", sat/vb: %0.2f", config.Config.PeginFeeRate)
 							if config.Config.PeginClaimScript != "" {
 								t += "/102, ETA: " + eta
 							}
