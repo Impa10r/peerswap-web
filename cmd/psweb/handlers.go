@@ -270,10 +270,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res5.GetSwaps()
 
-	senderInFee := int64(0)
-	senderOutFee := int64(0)
-	receiverInFee := int64(0)
-	receiverOutFee := int64(0)
+	senderInProfit := int64(0)
+	senderOutProfit := int64(0)
+	receiverInProfit := int64(0)
+	receiverOutProfit := int64(0)
 	cost := int64(0)
 	new := false
 	persist := false // have new tx fees to persist
@@ -283,22 +283,22 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		case "swap-insender":
 			if swap.PeerNodeId == id {
 				cost, _, new = swapCost(swap)
-				senderInFee += cost
+				senderInProfit -= cost
 			}
 		case "swap-outsender":
 			if swap.PeerNodeId == id {
 				cost, _, new = swapCost(swap)
-				senderOutFee += cost
+				senderOutProfit -= cost
 			}
 		case "swap-outreceiver":
 			if swap.InitiatorNodeId == id {
 				cost, _, new = swapCost(swap)
-				receiverOutFee += cost
+				receiverOutProfit -= cost
 			}
 		case "swap-inreceiver":
 			if swap.InitiatorNodeId == id {
 				cost, _, new = swapCost(swap)
-				receiverInFee += cost
+				receiverInProfit -= cost
 			}
 		}
 
@@ -310,10 +310,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		db.Save("Swaps", "txFee", txFee)
 	}
 
-	senderInFeePPM := int64(0)
-	receiverInFeePPM := int64(0)
-	receiverOutFeePPM := int64(0)
-	senderOutFeePPM := int64(0)
+	senderInProfitPPM := int64(0)
+	receiverInProfitPPM := int64(0)
+	receiverOutProfitPPM := int64(0)
+	senderOutProfitPPM := int64(0)
 
 	// Get Lightning client
 	cl, clean, er := ln.GetClient()
@@ -339,16 +339,16 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		psPeer = false
 	} else {
 		if peer.AsSender.SatsOut > 0 {
-			senderOutFeePPM = senderOutFee * 1_000_000 / int64(peer.AsSender.SatsOut)
+			senderOutProfitPPM = senderOutProfit * 1_000_000 / int64(peer.AsSender.SatsOut)
 		}
 		if peer.AsSender.SatsIn > 0 {
-			senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
+			senderInProfitPPM = senderInProfit * 1_000_000 / int64(peer.AsSender.SatsIn)
 		}
 		if peer.AsReceiver.SatsOut > 0 {
-			receiverOutFeePPM = receiverOutFee * 1_000_000 / int64(peer.AsReceiver.SatsOut)
+			receiverOutProfitPPM = receiverOutProfit * 1_000_000 / int64(peer.AsReceiver.SatsOut)
 		}
 		if peer.AsReceiver.SatsIn > 0 {
-			receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
+			receiverInProfitPPM = receiverInProfit * 1_000_000 / int64(peer.AsReceiver.SatsIn)
 		}
 
 		for _, asset := range []peerswaprpc.AssetType{peerswaprpc.AssetType_BTC, peerswaprpc.AssetType_LBTC} {
@@ -609,14 +609,14 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo                     []*ln.ChanneInfo
 		PeerSwapPeer                    bool
 		MyAlias                         string
-		SenderOutFee                    int64
-		SenderOutFeePPM                 int64
-		SenderInFee                     int64
-		ReceiverInFee                   int64
-		ReceiverOutFee                  int64
-		SenderInFeePPM                  int64
-		ReceiverInFeePPM                int64
-		ReceiverOutFeePPM               int64
+		SenderOutProfit                 int64
+		SenderOutProfitPPM              int64
+		SenderInProfit                  int64
+		ReceiverInProfit                int64
+		ReceiverOutProfit               int64
+		SenderInProfitPPM               int64
+		ReceiverInProfitPPM             int64
+		ReceiverOutProfitPPM            int64
 		KeysendSats                     uint64
 		OutputsBTC                      *[]ln.UTXO
 		OutputsLBTC                     *[]liquid.UTXO
@@ -671,14 +671,14 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo:                     channelInfo,
 		PeerSwapPeer:                    psPeer,
 		MyAlias:                         ln.MyNodeAlias,
-		SenderOutFee:                    senderOutFee,
-		SenderOutFeePPM:                 senderOutFeePPM,
-		SenderInFee:                     senderInFee,
-		ReceiverInFee:                   receiverInFee,
-		ReceiverOutFee:                  receiverOutFee,
-		SenderInFeePPM:                  senderInFeePPM,
-		ReceiverInFeePPM:                receiverInFeePPM,
-		ReceiverOutFeePPM:               receiverOutFeePPM,
+		SenderOutProfit:                 senderOutProfit,
+		SenderOutProfitPPM:              senderOutProfitPPM,
+		SenderInProfit:                  senderInProfit,
+		ReceiverInProfit:                receiverInProfit,
+		ReceiverOutProfit:               receiverOutProfit,
+		SenderInProfitPPM:               senderInProfitPPM,
+		ReceiverInProfitPPM:             receiverInProfitPPM,
+		ReceiverOutProfitPPM:            receiverOutProfitPPM,
 		KeysendSats:                     keysendSats,
 		OutputsBTC:                      &utxosBTC,
 		OutputsLBTC:                     &utxosLBTC,

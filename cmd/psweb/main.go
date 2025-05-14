@@ -1114,18 +1114,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 	// show total amount and cost
 	ppm := int64(0)
 	if totalAmount > 0 {
-		ppm = totalCost * 1_000_000 / int64(totalAmount)
+		ppm = -totalCost * 1_000_000 / int64(totalAmount)
 	}
 
 	table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
-	if totalCost >= 0 {
-		table += "Cost"
-	} else {
-		table += "Profit"
-		totalCost = -totalCost
-		ppm = -ppm
-	}
-	table += ": " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
+	table += "P&L: " + formatSigned(-totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
 
 	// save to db
 	if persist {
