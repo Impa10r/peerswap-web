@@ -126,8 +126,8 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/elementsproject/glightning v0.0.0-20250204171900-f3064a110c6b h1:PnXI3HU7C+5zEOiSzooB8tNeZB1dnbJWfPN4Vy1EUrM=
 github.com/elementsproject/glightning v0.0.0-20250204171900-f3064a110c6b/go.mod h1:YAdIeSyx8VEhDCtEaGOJLmWNpPaQ3x4vYSAj9Vrppdo=
-github.com/elementsproject/peerswap v0.2.98-0.20250409200254-d99ec96f1b28 h1:QtN4tgdJKfpjemmXtU+/vbjDKWVVSfK6V53sO+/nMWg=
-github.com/elementsproject/peerswap v0.2.98-0.20250409200254-d99ec96f1b28/go.mod h1:8eDtxQuoqnVE6GcTAyK+RapdIr3qJJ9QcBsJWqXNwio=
+github.com/elementsproject/peerswap v0.2.98-0.20250508215139-95695806541d h1:H4rBXJ/zyF9cBxX9sPRrjTgtNYlbkxe8REWBN50AUU0=
+github.com/elementsproject/peerswap v0.2.98-0.20250508215139-95695806541d/go.mod h1:ze19krVm6ctf6bTsClxdCymxAWT5anPlhRKHmUfaZaI=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
@@ -239,8 +239,6 @@ github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9
 github.com/hashicorp/go-retryablehttp v0.7.7 h1:C8hUCYzor8PIfXHa4UrZkU4VvK8o9ISHxT2Q8+VepXU=
 github.com/hashicorp/go-retryablehttp v0.7.7/go.mod h1:pkQpWZeYWskR+D1tR2O5OcBFOxfA7DoAO6xtkuQnHTk=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
-github.com/impa10r/go-elements v0.5.4-0.20240428143053-2c0646844473 h1:ZHN0zlcisieLT4imBmU1NwLBN2NgVrfiGgSioIzewEs=
-github.com/impa10r/go-elements v0.5.4-0.20240428143053-2c0646844473/go.mod h1:jwWX8Ka2IHv8l/vZeS6FQvZEEFta5yCf5Ra8n4BwoVs=
 github.com/jackc/chunkreader v1.0.0/go.mod h1:RT6O25fNZIuasFJRyZ4R/Y2BbhasbmZXF9QQ7T3kePo=
 github.com/jackc/chunkreader/v2 v2.0.0/go.mod h1:odVSm741yZoC3dpHEUXIqA9tQRhFrgOHwnPIn9lDKlk=
 github.com/jackc/chunkreader/v2 v2.0.1 h1:i+RDz65UE+mmpjTfyz0MoVTnzeYxroil2G82ki7MGG8=
@@ -500,6 +498,8 @@ github.com/virtuald/go-paniclog v0.0.0-20190812204905-43a7fa316459 h1:x9pIfbdIjn
 github.com/virtuald/go-paniclog v0.0.0-20190812204905-43a7fa316459/go.mod h1:nFvuG3SWu3VWqobG3cX8nt57wXU0OOFapeCs/8axIuM=
 github.com/vulpemventures/fastsha256 v0.0.0-20160815193821-637e65642941 h1:CTcw80hz/Sw8hqlKX5ZYvBUF5gAHSHwdjXxRf/cjDcI=
 github.com/vulpemventures/fastsha256 v0.0.0-20160815193821-637e65642941/go.mod h1:GXBJykxW2kUcktGdsgyay7uwwWvkljASfljNcT0mbh8=
+github.com/vulpemventures/go-elements v0.5.7 h1:lEO5NWoO0w+vwxCyleQ5CFnI1xAlk/mrPQk4WY7EqZM=
+github.com/vulpemventures/go-elements v0.5.7/go.mod h1:Tvhb+rZWv3lxoI5CdK03J3V+e2QVr/7UAnCYILxFSq4=
 github.com/vulpemventures/go-secp256k1-zkp v1.1.6 h1:BmsrmXRLUibwa75Qkk8yELjpzCzlAjYFGLiLiOdq7Xo=
 github.com/vulpemventures/go-secp256k1-zkp v1.1.6/go.mod h1:zo7CpgkuPgoe7fAV+inyxsI9IhGmcoFgyD8nqZaPSOM=
 github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f/go.mod h1:N2zxlSyiKSe5eX1tZViRH5QA0qijqEDrYZiPEAiq3wU=

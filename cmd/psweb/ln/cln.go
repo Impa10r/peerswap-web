@@ -181,9 +181,52 @@ func GetBlockHeight() uint32 {
 	return uint32(res.Blockheight)
 }
 
+type ListNodesRequest struct {
+	Id string `json:"id,omitempty"`
+}
+
+func (r *ListNodesRequest) Name() string {
+	return "listnodes"
+}
+
+type NodeList struct {
+	Nodes []Node `json:"nodes"`
+}
+
+type Node struct {
+	NodeId        string    `json:"nodeid"`
+	Alias         string    `json:"alias"`
+	Color         string    `json:"color"`
+	LastTimestamp int64     `json:"last_timestamp"`
+	Features      string    `json:"features"`
+	Addresses     []Address `json:"addresses"`
+}
+
+type Address struct {
+	Type    string `json:"type"`
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+}
+
 func GetAlias(nodeKey string) string {
-	// not implemented, use mempool
-	return ""
+	client, clean, err := GetClient()
+	if err != nil {
+		log.Println("GetClient:", err)
+		return ""
+	}
+	defer clean()
+
+	var res NodeList
+	err = client.Request(&ListNodesRequest{Id: nodeKey}, &res)
+	if err != nil {
+		return ""
+	}
+
+	if len(res.Nodes) != 1 {
+		return ""
+	}
+
+	return res.Nodes[0].Alias
 }
 
 type UtxoPsbtRequest struct {

@@ -6,10 +6,6 @@ toolchain go1.23.8
 
 // replace github.com/elementsproject/peerswap => /home/vlad/go/src/peerswap
 
-// peerswap uses go-elements v0.4.0 which is not compatible with lnd v0.18
-// until they upgrade, I link to a compatible version in my repository
-replace github.com/vulpemventures/go-elements => github.com/impa10r/go-elements v0.5.4-0.20240428143053-2c0646844473
-
 // We want to format raw bytes as hex instead of base64. The forked version
 // allows us to specify that as an option.
 replace google.golang.org/protobuf => github.com/lightninglabs/protobuf-go-hex-display v1.30.0-hex-display
@@ -22,7 +18,7 @@ require (
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/elementsproject/glightning v0.0.0-20250204171900-f3064a110c6b
-	github.com/elementsproject/peerswap v0.2.98-0.20250409200254-d99ec96f1b28
+	github.com/elementsproject/peerswap v0.2.98-0.20250508215139-95695806541d
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.2.2
