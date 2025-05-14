@@ -1569,12 +1569,21 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 			fee += claim
 			breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 		}
+
+	case "swap-outreceiver":
+		rebate, exists := ln.SwapRebates[swap.Id]
+		if exists {
+			fee -= rebate
+			breakdown += fmt.Sprintf("rebate received: %s, ", formatSigned(rebate))
+		}
+		fallthrough
+
 	case "swap-insender":
 		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
 		fee += chainFee
 		breakdown += fmt.Sprintf("opening cost: %s", formatSigned(chainFee))
-		if swap.State == "State_ClaimedCoop" {
+		if swap.State == "State_ClaimedCoop" || swap.State == "State_ClaimedCsv" {
 			claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 			if claim > 0 {
 				newChanges = newChanges || new
@@ -1583,24 +1592,6 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 			}
 		}
 
-	case "swap-outreceiver":
-		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
-		newChanges = newChanges || new
-		fee += chainFee
-		breakdown += fmt.Sprintf("opening cost: %s", formatSigned(chainFee))
-		if swap.State == "State_ClaimedCoop" {
-			claim, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
-			if claim > 0 {
-				newChanges = newChanges || new
-				fee += claim
-				breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
-			}
-		}
-		rebate, exists := ln.SwapRebates[swap.Id]
-		if exists {
-			fee -= rebate
-			breakdown += fmt.Sprintf(", rebate received: %s", formatSigned(rebate))
-		}
 	case "swap-inreceiver":
 		chainFee, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		newChanges = newChanges || new
