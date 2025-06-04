@@ -1094,6 +1094,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		})
 	}
 
+	if persist {
+		// save new chain fees to db
+		db.Save("Swaps", "txFee", txFee)
+	}
+
 	// sort the table on TimeStamp field
 	sort.Slice(unsortedTable, func(i, j int) bool {
 		return unsortedTable[i].TimeStamp > unsortedTable[j].TimeStamp
@@ -1111,18 +1116,15 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 	table += "</table>"
 
-	// show total amount and cost
-	ppm := int64(0)
-	if totalAmount > 0 {
-		ppm = -totalCost * 1_000_000 / int64(totalAmount)
-	}
+	if len(swaps) > 1 {
+		// show total amount and cost
+		ppm := int64(0)
+		if totalAmount > 0 {
+			ppm = -totalCost * 1_000_000 / int64(totalAmount)
+		}
 
-	table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
-	table += "P&L: " + formatSigned(-totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
-
-	// save to db
-	if persist {
-		db.Save("Swaps", "txFee", txFee)
+		table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
+		table += "P&L: " + formatSigned(-totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
 	}
 
 	return table
