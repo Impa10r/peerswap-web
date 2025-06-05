@@ -1847,14 +1847,14 @@ func advertiseBalances() {
 			if ptr.TimeStamp < cutOff {
 				pollPeer = true
 				// delete stale information
-				ln.LiquidBalances[peer.NodeId] = nil
+				delete(ln.LiquidBalances, peer.NodeId)
 			}
 		}
 		if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 			if ptr.TimeStamp < cutOff {
 				pollPeer = true
 				// delete stale information
-				ln.BitcoinBalances[peer.NodeId] = nil
+				delete(ln.BitcoinBalances, peer.NodeId)
 			}
 		}
 

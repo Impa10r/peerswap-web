@@ -2662,6 +2662,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+
+			// delete peer balance information
+			if asset == "btc" {
+				if ln.BitcoinBalances != nil {
+					delete(ln.BitcoinBalances, nodeId)
+				}
+			} else {
+				if ln.LiquidBalances != nil {
+					delete(ln.LiquidBalances, nodeId)
+				}
+			}
+
 			// Redirect to swap page to follow the swap
 			http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
 
