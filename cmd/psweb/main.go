@@ -717,7 +717,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if btcBalance >= 100_000 {
 					flooredBalance = toMil(btcBalance)
-					bal = "≥" + formatWithThousandSeparators(btcBalance)
+					bal = formatWithThousandSeparators(btcBalance)
 				}
 				peerTable += "<span title=\"Peer's BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -733,7 +733,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if lbtcBalance >= 100_000 {
 					flooredBalance = toMil(lbtcBalance)
-					bal = "≥" + formatWithThousandSeparators(lbtcBalance)
+					bal = formatWithThousandSeparators(lbtcBalance)
 				}
 				peerTable += "<span title=\"Peer's L-BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
