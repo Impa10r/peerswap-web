@@ -1008,30 +1008,41 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			_, err = bitcoin.GetTxOutProof(tx)
-			if err != nil && config.Config.Chain != "signet" {
-				// save old settings
-				host := config.Config.BitcoinHost
-				user := config.Config.BitcoinUser
-				pass := config.Config.BitcoinPass
-				// automatic fallback to getblock.io
-				config.Config.BitcoinHost = config.GetBlockIoHost()
-				config.Config.BitcoinUser = ""
-				config.Config.BitcoinPass = ""
+			if err != nil {
+				// try again
+				time.Sleep(2 * time.Second)
 				_, err = bitcoin.GetTxOutProof(tx)
-				if err != nil {
-					// revert settings
-					config.Config.BitcoinHost = host
-					config.Config.BitcoinUser = user
-					config.Config.BitcoinPass = pass
-					redirectWithError(w, r, "/config?", errors.New("GetTxOutProof failed, check Bitcoin RPC credentials"))
-					return
-				} else {
-					// use getblock.io endpoint going forward
-					log.Println("Switching to getblock.io bitcoin host endpoint")
-					if err := config.Save(); err != nil {
-						redirectWithError(w, r, "/bitcoin?", err)
+			}
+
+			if err != nil && config.Config.Chain != "signet" {
+				if !strings.HasPrefix(config.Config.BitcoinHost, "https://go.getblock.io/") {
+					// save old settings
+					host := config.Config.BitcoinHost
+					user := config.Config.BitcoinUser
+					pass := config.Config.BitcoinPass
+					// automatic fallback to getblock.io
+					config.Config.BitcoinHost = config.GetBlockIoHost()
+					config.Config.BitcoinUser = ""
+					config.Config.BitcoinPass = ""
+					_, err2 := bitcoin.GetTxOutProof(tx)
+					if err2 != nil {
+						// revert settings
+						config.Config.BitcoinHost = host
+						config.Config.BitcoinUser = user
+						config.Config.BitcoinPass = pass
+						redirectWithError(w, r, "/config?", errors.New("GetTxOutProof failed: "+err.Error()))
 						return
+					} else {
+						// use getblock.io endpoint going forward
+						log.Println("Switching to getblock.io bitcoin host endpoint")
+						if err := config.Save(); err != nil {
+							redirectWithError(w, r, "/bitcoin?", err)
+							return
+						}
 					}
+				} else {
+					redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed: "+err.Error()))
+					return
 				}
 			}
 

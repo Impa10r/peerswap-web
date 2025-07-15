@@ -1219,6 +1219,12 @@ func checkPegin() {
 			rawTx, err := bitcoin.GetRawTransaction(config.Config.PeginTxId, nil)
 			if err == nil {
 				proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+				if err != nil {
+					// try again
+					time.Sleep(10 * time.Second)
+					proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+				}
+
 				if err == nil {
 					txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
 					// claimpegin takes long time, allow it to timeout
