@@ -1,5 +1,14 @@
 # Versions
 
+## 1.8.0
+
+- Breaking: requires peerswap v5 with premium feature
+- Enable setting premium rates and display those of peers
+- Add premium PPM limit for new swaps, blank by default
+- Remove words "Liquid balance" from telegram backups for privacy
+- Reduce L-BTC dust reserve to 170 sats for Elements v23.2.7+
+- CLN: fetch peers' aliases from gossip
+
 ## 1.7.8
 
 - Respect spendable and receivable limits for max swap calculation 

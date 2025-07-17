@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -115,7 +116,12 @@ func telegramStart() {
 							// solo peg-in
 							duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 							eta := time.Now().Add(duration).Format("3:04 PM")
-							t = "⏰ Amount: " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+							t = "⏰ Peg-in pending:: "
+							if config.Config.PeginClaimScript == "" {
+								t = "⛓️ BTC withdrawal pending: "
+							}
+							t += formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
+							t += fmt.Sprintf(", sat/vb: %0.2f", config.Config.PeginFeeRate)
 							if config.Config.PeginClaimScript != "" {
 								t += "/102, ETA: " + eta
 							}
@@ -134,13 +140,13 @@ func telegramStart() {
 					t += "\nMinimum PPM: " + formatWithThousandSeparators(config.Config.AutoSwapThresholdPPM)
 					t += "\nTarget Pct: " + formatWithThousandSeparators(config.Config.AutoSwapTargetPct)
 
-					var candidate SwapParams
+					var candidate AutoSwapParams
 
 					if err := findSwapInCandidate(&candidate); err == nil {
 						if candidate.Amount > 0 {
 							t += "\nCandidate: " + candidate.PeerAlias
 							t += "\nMax Amount: " + formatWithThousandSeparators(candidate.Amount)
-							t += "\nRecent PPM: " + formatWithThousandSeparators(candidate.PPM)
+							t += "\nRecent PPM: " + formatWithThousandSeparators(candidate.RoutingPpm)
 						} else {
 							t += "No swap candidates"
 						}
@@ -230,7 +236,7 @@ func telegramSendFile(folder, fileName, satAmount string) error {
 	// Create message config
 	msg := tgbotapi.NewDocument(chatId, fileConfig)
 
-	msg.Caption = "🌊 Liquid Balance: " + satAmount
+	msg.Caption = "🌊 " + satAmount
 
 	// Send file
 	_, err = bot.Send(msg)

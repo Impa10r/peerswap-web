@@ -207,6 +207,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	executeTemplate(w, "homepage", data)
 }
 
+type Premium struct {
+	Asset          int32
+	Operation      int32
+	PremiumRatePpm int64
+}
+
 func peerHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
@@ -264,10 +270,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res5.GetSwaps()
 
-	senderInFee := int64(0)
-	senderOutFee := int64(0)
-	receiverInFee := int64(0)
-	receiverOutFee := int64(0)
+	senderInProfit := int64(0)
+	senderOutProfit := int64(0)
+	receiverInProfit := int64(0)
+	receiverOutProfit := int64(0)
 	cost := int64(0)
 	new := false
 	persist := false // have new tx fees to persist
@@ -277,22 +283,22 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		case "swap-insender":
 			if swap.PeerNodeId == id {
 				cost, _, new = swapCost(swap)
-				senderInFee += cost
+				senderInProfit -= cost
 			}
 		case "swap-outsender":
 			if swap.PeerNodeId == id {
 				cost, _, new = swapCost(swap)
-				senderOutFee += cost
+				senderOutProfit -= cost
 			}
 		case "swap-outreceiver":
 			if swap.InitiatorNodeId == id {
 				cost, _, new = swapCost(swap)
-				receiverOutFee += cost
+				receiverOutProfit -= cost
 			}
 		case "swap-inreceiver":
 			if swap.InitiatorNodeId == id {
 				cost, _, new = swapCost(swap)
-				receiverInFee += cost
+				receiverInProfit -= cost
 			}
 		}
 
@@ -304,10 +310,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		db.Save("Swaps", "txFee", txFee)
 	}
 
-	senderInFeePPM := int64(0)
-	receiverInFeePPM := int64(0)
-	receiverOutFeePPM := int64(0)
-	senderOutFeePPM := int64(0)
+	senderInProfitPPM := int64(0)
+	receiverInProfitPPM := int64(0)
+	receiverOutProfitPPM := int64(0)
+	senderOutProfitPPM := int64(0)
 
 	// Get Lightning client
 	cl, clean, er := ln.GetClient()
@@ -318,6 +324,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	defer clean()
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
+
+	var globalPremium, peerPremium []Premium
 
 	psPeer := true
 	if peer == nil {
@@ -331,16 +339,34 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		psPeer = false
 	} else {
 		if peer.AsSender.SatsOut > 0 {
-			senderOutFeePPM = senderOutFee * 1_000_000 / int64(peer.AsSender.SatsOut)
+			senderOutProfitPPM = senderOutProfit * 1_000_000 / int64(peer.AsSender.SatsOut)
 		}
 		if peer.AsSender.SatsIn > 0 {
-			senderInFeePPM = senderInFee * 1_000_000 / int64(peer.AsSender.SatsIn)
+			senderInProfitPPM = senderInProfit * 1_000_000 / int64(peer.AsSender.SatsIn)
 		}
 		if peer.AsReceiver.SatsOut > 0 {
-			receiverOutFeePPM = receiverOutFee * 1_000_000 / int64(peer.AsReceiver.SatsOut)
+			receiverOutProfitPPM = receiverOutProfit * 1_000_000 / int64(peer.AsReceiver.SatsOut)
 		}
 		if peer.AsReceiver.SatsIn > 0 {
-			receiverInFeePPM = receiverInFee * 1_000_000 / int64(peer.AsReceiver.SatsIn)
+			receiverInProfitPPM = receiverInProfit * 1_000_000 / int64(peer.AsReceiver.SatsIn)
+		}
+
+		for _, asset := range []peerswaprpc.AssetType{peerswaprpc.AssetType_BTC, peerswaprpc.AssetType_LBTC} {
+			for _, operation := range []peerswaprpc.OperationType{peerswaprpc.OperationType_SWAP_IN, peerswaprpc.OperationType_SWAP_OUT} {
+				globalRate, _ := ps.GetGlobalPremiumRate(client, asset, operation)
+				globalPremium = append(globalPremium, Premium{
+					Asset:          int32(asset.Number()),
+					Operation:      int32(operation.Number()),
+					PremiumRatePpm: globalRate.PremiumRatePpm,
+				})
+
+				peerRate, _ := ps.GetPremiumRate(client, peer.NodeId, asset, operation)
+				peerPremium = append(peerPremium, Premium{
+					Asset:          int32(asset.Number()),
+					Operation:      int32(operation.Number()),
+					PremiumRatePpm: peerRate.PremiumRatePpm,
+				})
+			}
 		}
 	}
 
@@ -453,7 +479,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// haircut to avoid 'no matching outgoing channel available'
-	maxLiquidSwapIn := min(int64(satAmount)-SWAP_LBTC_RESERVE, int64(receivable[selectedChannel]))
+	maxLiquidSwapIn := min(int64(satAmount)-int64(SwapLbtcDustReserve), int64(receivable[selectedChannel]))
 	if maxLiquidSwapIn < 100_000 {
 		maxLiquidSwapIn = 0
 	}
@@ -583,14 +609,14 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo                     []*ln.ChanneInfo
 		PeerSwapPeer                    bool
 		MyAlias                         string
-		SenderOutFee                    int64
-		SenderOutFeePPM                 int64
-		SenderInFee                     int64
-		ReceiverInFee                   int64
-		ReceiverOutFee                  int64
-		SenderInFeePPM                  int64
-		ReceiverInFeePPM                int64
-		ReceiverOutFeePPM               int64
+		SenderOutProfit                 int64
+		SenderOutProfitPPM              int64
+		SenderInProfit                  int64
+		ReceiverInProfit                int64
+		ReceiverOutProfit               int64
+		SenderInProfitPPM               int64
+		ReceiverInProfitPPM             int64
+		ReceiverOutProfitPPM            int64
 		KeysendSats                     uint64
 		OutputsBTC                      *[]ln.UTXO
 		OutputsLBTC                     *[]liquid.UTXO
@@ -614,6 +640,8 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC             int64
 		OPENING_TX_SIZE_LBTC            int64
 		OPENING_TX_SIZE_LBTC_DISCOUNTED int64
+		GlobalPremium                   []Premium
+		PeerPremium                     []Premium
 	}
 
 	redColor := "red"
@@ -643,14 +671,14 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		ChannelInfo:                     channelInfo,
 		PeerSwapPeer:                    psPeer,
 		MyAlias:                         ln.MyNodeAlias,
-		SenderOutFee:                    senderOutFee,
-		SenderOutFeePPM:                 senderOutFeePPM,
-		SenderInFee:                     senderInFee,
-		ReceiverInFee:                   receiverInFee,
-		ReceiverOutFee:                  receiverOutFee,
-		SenderInFeePPM:                  senderInFeePPM,
-		ReceiverInFeePPM:                receiverInFeePPM,
-		ReceiverOutFeePPM:               receiverOutFeePPM,
+		SenderOutProfit:                 senderOutProfit,
+		SenderOutProfitPPM:              senderOutProfitPPM,
+		SenderInProfit:                  senderInProfit,
+		ReceiverInProfit:                receiverInProfit,
+		ReceiverOutProfit:               receiverOutProfit,
+		SenderInProfitPPM:               senderInProfitPPM,
+		ReceiverInProfitPPM:             receiverInProfitPPM,
+		ReceiverOutProfitPPM:            receiverOutProfitPPM,
 		KeysendSats:                     keysendSats,
 		OutputsBTC:                      &utxosBTC,
 		OutputsLBTC:                     &utxosLBTC,
@@ -670,10 +698,12 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		RedColor:                        redColor,
 		IsOnline:                        isOnline,
 		AnchorReserve:                   ANCHOR_RESERVE,
-		LiquidReserve:                   SWAP_LBTC_RESERVE,
+		LiquidReserve:                   uint64(SwapLbtcDustReserve),
 		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
 		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
 		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,
+		GlobalPremium:                   globalPremium,
+		PeerPremium:                     peerPremium,
 	}
 
 	// executing template named "peer"
@@ -979,21 +1009,40 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 			_, err = bitcoin.GetTxOutProof(tx)
 			if err != nil {
-				// automatic fallback to getblock.io
-				config.Config.BitcoinHost = config.GetBlockIoHost()
-				config.Config.BitcoinUser = ""
-				config.Config.BitcoinPass = ""
+				// try again
+				time.Sleep(2 * time.Second)
 				_, err = bitcoin.GetTxOutProof(tx)
-				if err != nil {
-					redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed, check BitcoinHost in Config"))
-					return
-				} else {
-					// use getblock.io endpoint going forward
-					log.Println("Switching to getblock.io bitcoin host endpoint")
-					if err := config.Save(); err != nil {
-						redirectWithError(w, r, "/bitcoin?", err)
+			}
+
+			if err != nil && config.Config.Chain != "signet" {
+				if !strings.HasPrefix(config.Config.BitcoinHost, "https://go.getblock.io/") {
+					// save old settings
+					host := config.Config.BitcoinHost
+					user := config.Config.BitcoinUser
+					pass := config.Config.BitcoinPass
+					// automatic fallback to getblock.io
+					config.Config.BitcoinHost = config.GetBlockIoHost()
+					config.Config.BitcoinUser = ""
+					config.Config.BitcoinPass = ""
+					_, err2 := bitcoin.GetTxOutProof(tx)
+					if err2 != nil {
+						// revert settings
+						config.Config.BitcoinHost = host
+						config.Config.BitcoinUser = user
+						config.Config.BitcoinPass = pass
+						redirectWithError(w, r, "/config?", errors.New("GetTxOutProof failed: "+err.Error()))
 						return
+					} else {
+						// use getblock.io endpoint going forward
+						log.Println("Switching to getblock.io bitcoin host endpoint")
+						if err := config.Save(); err != nil {
+							redirectWithError(w, r, "/bitcoin?", err)
+							return
+						}
 					}
+				} else {
+					redirectWithError(w, r, "/bitcoin?", errors.New("GetTxOutProof failed: "+err.Error()))
+					return
 				}
 			}
 
@@ -1033,11 +1082,11 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			if isPegin {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 				duration := time.Duration(10*peginBlocks) * time.Minute
-				formattedDuration := time.Time{}.Add(duration).Format("15h 04m")
-				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. Time left: " + formattedDuration + ". TxId: `" + res.TxId + "`")
+				eta := time.Now().Add(duration).Format("3:04 PM")
+				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, ETA: %s, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, eta, res.TxId))
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-				telegramSendMessage("⛓️ BTC withdrawal pending: " + formatWithThousandSeparators(uint64(res.AmountSat)) + " sats. TxId: `" + res.TxId + "`")
+				telegramSendMessage(fmt.Sprintf("⛓️ BTC withdrawal pending: %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, res.TxId))
 			}
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
@@ -1559,7 +1608,10 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		swapData += `:</td><td>`
-		swapData += formatSigned(cost) + " sats (" + breakdown + ")"
+		swapData += formatSigned(cost) + " sats</td></tr>"
+
+		swapData += `<tr><td style="text-align: right">Breakdown:</td>`
+		swapData += `<td>` + breakdown + `</td></tr>`
 
 		if swap.State == "State_ClaimedPreimage" {
 			swapData += `<tr><td style="text-align: right">PPM:</td><td>`
@@ -1789,7 +1841,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 
 	satAmount := res2.GetSatAmount()
 
-	var candidate SwapParams
+	var candidate AutoSwapParams
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		log.Printf("unable findSwapInCandidate: %v", err)
@@ -1818,8 +1870,9 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapThresholdAmount uint64
 		AutoSwapMaxAmount       uint64
 		AutoSwapThresholdPPM    uint64
-		AutoSwapCandidate       *SwapParams
+		AutoSwapCandidate       *AutoSwapParams
 		AutoSwapTargetPct       uint64
+		AutoSwapPremiumLimit    int64
 		AdvertiseEnabled        bool
 		DescriptorsWallet       bool
 	}
@@ -1840,6 +1893,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		AutoSwapMaxAmount:       config.Config.AutoSwapMaxAmount,
 		AutoSwapThresholdPPM:    config.Config.AutoSwapThresholdPPM,
 		AutoSwapTargetPct:       config.Config.AutoSwapTargetPct,
+		AutoSwapPremiumLimit:    config.Config.AutoSwapPremiumLimit,
 		AutoSwapCandidate:       &candidate,
 		AdvertiseEnabled:        ln.AdvertiseLiquidBalance,
 		DescriptorsWallet:       walletInfo.Descriptors,
@@ -1867,6 +1921,66 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 		defer cleanup()
 
 		switch action {
+		case "setPremium":
+			nextPage := r.FormValue("nextPage")
+
+			isDeleted := r.FormValue("premium") == ""
+
+			premiumRatePpm, _ := strconv.ParseInt(r.FormValue("premium"), 10, 64)
+
+			asset, err := strconv.ParseInt(r.FormValue("asset"), 10, 32)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			operation, err := strconv.ParseInt(r.FormValue("operation"), 10, 32)
+			if err != nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			nodeId := r.FormValue("peerNodeId")
+			which := "Default"
+			what := "deleted"
+			var result *peerswaprpc.PremiumRate
+
+			if nodeId == "" {
+				result, err = ps.UpdateGlobalPremiumRate(client, &peerswaprpc.PremiumRate{
+					Asset:          peerswaprpc.AssetType(asset),
+					Operation:      peerswaprpc.OperationType(operation),
+					PremiumRatePpm: premiumRatePpm,
+				})
+				what = fmt.Sprintf("updated to %d", result.GetPremiumRatePpm())
+			} else {
+				which = "Peer's"
+				if isDeleted {
+					result, err = ps.DeletePremiumRate(client, nodeId,
+						&peerswaprpc.PremiumRate{
+							Asset:     peerswaprpc.AssetType(asset),
+							Operation: peerswaprpc.OperationType(operation),
+						})
+				} else {
+					result, err = ps.UpdatePremiumRate(client, nodeId,
+						&peerswaprpc.PremiumRate{
+							Asset:          peerswaprpc.AssetType(asset),
+							Operation:      peerswaprpc.OperationType(operation),
+							PremiumRatePpm: premiumRatePpm,
+						})
+					what = fmt.Sprintf("updated to %d", result.GetPremiumRatePpm())
+				}
+			}
+
+			if err != nil || result == nil {
+				redirectWithError(w, r, nextPage, err)
+				return
+			}
+
+			// all good, display confirmation
+			msg := fmt.Sprintf("%s %s %s premium rate %s", which, result.Asset.String(), result.Operation.String(), what)
+			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
+			return
+
 		case "externalPeginTxId":
 			if r.FormValue("externalPeginCancel") != "" {
 				config.Config.PeginTxId = ""
@@ -2295,34 +2409,6 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 			return
 
-		case "setHtlcSize":
-			nextPage := r.FormValue("nextPage")
-
-			size, err := strconv.ParseInt(r.FormValue("size"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			channelId, err := strconv.ParseUint(r.FormValue("channelId"), 10, 64)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			isMax := r.FormValue("minMax") == "max"
-
-			err = ln.SetHtlcSize(r.FormValue("peerNodeId"), channelId, size*1000, isMax)
-			if err != nil {
-				redirectWithError(w, r, nextPage, err)
-				return
-			}
-
-			// all good, display confirmation
-			msg := strings.Title(r.FormValue("minMax")) + " HTLC size updated to " + formatSigned(size) + " sats"
-			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
-			return
-
 		case "enableHTTPS":
 			if err := config.GenerateServerCertificate(); err == nil {
 				// opt-in for a single password auth
@@ -2386,6 +2472,12 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			newPremiumLimit, err := strconv.ParseInt(r.FormValue("premiumLimit"), 10, 64)
+			if err != nil {
+				redirectWithError(w, r, "/liquid?", err)
+				return
+			}
+
 			nowEnabled := r.FormValue("autoSwapEnabled") == "on"
 			t := "Automatic swap-ins "
 			msg := ""
@@ -2395,7 +2487,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				config.Config.AutoSwapThresholdAmount != newAmount ||
 				config.Config.AutoSwapMaxAmount != maxAmount ||
 				config.Config.AutoSwapThresholdPPM != newPPM ||
-				config.Config.AutoSwapTargetPct != newPct) {
+				config.Config.AutoSwapTargetPct != newPct ||
+				config.Config.AutoSwapPremiumLimit != newPremiumLimit) {
 				t += "Enabled"
 				msg = t
 				log.Println(t)
@@ -2412,6 +2505,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			config.Config.AutoSwapMaxAmount = maxAmount
 			config.Config.AutoSwapTargetPct = newPct
 			config.Config.AutoSwapEnabled = nowEnabled
+			config.Config.AutoSwapPremiumLimit = newPremiumLimit
 
 			// Save config
 			if err := config.Save(); err != nil {
@@ -2532,6 +2626,8 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			premiumLimit, _ := strconv.ParseInt(r.FormValue("premiumLimit"), 10, 64)
+
 			var id string
 			asset := r.FormValue("from")
 			direction := "in"
@@ -2546,14 +2642,14 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 			switch direction {
 			case "in":
-				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false)
+				id, err = ps.SwapIn(client, swapAmount, channelId, asset, false, premiumLimit)
 			case "out":
-				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false)
+				id, err = ps.SwapOut(client, swapAmount, channelId, asset, false, premiumLimit)
 			}
 
 			if err != nil {
 				e := err.Error()
-				if e == "Request timed out" || strings.HasPrefix(e, "rpc error: code = Unavailable desc = rpc timeout reached") {
+				if e == "Request timed out" || strings.Contains(e, "rpc timeout reached") {
 					// sometimes the swap is pending anyway
 					res, er := ps.ListActiveSwaps(client)
 					if er != nil {
@@ -2577,6 +2673,18 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+
+			// delete peer balance information
+			if asset == "btc" {
+				if ln.BitcoinBalances != nil {
+					delete(ln.BitcoinBalances, nodeId)
+				}
+			} else {
+				if ln.LiquidBalances != nil {
+					delete(ln.LiquidBalances, nodeId)
+				}
+			}
+
 			// Redirect to swap page to follow the swap
 			http.Redirect(w, r, "/swap?id="+id, http.StatusSeeOther)
 

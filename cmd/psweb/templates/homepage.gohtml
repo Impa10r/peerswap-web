@@ -8,7 +8,7 @@
             <tr>
               <td style="padding: 0px; text-align: left;">
                 <h4 class="title is-4" style="white-space: nowrap">
-                  <span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
+                  {{template "bitcoin_icon"}}&nbsp<a title="On-chain BTC balance" href="/bitcoin" id="scramble">{{fmt .BitcoinBalance}}</a>
                   {{if and .AllowSwapRequests .BitcoinSwaps}} 
                     {{if .AdvertiseBitcoin}}
                       <a href="/bitcoin" title="Broadcasting BTC balance to peers">📡</a>
@@ -70,7 +70,12 @@
               </div>
               <div style="display: flex; justify-content: flex-end;">
                 {{if .Filter}}
-                  <h4 style="transform: scale(1.5)"><a title="Clear filters" href="/">🔍</a></h4>
+                  <h4 style="position: relative; display: inline-block;">
+                  <a title="Clear filters" href="/" style="position: relative; display: inline-block;">
+                    <span style="font-size: 1.5em;">🔍</span>
+                    <span style="position: absolute; top: 0.5em; right: 0.5em; color: red; font-size: 0.7em; transform: translate(50%, -50%);">❌</span>
+                  </a>
+                  </h4>
                 {{end}}
               </div>
             </div>

@@ -11,7 +11,7 @@ import (
 )
 
 // Config defaults for LND
-func loadDefaults(home, dataDir string) {
+func loadDefaults(home, dataDir, _ string) {
 	Config.LightningDir = filepath.Join(home, ".lnd")
 	Config.RpcHost = "localhost:42069"
 

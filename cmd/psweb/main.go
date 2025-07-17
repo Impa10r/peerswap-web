@@ -34,25 +34,25 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v1.7.8"
+	VERSION = "v1.8.0"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
 	ELEMENTS_DISCOUNTED_VSIZE_VERSION = 230203
+	ELEMENTS_REDUCED_DUST_VERSION     = 230207
 	// opening tx sizes for fee estimates
 	OPENING_TX_SIZE_BTC             = 350
 	OPENING_TX_SIZE_LBTC            = 3000
 	OPENING_TX_SIZE_LBTC_DISCOUNTED = 750
-	// https://github.com/ElementsProject/peerswap/pull/304#issuecomment-2303931071
-	SWAP_LBTC_RESERVE = 1_200
 )
 
-type SwapParams struct {
-	PeerAlias string
-	PeerId    string
-	ChannelId uint64
-	Amount    uint64
-	PPM       uint64
+type AutoSwapParams struct {
+	PeerAlias      string
+	PeerId         string
+	ChannelId      uint64
+	Amount         uint64
+	RoutingPpm     uint64
+	PremiumRatePpm int64
 }
 
 var (
@@ -76,9 +76,12 @@ var (
 	peerNodeId = make(map[uint64]string)
 	// only poll all peers once after peerswap initializes
 	initalPollComplete = false
+	// wait for elements to start
+	elementsHasStarted = false
 	// identifies if this version of Elements Core supports discounted vSize
 	hasDiscountedvSize        = false
 	discountedvSizeIdentified = false
+	SwapLbtcDustReserve       = 1_200
 	// asset id for L-BTC
 	elementsBitcoinId = ""
 	// required maturity for peg-in funding tx
@@ -100,8 +103,8 @@ func start() {
 		store = sessions.NewCookieStore([]byte(cookie))
 	}
 
-	if config.Config.Chain == "testnet" {
-		// allow faster pegin on testnet4
+	if config.Config.Chain != "mainnet" {
+		// allow faster pegin on test chains
 		peginBlocks = 10
 	}
 
@@ -263,13 +266,16 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	// translate common errors into plain English
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
-		t = "Peerswapd has not started listening yet. Check logs."
+		t = "Peerswapd has not started listening yet"
 		redirectUrl = "/log?"
 	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
-		t = "Peerswap is still in the process of starting up. Check logs."
+		t = "Peerswap is still in the process of starting up"
 		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "Unable to dial socket"):
-		t = "Lightningd has not started listening yet. Check logs."
+		t = "Lightningd has not started listening yet"
+		redirectUrl = "/log?log=cln.log&"
+	case strings.HasPrefix(t, "-32601:Unknown command 'peerswap-"):
+		t = "Peerswap plugin is not running"
 		redirectUrl = "/log?log=cln.log&"
 	case strings.HasPrefix(t, "rpc error: code = "):
 		i := strings.Index(t, "desc =")
@@ -314,12 +320,15 @@ func onTimer() {
 		// identify if Elements Core supports CT discounts
 		elementsVersion := liquid.GetVersion()
 		if elementsVersion > 0 {
+
+			log.Printf("Identified Elements Core v%d", elementsVersion)
+
 			hasDiscountedvSize = elementsVersion >= ELEMENTS_DISCOUNTED_VSIZE_VERSION
 			discountedvSizeIdentified = true
-			if hasDiscountedvSize {
-				log.Println("Discounted vsize on Liquid is enabled")
-			} else {
-				log.Println("Discounted vsize on Liquid is disabled")
+
+			// identify dust reserve
+			if elementsVersion >= ELEMENTS_REDUCED_DUST_VERSION {
+				SwapLbtcDustReserve = 170
 			}
 
 			// find asset id for Bitcoin
@@ -364,10 +373,9 @@ func onTimer() {
 		}
 	} else {
 		// run only once when lighting becomes available
-		go cacheAliases()
+		lightningHasStarted = cacheAliases()
 	}
 
-	lightningHasStarted = true
 }
 
 func liquidBackup(force bool) {
@@ -709,7 +717,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if btcBalance >= 100_000 {
 					flooredBalance = toMil(btcBalance)
-					bal = "≥" + formatWithThousandSeparators(btcBalance)
+					bal = formatWithThousandSeparators(btcBalance)
 				}
 				peerTable += "<span title=\"Peer's BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -725,7 +733,7 @@ func convertPeersToHTMLTable(
 				bal := "<100k"
 				if lbtcBalance >= 100_000 {
 					flooredBalance = toMil(lbtcBalance)
-					bal = "≥" + formatWithThousandSeparators(lbtcBalance)
+					bal = formatWithThousandSeparators(lbtcBalance)
 				}
 				peerTable += "<span title=\"Peer's L-BTC balance: " + bal + " sats\nLast update: " + tm + "\">" + flooredBalance + "</span>"
 			}
@@ -1086,6 +1094,11 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		})
 	}
 
+	if persist {
+		// save new chain fees to db
+		db.Save("Swaps", "txFee", txFee)
+	}
+
 	// sort the table on TimeStamp field
 	sort.Slice(unsortedTable, func(i, j int) bool {
 		return unsortedTable[i].TimeStamp > unsortedTable[j].TimeStamp
@@ -1103,25 +1116,15 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 	table += "</table>"
 
-	// show total amount and cost
-	ppm := int64(0)
-	if totalAmount > 0 {
-		ppm = totalCost * 1_000_000 / int64(totalAmount)
-	}
+	if len(swaps) > 1 {
+		// show total amount and cost
+		ppm := int64(0)
+		if totalAmount > 0 {
+			ppm = -totalCost * 1_000_000 / int64(totalAmount)
+		}
 
-	table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
-	if totalCost >= 0 {
-		table += "Cost"
-	} else {
-		table += "Profit"
-		totalCost = -totalCost
-		ppm = -ppm
-	}
-	table += ": " + formatSigned(totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
-
-	// save to db
-	if persist {
-		db.Save("Swaps", "txFee", txFee)
+		table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
+		table += "P&L: " + formatSigned(-totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
 	}
 
 	return table
@@ -1165,6 +1168,8 @@ func checkPegin() {
 		if config.Config.PeginClaimScript == "done" {
 			// finish by sending telegram message
 			telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + config.Config.PeginTxId + "`")
+			peginInvite = ""
+			ln.ClaimJoinHandler = ""
 			config.Config.PeginClaimScript = ""
 			config.Config.PeginTxId = ""
 			config.Config.PeginClaimJoin = false
@@ -1214,6 +1219,12 @@ func checkPegin() {
 			rawTx, err := bitcoin.GetRawTransaction(config.Config.PeginTxId, nil)
 			if err == nil {
 				proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+				if err != nil {
+					// try again
+					time.Sleep(10 * time.Second)
+					proof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+				}
+
 				if err == nil {
 					txid, err = liquid.ClaimPegin(rawTx, proof, config.Config.PeginClaimScript)
 					// claimpegin takes long time, allow it to timeout
@@ -1250,7 +1261,7 @@ func checkPegin() {
 					} else if currentBlockHeight <= ln.JoinBlockHeight {
 						// join by replying to initiator
 						if ln.JoinClaimJoin(claimHeight) {
-							t := "Applied to claim"
+							t := "Applied to join confidential pegin"
 							log.Println(t + " " + ln.ClaimJoinHandler + " as " + ln.MyPublicKey())
 							telegramSendMessage("🧬 " + t)
 						} else {
@@ -1299,30 +1310,34 @@ func getNodeAlias(key string) string {
 }
 
 // preemptively load all Aliases in cache
-func cacheAliases() {
+func cacheAliases() bool {
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
-		return
+		return false
 	}
 	defer clean()
 
 	res, err := ln.ListPeers(cl, "", nil)
 	if err != nil {
-		return
+		return false
 	}
 
-	peers := res.GetPeers()
-	for _, peer := range peers {
-		getNodeAlias(peer.NodeId)
-	}
+	go func() {
+		peers := res.GetPeers()
+		for _, peer := range peers {
+			getNodeAlias(peer.NodeId)
+		}
+	}()
+
+	return true
 }
 
 // Finds a candidate for an automatic swap-in
 // The goal is to spend maximum available liquid
 // To rebalance a channel with high enough historic fee PPM
-func findSwapInCandidate(candidate *SwapParams) error {
-	minAmount := config.Config.AutoSwapThresholdAmount - SWAP_LBTC_RESERVE
+func findSwapInCandidate(candidate *AutoSwapParams) error {
+	minAmount := config.Config.AutoSwapThresholdAmount - uint64(SwapLbtcDustReserve)
 	minPPM := config.Config.AutoSwapThresholdPPM
 
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
@@ -1369,6 +1384,11 @@ func findSwapInCandidate(candidate *SwapParams) error {
 		if !peer.SwapsAllowed || !stringIsInSlice("lbtc", peer.SupportedAssets) {
 			continue
 		}
+		// ignore high LBTC swap-in premium
+		if peer.PeerPremium.Rates[2].PremiumRatePpm > config.Config.AutoSwapPremiumLimit {
+			continue
+		}
+
 		for _, channel := range peer.Channels {
 			// ignore if there was an opposite peerswap
 			if !channel.Active || lastWasSwapOut[channel.ChannelId] {
@@ -1420,7 +1440,7 @@ func findSwapInCandidate(candidate *SwapParams) error {
 					candidate.PeerAlias = getNodeAlias(peer.NodeId)
 					// set maximum possible amount
 					candidate.Amount = swapAmount
-					candidate.PPM = ppm
+					candidate.RoutingPpm = ppm
 				}
 			}
 		}
@@ -1489,7 +1509,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	var candidate SwapParams
+	var candidate AutoSwapParams
 
 	if err := findSwapInCandidate(&candidate); err != nil {
 		// some error prevented candidate finding
@@ -1503,20 +1523,20 @@ func executeAutoSwap() {
 		return
 	}
 
-	amount = min(amount, satAmount-SWAP_LBTC_RESERVE)
+	amount = min(amount, satAmount-uint64(SwapLbtcDustReserve))
 
-	// execute swap
-	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false)
+	// execute swap with 0 premium limit
+	autoSwapId, err = ps.SwapIn(client, amount, candidate.ChannelId, "lbtc", false, 0)
 	if err != nil {
 		log.Println("AutoSwap error:", err)
 		return
 	}
 
 	// Log swap id
-	log.Println("Initiated Auto Swap-In, id: "+autoSwapId+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.PPM))
+	log.Println("Initiated Auto Swap-In, id: "+autoSwapId+", Peer: "+candidate.PeerAlias+", L-BTC Amount: "+formatWithThousandSeparators(amount)+", Channel's PPM: ", formatWithThousandSeparators(candidate.RoutingPpm))
 
 	// Send telegram
-	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.PPM))
+	telegramSendMessage("🤖 Initiated Auto Swap-In with " + candidate.PeerAlias + " for " + formatWithThousandSeparators(amount) + " Liquid sats. Channel's PPM: " + formatWithThousandSeparators(candidate.RoutingPpm))
 }
 
 // total cost, verbal breakdown, new changes to persist
@@ -1528,55 +1548,56 @@ func swapCost(swap *peerswaprpc.PrettyPrintSwap) (int64, string, bool) {
 	fee := int64(0)
 	breakdown := ""
 	newChanges := false
-	new := false
+
+	if swap.PremiumAmount < 0 {
+		fee = -swap.PremiumAmount
+		breakdown = fmt.Sprintf("premium paid: %s, ", formatSigned(-swap.PremiumAmount))
+	} else if swap.PremiumAmount > 0 {
+		fee = -swap.PremiumAmount
+		breakdown = fmt.Sprintf("premium received: %s, ", formatSigned(swap.PremiumAmount))
+	}
 
 	switch swap.Type + swap.Role {
 	case "swap-outsender":
 		rebate, exists := ln.SwapRebates[swap.Id]
 		if exists {
-			breakdown = fmt.Sprintf("rebate paid: %s", formatSigned(-rebate))
-			fee = rebate
+			breakdown += fmt.Sprintf("rebate paid: %s", formatSigned(rebate))
+			fee += rebate
 		}
 		claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		if claim > 0 {
 			newChanges = newChanges || new
 			fee += claim
-			breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
+			breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 		}
+
+	case "swap-outreceiver":
+		rebate, exists := ln.SwapRebates[swap.Id]
+		if exists {
+			fee -= rebate
+			breakdown += fmt.Sprintf("rebate received: %s, ", formatSigned(rebate))
+		}
+		fallthrough
+
 	case "swap-insender":
-		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
+		chainFee, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("opening: %s", formatSigned(-fee))
-		if swap.State == "State_ClaimedCoop" {
+		fee += chainFee
+		breakdown += fmt.Sprintf("opening cost: %s", formatSigned(chainFee))
+		if swap.State == "State_ClaimedCoop" || swap.State == "State_ClaimedCsv" {
 			claim, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 			if claim > 0 {
 				newChanges = newChanges || new
 				fee += claim
-				breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
+				breakdown += fmt.Sprintf(", claim cost: %s", formatSigned(claim))
 			}
 		}
 
-	case "swap-outreceiver":
-		fee, new = onchainTxFee(swap.Asset, swap.OpeningTxId)
-		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("opening: %s", formatSigned(-fee))
-		if swap.State == "State_ClaimedCoop" {
-			claim, new := onchainTxFee(swap.Asset, swap.OpeningTxId)
-			if claim > 0 {
-				newChanges = newChanges || new
-				fee += claim
-				breakdown += fmt.Sprintf(", claim: %s", formatSigned(-claim))
-			}
-		}
-		rebate, exists := ln.SwapRebates[swap.Id]
-		if exists {
-			fee -= rebate
-			breakdown += fmt.Sprintf(", rebate received: +%s", formatSigned(rebate))
-		}
 	case "swap-inreceiver":
-		fee, new = onchainTxFee(swap.Asset, swap.ClaimTxId)
+		chainFee, new := onchainTxFee(swap.Asset, swap.ClaimTxId)
 		newChanges = newChanges || new
-		breakdown = fmt.Sprintf("claim: %s", formatSigned(-fee))
+		fee += chainFee
+		breakdown += fmt.Sprintf("claim cost: %s", formatSigned(chainFee))
 	}
 
 	return fee, breakdown, newChanges
@@ -1774,6 +1795,11 @@ func last(x int, a interface{}) bool {
 }
 
 func advertiseBalances() {
+
+	if !config.Config.AllowSwapRequests {
+		return
+	}
+
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return
@@ -1803,9 +1829,9 @@ func advertiseBalances() {
 	}
 
 	liquidBalance := res2.GetSatAmount()
-	// Elements fee bug does not permit sending the whole balance, haircut it
-	if liquidBalance >= SWAP_LBTC_RESERVE {
-		liquidBalance -= SWAP_LBTC_RESERVE
+	// Elements does not permit sending the whole balance, haircut it
+	if liquidBalance >= uint64(SwapLbtcDustReserve) {
+		liquidBalance -= uint64(SwapLbtcDustReserve)
 	}
 
 	cutOff := time.Now().AddDate(0, 0, -1).Unix() - 120
@@ -1827,14 +1853,14 @@ func advertiseBalances() {
 			if ptr.TimeStamp < cutOff {
 				pollPeer = true
 				// delete stale information
-				ln.LiquidBalances[peer.NodeId] = nil
+				delete(ln.LiquidBalances, peer.NodeId)
 			}
 		}
 		if ptr := ln.BitcoinBalances[peer.NodeId]; ptr != nil {
 			if ptr.TimeStamp < cutOff {
 				pollPeer = true
 				// delete stale information
-				ln.BitcoinBalances[peer.NodeId] = nil
+				delete(ln.BitcoinBalances, peer.NodeId)
 			}
 		}
 
@@ -1875,7 +1901,7 @@ func advertiseBalances() {
 			}
 		}
 
-		if ln.AdvertiseBitcoinBalance {
+		if config.Config.BitcoinSwaps && ln.AdvertiseBitcoinBalance {
 			// cap the shown balance to maximum swappable
 			showBalance := min(maxBalance, bitcoinBalance)
 			// round down to 0 if below 100k

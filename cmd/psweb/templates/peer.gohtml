@@ -8,7 +8,7 @@
             <table style="width:100%; table-layout:fixed;">
               <tr>
                 <td style="padding: 0px; text-align: left;">
-                  <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}</h4>
+                  <h4 class="title is-4" style="white-space: nowrap">{{template "bitcoin_icon"}}&nbsp{{fmt .BitcoinBalance}}</h4>
                 </td>
                 <td style="padding: 0px; text-align: left;">
                   <h4 class="title is-4" style="white-space: nowrap">🌊&nbsp{{fmt .LiquidBalance}}</h4>
@@ -90,8 +90,15 @@
                       </div>
                       <div class="field is-horizontal">
                         <div class="field-label is-normal">
+                          <label class="label">Premium Limit</label>
+                        </div>
+                        <div class="field-body">
+                          <input class="input is-medium" type="number" id="premiumLimit" name="premiumLimit" oninput="delayedCalculateTransactionFee()" required placeholder="Swap Premium Limit (PPM)">
+                        </div>
+                      </div>
+                      <div class="field is-horizontal">
+                        <div class="field-label is-normal">
                           <label id="resultLabel" class="label">Cost Estimate</label>
-                          <input type="number" id="totalFee" style="display: none;" value=0>
                         </div>
                         <div class="field-body">
                           <label id="result" class="label">Please enter the Swap Amount</label>
@@ -221,6 +228,7 @@
                         // check max amount
                         const maxAmount = swapMaxAmount();
                         if (swapAmount > maxAmount) {
+                          document.getElementById("swapAmount").value = maxAmount;
                           document.getElementById('result').innerText = "Maximum Swap Amount is " + formatWithThousandSeparators(maxAmount) + " sats";
                           document.getElementById('result').title = '';
                           document.getElementById('resultLabel').title = '';
@@ -380,7 +388,12 @@
                           text = rebateText;
                         }
 
-                        text += claimText;      
+                        text += claimText;   
+
+                        const premium = Math.floor(document.getElementById('premiumLimit').value * swapAmount / 1000000);
+                        fee += premium;
+                        
+                        text += "Max premium: " + formatWithThousandSeparators(premium) + " sats\n";  
                         text += "Total cost: " + formatWithThousandSeparators(fee) + " sats\n";
                         text += "Cost PPM: " + formatWithThousandSeparators(Math.round(fee * 1000000 / swapAmount));
                         
@@ -391,7 +404,7 @@
                         document.getElementById('result').title = title;
                         document.getElementById('resultLabel').title = title;
                         document.getElementById('result').innerText = text;
-                        document.getElementById("totalFee").value = Number(fee);
+                        return fee;
                       }
 
                       let timerId;
@@ -406,7 +419,7 @@
 
                       // warning message if swap too expensive
                       function confirmSubmit() {
-                        const fee = Number(document.getElementById("totalFee").value);
+                        const fee = calculateTransactionFee();
                         const amount = Number(document.getElementById("swapAmount").value);
 
                         if (fee > amount / 1000) {
@@ -434,9 +447,9 @@
                       <textarea name="keysendMessage" class="textarea" rows="13">
 Dear {{.PeerAlias}}, 
 
-We are direct peers and could be using Liquid PeerSwap to rebalance our lightning channel. Recently, Liquid introduced discounted fee rates for confidential transactions on mainnet. Now I can rebalance any amount for a flat fee of ~40 sats (swap in) or ~110 sats (swap out). Compare that to your circular rebalancing costs.
+Did you ever dream to become Loop or Boltz for your lightning peers? The wait is over! With PeerSwap you can manage liquidity of your node at a fraction of circular rebalancing cost. Set attractive premium rates of your swaps for the best results. 
 
-PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. It allows sourcing L-BTC via confidential peg-ins, supports auto swap rebalancing and can manage channel fees. Check it out at https://github.com/Impa10r/peerswap-web.
+PeerSwap is available for CLN and LND, including Umbrel App Store, and comes with an excellent Web UI. It allows sourcing L-BTC via confidential peg-ins, supports auto swaps and can manage channel fees. Check it out at https://github.com/Impa10r/peerswap-web.
 
 Feel free to ping me if you have any questions!
 
@@ -483,7 +496,7 @@ Sincerely,
               <tr>
                 {{if .PeerBitcoinBalance}}
                   <td style="text-align: center;">
-                    <p title="Peer's BTC balance"" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{.PeerBitcoinBalance}}</p>
+                    <p title="Peer's BTC balance"" style="white-space: nowrap">{{template "bitcoin_icon"}}&nbsp{{.PeerBitcoinBalance}}</p>
                   </td>
                 {{end}}
                 {{if .PeerLiquidBalance}}
@@ -497,25 +510,72 @@ Sincerely,
               <tr>
                 <th style="text-align: center">Swaps</th>
                 <th style="text-align: center">⇨ ⚡</th>
-                <th style="text-align: center">Cost</th>   
+                <th style="text-align: center">P&L</th>   
                 <th style="text-align: center">⚡ ⇨</th>
-                <th style="text-align: center">Cost</th>
+                <th style="text-align: center">P&L</th>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Sent
                 <td title="Initiated {{fmt .Peer.AsSender.SwapsIn}} swap-ins for {{fmt .Peer.AsSender.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsIn}}</td>
-                <td title="Opening fees paid, Sats (PPM)" style="text-align: center">{{fs .SenderInFee}}{{if .SenderInFee}} ({{fs .SenderInFeePPM}}){{end}}</td>
+                <td title="Profit or Loss, Sats (PPM)" style="text-align: center">{{fs .SenderInProfit}}{{if .SenderInProfit}} ({{fs .SenderInProfitPPM}}){{end}}</td>
                 <td title="Initiated {{fmt .Peer.AsSender.SwapsOut}} swap-outs for {{fmt .Peer.AsSender.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsSender.SatsOut}}</td>
-                <td title="Rebates paid + claim fees, Sats (PPM)" style="text-align: center">{{fs .SenderOutFee}}{{if .SenderOutFee}} ({{fs .SenderOutFeePPM}}){{end}}</td>
+                <td title="Profit or Loss, Sats (PPM)" style="text-align: center">{{fs .SenderOutProfit}}{{if .SenderOutProfit}} ({{fs .SenderOutProfitPPM}}){{end}}</td>
               </tr>
               <tr style="border: 1px dotted">
                 <td style="text-align: center">Rcvd
                 <td title="Received {{fmt .Peer.AsReceiver.SwapsOut}} swap-outs for {{fmt .Peer.AsReceiver.SatsOut}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsOut}}</td>
-                <td title="Opening fees less rebates received, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutFee}}{{if .ReceiverOutFee}} ({{fs .ReceiverOutFeePPM}}){{end}}</td>
+                <td title="Profit or Loss, Sats (PPM)" style="text-align: center">{{fs .ReceiverOutProfit}}{{if .ReceiverOutProfit}} ({{fs .ReceiverOutProfitPPM}}){{end}}</td>
                 <td title="Received {{fmt .Peer.AsReceiver.SwapsIn}} swap-ins for {{fmt .Peer.AsReceiver.SatsIn}} sats total" style="text-align: center">{{m .Peer.AsReceiver.SatsIn}}</td>
-                <td title="Claim fees paid, Sats (PPM)" style="text-align: center">{{fs .ReceiverInFee}}{{if .ReceiverInFee}} ({{fs .ReceiverInFeePPM}}){{end}}</td>
+                <td title="Profit or Loss, Sats (PPM)" style="text-align: center">{{fs .ReceiverInProfit}}{{if .ReceiverInProfit}} ({{fs .ReceiverInProfitPPM}}){{end}}</td>
               </tr>
             </table>  
+            <table style="width:100%; table-layout:fixed; margin-bottom:1em; border-collapse: collapse;">
+              <tr>
+                <th style="text-align: center">Premiums</th>
+                <th style="text-align: center">{{template "bitcoin_icon"}} ⇨⚡</th>
+                <th style="text-align: center">⚡⇨ {{template "bitcoin_icon"}}</th>
+                <th style="text-align: center">🌊⇨⚡</th>   
+                <th style="text-align: center">⚡⇨🌊</th>
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center">Global</td>
+                {{range $i, $rate := .GlobalPremium}}
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{$i}}_default_premium" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setPremium">
+                      <input type="hidden" name="peerNodeId" value="">
+                      <input type="hidden" name="asset" value="{{ $rate.Asset }}">
+                      <input type="hidden" name="operation" value="{{ $rate.Operation }}">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="premium" value="{{ $rate.PremiumRatePpm }}" onchange="submitForm('{{$i}}_default_premium')">
+                    </form>
+                  </td>
+                {{end}}
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center">For Peer</td>
+                {{range $i, $rate := .PeerPremium}}
+                  <td style="padding: 0px; text-align: center">
+                    <form id="{{$i}}_peer_premium" autocomplete="off" action="/submit" method="post">
+                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
+                      <input type="hidden" name="action" value="setPremium">
+                      <input type="hidden" name="peerNodeId" value="{{$.Peer.NodeId}}">
+                      <input type="hidden" name="asset" value="{{ $rate.Asset }}">
+                      <input type="hidden" name="operation" value="{{ $rate.Operation }}">
+                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
+                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="premium" value="{{ $rate.PremiumRatePpm }}" onchange="submitForm('{{$i}}_peer_premium')">
+                    </form>
+                  </td>
+                {{end}}
+              </tr>
+              <tr style="border: 1px dotted">
+                <td style="padding: 0px; text-align: center">By Peer</td>
+                {{range $i, $rate := .Peer.PeerPremium.Rates}}
+                    <td title="Premium Rate, PPM" style="padding: 0px; text-align: center">{{ fs $rate.PremiumRatePpm }}</td>
+                {{end}}
+              </tr>
+            </table> 
           {{end}}
           <table style="width:100%; table-layout:fixed; margin-bottom:0.5em;">
             <tr>

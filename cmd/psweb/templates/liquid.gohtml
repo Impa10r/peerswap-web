@@ -82,13 +82,21 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
             </div>
             <div class="field is-horizontal">
               <div class="field-label is-normal">
+                <label title="Peer's Premium Limit, PPM" class="label">Premium Limit</label>
+              </div>
+              <div class="field-body">
+                <input class="input is-medium" type="number" name="premiumLimit" value={{.AutoSwapPremiumLimit}} required placeholder="Swap Premium Limit (PPM)">
+              </div>
+            </div>
+            <div class="field is-horizontal">
+              <div class="field-label is-normal">
                 <label class="label">Current Best Candidate</label>
               </div>
               <div class="field-body">
                 <label class="label">
                   <p title="Channel Id: {{.AutoSwapCandidate.ChannelId}}">{{.AutoSwapCandidate.PeerAlias}}</p>
                   <p title="Swap-in amount to achieve target balance %">Max Swap: {{fmt .AutoSwapCandidate.Amount}}</p>
-                  <p title="Channel's realized PPM from the previous swap or the last 6 months">Recent PPM: {{fmt .AutoSwapCandidate.PPM}}</p>
+                  <p title="Channel's realized PPM from the previous swap or the last 6 months">Recent PPM: {{fmt .AutoSwapCandidate.RoutingPpm}}</p>
                 </label>
               </div>
             </div>

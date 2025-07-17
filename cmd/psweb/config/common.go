@@ -48,6 +48,7 @@ type Configuration struct {
 	AutoSwapMaxAmount       uint64
 	AutoSwapThresholdPPM    uint64
 	AutoSwapTargetPct       uint64
+	AutoSwapPremiumLimit    int64
 	SecureConnection        bool
 	ServerIPs               string
 	SecurePort              string
@@ -78,7 +79,7 @@ func Load(dataDir string, network string) {
 	Config.ElementsHost = "http://127.0.0.1"
 	Config.ElementsPort = "18884"
 
-	Config.Chain = "mainnet"
+	Config.Chain = network
 	Config.NodeApi = "https://amboss.space/node"
 	Config.BitcoinApi = "https://mempool.space"
 	Config.LiquidApi = "https://liquid.network"
@@ -89,10 +90,9 @@ func Load(dataDir string, network string) {
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 
-	if network == "testnet" {
-		Config.Chain = "testnet"
-		Config.NodeApi = "https://mempool.space/testnet/lightning/node"
-		Config.BitcoinApi = "https://mempool.space/testnet"
+	if network != "mainnet" {
+		Config.NodeApi = "https://mempool.space/" + network + "/lightning/node"
+		Config.BitcoinApi = "https://mempool.space/" + network
 		Config.LiquidApi = "https://liquid.network/testnet"
 		Config.ElementsPort = "7039"
 	}
@@ -115,7 +115,7 @@ func Load(dataDir string, network string) {
 	}
 
 	// different defaults for LND and CLN
-	loadDefaults(currentUser.HomeDir, dataDir)
+	loadDefaults(currentUser.HomeDir, dataDir, network)
 
 	// load config from peerswap.conf
 	LoadPS()
@@ -176,10 +176,10 @@ func Save() error {
 
 // fallback for Bitcoin Core API if local is unreachable
 func GetBlockIoHost() string {
-	if Config.Chain == "testnet" {
-		return "https://go.getblock.io/77cfc97c83e0454fb35557331188e7d6"
+	if Config.Chain == "mainnet" {
+		return "https://go.getblock.io/6f4b1867b4324698936d8d18ea99a245"
 	} else {
-		return "https://go.getblock.io/62af44fe83f540539ed0a1b52a80d41e"
+		return "https://go.getblock.io/6bf5fea3b5344c43a061fd295f613be4"
 	}
 }
 
@@ -188,6 +188,7 @@ func GetHostname() string {
 	// Get the hostname of the machine
 	hostname, _ := os.Hostname()
 
+	// Env takes priority
 	if os.Getenv("HOSTNAME") != "" {
 		hostname = os.Getenv("HOSTNAME")
 	}

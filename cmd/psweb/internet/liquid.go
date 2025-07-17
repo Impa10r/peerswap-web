@@ -10,7 +10,7 @@ import (
 // fetch transaction fee from liquid.network
 func GetLiquidTxFee(txid string) int64 {
 	testnet := ""
-	if config.Config.Chain == "testnet" {
+	if config.Config.Chain != "mainnet" {
 		testnet = "/liquidtestnet"
 	}
 	api := "https://liquid.network" + testnet + "/api/tx/" + txid

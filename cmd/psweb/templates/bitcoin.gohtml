@@ -6,7 +6,7 @@
         <div class="box has-text-left">
           <div style="display: grid; grid-template-columns: auto auto;">
             <div style="text-align: left;">
-              <h4 class="title is-4" style="white-space: nowrap"><span style="color: #FF9900; font-weight: bold;">₿</span>&nbsp{{fmt .BitcoinBalance}}
+              <h4 class="title is-4" style="white-space: nowrap">{{template "bitcoin_icon"}}&nbsp{{fmt .BitcoinBalance}}
                 {{if .BitcoinSwaps}} 
                   <span style="font-size: 0.7em;" title="Bitcoin swaps enabled">✔️</span>
                 {{else}}

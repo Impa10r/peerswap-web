@@ -456,6 +456,11 @@ func Broadcast(fromNodeId string, message *Message) bool {
 			// verify that peg-in has indeed started
 			_, err := bitcoin.GetTxOutProof(string(message.Payload))
 			if err != nil {
+				// try again
+				time.Sleep(10 * time.Second)
+				_, err = bitcoin.GetTxOutProof(string(message.Payload))
+			}
+			if err != nil {
 				log.Println("Failed to get Initiator's TxOutProof, ignoring invite")
 				return false
 			}
@@ -1110,6 +1115,11 @@ func createClaimParty(claimBlockHeight uint32) *ClaimParty {
 	}
 
 	party.TxoutProof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+	if err != nil {
+		// try again
+		time.Sleep(2 * time.Second)
+		party.TxoutProof, err = bitcoin.GetTxOutProof(config.Config.PeginTxId)
+	}
 	if err != nil {
 		log.Println("Cannot create ClaimParty: GetTxOutProof:", err)
 		return nil

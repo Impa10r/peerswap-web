@@ -181,9 +181,52 @@ func GetBlockHeight() uint32 {
 	return uint32(res.Blockheight)
 }
 
+type ListNodesRequest struct {
+	Id string `json:"id,omitempty"`
+}
+
+func (r *ListNodesRequest) Name() string {
+	return "listnodes"
+}
+
+type NodeList struct {
+	Nodes []Node `json:"nodes"`
+}
+
+type Node struct {
+	NodeId        string    `json:"nodeid"`
+	Alias         string    `json:"alias"`
+	Color         string    `json:"color"`
+	LastTimestamp int64     `json:"last_timestamp"`
+	Features      string    `json:"features"`
+	Addresses     []Address `json:"addresses"`
+}
+
+type Address struct {
+	Type    string `json:"type"`
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+}
+
 func GetAlias(nodeKey string) string {
-	// not implemented, use mempool
-	return ""
+	client, clean, err := GetClient()
+	if err != nil {
+		log.Println("GetClient:", err)
+		return ""
+	}
+	defer clean()
+
+	var res NodeList
+	err = client.Request(&ListNodesRequest{Id: nodeKey}, &res)
+	if err != nil {
+		return ""
+	}
+
+	if len(res.Nodes) != 1 {
+		return ""
+	}
+
+	return res.Nodes[0].Alias
 }
 
 type UtxoPsbtRequest struct {
@@ -475,13 +518,8 @@ func CacheHTLCs(where string) int {
 		}
 	}
 
-	folder := "bitcoin"
-	if config.Config.Chain == "testnet" {
-		folder = "testnet"
-	}
-
 	// Open a database connection
-	db, err := sql.Open("sqlite3", config.Config.LightningDir+"/"+folder+"/lightningd.sqlite3")
+	db, err := sql.Open("sqlite3", config.DatabaseFile)
 	if err != nil {
 		log.Println("Error opening database:", err)
 		return 0
@@ -1073,27 +1111,6 @@ func DownloadAll() bool {
 	numHtlcs := CacheHTLCs(where)
 
 	downloadComplete = true
-
-	/*
-		duration := time.Since(start)
-		log.Printf("SQL took %v to execute", duration)
-
-		// benchmark time
-		start = time.Now()
-
-		var res ListHtlcsResponse
-		// cache all HTLCs
-		err = client.Request(&ListHtlcsRequest{}, &res)
-		if err != nil {
-			// CLN not ready
-			return false
-		}
-
-		// sort by channel
-		for _, htlc := range res.HTLCs {
-			appendHTLC(htlc)
-		}
-	*/
 
 	peers, err := ListPeers(client, "", nil)
 	if err != nil {
