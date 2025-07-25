@@ -2,7 +2,7 @@
 
 ## 5.0.1
 
-- Show all times in local time zone
+
 
 ## 5.0.0
 

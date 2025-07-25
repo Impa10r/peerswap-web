@@ -821,12 +821,12 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		duration = time.Duration(10*(target-currentBlockHeight)) * time.Minute
 	} else if ln.ClaimJoinHandler != "" {
 		cjHours = int((int32(ln.JoinBlockHeight) - currentBlockHeight + int32(peginBlocks)) / 6)
-		cjTimeLimit = time.Now().Add(time.Duration(10*(ln.JoinBlockHeight-uint32(currentBlockHeight))) * time.Minute).In(time.Local).Format("3:04 PM")
+		cjTimeLimit = time.Now().Add(time.Duration(10*(ln.JoinBlockHeight-uint32(currentBlockHeight))) * time.Minute).Format("3:04 PM")
 	}
 
 	progress := confs * 100 / int32(maxConfs)
 
-	eta := time.Now().Add(duration).In(time.Local).Format("3:04 PM")
+	eta := time.Now().Add(duration).Format("3:04 PM")
 	if duration < 0 {
 		eta = "Past due"
 	}
@@ -1082,7 +1082,7 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 			if isPegin {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 				duration := time.Duration(10*peginBlocks) * time.Minute
-				eta := time.Now().Add(duration).In(time.Local).Format("3:04 PM")
+				eta := time.Now().Add(duration).Format("3:04 PM")
 				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, ETA: %s, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, eta, res.TxId))
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
@@ -1537,7 +1537,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += swap.Id
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Created At:</td><td >`
-	swapData += time.Unix(swap.CreatedAt, 0).In(time.Local).Format("2006-01-02 15:04:05")
+	swapData += time.Unix(swap.CreatedAt, 0).Format("2006-01-02 15:04:05")
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Asset:</td><td>`
 	swapData += swap.Asset
@@ -2020,7 +2020,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 				log.Println("External Funding TxId:", txid)
 				duration := time.Duration(10*(int32(peginBlocks)-tx.Confirmations)) * time.Minute
-				eta := time.Now().Add(duration).In(time.Local).Format("3:04 PM")
+				eta := time.Now().Add(duration).Format("3:04 PM")
 				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. ETA: " + eta + ". TxId: `" + txid + "`")
 			}
 
