@@ -102,7 +102,7 @@ func telegramStart() {
 							if ln.ClaimBlockHeight == 0 {
 								duration = time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
 							}
-							eta := time.Now().Add(duration).Format("3:04 PM")
+							eta := time.Now().Add(duration).In(time.Local).Format("3:04 PM")
 							if duration < 0 {
 								eta = "Past due"
 							}
@@ -115,7 +115,7 @@ func telegramStart() {
 						} else {
 							// solo peg-in
 							duration := time.Duration(10*(int32(peginBlocks)-confs)) * time.Minute
-							eta := time.Now().Add(duration).Format("3:04 PM")
+							eta := time.Now().Add(duration).In(time.Local).Format("3:04 PM")
 							t = "⏰ Peg-in pending:: "
 							if config.Config.PeginClaimScript == "" {
 								t = "⛓️ BTC withdrawal pending: "

@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v5.0.0"
+	VERSION = "v5.0.1"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
@@ -1150,7 +1150,7 @@ func checkPegin() {
 			t := "⌚ ClaimJoin invitation has expired"
 			if ln.ClaimJoinHandler != "" {
 				duration := time.Duration(10*(ln.JoinBlockHeight-currentBlockHeight)) * time.Minute
-				timeLimit := time.Now().Add(duration).Format("3:04 PM")
+				timeLimit := time.Now().Add(duration).In(time.Local).Format("3:04 PM")
 				t = "🧬 Invitation to join a confidential peg-in before " + timeLimit
 			}
 			if telegramSendMessage(t) {

@@ -275,7 +275,7 @@ func BackupAndZip() (string, error) {
 		return "", err
 	}
 
-	destinationZip := time.Now().Format("2006-01-02") + "_" + wallet + ".zip"
+	destinationZip := time.Now().In(time.Local).Format("2006-01-02") + "_" + wallet + ".zip"
 	password := config.Config.ElementsPass
 	sourceFile := filepath.Join(config.Config.ElementsDirMapped, fileName)
 
