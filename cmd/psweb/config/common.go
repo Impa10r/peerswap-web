@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 )
 
@@ -59,11 +58,13 @@ var Config Configuration
 
 func Load(dataDir string, network string) {
 
-	// Get the current user's information
-	currentUser, err := user.Current()
-	if err != nil {
-		log.Fatalln(err)
+	// env gets priority
+	if os.Getenv("NETWORK") != "" {
+		network = os.Getenv("NETWORK")
 	}
+
+	// Get the current user's information
+	currentUser := os.Getenv("USER")
 
 	// load defaults first
 	Config.AllowSwapRequests = true
@@ -73,8 +74,8 @@ func Load(dataDir string, network string) {
 	Config.BitcoinSwaps = true
 	Config.LocalMempool = ""
 	Config.ListenPort = "1984"
-	Config.ElementsDir = filepath.Join(currentUser.HomeDir, ".elements")
-	Config.ElementsDirMapped = filepath.Join(currentUser.HomeDir, ".elements")
+	Config.ElementsDir = filepath.Join("home", currentUser, ".elements")
+	Config.ElementsDirMapped = filepath.Join("home", currentUser, ".elements")
 	Config.ElementsWallet = "peerswap"
 	Config.ElementsHost = "http://127.0.0.1"
 	Config.ElementsPort = "18884"
@@ -90,7 +91,7 @@ func Load(dataDir string, network string) {
 	Config.SecureConnection = false
 	Config.SecurePort = "1985"
 
-	if network != "mainnet" {
+	if network != "mainnet" && network != "bitcoin" {
 		Config.NodeApi = "https://mempool.space/" + network + "/lightning/node"
 		Config.BitcoinApi = "https://mempool.space/" + network
 		Config.LiquidApi = "https://liquid.network/testnet"
@@ -115,7 +116,7 @@ func Load(dataDir string, network string) {
 	}
 
 	// different defaults for LND and CLN
-	loadDefaults(currentUser.HomeDir, dataDir, network)
+	loadDefaults(filepath.Join("home", currentUser), dataDir, network)
 
 	// load config from peerswap.conf
 	LoadPS()

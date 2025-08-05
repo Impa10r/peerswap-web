@@ -1246,6 +1246,10 @@ func checkPegin() {
 				telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + txid + "`")
 			}
 		} else {
+			ln.ClaimStatus = "Funding tx confirmed, awaiting maturity"
+			db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+			telegramSendMessage(ln.ClaimStatus)
+
 			if config.Config.PeginClaimJoin {
 				if ln.MyRole == "none" {
 					claimHeight := currentBlockHeight + peginBlocks - uint32(confs)

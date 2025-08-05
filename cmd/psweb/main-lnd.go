@@ -35,13 +35,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	network := "mainnet"
-	if os.Getenv("NETWORK") != "" {
-		network = os.Getenv("NETWORK")
-	}
-
 	// loading from config file or creating default one
-	config.Load(*dataDir, network)
+	config.Load(*dataDir, "mainnet")
 
 	if *password != "" {
 		// enable HTTPS
