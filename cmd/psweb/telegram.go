@@ -121,11 +121,14 @@ func telegramStart() {
 								t = "⛓️ BTC withdrawal pending: "
 							}
 							t += formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats, Confs: " + strconv.Itoa(int(confs))
-							t += fmt.Sprintf(", sat/vb: %0.2f", config.Config.PeginFeeRate)
 							if config.Config.PeginClaimScript != "" {
 								t += "/102, ETA: " + eta
 							}
 							t += ". TxId: `" + config.Config.PeginTxId + "`"
+							if confs == 0 {
+								t += fmt.Sprintf(", sat/vb: %0.2f", config.Config.PeginFeeRate)
+							}
+
 						}
 					} else {
 						t = "Awaiting external funding to a peg-in address"
