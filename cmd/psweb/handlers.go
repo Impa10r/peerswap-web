@@ -1083,10 +1083,10 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
 				duration := time.Duration(10*peginBlocks) * time.Minute
 				eta := time.Now().Add(duration).Format("3:04 PM")
-				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, ETA: %s, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, eta, res.TxId))
+				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, ETA: %s, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), res.ExactSatVb, eta, res.TxId))
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-				telegramSendMessage(fmt.Sprintf("⛓️ BTC withdrawal pending: %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, res.TxId))
+				telegramSendMessage(fmt.Sprintf("⛓️ BTC withdrawal pending: %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), res.ExactSatVb, res.TxId))
 			}
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
