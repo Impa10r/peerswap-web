@@ -1249,7 +1249,7 @@ func checkPegin() {
 			if ln.ClaimStatus == "Awaiting funding tx to confirm" {
 				ln.ClaimStatus = "Funding tx confirmed, awaiting maturity"
 				db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
-				telegramSendMessage(ln.ClaimStatus)
+				telegramSendMessage(ln.ClaimStatus + ", ETA: " + time.Now().Add(time.Hour*17).Format("3:04 PM"))
 			}
 
 			if config.Config.PeginClaimJoin {
