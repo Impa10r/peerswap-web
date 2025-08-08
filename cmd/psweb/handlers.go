@@ -831,6 +831,21 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		eta = "Past due"
 	}
 
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
+	if err != nil {
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	peers := res.GetPeers()
+
 	data := Page{
 		Authenticated:       config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:        errorMessage,
@@ -859,7 +874,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinAddress:      addr,
 		AdvertiseEnabled:    ln.AdvertiseBitcoinBalance,
 		BitcoinSwaps:        config.Config.BitcoinSwaps,
-		CanClaimJoin:        hasDiscountedvSize,
+		CanClaimJoin:        hasDiscountedvSize && len(peers) > 0,
 		IsClaimJoin:         config.Config.PeginClaimJoin,
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
