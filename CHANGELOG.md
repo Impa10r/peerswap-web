@@ -2,7 +2,8 @@
 
 ## 5.0.1
 
-
+- Show correct fee rate in Telegram notifications
+- 
 
 ## 5.0.0
 

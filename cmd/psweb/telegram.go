@@ -96,7 +96,7 @@ func telegramStart() {
 				} else {
 					if config.Config.PeginTxId != "external" {
 						confs, _ := peginConfirmations(config.Config.PeginTxId)
-						if config.Config.PeginClaimJoin {
+						if config.Config.PeginClaimJoin && ln.ClaimBlockHeight > 0 {
 							bh := ln.GetBlockHeight()
 							duration := time.Duration(10*(ln.ClaimBlockHeight-bh)) * time.Minute
 							if ln.ClaimBlockHeight == 0 {
