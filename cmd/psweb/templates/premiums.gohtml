@@ -1,0 +1,38 @@
+{{define "premiums"}}
+  {{template "header" .}}
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-three-quarters">
+        <div class="box has-text-centered">
+          <h3 class="title is-3">Global Premiums</h3>
+          <p class="subtitle is-6">Adjust the default swap premiums that apply to every peer. Values are expressed in parts-per-million (PPM).</p>
+        </div>
+      </div>
+    </div>
+    <div class="columns is-multiline">
+      {{range .Premiums}}
+        <div class="column is-half">
+          <div class="box has-text-centered">
+            <p class="title is-4">{{.Title}}</p>
+            <p class="subtitle is-6" style="min-height: 3em;">{{.Description}}</p>
+            <form id="{{.FormID}}" action="/submit" method="post" autocomplete="off" class="field has-addons has-addons-centered" style="justify-content: center;">
+              <input autocomplete="false" name="hidden" type="text" style="display:none;">
+              <input type="hidden" name="action" value="setPremium">
+              <input type="hidden" name="peerNodeId" value="">
+              <input type="hidden" name="asset" value="{{.Asset}}">
+              <input type="hidden" name="operation" value="{{.Operation}}">
+              <input type="hidden" name="nextPage" value="/premiums?">
+              <div class="control">
+                <input class="input is-medium has-text-centered" type="number" name="premium" value="{{.PremiumRatePpm}}" onchange="this.form.submit()" aria-label="Premium in parts-per-million">
+              </div>
+              <div class="control">
+                <a class="button is-medium is-static">PPM</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      {{end}}
+    </div>
+  </div>
+  {{template "footer" .}}
+{{end}}

@@ -167,6 +167,7 @@ func start() {
 	r.HandleFunc("/pegin", peginHandler)
 	r.HandleFunc("/bumpfee", bumpfeeHandler)
 	r.HandleFunc("/ca", caHandler)
+	r.HandleFunc("/premiums", globalPremiumsHandler)
 	r.HandleFunc("/login", loginHandler)
 	r.HandleFunc("/logout", logoutHandler)
 	r.HandleFunc("/downloadca", downloadCaHandler)
