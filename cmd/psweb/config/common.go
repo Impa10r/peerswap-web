@@ -115,8 +115,13 @@ func Load(dataDir string, network string) {
 		Config.ElementsHost = os.Getenv("ELEMENTS_HOST")
 	}
 
+	homeFolder := filepath.Join("/home", currentUser)
+	if currentUser == "root" {
+		homeFolder = "/root"
+	}
+
 	// different defaults for LND and CLN
-	loadDefaults(filepath.Join("/home", currentUser), dataDir, network)
+	loadDefaults(homeFolder, dataDir, network)
 
 	// load config from peerswap.conf
 	LoadPS()
