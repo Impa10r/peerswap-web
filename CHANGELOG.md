@@ -3,7 +3,9 @@
 ## 5.0.1
 
 - Show correct fee rate in Telegram notifications
-- 
+- Show all times in the local time zone
+- Fix default user folder on MacOS
+- Add a dedicated Global Premiums page
 
 ## 5.0.0
 
