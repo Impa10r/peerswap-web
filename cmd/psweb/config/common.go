@@ -116,7 +116,7 @@ func Load(dataDir string, network string) {
 	}
 
 	// different defaults for LND and CLN
-	loadDefaults(filepath.Join("home", currentUser), dataDir, network)
+	loadDefaults(filepath.Join("/home", currentUser), dataDir, network)
 
 	// load config from peerswap.conf
 	LoadPS()
