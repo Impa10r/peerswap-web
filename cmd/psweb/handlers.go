@@ -213,6 +213,13 @@ type Premium struct {
 	PremiumRatePpm int64
 }
 
+type PremiumCard struct {
+	Premium
+	Title       string
+	Description string
+	FormID      string
+}
+
 func peerHandler(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 	if !ok || len(keys[0]) < 1 {
@@ -325,7 +332,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 	btcBalance := ln.ConfirmedWalletBalance(cl)
 
-	var globalPremium, peerPremium []Premium
+	var peerPremium []Premium
 
 	psPeer := true
 	if peer == nil {
@@ -353,13 +360,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 
 		for _, asset := range []peerswaprpc.AssetType{peerswaprpc.AssetType_BTC, peerswaprpc.AssetType_LBTC} {
 			for _, operation := range []peerswaprpc.OperationType{peerswaprpc.OperationType_SWAP_IN, peerswaprpc.OperationType_SWAP_OUT} {
-				globalRate, _ := ps.GetGlobalPremiumRate(client, asset, operation)
-				globalPremium = append(globalPremium, Premium{
-					Asset:          int32(asset.Number()),
-					Operation:      int32(operation.Number()),
-					PremiumRatePpm: globalRate.PremiumRatePpm,
-				})
-
 				peerRate, _ := ps.GetPremiumRate(client, peer.NodeId, asset, operation)
 				peerPremium = append(peerPremium, Premium{
 					Asset:          int32(asset.Number()),
@@ -640,7 +640,6 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC             int64
 		OPENING_TX_SIZE_LBTC            int64
 		OPENING_TX_SIZE_LBTC_DISCOUNTED int64
-		GlobalPremium                   []Premium
 		PeerPremium                     []Premium
 	}
 
@@ -702,12 +701,106 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		OPENING_TX_SIZE_BTC:             OPENING_TX_SIZE_BTC,
 		OPENING_TX_SIZE_LBTC:            OPENING_TX_SIZE_LBTC,
 		OPENING_TX_SIZE_LBTC_DISCOUNTED: OPENING_TX_SIZE_LBTC_DISCOUNTED,
-		GlobalPremium:                   globalPremium,
 		PeerPremium:                     peerPremium,
 	}
 
 	// executing template named "peer"
 	executeTemplate(w, "peer", data)
+}
+
+func globalPremiumsHandler(w http.ResponseWriter, r *http.Request) {
+	errorMessage := ""
+	keys, ok := r.URL.Query()["err"]
+	if ok && len(keys[0]) > 0 {
+		errorMessage = keys[0]
+	}
+
+	popupMessage := ""
+	keys, ok = r.URL.Query()["msg"]
+	if ok && len(keys[0]) > 0 {
+		popupMessage = keys[0]
+	}
+
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	combos := []struct {
+		asset       peerswaprpc.AssetType
+		operation   peerswaprpc.OperationType
+		title       string
+		description string
+	}{
+		{
+			asset:       peerswaprpc.AssetType_BTC,
+			operation:   peerswaprpc.OperationType_SWAP_IN,
+			title:       "Bitcoin → Lightning",
+			description: "Premium applied when swapping on-chain bitcoin into Lightning.",
+		},
+		{
+			asset:       peerswaprpc.AssetType_BTC,
+			operation:   peerswaprpc.OperationType_SWAP_OUT,
+			title:       "Lightning → Bitcoin",
+			description: "Premium applied when sending bitcoin on-chain using Lightning liquidity.",
+		},
+		{
+			asset:       peerswaprpc.AssetType_LBTC,
+			operation:   peerswaprpc.OperationType_SWAP_IN,
+			title:       "Liquid → Lightning",
+			description: "Premium applied when converting Liquid bitcoin into Lightning.",
+		},
+		{
+			asset:       peerswaprpc.AssetType_LBTC,
+			operation:   peerswaprpc.OperationType_SWAP_OUT,
+			title:       "Lightning → Liquid",
+			description: "Premium applied when sending swaps out to Liquid bitcoin.",
+		},
+	}
+
+	premiums := make([]PremiumCard, 0, len(combos))
+	for i, combo := range combos {
+		rate, err := ps.GetGlobalPremiumRate(client, combo.asset, combo.operation)
+		ppm := int64(0)
+		if err != nil {
+			log.Printf("GetGlobalPremiumRate(%s,%s): %v", combo.asset.String(), combo.operation.String(), err)
+		} else if rate != nil {
+			ppm = rate.PremiumRatePpm
+		}
+
+		premiums = append(premiums, PremiumCard{
+			Premium: Premium{
+				Asset:          int32(combo.asset.Number()),
+				Operation:      int32(combo.operation.Number()),
+				PremiumRatePpm: ppm,
+			},
+			Title:       combo.title,
+			Description: combo.description,
+			FormID:      fmt.Sprintf("premium_%d", i),
+		})
+	}
+
+	type Page struct {
+		Authenticated  bool
+		ErrorMessage   string
+		PopUpMessage   string
+		ColorScheme    string
+		MempoolFeeRate float64
+		Premiums       []PremiumCard
+	}
+
+	data := Page{
+		Authenticated:  config.Config.SecureConnection && config.Config.Password != "",
+		ErrorMessage:   errorMessage,
+		PopUpMessage:   popupMessage,
+		ColorScheme:    config.Config.ColorScheme,
+		MempoolFeeRate: mempoolFeeRate,
+		Premiums:       premiums,
+	}
+
+	executeTemplate(w, "premiums", data)
 }
 
 func bitcoinHandler(w http.ResponseWriter, r *http.Request) {

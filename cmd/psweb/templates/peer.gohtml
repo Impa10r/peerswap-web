@@ -538,22 +538,6 @@ Sincerely,
                 <th style="text-align: center">⚡⇨🌊</th>
               </tr>
               <tr style="border: 1px dotted">
-                <td style="padding: 0px; text-align: center">Global</td>
-                {{range $i, $rate := .GlobalPremium}}
-                  <td style="padding: 0px; text-align: center">
-                    <form id="{{$i}}_default_premium" autocomplete="off" action="/submit" method="post">
-                      <input autocomplete="false" name="hidden" type="text" style="display:none;">
-                      <input type="hidden" name="action" value="setPremium">
-                      <input type="hidden" name="peerNodeId" value="">
-                      <input type="hidden" name="asset" value="{{ $rate.Asset }}">
-                      <input type="hidden" name="operation" value="{{ $rate.Operation }}">
-                      <input type="hidden" name="nextPage" value="/peer?id={{$.Peer.NodeId}}&">
-                      <input class="transparent-input" {{if eq $.ColorScheme "light"}}style="color: black"{{end}} type="number" name="premium" value="{{ $rate.PremiumRatePpm }}" onchange="submitForm('{{$i}}_default_premium')">
-                    </form>
-                  </td>
-                {{end}}
-              </tr>
-              <tr style="border: 1px dotted">
                 <td style="padding: 0px; text-align: center">For Peer</td>
                 {{range $i, $rate := .PeerPremium}}
                   <td style="padding: 0px; text-align: center">
