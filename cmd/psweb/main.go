@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v5.0.0"
+	VERSION = "v5.0.1"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
@@ -1210,10 +1210,11 @@ func checkPegin() {
 
 	if confs > 0 {
 		if config.Config.PeginClaimScript == "" {
+			// regular BTC withdrawal
 			log.Println("BTC withdrawal complete, txId: " + config.Config.PeginTxId)
 			telegramSendMessage("💸 BTC withdrawal complete. TxId: `" + config.Config.PeginTxId + "`")
 		} else if confs >= int32(peginBlocks) && ln.MyRole == "none" {
-			// claim individual peg-in
+			// pegin matured, claim individual peg-in
 			failed := false
 			proof := ""
 			txid := ""
@@ -1247,6 +1248,13 @@ func checkPegin() {
 				telegramSendMessage("💸 Peg-in complete! Liquid TxId: `" + txid + "`")
 			}
 		} else {
+			if ln.ClaimStatus == "Awaiting funding tx to confirm" {
+				// funding tx confirmed
+				ln.ClaimStatus = "Funding tx confirmed, awaiting maturity"
+				db.Save("ClaimJoin", "ClaimStatus", ln.ClaimStatus)
+				telegramSendMessage(ln.ClaimStatus + ", ETA: " + time.Now().Add(time.Hour*17).Format("3:04 PM"))
+			}
+
 			if config.Config.PeginClaimJoin {
 				if ln.MyRole == "none" {
 					claimHeight := currentBlockHeight + peginBlocks - uint32(confs)
@@ -1274,7 +1282,7 @@ func checkPegin() {
 			return
 		}
 
-		// stop trying after one attempt
+		// stop trying after one attempt to claim
 		config.Config.PeginTxId = ""
 		config.Save()
 	}

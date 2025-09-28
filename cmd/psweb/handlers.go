@@ -924,6 +924,21 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		eta = "Past due"
 	}
 
+	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
+	if err != nil {
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	defer cleanup()
+
+	res, err := ps.ListPeers(client)
+	if err != nil {
+		log.Printf("unable to connect to RPC server: %v", err)
+		redirectWithError(w, r, "/config?", err)
+		return
+	}
+	peers := res.GetPeers()
+
 	data := Page{
 		Authenticated:       config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:        errorMessage,
@@ -952,7 +967,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		BitcoinAddress:      addr,
 		AdvertiseEnabled:    ln.AdvertiseBitcoinBalance,
 		BitcoinSwaps:        config.Config.BitcoinSwaps,
-		CanClaimJoin:        hasDiscountedvSize,
+		CanClaimJoin:        hasDiscountedvSize && len(peers) > 0,
 		IsClaimJoin:         config.Config.PeginClaimJoin,
 		ClaimJoinStatus:     ln.ClaimStatus,
 		HasClaimJoinPending: ln.ClaimJoinHandler != "",
@@ -1174,12 +1189,10 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 			if isPegin {
 				log.Println("New Peg-in TxId:", res.TxId, "RawHex:", res.RawHex, "Claim script:", claimScript)
-				duration := time.Duration(10*peginBlocks) * time.Minute
-				eta := time.Now().Add(duration).Format("3:04 PM")
-				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, ETA: %s, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, eta, res.TxId))
+				telegramSendMessage(fmt.Sprintf("⏰ Started peg in %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), res.ExactSatVb, res.TxId))
 			} else {
 				log.Println("BTC withdrawal pending, TxId:", res.TxId, "RawHex:", res.RawHex)
-				telegramSendMessage(fmt.Sprintf("⛓️ BTC withdrawal pending: %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), config.Config.PeginFeeRate, res.TxId))
+				telegramSendMessage(fmt.Sprintf("⛓️ BTC withdrawal pending: %s sats, fee rate: %0.2f s/vb, TxId: `%s`", formatWithThousandSeparators(uint64(res.AmountSat)), res.ExactSatVb, res.TxId))
 			}
 			config.Config.PeginAmount = res.AmountSat
 			config.Config.PeginTxId = res.TxId
@@ -1630,7 +1643,7 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 	swapData += swap.Id
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Created At:</td><td >`
-	swapData += time.Unix(swap.CreatedAt, 0).UTC().Format("2006-01-02 15:04:05")
+	swapData += time.Unix(swap.CreatedAt, 0).Format("2006-01-02 15:04:05")
 	swapData += `</td></tr>
 			<tr><td style="text-align: right">Asset:</td><td>`
 	swapData += swap.Asset
@@ -2112,9 +2125,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				ln.ClaimStatus = "Awaiting funding tx to confirm"
 
 				log.Println("External Funding TxId:", txid)
-				duration := time.Duration(10*(int32(peginBlocks)-tx.Confirmations)) * time.Minute
-				eta := time.Now().Add(duration).Format("3:04 PM")
-				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. ETA: " + eta + ". TxId: `" + txid + "`")
+				telegramSendMessage("⏰ Started peg in " + formatWithThousandSeparators(uint64(config.Config.PeginAmount)) + " sats. External funding TxId: `" + txid + "`")
 			}
 
 			config.Save()
