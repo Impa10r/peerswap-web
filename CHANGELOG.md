@@ -1,5 +1,9 @@
 # Versions
 
+## 5.0.2
+
+- Count only unlocked outputs as available Liquid balance 
+
 ## 5.0.1
 
 - Show correct fee rate in Telegram notifications
