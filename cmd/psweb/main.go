@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v5.0.1"
+	VERSION = "v5.0.2"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
@@ -406,6 +406,7 @@ func liquidBackup(force bool) {
 		return
 	}
 
+	// we don't care if some UTXOs may be locked
 	satAmount := res2.GetSatAmount()
 
 	// do not backup if the sat amount did not change
@@ -1507,12 +1508,7 @@ func executeAutoSwap() {
 		return
 	}
 
-	res, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		return
-	}
-
-	satAmount := res.GetSatAmount()
+	satAmount := getUnlockedLbtcBalance()
 
 	if satAmount < config.Config.AutoSwapThresholdAmount {
 		return
@@ -1815,11 +1811,6 @@ func advertiseBalances() {
 	}
 	defer cleanup()
 
-	res2, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		return
-	}
-
 	res3, err := ps.ListPeers(client)
 	if err != nil {
 		return
@@ -1837,7 +1828,8 @@ func advertiseBalances() {
 		bitcoinBalance -= ANCHOR_RESERVE
 	}
 
-	liquidBalance := res2.GetSatAmount()
+	liquidBalance := getUnlockedLbtcBalance()
+
 	// Elements does not permit sending the whole balance, haircut it
 	if liquidBalance >= uint64(SwapLbtcDustReserve) {
 		liquidBalance -= uint64(SwapLbtcDustReserve)
@@ -1971,4 +1963,15 @@ func pollBalances() {
 	if initalPollComplete {
 		log.Println("Polled peers for balances")
 	}
+}
+
+// returns spendable Liquid BTC balance
+func getUnlockedLbtcBalance() (liquidBalance uint64) {
+	var utxosLBTC []liquid.UTXO
+	// this list excludes locked outputs
+	liquid.ListUnspent(&utxosLBTC, elementsBitcoinId)
+	for _, utxo := range utxosLBTC {
+		liquidBalance += toSats(utxo.Amount)
+	}
+	return
 }

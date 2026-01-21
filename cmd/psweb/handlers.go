@@ -51,13 +51,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	swaps := res.GetSwaps()
 
-	res2, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	satAmount := res2.GetSatAmount()
+	satAmount := getUnlockedLbtcBalance()
 
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
@@ -254,14 +248,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 	allowlistedPeers := res2.GetAllowlistedPeers()
 	suspiciousPeers := res2.GetSuspiciousPeerList()
 
-	res3, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-
-	satAmount := res3.GetSatAmount()
+	satAmount := getUnlockedLbtcBalance()
 
 	res4, err := ps.ListActiveSwaps(client)
 	if err != nil {
@@ -1931,21 +1918,7 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	defer cleanup()
-
-	res2, err := ps.LiquidGetBalance(client)
-	if err != nil {
-		log.Printf("unable to connect to RPC server: %v", err)
-		redirectWithError(w, r, "/?", err)
-		return
-	}
-
-	satAmount := res2.GetSatAmount()
+	satAmount := getUnlockedLbtcBalance()
 
 	var candidate AutoSwapParams
 
