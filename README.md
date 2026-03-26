@@ -215,7 +215,7 @@ alias bcli="docker exec -it bitcoin_bitcoind_1 bitcoin-cli -rpcuser=umbrel -rpcp
 alias ecli="docker exec -it elements_node_1 elements-cli -rpcuser=elements -rpcpassword=<your elements password>"
 ```
 
-(lookup Elements and Bitcoin rpc passwords in pswebconfig.com)
+(lookup Elements and Bitcoin rpc passwords in pswebconfig.json)
 
 ## Confidential Liquid Peg-in
 
