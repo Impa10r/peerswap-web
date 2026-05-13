@@ -40,9 +40,10 @@ func timePassedAgo(t time.Time) string {
 }
 
 // returns true if the string is present in the array of strings
+// searching for both lowercase and capitalized variants!
 func stringIsInSlice(whatToFind string, whereToSearch []string) bool {
 	for _, s := range whereToSearch {
-		if s == whatToFind {
+		if s == whatToFind || strings.ToLower(s) == whatToFind {
 			return true
 		}
 	}
