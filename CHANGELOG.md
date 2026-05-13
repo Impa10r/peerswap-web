@@ -1,5 +1,9 @@
 # Versions
 
+## 5.0.3
+
+- Allow capitalized supported_assets tickers in peerlist
+
 ## 5.0.2
 
 - Count only unlocked outputs as available Liquid balance 
