@@ -1279,6 +1279,24 @@ func EstimateFee() float64 {
 }
 
 // get fees for all channels by filling the maps [channelId]
+func CacheChannelFees() {
+	client, _, err := GetClient()
+	if err != nil {
+		return
+	}
+
+	outbound := make(map[uint64]int64)
+	inbound := make(map[uint64]int64)
+	if err := FeeReport(client, outbound, inbound); err != nil {
+		return
+	}
+
+	feeRatesMu.Lock()
+	OutboundFeeRates = outbound
+	InboundFeeRates = inbound
+	feeRatesMu.Unlock()
+}
+
 func FeeReport(client *glightning.Lightning, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) error {
 	var response map[string]interface{}
 
@@ -1370,6 +1388,10 @@ func SetFeeRate(peerNodeId string,
 	if err != nil {
 		log.Println("SetFeeRate:", err)
 		return oldRate, err
+	}
+
+	if !isBase {
+		UpdateCachedFeeRate(channelId, feeRate, inbound)
 	}
 
 	return oldRate, nil

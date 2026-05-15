@@ -1340,6 +1340,8 @@ func cacheAliases() bool {
 		}
 	}()
 
+	go ln.CacheChannelFees()
+
 	return true
 }
 

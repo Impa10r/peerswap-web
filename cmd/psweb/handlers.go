@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"peerswap-web/cmd/psweb/bitcoin"
@@ -44,15 +45,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 
-	res, err := ps.ListSwaps(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	swaps := res.GetSwaps()
-
-	satAmount := getUnlockedLbtcBalance()
-
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -60,8 +52,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clean()
-
-	btcBalance := ln.ConfirmedWalletBalance(cl)
 
 	//check for error message to display
 	errorMessage := ""
@@ -98,29 +88,73 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
-	var peers []*peerswaprpc.PeerSwapPeer
+	// run independent RPCs concurrently
+	var (
+		swaps            []*peerswaprpc.PrettyPrintSwap
+		satAmount        uint64
+		btcBalance       int64
+		peers            []*peerswaprpc.PeerSwapPeer
+		allowlistedPeers []string
+		suspiciousPeers  []string
+		errSwaps         error
+		errPolicy        error
+	)
 
-	res3, err := ps.ReloadPolicyFile(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res, err := ps.ListSwaps(client)
+		if err != nil {
+			errSwaps = err
+			return
+		}
+		swaps = res.GetSwaps()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		satAmount = getUnlockedLbtcBalance()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		btcBalance = ln.ConfirmedWalletBalance(cl)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res3, err := ps.ReloadPolicyFile(client)
+		if err != nil {
+			errPolicy = err
+			return
+		}
+		allowlistedPeers = res3.GetAllowlistedPeers()
+		suspiciousPeers = res3.GetSuspiciousPeerList()
+		res4, err := ps.ListPeers(client)
+		if err != nil {
+			errPolicy = err
+			return
+		}
+		peers = res4.GetPeers()
+	}()
+
+	wg.Wait()
+
+	outboundFeeRates, inboundFeeRates := ln.GetFeeRates()
+
+	if errSwaps != nil {
+		redirectWithError(w, r, "/config?", errSwaps)
 		return
 	}
-
-	allowlistedPeers := res3.GetAllowlistedPeers()
-	suspiciousPeers := res3.GetSuspiciousPeerList()
-
-	res4, err := ps.ListPeers(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
+	if errPolicy != nil {
+		redirectWithError(w, r, "/config?", errPolicy)
 		return
 	}
-	peers = res4.GetPeers()
-
-	// get fee rates for all channels
-	outboundFeeRates := make(map[uint64]int64)
-	inboundFeeRates := make(map[uint64]int64)
-
-	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
 
 	_, showAll := r.URL.Query()["showall"]
 
@@ -1312,11 +1346,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// get fee rates for all channels
-	outboundFeeRates := make(map[uint64]int64)
-	inboundFeeRates := make(map[uint64]int64)
-
-	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
+	outboundFeeRates, inboundFeeRates := ln.GetFeeRates()
 
 	capacity := uint64(0)
 	localPct := uint64(0)
