@@ -18,6 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
 	"peerswap-web/cmd/psweb/db"
@@ -30,6 +33,10 @@ import (
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
+	t0 := time.Now()
+	logStep := func(label string) {
+		log.Printf("[indexHandler] %s: %v", label, time.Since(t0))
+	}
 
 	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
@@ -44,6 +51,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanup()
+	logStep("GetClient (PS)")
 
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
@@ -52,6 +60,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clean()
+	logStep("GetClient (LN)")
 
 	//check for error message to display
 	errorMessage := ""
@@ -144,8 +153,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	wg.Wait()
+	logStep("concurrent RPCs done (ListSwaps, LbtcBalance, BtcBalance, ListPeers)")
 
 	outboundFeeRates, inboundFeeRates := ln.GetFeeRates()
+	logStep("GetFeeRates")
 
 	if errSwaps != nil {
 		redirectWithError(w, r, "/config?", errSwaps)
@@ -159,6 +170,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	_, showAll := r.URL.Query()["showall"]
 
 	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates, showAll)
+	logStep("convertPeersToHTMLTable")
 
 	//check whether to display non-PS channels or swaps
 	listSwaps := ""
@@ -179,7 +191,9 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		otherPeers := res5.GetPeers()
+		logStep("ListPeers (non-PS)")
 		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates, showAll)
+		logStep("convertOtherPeersToHTMLTable")
 
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
@@ -233,6 +247,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	// executing template named "homepage" with retries
 	executeTemplate(w, "homepage", data)
+	logStep("TOTAL")
 }
 
 type Premium struct {
@@ -2465,7 +2480,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			ln.LogFee(channelId, oldRate, int(feeRate), inbound, true)
 
 			// all good, display confirmation
-			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
+			msg := cases.Title(language.English).String(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 			return
 
@@ -2512,7 +2527,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// all good, display confirmation
-			msg := strings.Title(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
+			msg := cases.Title(language.English).String(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 			return
 
