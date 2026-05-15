@@ -1,5 +1,9 @@
 # Versions
 
+## 5.0.5
+
+- Speedup index page load for nodes with numerous channels
+
 ## 5.0.4
 
 - Bypass Tor proxy for LAN calls to bitcoind
