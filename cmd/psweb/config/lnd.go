@@ -211,7 +211,7 @@ func getConfSetting(searchVariable, filePath string) string {
 
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
-		if parts := strings.Split(line, "="); len(parts) > 1 {
+		if parts := strings.SplitN(line, "=", 2); len(parts) == 2 {
 			if parts[0] == searchVariable {
 				// ignore inline comments
 				return strings.TrimSpace(strings.Split(parts[1], "#")[0])

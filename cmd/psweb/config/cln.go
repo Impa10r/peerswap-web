@@ -53,7 +53,7 @@ func loadDefaults(home, dataDir, network string) {
 			// ignore commented out lines
 			continue
 		}
-		if parts := strings.Split(l, "="); len(parts) > 1 {
+		if parts := strings.SplitN(l, "=", 2); len(parts) == 2 {
 			if parts[0] == "wallet" {
 				// ignore inline comments
 				value := strings.TrimSpace(strings.Split(parts[1], "#")[0])
@@ -240,7 +240,7 @@ func GetPeerswapCLNSetting(section, searchVariable string) string {
 				// end of section reached
 				break
 			}
-			if parts := strings.Split(line, "="); len(parts) > 1 {
+			if parts := strings.SplitN(line, "=", 2); len(parts) == 2 {
 				if parts[0] == searchVariable {
 					// ignore inline comments
 					value := strings.TrimSpace(strings.Split(parts[1], "#")[0])
