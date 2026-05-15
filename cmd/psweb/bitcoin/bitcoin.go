@@ -156,9 +156,15 @@ func BitcoinClient() (c *RPCClient) {
 		if err != nil {
 			return nil
 		}
+		perHost := proxy.NewPerHost(dialer, proxy.Direct)
+		perHost.AddFromString("localhost")
+		perHost.AddFromString("127.0.0.1")
+		perHost.AddFromString("192.168.0.0/16")
+		perHost.AddFromString("10.0.0.0/8")
+		perHost.AddFromString("172.16.0.0/12")
 		httpClient = &http.Client{
 			Transport: &http.Transport{
-				Dial: dialer.Dial,
+				Dial: perHost.Dial,
 			},
 		}
 	} else {

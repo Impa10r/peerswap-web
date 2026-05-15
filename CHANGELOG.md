@@ -1,5 +1,10 @@
 # Versions
 
+## 5.0.4
+
+- Bypass Tor proxy for LAN calls to bitcoind
+- Fix base64-encoded passwords truncated at "=" character
+
 ## 5.0.3
 
 - Allow capitalized supported_assets tickers in peerlist
