@@ -1820,6 +1820,26 @@ func EstimateFee() float64 {
 	return math.Round(float64(res.SatPerKw / 250))
 }
 
+func CacheChannelFees() {
+	conn, err := lndConnection()
+	if err != nil {
+		return
+	}
+	client := lnrpc.NewLightningClient(conn)
+	defer conn.Close()
+
+	outbound := make(map[uint64]int64)
+	inbound := make(map[uint64]int64)
+	if err := FeeReport(client, outbound, inbound); err != nil {
+		return
+	}
+
+	feeRatesMu.Lock()
+	OutboundFeeRates = outbound
+	InboundFeeRates = inbound
+	feeRatesMu.Unlock()
+}
+
 // get fees for all channels by filling the maps [channelId]
 func FeeReport(client lnrpc.LightningClient, outboundFeeRates map[uint64]int64, inboundFeeRates map[uint64]int64) error {
 	r, err := client.FeeReport(context.Background(), &lnrpc.FeeReportRequest{})
@@ -1923,6 +1943,10 @@ func SetFeeRate(peerNodeId string,
 	if err != nil {
 		log.Println("SetFeeRate:", err)
 		return oldRate, err
+	}
+
+	if !isBase {
+		UpdateCachedFeeRate(channelId, feeRate, inbound)
 	}
 
 	return oldRate, nil
