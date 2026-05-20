@@ -33,11 +33,6 @@ import (
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	t0 := time.Now()
-	logStep := func(label string) {
-		log.Printf("[indexHandler] %s: %v", label, time.Since(t0))
-	}
-
 	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
 		return
@@ -51,7 +46,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cleanup()
-	logStep("GetClient (PS)")
 
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
@@ -60,7 +54,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clean()
-	logStep("GetClient (LN)")
 
 	//check for error message to display
 	errorMessage := ""
@@ -153,10 +146,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	wg.Wait()
-	logStep("concurrent RPCs done (ListSwaps, LbtcBalance, BtcBalance, ListPeers)")
 
 	outboundFeeRates, inboundFeeRates := ln.GetFeeRates()
-	logStep("GetFeeRates")
 
 	if errSwaps != nil {
 		redirectWithError(w, r, "/config?", errSwaps)
@@ -170,7 +161,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	_, showAll := r.URL.Query()["showall"]
 
 	peerTable := convertPeersToHTMLTable(peers, allowlistedPeers, suspiciousPeers, swaps, outboundFeeRates, inboundFeeRates, showAll)
-	logStep("convertPeersToHTMLTable")
 
 	//check whether to display non-PS channels or swaps
 	listSwaps := ""
@@ -191,9 +181,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		otherPeers := res5.GetPeers()
-		logStep("ListPeers (non-PS)")
+
 		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates, showAll)
-		logStep("convertOtherPeersToHTMLTable")
 
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
@@ -247,7 +236,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	// executing template named "homepage" with retries
 	executeTemplate(w, "homepage", data)
-	logStep("TOTAL")
 }
 
 type Premium struct {
