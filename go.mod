@@ -4,7 +4,7 @@ go 1.25.0
 
 toolchain go1.25.10
 
-replace github.com/elementsproject/peerswap => /home/vlad/go/src/peerswap
+replace github.com/elementsproject/peerswap => ../peerswap
 
 // We want to format raw bytes as hex instead of base64. The forked version
 // allows us to specify that as an option.

@@ -34,7 +34,7 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/arm64,linux/amd64 \
-            --build-arg COMMIT=4caf206a5dfe5e0c38b87aa95f9562df68f26e9c \
+            --build-arg COMMIT=4caf206942375f1d884332455118404d21532471 \
             --tag ghcr.io/impa10r/peerswap-web:${GITHUB_REF#refs/tags/} \
             --tag ghcr.io/impa10r/peerswap-web:latest \
             --output "type=registry" \
