@@ -6,6 +6,7 @@
 - Upgrade LND to v0.20.0-beta and Go toolchain to 1.25.10
 - Fix security vulnerabilities in dependencies (gorilla/sessions, grpc, pgx/v5)
 - Fix go vet warnings (format string errors in bitcoin and elements RPC clients)
+- Paginate swap history with navigation buttons (← Newer / Older →)
 
 ## 5.0.4
 

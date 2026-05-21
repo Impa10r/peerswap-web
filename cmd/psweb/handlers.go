@@ -90,9 +90,17 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
+	//check for swaps history page token
+	pageToken := ""
+	keys, ok = r.URL.Query()["page"]
+	if ok && len(keys[0]) > 0 {
+		pageToken = keys[0]
+	}
+
 	// run independent RPCs concurrently
 	var (
 		swaps            []*peerswaprpc.PrettyPrintSwap
+		nextPageToken    string
 		satAmount        uint64
 		btcBalance       int64
 		peers            []*peerswaprpc.PeerSwapPeer
@@ -107,12 +115,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := ps.ListSwaps(client)
+		res, err := ps.ListSwapsDescending(client, pageToken)
 		if err != nil {
 			errSwaps = err
 			return
 		}
 		swaps = res.GetSwaps()
+		nextPageToken = res.GetNextPageToken()
 	}()
 
 	wg.Add(1)
@@ -186,10 +195,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
-			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
+			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role, pageToken, nextPageToken)
 		}
 	} else {
-		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
+		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role, pageToken, nextPageToken)
 	}
 
 	type Page struct {
@@ -688,7 +697,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		LBTC:                            stringIsInSlice("lbtc", peer.SupportedAssets),
 		LiquidBalance:                   satAmount,
 		BitcoinBalance:                  uint64(btcBalance),
-		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", "", "", ""),
 		DirectionIn:                     directionIn,
 		Stats:                           stats,
 		ChannelInfo:                     channelInfo,

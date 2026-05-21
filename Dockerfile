@@ -2,7 +2,7 @@
 ## Build PeerSwap and PeerSwap Web UI in a joint container 
 ###
 
-FROM golang:1.23.8-bookworm AS builder
+FROM golang:1.25.10-bookworm AS builder
 
 #ENV CGO_ENABLED=1
 

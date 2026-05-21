@@ -4,7 +4,7 @@ go 1.25.0
 
 toolchain go1.25.10
 
-// replace github.com/elementsproject/peerswap => /home/vlad/go/src/peerswap
+replace github.com/elementsproject/peerswap => /home/vlad/go/src/peerswap
 
 // We want to format raw bytes as hex instead of base64. The forked version
 // allows us to specify that as an option.
@@ -17,7 +17,7 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
-	github.com/elementsproject/glightning v0.0.0-20250204171900-f3064a110c6b
+	github.com/elementsproject/glightning v0.0.0-20250728212555-da2a093f26a9
 	github.com/elementsproject/peerswap v0.2.98-0.20250508215139-95695806541d
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
