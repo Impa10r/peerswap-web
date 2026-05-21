@@ -611,6 +611,6 @@ func getHarnessNetParams() *chaincfg.Params {
 		return &chaincfg.MainNetParams
 	}
 
-	log.Panicf("Chain %s is not supported!")
+	log.Panicf("Chain %s is not supported!", config.Config.Chain)
 	return nil
 }

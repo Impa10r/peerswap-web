@@ -129,7 +129,7 @@ func handleError(err error, r *rpcResponse) error {
 		return err
 	}
 	if r != nil && r.Err != nil {
-		return fmt.Errorf(r.Err.Message)
+		return fmt.Errorf("%s", r.Err.Message)
 	}
 
 	return nil
