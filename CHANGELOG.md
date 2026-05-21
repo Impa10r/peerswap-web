@@ -7,6 +7,7 @@
 - Fix security vulnerabilities in dependencies (gorilla/sessions, grpc, pgx/v5)
 - Fix go vet warnings (format string errors in bitcoin and elements RPC clients)
 - Paginate swap history with navigation buttons (← Newer / Older →)
+- Fix fetching Bitcoin host and port from lnd.conf
 
 ## 5.0.4
 
