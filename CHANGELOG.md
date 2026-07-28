@@ -3,8 +3,8 @@
 ## 5.0.5
 
 - Speedup index page load for nodes with numerous channels
-- Upgrade LND to v0.21.0-beta and Go toolchain to 1.25.10
-- Fix security vulnerabilities in dependencies (gorilla/sessions, grpc, pgx/v5)
+- Upgrade LND to v0.21.0-beta and Go toolchain to 1.25.12
+- Fix security vulnerabilities in dependencies
 - Fix go vet warnings (format string errors in bitcoin and elements RPC clients)
 - Paginate swap history with navigation buttons (← Newer / Older →)
 - Fix fetching Bitcoin host and port from lnd.conf
