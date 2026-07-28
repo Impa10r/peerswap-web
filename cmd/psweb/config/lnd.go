@@ -76,8 +76,11 @@ func LoadPS() {
 
 	// get bitcoin RPC from LND config
 	hostAndPort := getLndConfSetting("bitcoind.rpchost")
-	host = strings.Split(hostAndPort, ":")[0]
-	port = strings.Split(hostAndPort, ":")[1]
+	if len(hostAndPort) > 0 {
+		host = strings.Split(hostAndPort, ":")[0]
+		port = strings.Split(hostAndPort, ":")[1]
+	}
+
 	user := getLndConfSetting("bitcoind.rpcuser")
 	pass := getLndConfSetting("bitcoind.rpcpass")
 
