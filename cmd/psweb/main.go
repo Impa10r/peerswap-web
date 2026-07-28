@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v5.0.4"
+	VERSION = "v5.0.5"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
@@ -980,7 +980,7 @@ func convertOtherPeersToHTMLTable(peers []*peerswaprpc.PeerSwapPeer,
 
 // converts a list of swaps into an HTML table
 // if nodeId, swapState, swapRole != "" then only show swaps for that filter
-func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string, swapState string, swapRole string) string {
+func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string, swapState string, swapRole string, pageToken string, nextPageToken string) string {
 
 	if len(swaps) == 0 {
 		return ""
@@ -1106,16 +1106,10 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 		return unsortedTable[i].TimeStamp > unsortedTable[j].TimeStamp
 	})
 
-	var counter uint
 	table := "<table style=\"table-layout:fixed; width: 100%\">"
 	for _, t := range unsortedTable {
-		counter++
-		if counter > config.Config.MaxHistory {
-			break
-		}
 		table += t.HtmlBlob
 	}
-
 	table += "</table>"
 
 	if len(swaps) > 1 {
@@ -1127,6 +1121,38 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 		table += "<p style=\"text-align: center; white-space: nowrap\">Total swapped: " + toMil(totalAmount) + ", "
 		table += "P&L: " + formatSigned(-totalCost) + " sats, PPM: " + formatSigned(ppm) + "</p>"
+	}
+
+	if pageToken != "" || nextPageToken != "" {
+		baseURL := "/?"
+		if nodeId != "" {
+			baseURL += "id=" + nodeId + "&"
+		}
+		if swapState != "" {
+			baseURL += "state=" + swapState + "&"
+		}
+		if swapRole != "" {
+			baseURL += "role=" + swapRole + "&"
+		}
+
+		nav := "<p style=\"text-align: center\">"
+		if pageToken != "" {
+			offset, _ := strconv.Atoi(pageToken)
+			prev := offset - int(config.Config.MaxHistory)
+			prevURL := baseURL
+			if prev > 0 {
+				prevURL += "page=" + strconv.Itoa(prev)
+			}
+			nav += "<a href=\"" + prevURL + "\">← Newer</a>"
+		}
+		if pageToken != "" && nextPageToken != "" {
+			nav += " &nbsp;&nbsp; "
+		}
+		if nextPageToken != "" {
+			nav += "<a href=\"" + baseURL + "page=" + nextPageToken + "\">Older →</a>"
+		}
+		nav += "</p>"
+		table += nav
 	}
 
 	return table
@@ -1339,6 +1365,8 @@ func cacheAliases() bool {
 			getNodeAlias(peer.NodeId)
 		}
 	}()
+
+	go ln.CacheChannelFees()
 
 	return true
 }

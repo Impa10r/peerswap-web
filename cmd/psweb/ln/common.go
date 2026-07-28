@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"peerswap-web/cmd/psweb/config"
@@ -26,6 +27,28 @@ const (
 	MESSAGE_TYPE    = 42065
 	MESSAGE_VERSION = 1
 )
+
+var (
+	feeRatesMu       sync.RWMutex
+	OutboundFeeRates = make(map[uint64]int64)
+	InboundFeeRates  = make(map[uint64]int64)
+)
+
+func GetFeeRates() (map[uint64]int64, map[uint64]int64) {
+	feeRatesMu.RLock()
+	defer feeRatesMu.RUnlock()
+	return OutboundFeeRates, InboundFeeRates
+}
+
+func UpdateCachedFeeRate(channelId uint64, rate int64, inbound bool) {
+	feeRatesMu.Lock()
+	if inbound {
+		InboundFeeRates[channelId] = rate
+	} else {
+		OutboundFeeRates[channelId] = rate
+	}
+	feeRatesMu.Unlock()
+}
 
 var (
 	// lightning payments from swap out initiator to receiver
@@ -588,6 +611,6 @@ func getHarnessNetParams() *chaincfg.Params {
 		return &chaincfg.MainNetParams
 	}
 
-	log.Panicf("Chain %s is not supported!")
+	log.Panicf("Chain %s is not supported!", config.Config.Chain)
 	return nil
 }

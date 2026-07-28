@@ -2,7 +2,7 @@
 ## Build PeerSwap and PeerSwap Web UI in a joint container 
 ###
 
-FROM golang:1.23.8-bookworm AS builder
+FROM golang:1.25.10-bookworm AS builder
 
 #ENV CGO_ENABLED=1
 
@@ -14,10 +14,12 @@ WORKDIR /app
 
 COPY . .
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j$(nproc) install-lnd && \
-    git clone https://github.com/ElementsProject/peerswap.git && \
-    cd peerswap && \
+RUN git clone https://github.com/ElementsProject/peerswap.git /peerswap && \
+    cd /peerswap && \
     git checkout $COMMIT && \
+    cd /app && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} make -j$(nproc) install-lnd && \
+    cd /peerswap && \
     make -j$(nproc) lnd-release
 
 FROM debian:bookworm-slim

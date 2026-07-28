@@ -75,14 +75,11 @@ func LoadPS() {
 	}
 
 	// get bitcoin RPC from LND config
-	host = getLndConfSetting("bitcoind.rpchost")
+	hostAndPort := getLndConfSetting("bitcoind.rpchost")
+	host = strings.Split(hostAndPort, ":")[0]
+	port = strings.Split(hostAndPort, ":")[1]
 	user := getLndConfSetting("bitcoind.rpcuser")
 	pass := getLndConfSetting("bitcoind.rpcpass")
-
-	port = "8332"
-	if Config.Chain == "testnet" {
-		port = "18332"
-	}
 
 	// env variables take priority
 	if os.Getenv("BITCOIN_HOST") != "" {

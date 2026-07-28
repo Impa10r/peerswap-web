@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"peerswap-web/cmd/psweb/config"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -78,6 +79,36 @@ func ListSwaps(client *glightning.Lightning) (*peerswaprpc.ListSwapsResponse, er
 	}
 
 	return &res, nil
+}
+
+// ListSwapsDescending returns one page of MaxHistory swaps ordered newest first (client-side).
+func ListSwapsDescending(client *glightning.Lightning, pageToken string) (*peerswaprpc.ListSwapsResponse, error) {
+	res, err := ListSwaps(client)
+	if err != nil {
+		return nil, err
+	}
+	swaps := res.GetSwaps()
+	sort.Slice(swaps, func(i, j int) bool {
+		return swaps[i].CreatedAt > swaps[j].CreatedAt
+	})
+
+	offset := 0
+	if pageToken != "" {
+		offset, _ = strconv.Atoi(pageToken)
+	}
+	maxH := int(config.Config.MaxHistory)
+	if offset >= len(swaps) {
+		return &peerswaprpc.ListSwapsResponse{}, nil
+	}
+	end := offset + maxH
+	nextToken := ""
+	if end < len(swaps) {
+		nextToken = strconv.Itoa(end)
+		swaps = swaps[offset:end]
+	} else {
+		swaps = swaps[offset:]
+	}
+	return &peerswaprpc.ListSwapsResponse{Swaps: swaps, NextPageToken: nextToken}, nil
 }
 
 func LiquidGetBalance(client *glightning.Lightning) (*peerswaprpc.GetBalanceResponse, error) {

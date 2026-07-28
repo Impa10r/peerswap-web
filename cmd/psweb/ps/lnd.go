@@ -74,6 +74,16 @@ func ListSwaps(client peerswaprpc.PeerSwapClient) (*peerswaprpc.ListSwapsRespons
 	return client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{})
 }
 
+// ListSwapsDescending returns one page of MaxHistory swaps ordered newest first.
+func ListSwapsDescending(client peerswaprpc.PeerSwapClient, pageToken string) (*peerswaprpc.ListSwapsResponse, error) {
+	ctx := context.Background()
+	return client.ListSwaps(ctx, &peerswaprpc.ListSwapsRequest{
+		PageSize:   uint32(config.Config.MaxHistory),
+		PageToken:  pageToken,
+		Descending: true,
+	})
+}
+
 func LiquidGetBalance(client peerswaprpc.PeerSwapClient) (*peerswaprpc.GetBalanceResponse, error) {
 	ctx := context.Background()
 	return client.LiquidGetBalance(ctx, &peerswaprpc.GetBalanceRequest{})

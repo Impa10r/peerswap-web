@@ -15,7 +15,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"peerswap-web/cmd/psweb/bitcoin"
 	"peerswap-web/cmd/psweb/config"
@@ -29,7 +33,6 @@ import (
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-
 	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
 		return
@@ -44,15 +47,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cleanup()
 
-	res, err := ps.ListSwaps(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
-	}
-	swaps := res.GetSwaps()
-
-	satAmount := getUnlockedLbtcBalance()
-
 	// Lightning RPC client
 	cl, clean, er := ln.GetClient()
 	if er != nil {
@@ -60,8 +54,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clean()
-
-	btcBalance := ln.ConfirmedWalletBalance(cl)
 
 	//check for error message to display
 	errorMessage := ""
@@ -98,29 +90,82 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		role = keys[0]
 	}
 
-	var peers []*peerswaprpc.PeerSwapPeer
-
-	res3, err := ps.ReloadPolicyFile(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
-		return
+	//check for swaps history page token
+	pageToken := ""
+	keys, ok = r.URL.Query()["page"]
+	if ok && len(keys[0]) > 0 {
+		pageToken = keys[0]
 	}
 
-	allowlistedPeers := res3.GetAllowlistedPeers()
-	suspiciousPeers := res3.GetSuspiciousPeerList()
+	// run independent RPCs concurrently
+	var (
+		swaps            []*peerswaprpc.PrettyPrintSwap
+		nextPageToken    string
+		satAmount        uint64
+		btcBalance       int64
+		peers            []*peerswaprpc.PeerSwapPeer
+		allowlistedPeers []string
+		suspiciousPeers  []string
+		errSwaps         error
+		errPolicy        error
+	)
 
-	res4, err := ps.ListPeers(client)
-	if err != nil {
-		redirectWithError(w, r, "/config?", err)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res, err := ps.ListSwapsDescending(client, pageToken)
+		if err != nil {
+			errSwaps = err
+			return
+		}
+		swaps = res.GetSwaps()
+		nextPageToken = res.GetNextPageToken()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		satAmount = getUnlockedLbtcBalance()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		btcBalance = ln.ConfirmedWalletBalance(cl)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res3, err := ps.ReloadPolicyFile(client)
+		if err != nil {
+			errPolicy = err
+			return
+		}
+		allowlistedPeers = res3.GetAllowlistedPeers()
+		suspiciousPeers = res3.GetSuspiciousPeerList()
+		res4, err := ps.ListPeers(client)
+		if err != nil {
+			errPolicy = err
+			return
+		}
+		peers = res4.GetPeers()
+	}()
+
+	wg.Wait()
+
+	outboundFeeRates, inboundFeeRates := ln.GetFeeRates()
+
+	if errSwaps != nil {
+		redirectWithError(w, r, "/config?", errSwaps)
 		return
 	}
-	peers = res4.GetPeers()
-
-	// get fee rates for all channels
-	outboundFeeRates := make(map[uint64]int64)
-	inboundFeeRates := make(map[uint64]int64)
-
-	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
+	if errPolicy != nil {
+		redirectWithError(w, r, "/config?", errPolicy)
+		return
+	}
 
 	_, showAll := r.URL.Query()["showall"]
 
@@ -145,14 +190,15 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		otherPeers := res5.GetPeers()
+
 		nonPeerTable = convertOtherPeersToHTMLTable(otherPeers, outboundFeeRates, inboundFeeRates, showAll)
 
 		if nonPeerTable == "" && popupMessage == "" {
 			popupMessage = "🥳 Congratulations, all your peers use PeerSwap!"
-			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
+			listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role, pageToken, nextPageToken)
 		}
 	} else {
-		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role)
+		listSwaps = convertSwapsToHTMLTable(swaps, nodeId, state, role, pageToken, nextPageToken)
 	}
 
 	type Page struct {
@@ -651,7 +697,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		LBTC:                            stringIsInSlice("lbtc", peer.SupportedAssets),
 		LiquidBalance:                   satAmount,
 		BitcoinBalance:                  uint64(btcBalance),
-		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", ""),
+		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", "", "", ""),
 		DirectionIn:                     directionIn,
 		Stats:                           stats,
 		ChannelInfo:                     channelInfo,
@@ -1312,11 +1358,7 @@ func afHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// get fee rates for all channels
-	outboundFeeRates := make(map[uint64]int64)
-	inboundFeeRates := make(map[uint64]int64)
-
-	ln.FeeReport(cl, outboundFeeRates, inboundFeeRates)
+	outboundFeeRates, inboundFeeRates := ln.GetFeeRates()
 
 	capacity := uint64(0)
 	localPct := uint64(0)
@@ -2435,7 +2477,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			ln.LogFee(channelId, oldRate, int(feeRate), inbound, true)
 
 			// all good, display confirmation
-			msg := strings.Title(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
+			msg := cases.Title(language.English).String(r.FormValue("direction")) + " fee rate updated to " + formatSigned(feeRate)
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 			return
 
@@ -2482,7 +2524,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// all good, display confirmation
-			msg := strings.Title(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
+			msg := cases.Title(language.English).String(r.FormValue("direction")) + " fee base updated to " + formatSigned(feeBase)
 			http.Redirect(w, r, nextPage+"msg="+msg, http.StatusSeeOther)
 			return
 
