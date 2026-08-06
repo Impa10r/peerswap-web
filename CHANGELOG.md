@@ -1,5 +1,9 @@
 # Versions
 
+## 5.0.6
+
+- Harden security
+
 ## 5.0.5
 
 - Speedup index page load for nodes with numerous channels

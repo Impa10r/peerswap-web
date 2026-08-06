@@ -20,7 +20,7 @@ require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.4.0
-	github.com/lightningnetwork/lnd v0.21.0-beta
+	github.com/lightningnetwork/lnd v0.21.1-beta
 	github.com/mattn/go-sqlite3 v1.14.23
 	github.com/virtuald/go-paniclog v0.0.0-20190812204905-43a7fa316459
 	go.etcd.io/bbolt v1.5.0
@@ -125,7 +125,7 @@ require (
 	github.com/lightningnetwork/lnd/sqldb v1.0.13 // indirect
 	github.com/lightningnetwork/lnd/ticker v1.1.1 // indirect
 	github.com/lightningnetwork/lnd/tlv v1.3.2 // indirect
-	github.com/lightningnetwork/lnd/tor v1.1.6 // indirect
+	github.com/lightningnetwork/lnd/tor v1.1.7 // indirect
 	github.com/ltcsuite/ltcd v0.23.5 // indirect
 	github.com/ltcsuite/ltcd/chaincfg/chainhash v1.0.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

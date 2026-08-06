@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"path"
 	"peerswap-web/cmd/psweb/config"
 	"strings"
 )
@@ -9,13 +10,17 @@ import (
 // Middleware to check authentication
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Config.SecureConnection && !strings.HasPrefix(r.RequestURI, "/downloadca") {
+		// Normalize the path: decoded, and with ./.. resolved, so prefix
+		// checks can't be bypassed via traversal or trailing garbage.
+		cleanPath := path.Clean(r.URL.Path)
+
+		if config.Config.SecureConnection && cleanPath != "/downloadca" {
 			if r.TLS != nil {
 				// Check client certificate
 				if len(r.TLS.PeerCertificates) == 0 {
 					if config.Config.Password != "" {
 						if !isAuthenticated(r) {
-							if !strings.HasPrefix(r.RequestURI, "/static/") && !strings.HasPrefix(r.RequestURI, "/login") {
+							if !isExemptPath(cleanPath) {
 								http.Redirect(w, r, "/login", http.StatusFound)
 								return
 							}
@@ -34,6 +39,18 @@ func authMiddleware(next http.Handler) http.Handler {
 		// proceed
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isExemptPath reports whether the cleaned request path is allowed
+// without authentication (the login page itself and static assets).
+func isExemptPath(cleanPath string) bool {
+	if cleanPath == "/login" {
+		return true
+	}
+	if cleanPath == "/static" || strings.HasPrefix(cleanPath, "/static/") {
+		return true
+	}
+	return false
 }
 
 func isAuthenticated(r *http.Request) bool {
