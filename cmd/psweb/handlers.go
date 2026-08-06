@@ -1883,8 +1883,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("password") == config.Config.Password {
 			session, _ := store.Get(r, "session")
 			session.Options = &sessions.Options{
-				Path:   "/",
-				MaxAge: 604800, // 7 days
+				Path:     "/",
+				MaxAge:   604800, // 7 days
+				HttpOnly: true,
+				Secure:   config.Config.SecureConnection,
+				SameSite: http.SameSiteLaxMode,
 			}
 			session.Values["authenticated"] = true
 			session.Save(r, w)
@@ -2390,12 +2393,13 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			msg := ""
-			if channelId == 0 {
+			switch channelId {
+			case 0:
 				// global setting
 				ln.AutoFeeEnabledAll = isEnabled
 				db.Save("AutoFees", "AutoFeeEnabledAll", ln.AutoFeeEnabledAll)
 				msg = "Global AutoFees "
-			} else if channelId == -1 {
+			case -1:
 				// toggle for all channels
 				for _, peer := range res.GetPeers() {
 					for _, ch := range peer.Channels {
@@ -2405,7 +2409,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 				db.Save("AutoFees", "AutoFeeEnabled", ln.AutoFeeEnabled)
 				msg = "All per-channel AutoFees "
 
-			} else {
+			default:
 				// toggle for a single channel
 				ln.AutoFeeEnabled[uint64(channelId)] = isEnabled
 				db.Save("AutoFees", "AutoFeeEnabled", ln.AutoFeeEnabled)
@@ -3097,19 +3101,26 @@ func logApiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logFile := "log"
+	logFile := "log" // if omitted
 
 	keys, ok = r.URL.Query()["log"]
 	if ok && len(keys[0]) > 0 {
 		logFile = keys[0]
 	}
 
-	filename := filepath.Join(config.Config.DataDir, logFile)
-
-	if logFile == "cln.log" {
+	// only allow a fixed set of known log files; reject everything else
+	var filename string
+	switch logFile {
+	case "psweb.log", "log":
+		filename = filepath.Join(config.Config.DataDir, logFile)
+	case "cln.log":
 		filename = filepath.Join(config.Config.LightningDir, logFile)
-	} else if logFile == "lnd.log" {
+	case "lnd.log":
 		filename = filepath.Join(config.Config.LightningDir, "logs", "bitcoin", config.Config.Chain, logFile)
+	default:
+		log.Println("Invalid log file requested:", logFile)
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 
 	file, err := os.Open(filename)
