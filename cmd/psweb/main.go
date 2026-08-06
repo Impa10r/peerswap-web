@@ -268,7 +268,7 @@ func redirectWithError(w http.ResponseWriter, r *http.Request, redirectUrl strin
 	switch {
 	case strings.HasPrefix(t, "rpc error: code = Unavailable desc = connection error"):
 		t = "Peerswapd has not started listening yet"
-		redirectUrl = "/loading" // show progress bar and log
+		redirectUrl = "/loading?" // show progress bar and log
 	case strings.HasPrefix(t, "-1:peerswap is still in the process of starting up"):
 		t = "Peerswap is still in the process of starting up"
 		redirectUrl = "/log?log=cln.log&"
