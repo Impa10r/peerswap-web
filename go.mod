@@ -2,8 +2,6 @@ module peerswap-web
 
 go 1.25.12
 
-replace github.com/elementsproject/peerswap => ../peerswap
-
 // We want to format raw bytes as hex instead of base64. The forked version
 // allows us to specify that as an option.
 replace google.golang.org/protobuf => github.com/lightninglabs/protobuf-go-hex-display v1.30.0-hex-display
@@ -16,7 +14,7 @@ require (
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/elementsproject/glightning v0.0.0-20250728212555-da2a093f26a9
-	github.com/elementsproject/peerswap v0.2.98-0.20250508215139-95695806541d
+	github.com/elementsproject/peerswap v0.2.98-0.20260805183621-5ded0811a0f6
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.4.0
