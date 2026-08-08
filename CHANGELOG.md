@@ -1,5 +1,9 @@
 # Versions
 
+## 6.0.0.1
+
+- Update versioning to better match PeerSwap releases
+
 ## 5.0.6
 
 - Harden security

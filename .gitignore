@@ -3,3 +3,5 @@ cmd/psweb/__debug_bin*
 .env
 .claude/settings.json
 psweb
+Dockerfile.test
+.vscode/*
