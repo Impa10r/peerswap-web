@@ -1,10 +1,8 @@
 ###
-## Build PeerSwap and PeerSwap Web UI in a joint container 
+## Build PeerSwap and PeerSwap Web UI in a joint container
 ###
 
 FROM golang:1.25.12-bookworm AS builder
-
-#ENV CGO_ENABLED=1
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -12,9 +10,17 @@ ARG COMMIT
 
 WORKDIR /app
 
+# Copy only module files first so `go mod download` layer is cached
+# independently of source changes.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
 COPY . .
 
-RUN git clone https://github.com/ElementsProject/peerswap.git /peerswap && \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    git clone --filter=blob:none https://github.com/ElementsProject/peerswap.git /peerswap && \
     cd /peerswap && \
     git checkout $COMMIT && \
     cd /app && \
@@ -24,13 +30,14 @@ RUN git clone https://github.com/ElementsProject/peerswap.git /peerswap && \
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y supervisor ca-certificates && \
+RUN apt-get update && apt-get install -y --no-install-recommends supervisor ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
     mkdir -p /var/log/supervisor
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY --from=builder /go/bin/* /bin/
 
-RUN useradd -rm -s /bin/bash -u 1000 -U peerswap 
+RUN useradd -rm -s /bin/bash -u 1000 -U peerswap
 USER peerswap
 
 EXPOSE 1984

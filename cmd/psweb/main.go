@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v5.0.6"
+	VERSION = "v6.0.0.1"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf

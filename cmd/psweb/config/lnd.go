@@ -41,7 +41,7 @@ func LoadPS() {
 	}
 
 	port := GetPeerswapLNDSetting("elementsd.rpcport")
-	if host != "" {
+	if port != "" {
 		Config.ElementsPort = port
 	}
 
@@ -77,8 +77,12 @@ func LoadPS() {
 	// get bitcoin RPC from LND config
 	hostAndPort := getLndConfSetting("bitcoind.rpchost")
 	if len(hostAndPort) > 0 {
-		host = strings.Split(hostAndPort, ":")[0]
-		port = strings.Split(hostAndPort, ":")[1]
+		parts := strings.Split(hostAndPort, ":")
+		host = parts[0]
+		port = "8332" // default for bitcoin mainnet
+		if len(parts) > 1 {
+			port = parts[1]
+		}
 	}
 
 	user := getLndConfSetting("bitcoind.rpcuser")

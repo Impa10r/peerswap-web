@@ -1,5 +1,11 @@
 # Versions
 
+## 6.0.0.1
+
+- Wrap the latest PeerSwap release v6.0.0 
+- Update versioning to better match PeerSwap releases
+- Optimize Docker building
+
 ## 5.0.6
 
 - Harden security
