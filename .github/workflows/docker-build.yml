@@ -1,22 +1,39 @@
-name: Build Docker Images
+name: Manual Build Docker Images
 permissions:
   packages: write
 
 on:
-  push:
-    tags:
-      - 'v*'  # Trigger on tags starting with 'v'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+
+env:
+  IMAGE: ghcr.io/impa10r/peerswap-web
+  COMMIT: 25a153e5b70cb35830dc6354d0fac6994e0fd610
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -25,17 +42,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: New builder
+      - name: Build and push by digest
+        id: build
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 60
+          max_attempts: 4
+          retry_wait_seconds: 90
+          command: |
+            docker buildx build \
+              --platform ${{ matrix.platform }} \
+              --build-arg COMMIT=${{ env.COMMIT }} \
+              --provenance=false \
+              --sbom=false \
+              --cache-from type=gha,scope=${{ matrix.arch }} \
+              --cache-to type=gha,mode=max,scope=${{ matrix.arch }} \
+              --output type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true \
+              --metadata-file metadata-${{ matrix.arch }}.json \
+              .
+
+      - name: Extract digest
         run: |
-          docker run --privileged --rm tonistiigi/binfmt --install all
-          docker buildx create --use --name newbuilder
-    
-      - name: Build Docker image and push to registry
+          mkdir -p digests
+          digest=$(jq -r '."containerimage.digest"' metadata-${{ matrix.arch }}.json)
+          touch "digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifest list
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 4
+          retry_wait_seconds: 60
+          command: |
+            cd digests
+            docker buildx imagetools create \
+              --tag ghcr.io/impa10r/peerswap-web:${{ github.event.inputs.version }} \
+              --tag ghcr.io/impa10r/peerswap-web:latest \
+              $(printf 'ghcr.io/impa10r/peerswap-web@sha256:%s ' *)
+
+      - name: Verify manifest
         run: |
-          docker buildx build \
-            --platform linux/arm64,linux/amd64 \
-            --build-arg COMMIT=5ded0811a0f6e5b4d446d250b50fa667d81a9160 \
-            --tag ghcr.io/impa10r/peerswap-web:${GITHUB_REF#refs/tags/} \
-            --tag ghcr.io/impa10r/peerswap-web:latest \
-            --output "type=registry" \
-            .
+          docker buildx imagetools inspect ghcr.io/impa10r/peerswap-web:${{ github.event.inputs.version }}
