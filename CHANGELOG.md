@@ -1,5 +1,9 @@
 # Versions
 
+## 7.0.0
+
+- Incorporate PeerSwap v7.0.0 in Docker image
+
 ## 6.0.0.1
 
 - Wrap the latest PeerSwap release v6.0.0 
