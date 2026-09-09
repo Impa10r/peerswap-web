@@ -1,5 +1,17 @@
 {{define "liquid"}}
   {{template "header" .}}
+  {{if not .LiquidEnabled}}
+    <div class="container">
+      <div class="columns">
+        <div class="column">
+          <div class="box has-text-centered">
+            <h4 class="title is-4">🌊 Liquid swaps are disabled</h4>
+            <p>This node is running Bitcoin-only. Enable Liquid swaps on the <a href="/config">Configuration</a> page to use this feature.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  {{else}}
   <div class="container">
     <div class="columns">
       <div class="column">
@@ -258,5 +270,6 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
       </div>
     </div>
   </div>
+  {{end}}
   {{template "footer" .}}
 {{end}}

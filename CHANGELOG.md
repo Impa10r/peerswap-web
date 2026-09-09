@@ -1,5 +1,12 @@
 # Versions
 
+## 7.0.0.1
+
+- Bump Go to 1.25.13
+- Add option to disable Liquid swaps
+- Pre-fill premium limits for new swaps
+- Bug fixes
+
 ## 7.0.0
 
 - Incorporate PeerSwap v7.0.0 in Docker image

@@ -21,25 +21,31 @@
                 </h4>
               </td>
               <td style="padding: 0px; text-align: left;">
-                <h4 class="title is-4" style="white-space: nowrap">
-                  🌊&nbsp<a title="On-chain L-BTC balance" href="/liquid" id="scramble">{{fmt .LiquidBalance}}</a>
-                  {{if .PeginPending}}
-                    <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
-                  {{else}}
-                    {{if .ClaimJoinInvite}}
-                      <a href="/bitcoin" title="Received an invite to ClaimJoin">🧬</a>
+                {{if .LiquidEnabled}}
+                  <h4 class="title is-4" style="white-space: nowrap">
+                    🌊&nbsp<a title="On-chain L-BTC balance" href="/liquid" id="scramble">{{fmt .LiquidBalance}}</a>
+                    {{if .PeginPending}}
+                      <a href="/bitcoin" title="Liquid peg-in is pending">⏰</a>
                     {{else}}
-                      {{if and .AdvertiseLiquid .AllowSwapRequests}}
-                        <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                      {{if .ClaimJoinInvite}}
+                        <a href="/bitcoin" title="Received an invite to ClaimJoin">🧬</a>
                       {{else}}
-                        <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                        {{if and .AdvertiseLiquid .AllowSwapRequests}}
+                          <a href="/liquid" title="Broadcasting L-BTC balance to peers">📡</a>
+                        {{else}}
+                          <span style="font-size: 0.7em;" title="Liquid swaps {{if .AllowSwapRequests}}enabled">✔️{{else}}disabled">❌{{end}}</span>
+                        {{end}}
                       {{end}}
                     {{end}}
-                  {{end}}
-                  {{if .AutoSwapEnabled}}
-                    <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
-                  {{end}}
-                </h4> 
+                    {{if .AutoSwapEnabled}}
+                      <a href="/liquid" title="Automatic Swap-Ins Enabled">🤖</a>
+                    {{end}}
+                  </h4>
+                {{else}}
+                  <h4 class="title is-4" style="white-space: nowrap; color: gray;" title="Liquid swaps disabled">
+                    🌊 disabled
+                  </h4>
+                {{end}}
               </td>
             </tr> 
           </table>

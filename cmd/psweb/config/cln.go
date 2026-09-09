@@ -110,6 +110,7 @@ func LoadPS() {
 	eport := GetPeerswapCLNSetting("Liquid", "rpcport")
 	if eport != "" {
 		Config.ElementsPort = eport
+		ElementsPortConfigured = true
 	}
 
 	// on first start without config there will be no elements user and password
@@ -138,7 +139,7 @@ func SavePS() {
 	t := "# Config managed by PeerSwap Web UI\n"
 	t += "# It is not recommended to modify this file directly\n\n"
 
-	if Config.ElementsPass == "" || Config.ElementsUser == "" {
+	if !Config.LiquidEnabled || Config.ElementsPass == "" || Config.ElementsUser == "" {
 		// disable Liquid so that peerswapd does not fail
 		t += "[Liquid]\n"
 		t += "liquidswaps=false\n\n"

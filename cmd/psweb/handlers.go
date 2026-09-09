@@ -33,7 +33,7 @@ import (
 )
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" {
+	if config.Config.LiquidEnabled && (config.Config.ElementsPass == "" || config.Config.ElementsUser == "") {
 		http.Redirect(w, r, "/config?err=welcome", http.StatusSeeOther)
 		return
 	}
@@ -208,6 +208,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage      string
 		PopUpMessage      string
 		ColorScheme       string
+		LiquidEnabled     bool
 		LiquidBalance     uint64
 		ListPeers         string
 		OtherPeers        string
@@ -230,6 +231,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		PopUpMessage:      popupMessage,
 		MempoolFeeRate:    mempoolFeeRate,
 		ColorScheme:       config.Config.ColorScheme,
+		LiquidEnabled:     config.Config.LiquidEnabled,
 		LiquidBalance:     satAmount,
 		ListPeers:         peerTable,
 		OtherPeers:        nonPeerTable,
@@ -375,6 +377,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 			redirectWithError(w, r, "/?", err)
 			return
 		}
+		if len(res.GetPeers()) == 0 {
+			redirectWithError(w, r, "/?", errors.New("peer not found"))
+			return
+		}
 		peer = res.GetPeers()[0]
 		psPeer = false
 	} else {
@@ -402,6 +408,20 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// premium rates the peer themselves advertise, used to pre-fill the swap form's premium limit
+	peerAdvertisedPremium := func(asset peerswaprpc.AssetType, operation peerswaprpc.OperationType) int64 {
+		for _, rate := range peer.GetPeerPremium().GetRates() {
+			if rate.GetAsset() == asset && rate.GetOperation() == operation {
+				return rate.GetPremiumRatePpm()
+			}
+		}
+		return 0
+	}
+	peerPremiumBtcIn := peerAdvertisedPremium(peerswaprpc.AssetType_BTC, peerswaprpc.OperationType_SWAP_IN)
+	peerPremiumBtcOut := peerAdvertisedPremium(peerswaprpc.AssetType_BTC, peerswaprpc.OperationType_SWAP_OUT)
+	peerPremiumLbtcIn := peerAdvertisedPremium(peerswaprpc.AssetType_LBTC, peerswaprpc.OperationType_SWAP_IN)
+	peerPremiumLbtcOut := peerAdvertisedPremium(peerswaprpc.AssetType_LBTC, peerswaprpc.OperationType_SWAP_OUT)
 
 	var sumLocal uint64
 	var sumRemote uint64
@@ -632,6 +652,7 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		NodeUrl                         string
 		Allowed                         bool
 		Suspicious                      bool
+		LiquidEnabled                   bool
 		LBTC                            bool
 		BTC                             bool
 		LiquidBalance                   uint64
@@ -664,6 +685,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		RecommendLiquidSwapOut          uint64
 		MaxLiquidSwapIn                 int64
 		RecommendLiquidSwapIn           int64
+		PeerPremiumBtcIn                int64
+		PeerPremiumBtcOut               int64
+		PeerPremiumLbtcIn               int64
+		PeerPremiumLbtcOut              int64
 		SelectedChannel                 uint64
 		HasDiscountedvSize              bool
 		RedColor                        string
@@ -693,8 +718,9 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		NodeUrl:                         config.Config.NodeApi,
 		Allowed:                         stringIsInSlice(peer.NodeId, allowlistedPeers),
 		Suspicious:                      stringIsInSlice(peer.NodeId, suspiciousPeers),
-		BTC:                             stringIsInSlice("btc", peer.SupportedAssets),
-		LBTC:                            stringIsInSlice("lbtc", peer.SupportedAssets),
+		LiquidEnabled:                   config.Config.LiquidEnabled,
+		BTC:                             config.Config.BitcoinSwaps && stringIsInSlice("btc", peer.SupportedAssets),
+		LBTC:                            config.Config.LiquidEnabled && stringIsInSlice("lbtc", peer.SupportedAssets),
 		LiquidBalance:                   satAmount,
 		BitcoinBalance:                  uint64(btcBalance),
 		ActiveSwaps:                     convertSwapsToHTMLTable(activeSwaps, "", "", "", "", ""),
@@ -725,6 +751,10 @@ func peerHandler(w http.ResponseWriter, r *http.Request) {
 		RecommendLiquidSwapOut:          recommendLiquidSwapOut,
 		MaxLiquidSwapIn:                 maxLiquidSwapIn,
 		RecommendLiquidSwapIn:           recommendLiquidSwapIn,
+		PeerPremiumBtcIn:                peerPremiumBtcIn,
+		PeerPremiumBtcOut:               peerPremiumBtcOut,
+		PeerPremiumLbtcIn:               peerPremiumLbtcIn,
+		PeerPremiumLbtcOut:              peerPremiumLbtcOut,
 		SelectedChannel:                 selectedChannel,
 		HasDiscountedvSize:              hasDiscountedvSize,
 		RedColor:                        redColor,
@@ -870,6 +900,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage        string
 		PopUpMessage        string
 		ColorScheme         string
+		LiquidEnabled       bool
 		BitcoinBalance      uint64
 		Outputs             *[]ln.UTXO
 		PeginTxId           string
@@ -972,11 +1003,17 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	peers := res.GetPeers()
 
+	liquidFeeRate := 0.0
+	if config.Config.LiquidEnabled {
+		liquidFeeRate = liquid.EstimateFee()
+	}
+
 	data := Page{
 		Authenticated:       config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:        errorMessage,
 		PopUpMessage:        popupMessage,
 		ColorScheme:         config.Config.ColorScheme,
+		LiquidEnabled:       config.Config.LiquidEnabled,
 		BitcoinBalance:      uint64(btcBalance),
 		Outputs:             &utxos,
 		PeginTxId:           config.Config.PeginTxId,
@@ -991,7 +1028,7 @@ func bitcoinHandler(w http.ResponseWriter, r *http.Request) {
 		ETA:                 eta,
 		FeeRate:             config.Config.PeginFeeRate,
 		MempoolFeeRate:      mempoolFeeRate,
-		LiquidFeeRate:       liquid.EstimateFee(),
+		LiquidFeeRate:       liquidFeeRate,
 		SuggestedFeeRate:    math.Ceil(fee*100) / 100,
 		MinBumpFeeRate:      math.Ceil((config.Config.PeginFeeRate+1)*100) / 100,
 		CanBump:             canBump,
@@ -1038,6 +1075,11 @@ func peginHandler(w http.ResponseWriter, r *http.Request) {
 
 		isPegin := r.FormValue("isPegin") == "true"
 		isExternal := r.FormValue("externalButton") != ""
+
+		if isPegin && !config.Config.LiquidEnabled {
+			redirectWithError(w, r, "/bitcoin?", errors.New("liquid swaps are disabled"))
+			return
+		}
 
 		var (
 			amount int64
@@ -1963,28 +2005,13 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		addr = keys[0]
 	}
 
-	satAmount := getUnlockedLbtcBalance()
-
-	var candidate AutoSwapParams
-
-	if err := findSwapInCandidate(&candidate); err != nil {
-		log.Printf("unable findSwapInCandidate: %v", err)
-		redirectWithError(w, r, "/liquid?", err)
-		return
-	}
-
-	walletInfo, err := liquid.GetWalletInfo()
-	if err != nil {
-		redirectWithError(w, r, "/?", err)
-		return
-	}
-
 	type Page struct {
 		Authenticated           bool
 		ErrorMessage            string
 		PopUpMessage            string
 		MempoolFeeRate          float64
 		ColorScheme             string
+		LiquidEnabled           bool
 		LiquidAddress           string
 		LiquidBalance           uint64
 		TxId                    string
@@ -2001,12 +2028,41 @@ func liquidHandler(w http.ResponseWriter, r *http.Request) {
 		DescriptorsWallet       bool
 	}
 
+	if !config.Config.LiquidEnabled {
+		data := Page{
+			Authenticated: config.Config.SecureConnection && config.Config.Password != "",
+			ErrorMessage:  errorMessage,
+			PopUpMessage:  popupMessage,
+			ColorScheme:   config.Config.ColorScheme,
+			LiquidEnabled: false,
+		}
+		executeTemplate(w, "liquid", data)
+		return
+	}
+
+	satAmount := getUnlockedLbtcBalance()
+
+	var candidate AutoSwapParams
+
+	if err := findSwapInCandidate(&candidate); err != nil {
+		log.Printf("unable findSwapInCandidate: %v", err)
+		redirectWithError(w, r, "/liquid?", err)
+		return
+	}
+
+	walletInfo, err := liquid.GetWalletInfo()
+	if err != nil {
+		redirectWithError(w, r, "/?", err)
+		return
+	}
+
 	data := Page{
 		Authenticated:           config.Config.SecureConnection && config.Config.Password != "",
 		ErrorMessage:            errorMessage,
 		PopUpMessage:            popupMessage,
 		MempoolFeeRate:          liquid.EstimateFee(),
 		ColorScheme:             config.Config.ColorScheme,
+		LiquidEnabled:           true,
 		LiquidAddress:           addr,
 		LiquidBalance:           satAmount,
 		TxId:                    txid,
@@ -2154,7 +2210,7 @@ func submitHandler(w http.ResponseWriter, r *http.Request) {
 
 		case "advertiseLiquidBalance":
 			enabled := r.FormValue("enabled") == "on"
-			if enabled && !config.Config.AllowSwapRequests {
+			if enabled && (!config.Config.AllowSwapRequests || !config.Config.LiquidEnabled) {
 				redirectWithError(w, r, "/liquid?", errors.New("liquid swap requests are disabled"))
 				return
 			}
@@ -2867,12 +2923,6 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		allowSwapRequests, err := strconv.ParseBool(r.FormValue("allowSwapRequests"))
-		if err != nil {
-			redirectWithError(w, r, "/config?", err)
-			return
-		}
-
 		config.Config.ColorScheme = r.FormValue("colorScheme")
 		config.Config.NodeApi = r.FormValue("nodeApi")
 		config.Config.BitcoinApi = r.FormValue("bitcoinApi")
@@ -2895,27 +2945,44 @@ func saveConfigHandler(w http.ResponseWriter, r *http.Request) {
 			bitcoinSwaps = false
 		}
 
+		liquidEnabled, err := strconv.ParseBool(r.FormValue("liquidEnabled"))
+		if err != nil {
+			liquidEnabled = false
+		}
+
+		// swap requests are accepted whenever at least one asset backend is enabled.
+		// If the user disables both, we leave that choice visible here (and deny swap
+		// requests accordingly) rather than silently flipping Bitcoin Swaps back on -
+		// SavePS keeps peerswapd itself alive by writing bitcoinswaps=true regardless,
+		// since the daemon refuses to start with both disabled.
+		allowSwapRequests := liquidEnabled || bitcoinSwaps
+
 		// disable broadcasting
-		if !allowSwapRequests {
+		if !liquidEnabled {
 			ln.AdvertiseLiquidBalance = false
 			db.Save("Peers", "AdvertiseLiquidBalance", ln.AdvertiseLiquidBalance)
 		}
 
-		if !allowSwapRequests || !bitcoinSwaps {
+		if !bitcoinSwaps {
 			ln.AdvertiseBitcoinBalance = false
 			db.Save("Peers", "AdvertiseBitcoinBalance", ln.AdvertiseBitcoinBalance)
 		}
 
-		mustRestart := false
-		if config.Config.BitcoinSwaps != bitcoinSwaps || config.Config.ElementsUser != r.FormValue("elementsUser") || config.Config.ElementsPass != r.FormValue("elementsPass") {
+		mustRestart := config.Config.LiquidEnabled != liquidEnabled || config.Config.BitcoinSwaps != bitcoinSwaps
+		if liquidEnabled && (config.Config.ElementsUser != r.FormValue("elementsUser") || config.Config.ElementsPass != r.FormValue("elementsPass")) {
 			mustRestart = true
 		}
 
+		config.Config.LiquidEnabled = liquidEnabled
 		config.Config.BitcoinSwaps = bitcoinSwaps
-		config.Config.ElementsUser = r.FormValue("elementsUser")
-		config.Config.ElementsPass = r.FormValue("elementsPass")
-		config.Config.ElementsDir = r.FormValue("elementsDir")
-		config.Config.ElementsDirMapped = r.FormValue("elementsDirMapped")
+		if liquidEnabled {
+			// fields are disabled client-side (and not submitted) when Liquid is off,
+			// so keep whatever was previously stored instead of clearing it
+			config.Config.ElementsUser = r.FormValue("elementsUser")
+			config.Config.ElementsPass = r.FormValue("elementsPass")
+			config.Config.ElementsDir = r.FormValue("elementsDir")
+			config.Config.ElementsDirMapped = r.FormValue("elementsDirMapped")
+		}
 		config.Config.BitcoinHost = r.FormValue("bitcoinHost")
 		config.Config.BitcoinUser = r.FormValue("bitcoinUser")
 		config.Config.BitcoinPass = r.FormValue("bitcoinPass")

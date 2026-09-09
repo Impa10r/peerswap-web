@@ -34,7 +34,7 @@ import (
 
 const (
 	// App VERSION tag
-	VERSION = "v7.0.0"
+	VERSION = "v7.0.0.1"
 	// Unusable BTC balance
 	ANCHOR_RESERVE = 25_000
 	// assume creatediscountct=1 for mainnet in elements.conf
@@ -317,7 +317,7 @@ func onTimer() {
 		}
 	}()
 
-	if !discountedvSizeIdentified {
+	if config.Config.LiquidEnabled && !discountedvSizeIdentified {
 		// identify if Elements Core supports CT discounts
 		elementsVersion := liquid.GetVersion()
 		if elementsVersion > 0 {
@@ -380,8 +380,8 @@ func onTimer() {
 }
 
 func liquidBackup(force bool) {
-	// skip backup if missing RPC or Telegram credentials
-	if config.Config.ElementsPass == "" || config.Config.ElementsUser == "" || chatId == 0 {
+	// skip backup if Liquid is disabled or missing RPC or Telegram credentials
+	if !config.Config.LiquidEnabled || config.Config.ElementsPass == "" || config.Config.ElementsUser == "" || chatId == 0 {
 		return
 	}
 
@@ -1160,6 +1160,10 @@ func convertSwapsToHTMLTable(swaps []*peerswaprpc.PrettyPrintSwap, nodeId string
 
 // Check Peg-in status
 func checkPegin() {
+	if !config.Config.LiquidEnabled {
+		return
+	}
+
 	currentBlockHeight := ln.GetBlockHeight()
 
 	if currentBlockHeight > ln.JoinBlockHeight && ln.MyRole == "none" && ln.ClaimJoinHandler != "" {
@@ -1487,6 +1491,10 @@ func findSwapInCandidate(candidate *AutoSwapParams) error {
 }
 
 func executeAutoSwap() {
+	if !config.Config.LiquidEnabled {
+		return
+	}
+
 	client, cleanup, err := ps.GetClient(config.Config.RpcHost)
 	if err != nil {
 		return
@@ -1900,7 +1908,7 @@ func advertiseBalances() {
 			})
 		}
 
-		if ln.AdvertiseLiquidBalance {
+		if config.Config.LiquidEnabled && ln.AdvertiseLiquidBalance {
 			// cap the shown balance to maximum swappable
 			showBalance := min(maxBalance, liquidBalance)
 			// round down to 0 if below 100k
@@ -1995,6 +2003,9 @@ func pollBalances() {
 
 // returns spendable Liquid BTC balance
 func getUnlockedLbtcBalance() (liquidBalance uint64) {
+	if !config.Config.LiquidEnabled {
+		return 0
+	}
 	var utxosLBTC []liquid.UTXO
 	// this list excludes locked outputs
 	liquid.ListUnspent(&utxosLBTC, elementsBitcoinId)

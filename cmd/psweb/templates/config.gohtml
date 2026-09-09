@@ -11,26 +11,26 @@
               <div class="column has-text-left" style="padding-left:.75rem; padding-right:.75rem"> 
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Swap Requests</label>
+                    <label title="Disable to run this node Bitcoin-only, without an Elements/Liquid node" class="label">Liquid Swaps *</label>
                   </div>
                   <div class="field-body">
                     <div class="select is-medium is-fullwidth">
-                      <select name="allowSwapRequests">
-                        <option value="true" {{if .Config.AllowSwapRequests}}selected{{end}}>Allowed</option>
-                        <option value="false" {{if not .Config.AllowSwapRequests}}selected{{end}}>Denied</option>
+                      <select id="liquidEnabled" name="liquidEnabled">
+                        <option value="true" {{if .Config.LiquidEnabled}}selected{{end}}>Enabled</option>
+                        <option value="false" {{if not .Config.LiquidEnabled}}selected{{end}}>Disabled</option>
                       </select>
                     </div>
                   </div>
                 </div>
                 <div class="field is-horizontal">
                   <div class="field-label is-normal">
-                    <label class="label">Bitcon Swaps *</label>
+                    <label title="If Liquid Swaps is also disabled, peerswapd keeps Bitcoin swaps enabled internally to stay running, but swap requests will still be denied" class="label">Bitcon Swaps *</label>
                   </div>
                   <div class="field-body">
                     <div class="select is-medium is-fullwidth">
                       <select name="bitcoinSwaps">
                         <option value="true" {{if eq .Config.BitcoinSwaps true}}selected{{end}}>Enabled</option>
-                        <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>          
+                        <option value="false" {{if eq .Config.BitcoinSwaps false}}selected{{end}}>Disabled</option>
                       </select>
                     </div>
                   </div>
@@ -165,36 +165,38 @@
                     <input class="input is-medium" type="text" value={{.Config.RpcHost}} name="rpcHost" placeholder="localhost:42069">
                   </div>
                 </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements User *</label>
+                <div id="elementsFields">
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements User *</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium elementsField" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
+                    </div>
                   </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="text" value="{{.Config.ElementsUser}}" name="elementsUser" placeholder="Elements Core RPC User" required>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Pass *</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium elementsField" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
+                    </div>
                   </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">{{if eq .ErrorMessage "welcome"}}❗ {{end}}Elements Pass *</label>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Elements Own Folder</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium elementsField" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
+                    </div>
                   </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="password" value="{{.Config.ElementsPass}}" name="elementsPass" placeholder="Elements Core RPC Password" required>
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Elements Own Folder</label>
-                  </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="text" value="{{.Config.ElementsDir}}" name="elementsDir" required>
-                  </div>
-                </div>
-                <div class="field is-horizontal">
-                  <div class="field-label is-normal">
-                    <label class="label">Elements Mapped Folder</label>
-                  </div>
-                  <div class="field-body">
-                    <input class="input is-medium" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                      <label class="label">Elements Mapped Folder</label>
+                    </div>
+                    <div class="field-body">
+                      <input class="input is-medium elementsField" type="text" value="{{.Config.ElementsDirMapped}}" name="elementsDirMapped" required>
+                    </div>
                   </div>
                 </div>
                 <div class="field is-horizontal">
@@ -332,6 +334,23 @@
                   document.getElementById('secureConnectionFalse').selected = false;
                 }
               });
+            });
+          </script>
+          <script>
+            document.addEventListener('DOMContentLoaded', () => {
+              const liquidEnabled = document.getElementById('liquidEnabled');
+              const elementsFields = document.querySelectorAll('.elementsField');
+
+              function applyLiquidEnabled() {
+                const enabled = liquidEnabled.value === 'true';
+                elementsFields.forEach((field) => {
+                  field.disabled = !enabled;
+                });
+                document.getElementById('elementsFields').style.opacity = enabled ? '1' : '0.5';
+              }
+
+              liquidEnabled.addEventListener('change', applyLiquidEnabled);
+              applyLiquidEnabled();
             });
           </script>
         </div>
