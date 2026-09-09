@@ -1,6 +1,6 @@
 # Versions
 
-№№ 7.0.0.1
+## 7.0.0.1
 
 - Bump Go to 1.25.13
 - Add option to disable Liquid swaps
