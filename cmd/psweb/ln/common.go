@@ -326,7 +326,7 @@ func OnMyCustomMessage(nodeId string, payload []byte) {
 
 		if config.Config.AllowSwapRequests {
 			// repeat last
-			if AdvertiseLiquidBalance && SentLiquidBalances[nodeId] != nil {
+			if config.Config.LiquidEnabled && AdvertiseLiquidBalance && SentLiquidBalances[nodeId] != nil {
 				if SendCustomMessage(nodeId, &Message{
 					Version: MESSAGE_VERSION,
 					Memo:    "balance",

@@ -132,7 +132,7 @@ func SavePS() {
 	t += setPeerswapdVariable("lnd.tlscertpath", filepath.Join(Config.LightningDir, "tls.cert"), "", "")
 	t += setPeerswapdVariable("lnd.macaroonpath", filepath.Join(Config.LightningDir, "data", "chain", "bitcoin", Config.Chain, "admin.macaroon"), "", "LND_MACAROONPATH")
 
-	if Config.ElementsPass == "" || Config.ElementsUser == "" {
+	if !Config.LiquidEnabled || Config.ElementsPass == "" || Config.ElementsUser == "" {
 		// disable Liquid so that peerswapd does not fail
 		t += "liquidswaps=false\n"
 		// enable Bitcoin swaps because both cannot be disabled

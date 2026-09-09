@@ -20,6 +20,7 @@ type Configuration struct {
 	ElementsUser            string
 	ElementsPass            string
 	BitcoinSwaps            bool
+	LiquidEnabled           bool
 	Chain                   string
 	LocalMempool            string
 	ElementsDir             string // what Elements see inside its docker container
@@ -72,6 +73,7 @@ func Load(dataDir string, network string) {
 	Config.MaxHistory = 20
 	Config.ElementsPass = ""
 	Config.BitcoinSwaps = true
+	Config.LiquidEnabled = true
 	Config.LocalMempool = ""
 	Config.ListenPort = "1984"
 	Config.ElementsDir = filepath.Join("home", currentUser, ".elements")

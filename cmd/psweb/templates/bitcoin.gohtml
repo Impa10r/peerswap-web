@@ -39,18 +39,20 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
           <div class="box has-text-left">
             <div class="tabs is-large is-boxed">
               <ul>
-                <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-in</a></li>
-                <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" ><a href="javascript:void(0);" onclick="tabSend()">Send BTC</a></li>
+                {{if .LiquidEnabled}}
+                  <li title="The process will require 102 confirmations. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="peginTab" class="is-active"><a href="javascript:void(0);" onclick="tabPegin()">Liquid Peg-in</a></li>
+                {{end}}
+                <li title="Withdrawal to an external address. Transaction fee rate can be bumped with {{if .CanRBF}}RBF{{else}}CPFP{{end}}." id="sendTab" {{if not .LiquidEnabled}}class="is-active"{{end}}><a href="javascript:void(0);" onclick="tabSend()">Send BTC</a></li>
               </ul>
             </div>
             <form id="myForm" autocomplete="off" action="/pegin" method="post" onsubmit="return handleFormSubmit(event)">
               <input autocomplete="false" name="hidden" type="text" style="display:none;">
-              <div id="sendAddressField" class="field is-horizontal" style="display:none">
+              <div id="sendAddressField" class="field is-horizontal" {{if .LiquidEnabled}}style="display:none"{{end}}>
                 <div class="field-label is-normal">
                   <label class="label">Address</label>
                 </div>
                 <div class="field-body">
-                  <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address">
+                  <input class="input is-medium" type="text" id="sendAddress" name="sendAddress" placeholder="₿ Bitcoin Address" {{if not .LiquidEnabled}}required{{end}}>
                 </div>
               </div>
               <div title="Amount in sats" class="field is-horizontal">
@@ -116,10 +118,10 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
                 </div>
               </div>
               <!-- Hidden true/false element -->
-              <input type="hidden" id="isPegin" name="isPegin" value="true">
+              <input type="hidden" id="isPegin" name="isPegin" value="{{if .LiquidEnabled}}true{{else}}false{{end}}">
               <div style="text-align: center;">
-                <input id="sendButton" class="button is-large" type="submit" value="Start Peg-in">
-                <input title="Generate peg-in address to be funded by an external wallet" id="externalButton" class="button is-large" name="externalButton" type="submit" value="External Funding">
+                <input id="sendButton" class="button is-large" type="submit" value="{{if .LiquidEnabled}}Start Peg-in{{else}}Send Bitcoin{{end}}">
+                <input title="Generate peg-in address to be funded by an external wallet" id="externalButton" class="button is-large" name="externalButton" type="submit" value="External Funding" {{if not .LiquidEnabled}}style="display:none"{{end}}>
               </div>
           </div>
         {{else}}
@@ -359,7 +361,7 @@ Amount is capped at remote channel balance to mimic brute force discovery" for="
             }
 
             function tabSend() {
-              document.getElementById('peginTab').classList.remove("is-active");
+              document.getElementById('peginTab')?.classList.remove("is-active");
               document.getElementById('sendTab').classList.add("is-active");
               document.getElementById("sendAddressField").style.display = "";
               document.getElementById('sendAddress').setAttribute('required', 'true');

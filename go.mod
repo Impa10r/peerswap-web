@@ -1,6 +1,6 @@
 module peerswap-web
 
-go 1.25.12
+go 1.25.13
 
 // We want to format raw bytes as hex instead of base64. The forked version
 // allows us to specify that as an option.
