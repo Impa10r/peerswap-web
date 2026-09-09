@@ -57,6 +57,9 @@ type Configuration struct {
 
 var Config Configuration
 
+// set by LoadPS() when peerswap.conf explicitly configures an Elements RPC port
+var ElementsPortConfigured bool
+
 func Load(dataDir string, network string) {
 
 	// env gets priority
@@ -127,6 +130,13 @@ func Load(dataDir string, network string) {
 
 	// load config from peerswap.conf
 	LoadPS()
+
+	// on first startup, if Elements was never configured (no port in peerswap.conf
+	// and no ELEMENTS_PORT env), assume Elements is not installed and default to
+	// Bitcoin-only rather than forcing the user through Liquid setup
+	if !ElementsPortConfigured && os.Getenv("ELEMENTS_PORT") == "" {
+		Config.LiquidEnabled = false
+	}
 
 	configFile := filepath.Join(Config.DataDir, "pswebconfig.json")
 

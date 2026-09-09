@@ -110,6 +110,7 @@ func LoadPS() {
 	eport := GetPeerswapCLNSetting("Liquid", "rpcport")
 	if eport != "" {
 		Config.ElementsPort = eport
+		ElementsPortConfigured = true
 	}
 
 	// on first start without config there will be no elements user and password

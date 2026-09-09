@@ -43,6 +43,7 @@ func LoadPS() {
 	port := GetPeerswapLNDSetting("elementsd.rpcport")
 	if port != "" {
 		Config.ElementsPort = port
+		ElementsPortConfigured = true
 	}
 
 	// on the first start without config there will be no elements user and password
