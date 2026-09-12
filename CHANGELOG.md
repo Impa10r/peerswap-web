@@ -1,5 +1,9 @@
 # Versions
 
+## 7.0.1
+
+- Disable new L-BTC swaps following the Liquid incident
+
 ## 7.0.0.1
 
 - Bump Go to 1.25.13

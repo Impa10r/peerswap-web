@@ -83,7 +83,7 @@ func Load(dataDir string, network string) {
 	Config.ElementsDirMapped = filepath.Join("home", currentUser, ".elements")
 	Config.ElementsWallet = "peerswap"
 	Config.ElementsHost = "http://127.0.0.1"
-	Config.ElementsPort = "18884"
+	Config.ElementsPort = "7041"
 
 	Config.Chain = network
 	Config.NodeApi = "https://amboss.space/node"
