@@ -11,7 +11,7 @@ on:
 
 env:
   IMAGE: ghcr.io/impa10r/peerswap-web
-  COMMIT: 0d398008c8902816a300505962e672e9a24807a9
+  COMMIT: 62b80bf6b2e3392f0f61352560bccbb1e81bef65
 
 jobs:
   build:
