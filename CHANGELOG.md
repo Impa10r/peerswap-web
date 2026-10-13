@@ -1,5 +1,10 @@
 # Versions
 
+## 7.0.2
+
+- Pin PeerSwap v7.0.2 in docker image
+- Bump dependencies
+
 ## 7.0.1
 
 - Disable new L-BTC swaps following the Liquid incident

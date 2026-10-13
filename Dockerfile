@@ -2,7 +2,7 @@
 ## Build PeerSwap and PeerSwap Web UI in a joint container
 ###
 
-FROM golang:1.25.13-bookworm AS builder
+FROM golang:1.27.2-bookworm AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
